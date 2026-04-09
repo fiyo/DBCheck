@@ -36,7 +36,7 @@ pyinstaller --onefile --name mysql_inspector \
 ```bash
 [root@localhost dist]# ./mysql_inspector
 ```
-<img width="572" height="359" alt="image" src="https://github.com/user-attachments/assets/26cb12e8-d943-4a34-a912-db688c026c7c" />
+<img width="572" height="359" alt="image" src="https://github.com/fiyo/DBCheck/blob/main/snapshot/file1.png" />
 
 ## 鸣谢
 本项目是在 [Zhh9126/MySQLDBCHECK](https://github.com/Zhh9126/MySQLDBCHECK.git) 基础上改进而来，在原 MySQL 数据库巡检功能的基础上增加了 **PostgreSQL** 数据库支持。
