@@ -115,7 +115,7 @@ python3 main.py
 ## 打包部署
 
 ```bash
-pyinstaller --onefile --name db_inspector \
+pyinstaller --onefile --name dbcheck \
     --hidden-import pymysql \
     --hidden-import psycopg2 \
     --hidden-import docx \
@@ -130,7 +130,8 @@ pyinstaller --onefile --name db_inspector \
 打包后在 `dist` 目录下执行：
 
 ```bash
-./db_inspector
+cd dist
+./dbcheck
 ```
 
 ---
