@@ -2,7 +2,7 @@
 
 本工具支持对 **MySQL** 和 **PostgreSQL** 两种主流关系型数据库进行自动化健康巡检，生成格式规范的 Microsoft Word 报告，帮助 DBA 和运维人员快速掌握数据库运行状况。
 
-> 本项目由 [Zhh9126/MySQLDBCHECK](https://github.com/Zhh9126/MySQLDBCHECK.git) 改进而来，在原 MySQL 支持的基础上新增了 PostgreSQL 支持。目前部分功能仍在持续完善中，欢迎反馈问题与建议。
+> 本项目由 [Zhh9126/MySQLDBCHECK](https://github.com/Zhh9126/MySQLDBCHECK.git) 改进而来，在原 MySQL 支持的基础上新增了 PostgreSQL 支持。
 
 ---
 
@@ -168,3 +168,5 @@ pyinstaller --onefile --name db_inspector \
 ## 鸣谢
 
 感谢 [Zhh9126/MySQLDBCHECK](https://github.com/Zhh9126/MySQLDBCHECK.git) 作者的贡献！
+
+目前部分功能仍在持续完善中，欢迎反馈问题与建议。
