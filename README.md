@@ -1,6 +1,15 @@
 # 数据库巡检工具 - DBCheck
 
-本工具支持对 **MySQL** 和 **PostgreSQL** 两种主流关系型数据库进行自动化健康巡检，生成格式规范的 Microsoft Word 报告，帮助 DBA 和运维人员快速掌握数据库运行状况。
+支持对 **MySQL** 和 **PostgreSQL** 两种主流关系型数据库进行自动化健康巡检，生成格式规范的 Microsoft Word 报告，帮助 DBA 和运维人员快速掌握数据库运行状况、发现潜在风险。
+
+## 四种使用方式
+
+| 方式 | 说明 |
+|------|------|
+| 🖥️ 命令行 | `python main.py`，适合熟悉终端的用户 |
+| 🌐 Web UI | `python web_ui.py`，浏览器图形界面，点点点完成巡检 |
+| 🤖 **OpenClaw Skill** | 告诉 AI 助手"帮我巡检 XX 库"，零操作自动完成 |
+| 📦 打包部署 | PyInstaller 打包成分发版，给团队成员使用 |
 
 > 本项目由 [Zhh9126/MySQLDBCHECK](https://github.com/Zhh9126/MySQLDBCHECK.git) 改进而来，在原 MySQL 支持的基础上新增了 PostgreSQL 支持。
 
@@ -160,6 +169,68 @@ python3 web_ui.py
 
 ![历史报告](snapshot/webui10.png)
 *图 10：历史报告列表页，支持按名称、大小、时间浏览*
+
+### OpenClaw Skill（AI 助手直连）
+
+本项目已发布为 [ClawHub](https://clawhub.ai/skills/dbcheck) 上的 OpenClaw Skill，接入 AI 助手后可通过自然语言直接触发巡检，无需手动操作命令行或 Web UI。
+
+#### 安装方式
+
+在 OpenClaw 客户端执行：
+
+```bash
+clawhub install dbcheck
+```
+
+#### 使用方式
+
+安装后，直接告诉 AI 助手你想做的事，例如：
+
+> "帮我巡检一下生产 MySQL 库，IP 是 192.168.1.10，用户名 root，密码是 xxx"
+
+AI 助手会自动加载 Skill，按步骤询问缺少的信息（端口、标签、巡检人员姓名等），然后调用巡检脚本生成 Word 报告，最后把报告打开给你。
+
+#### 支持的指令
+
+| 指令示例 | 说明 |
+|---------|------|
+| 帮我巡检一下 MySQL 库 | 单机 MySQL 巡检 |
+| 帮我巡检一下 PostgreSQL 库 | 单机 PG 巡检 |
+| 巡检 192.168.1.10 的 MySQL | 指定 IP 的快速巡检 |
+| 生成一份数据库巡检报告 | 触发完整巡检流程 |
+
+#### 完整命令参数
+
+```bash
+python run_inspection.py \
+    --type mysql \          # 数据库类型: mysql 或 pg
+    --host <IP> \           # 主机地址
+    --port 3306 \           # 端口（MySQL 默认 3306，PG 默认 5432）
+    --user <用户名> \        # 数据库用户名
+    --password <密码> \     # 数据库密码
+    --label "<标签>" \       # 报告命名用
+    --inspector "<姓名>" \  # 巡检人员
+    --ssh-host <SSH_IP> \   # 可选：SSH 主机
+    --ssh-user <SSH用户> \  # 可选：SSH 用户名
+    --ssh-password <密码>  # 可选：SSH 密码
+```
+
+> ⚠️ **安全提示**：Skill 凭据仅用于建立本地连接，不会写入磁盘或发送到任何第三方。ClawHub 安全扫描会将 base64 加密工具类误标记为"CryptoRequires wallet"，这是本地密码保存的正常用途，不是加密货币功能，请放心使用。
+
+#### Skill 文件说明
+
+```
+~/.workbuddy/skills/dbcheck/
+├── SKILL.md           # Skill 说明（供 AI 助手理解何时及如何调用）
+├── security.md        # 安全说明（解释扫描器误判原因）
+└── scripts/
+    ├── run_inspection.py   # 非交互式入口
+    ├── main_mysql.py       # MySQL 巡检逻辑
+    ├── main_pg.py         # PostgreSQL 巡检逻辑
+    └── main.py             # 菜单入口
+```
+
+> 本 Skill 源代码完全开源，可在 `~/.workbuddy/skills/dbcheck/scripts/` 目录下查看所有脚本，确认无恶意行为后再安装使用。
 
 ---
 
