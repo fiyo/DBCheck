@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DBCheck · 数据库巡检工具</title>
+<style>
+/* ─── Reset & Base ─── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #0d1117;
+  --surface:   #161b22;
+  --surface2:  #1c2330;
+  --border:    #30363d;
+  --accent:    #2ea043;
+  --accent2:   #388bfd;
+  --warn:      #e3b341;
+  --danger:    #f85149;
+  --text:      #e6edf3;
+  --text-muted:#8b949e;
+  --radius:    12px;
+  --trans:     0.22s ease;
+}
+
+html { font-size: 15px; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+               'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  min-height: 100vh;
+  line-height: 1.6;
+}
+
+/* ─── Layout ─── */
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* ─── Sidebar ─── */
+.sidebar {
+  width: 260px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  z-index: 100;
+}
+
+.sidebar-logo {
+  padding: 28px 24px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.sidebar-logo .logo-icon {
+  width: 36px; height: 36px;
+  background: linear-gradient(135deg, #2ea043, #388bfd);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+  margin-bottom: 10px;
+}
+.sidebar-logo h1 {
+  font-size: 16px; font-weight: 600; letter-spacing: .5px;
+}
+.sidebar-logo p {
+  font-size: 11px; color: var(--text-muted); margin-top: 2px;
+}
+
+.nav-section {
+  padding: 16px 12px 8px;
+  font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 1px;
+  color: var(--text-muted);
+}
+
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px;
+  margin: 2px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13.5px;
+  color: var(--text-muted);
+  transition: all var(--trans);
+  user-select: none;
+}
+.nav-item:hover { background: var(--surface2); color: var(--text); }
+.nav-item.active {
+  background: rgba(46,160,67,.15);
+  color: var(--accent);
+  font-weight: 500;
+}
+.nav-item .icon { width: 18px; text-align: center; flex-shrink: 0; }
+
+.sidebar-footer {
+  margin-top: auto;
+  padding: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 11px; color: var(--text-muted);
+}
+
+/* ─── Main ─── */
+.main {
+  margin-left: 260px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.topbar {
+  height: 56px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center;
+  padding: 0 32px;
+  gap: 12px;
+  position: sticky; top: 0; z-index: 50;
+}
+.topbar-title {
+  font-size: 15px; font-weight: 600;
+}
+.topbar-sub {
+  font-size: 12px; color: var(--text-muted);
+  margin-left: auto;
+}
+
+.content {
+  padding: 36px 40px;
+  max-width: 900px;
+}
+
+/* ─── Cards ─── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px 32px;
+  margin-bottom: 20px;
+}
+.card-title {
+  font-size: 15px; font-weight: 600;
+  margin-bottom: 20px;
+  display: flex; align-items: center; gap: 8px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.card-title .badge {
+  font-size: 11px; font-weight: 500;
+  padding: 2px 8px; border-radius: 20px;
+  background: rgba(56,139,253,.15); color: var(--accent2);
+  margin-left: auto;
+}
+
+/* ─── Steps ─── */
+.steps {
+  display: flex; align-items: center; gap: 0;
+  margin-bottom: 36px;
+}
+.step {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.step .dot {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 600;
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  transition: all var(--trans);
+  flex-shrink: 0;
+}
+.step.active .dot {
+  background: var(--accent2); border-color: var(--accent2); color: #fff;
+}
+.step.done .dot {
+  background: var(--accent); border-color: var(--accent); color: #fff;
+}
+.step.active { color: var(--text); }
+.step.done { color: var(--accent); }
+.step-line {
+  flex: 1; height: 1px;
+  background: var(--border);
+  margin: 0 4px;
+  min-width: 24px;
+}
+.step-line.done { background: var(--accent); }
+
+/* ─── DB Type Selector ─── */
+.type-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+}
+.type-card {
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  cursor: pointer;
+  transition: all var(--trans);
+  display: flex; flex-direction: column; gap: 8px;
+}
+.type-card:hover {
+  border-color: var(--accent2);
+  background: rgba(56,139,253,.05);
+}
+.type-card.selected {
+  border-color: var(--accent2);
+  background: rgba(56,139,253,.08);
+}
+.type-card .tc-logo {
+  font-size: 28px; line-height: 1;
+}
+.type-card .tc-name {
+  font-size: 15px; font-weight: 600;
+}
+.type-card .tc-desc {
+  font-size: 12px; color: var(--text-muted); line-height: 1.5;
+}
+.type-card .tc-check {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 1.5px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px;
+  margin-left: auto;
+  transition: all var(--trans);
+}
+.type-card.selected .tc-check {
+  background: var(--accent2); border-color: var(--accent2); color: #fff;
+}
+.tc-header { display: flex; align-items: flex-start; }
+
+/* ─── Form ─── */
+.form-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px 20px;
+}
+.form-grid.single { grid-template-columns: 1fr; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field.full { grid-column: 1/-1; }
+.field label {
+  font-size: 12.5px; font-weight: 500; color: var(--text-muted);
+  display: flex; align-items: center; gap: 5px;
+}
+.field label .req { color: var(--danger); }
+.field label .opt {
+  font-size: 10px; font-weight: 400;
+  background: var(--surface2); color: var(--text-muted);
+  padding: 1px 5px; border-radius: 4px;
+}
+input[type="text"],
+input[type="password"],
+input[type="number"],
+select {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13.5px;
+  outline: none;
+  transition: border-color var(--trans);
+  width: 100%;
+}
+input:focus, select:focus {
+  border-color: var(--accent2);
+  box-shadow: 0 0 0 3px rgba(56,139,253,.12);
+}
+input::placeholder { color: var(--text-muted); }
+select option { background: var(--surface2); }
+
+.input-group {
+  display: flex; gap: 8px; align-items: stretch;
+}
+.input-group input { flex: 1; }
+.input-group .btn-test {
+  padding: 9px 14px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 12px; cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--trans);
+}
+.input-group .btn-test:hover {
+  border-color: var(--accent2); color: var(--accent2);
+}
+
+/* ─── Toggle ─── */
+.toggle-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  margin-bottom: 4px;
+}
+.toggle-row .toggle-label { font-size: 13.5px; flex: 1; }
+.toggle-row .toggle-sub { font-size: 12px; color: var(--text-muted); }
+.toggle {
+  width: 38px; height: 22px; border-radius: 11px;
+  background: var(--border);
+  position: relative; cursor: pointer;
+  transition: background var(--trans);
+  flex-shrink: 0;
+}
+.toggle.on { background: var(--accent2); }
+.toggle::after {
+  content: '';
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #fff;
+  position: absolute; top: 3px; left: 3px;
+  transition: transform var(--trans);
+}
+.toggle.on::after { transform: translateX(16px); }
+.ssh-fields { display: none; margin-top: 16px; }
+.ssh-fields.visible { display: grid; }
+
+/* ─── Buttons ─── */
+.btn-row {
+  display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;
+}
+.btn {
+  padding: 10px 22px; border-radius: 8px;
+  font-size: 13.5px; font-weight: 500;
+  cursor: pointer; border: none;
+  transition: all var(--trans);
+  display: inline-flex; align-items: center; gap: 7px;
+}
+.btn-ghost {
+  background: transparent; color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+.btn-ghost:hover { border-color: var(--text-muted); color: var(--text); }
+.btn-primary {
+  background: var(--accent2); color: #fff;
+}
+.btn-primary:hover { background: #4493f8; }
+.btn-primary:disabled { background: var(--border); color: var(--text-muted); cursor: not-allowed; }
+.btn-success {
+  background: var(--accent); color: #fff;
+}
+.btn-success:hover { background: #3fb950; }
+.btn-danger {
+  background: rgba(248,81,73,.15); color: var(--danger);
+  border: 1px solid rgba(248,81,73,.3);
+}
+
+/* ─── Status Banner ─── */
+.status-banner {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border-radius: 8px;
+  font-size: 13px; margin-top: 10px;
+}
+.status-banner.ok { background: rgba(46,160,67,.12); color: var(--accent); border: 1px solid rgba(46,160,67,.25); }
+.status-banner.err { background: rgba(248,81,73,.12); color: var(--danger); border: 1px solid rgba(248,81,73,.25); }
+.status-banner.info { background: rgba(56,139,253,.12); color: var(--accent2); border: 1px solid rgba(56,139,253,.25); }
+.status-banner.warn { background: rgba(227,179,65,.12); color: var(--warn); border: 1px solid rgba(227,179,65,.25); }
+
+/* ─── Inspector Step ─── */
+.inspector-wrap {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 24px 0 8px;
+}
+.inspector-avatar {
+  width: 72px; height: 72px; border-radius: 50%;
+  background: linear-gradient(135deg, #2ea043, #388bfd);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 32px; margin-bottom: 16px;
+}
+.inspector-wrap label {
+  font-size: 13px; color: var(--text-muted); margin-bottom: 8px;
+}
+.inspector-wrap input {
+  width: 240px; text-align: center; font-size: 16px; font-weight: 500;
+}
+
+/* ─── Run Step ─── */
+.run-panel {}
+.log-box {
+  background: #0d1117;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  height: 280px;
+  overflow-y: auto;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: #8b949e;
+}
+.log-box .log-line { white-space: pre-wrap; word-break: break-all; }
+.log-box .log-line.ok  { color: #3fb950; }
+.log-box .log-line.err { color: #f85149; }
+.log-box .log-line.info { color: #58a6ff; }
+
+.progress-bar-wrap {
+  background: var(--surface2);
+  border-radius: 6px; height: 6px; overflow: hidden;
+  margin: 16px 0 8px;
+}
+.progress-bar {
+  height: 100%; border-radius: 6px;
+  background: linear-gradient(90deg, var(--accent2), var(--accent));
+  transition: width 0.5s ease;
+}
+
+.result-card {
+  display: flex; align-items: center; gap: 16px;
+  padding: 20px 24px;
+  background: rgba(46,160,67,.08);
+  border: 1px solid rgba(46,160,67,.25);
+  border-radius: 10px;
+  margin-top: 16px;
+}
+.result-card .ri { font-size: 28px; }
+.result-card .rd h3 { font-size: 14px; font-weight: 600; color: var(--accent); }
+.result-card .rd p  { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.result-card .btn  { margin-left: auto; flex-shrink: 0; }
+
+/* ─── Reports Page ─── */
+.reports-list { display: flex; flex-direction: column; gap: 8px; }
+.report-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  transition: border-color var(--trans);
+}
+.report-item:hover { border-color: var(--accent2); }
+.report-item .ri-icon { font-size: 20px; flex-shrink: 0; }
+.report-item .ri-info { flex: 1; }
+.report-item .ri-name { font-size: 13px; font-weight: 500; }
+.report-item .ri-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.report-item .btn { flex-shrink: 0; }
+
+/* ─── Home Page ─── */
+.home-hero {
+  padding: 48px 0 32px;
+  text-align: center;
+}
+.home-hero h2 {
+  font-size: 28px; font-weight: 700;
+  background: linear-gradient(135deg, #e6edf3, var(--accent2));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  margin-bottom: 10px;
+}
+.home-hero p { color: var(--text-muted); font-size: 14px; max-width: 480px; margin: 0 auto 32px; }
+
+.feature-grid {
+  display: grid; grid-template-columns: repeat(3,1fr); gap: 14px;
+}
+.feature-item {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 18px 16px;
+}
+.feature-item .fi-icon { font-size: 22px; margin-bottom: 8px; }
+.feature-item .fi-title { font-size: 13.5px; font-weight: 600; margin-bottom: 4px; }
+.feature-item .fi-desc  { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
+.quick-actions {
+  display: flex; gap: 12px; justify-content: center; margin-top: 8px;
+}
+
+/* ─── Pages ─── */
+.page { display: none; }
+.page.active { display: flex; flex-direction: column; }
+
+/* ─── Spinner ─── */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+  display: inline-block;
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,.2);
+  border-top-color: #fff;
+  animation: spin .7s linear infinite;
+}
+
+/* ─── Tag ─── */
+.tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 500;
+}
+.tag-mysql { background: rgba(255,152,0,.12); color: #ff9800; }
+.tag-pg    { background: rgba(56,139,253,.12); color: var(--accent2); }
+
+/* ─── Responsive ─── */
+@media (max-width: 760px) {
+  .sidebar { width: 200px; }
+  .main { margin-left: 200px; }
+  .form-grid { grid-template-columns: 1fr; }
+  .type-grid  { grid-template-columns: 1fr; }
+  .feature-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- ─── Sidebar ─── -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">🛡️</div>
+      <h1>DBCheck</h1>
+      <p>数据库巡检工具 v2.0</p>
+    </div>
+
+    <div class="nav-section">功能</div>
+    <div class="nav-item active" onclick="showPage('home')" id="nav-home">
+      <span class="icon">🏠</span> 首页
+    </div>
+    <div class="nav-item" onclick="showPage('wizard')" id="nav-wizard">
+      <span class="icon">🔍</span> 新建巡检
+    </div>
+    <div class="nav-item" onclick="showPage('reports')" id="nav-reports">
+      <span class="icon">📄</span> 历史报告
+    </div>
+
+    <div class="sidebar-footer">
+      MySQL · PostgreSQL<br/>
+      <span style="opacity:.5">© 2026 DBCheck</span>
+    </div>
+  </aside>
+
+  <!-- ─── Main ─── -->
+  <div class="main">
+    <div class="topbar">
+      <span class="topbar-title" id="topbar-title">首页</span>
+      <span class="topbar-sub" id="topbar-sub">欢迎使用数据库巡检工具</span>
+    </div>
+
+    <div class="content">
+
+      <!-- ══ Page: Home ══ -->
+      <div class="page active" id="page-home">
+        <div class="home-hero">
+          <h2>数据库健康巡检</h2>
+          <p>自动采集 MySQL / PostgreSQL 数据库关键指标，结合系统资源监控，一键生成专业 Word 巡检报告。</p>
+          <div class="quick-actions">
+            <button class="btn btn-primary" onclick="startWizard()">
+              ▶ 开始巡检
+            </button>
+            <button class="btn btn-ghost" onclick="showPage('reports')">
+              📄 查看历史报告
+            </button>
+          </div>
+        </div>
+
+        <div class="feature-grid">
+          <div class="feature-item">
+            <div class="fi-icon">🗄️</div>
+            <div class="fi-title">双数据库支持</div>
+            <div class="fi-desc">同时支持 MySQL 与 PostgreSQL，覆盖主流生产环境。</div>
+          </div>
+          <div class="feature-item">
+            <div class="fi-icon">📊</div>
+            <div class="fi-title">全面指标采集</div>
+            <div class="fi-desc">连接、内存、锁、复制、索引、慢查询等 20+ 项指标。</div>
+          </div>
+          <div class="feature-item">
+            <div class="fi-icon">🖥️</div>
+            <div class="fi-title">系统资源监控</div>
+            <div class="fi-desc">支持本地采集或 SSH 远程采集 CPU / 内存 / 磁盘信息。</div>
+          </div>
+          <div class="feature-item">
+            <div class="fi-icon">⚠️</div>
+            <div class="fi-title">智能风险分析</div>
+            <div class="fi-desc">自动识别阈值异常，给出风险等级与处理建议。</div>
+          </div>
+          <div class="feature-item">
+            <div class="fi-icon">📝</div>
+            <div class="fi-title">专业 Word 报告</div>
+            <div class="fi-desc">规范模板，覆盖封面、配置、性能、安全等完整章节。</div>
+          </div>
+          <div class="feature-item">
+            <div class="fi-icon">🚀</div>
+            <div class="fi-title">Web 可视化操作</div>
+            <div class="fi-desc">全程界面化，告别命令行，支持实时日志追踪。</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ Page: Wizard ══ -->
+      <div class="page" id="page-wizard">
+
+        <!-- 步骤指示器 -->
+        <div class="steps" id="wizard-steps">
+          <div class="step active" id="s1"><div class="dot">1</div><span>数据库类型</span></div>
+          <div class="step-line"></div>
+          <div class="step" id="s2"><div class="dot">2</div><span>连接信息</span></div>
+          <div class="step-line" id="sl2"></div>
+          <div class="step" id="s3"><div class="dot">3</div><span>SSH 配置</span></div>
+          <div class="step-line" id="sl3"></div>
+          <div class="step" id="s4"><div class="dot">4</div><span>巡检人员</span></div>
+          <div class="step-line" id="sl4"></div>
+          <div class="step" id="s5"><div class="dot">5</div><span>执行巡检</span></div>
+        </div>
+
+        <!-- Step 1: 选择数据库类型 -->
+        <div id="step1" class="card">
+          <div class="card-title">
+            <span>🗄️</span> 选择数据库类型
+            <span class="badge">第 1 步 / 共 5 步</span>
+          </div>
+          <div class="type-grid">
+            <div class="type-card selected" id="tc-mysql" onclick="selectDbType('mysql')">
+              <div class="tc-header">
+                <div class="tc-logo">🐬</div>
+                <div class="tc-check" id="chk-mysql">✓</div>
+              </div>
+              <div class="tc-name">MySQL</div>
+              <div class="tc-desc">适用于 MySQL 5.7 / 8.x 实例，采集连接、InnoDB、慢查询、Binlog 等核心指标。</div>
+            </div>
+            <div class="type-card" id="tc-pg" onclick="selectDbType('pg')">
+              <div class="tc-header">
+                <div class="tc-logo">🐘</div>
+                <div class="tc-check" id="chk-pg"></div>
+              </div>
+              <div class="tc-name">PostgreSQL</div>
+              <div class="tc-desc">适用于 PostgreSQL 10+ 实例，采集连接、缓存、Vacuum、索引、复制等核心指标。</div>
+            </div>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-primary" onclick="gotoStep(2)">下一步 →</button>
+          </div>
+        </div>
+
+        <!-- Step 2: 连接信息 -->
+        <div id="step2" class="card" style="display:none">
+          <div class="card-title">
+            <span>🔌</span> 数据库连接信息
+            <span class="badge">第 2 步 / 共 5 步</span>
+          </div>
+          <div class="form-grid">
+            <div class="field full">
+              <label>实例标签 <span class="req">*</span>
+                <span class="opt">用于报告命名</span></label>
+              <input type="text" id="f-name" placeholder="例: 生产-主库" />
+            </div>
+            <div class="field">
+              <label>主机地址 <span class="req">*</span></label>
+              <input type="text" id="f-host" placeholder="localhost 或 IP 地址" />
+            </div>
+            <div class="field">
+              <label>端口 <span class="req">*</span></label>
+              <input type="number" id="f-port" value="3306" />
+            </div>
+            <div class="field">
+              <label>用户名 <span class="req">*</span></label>
+              <input type="text" id="f-user" placeholder="root / postgres" />
+            </div>
+            <div class="field">
+              <label>密码</label>
+              <input type="password" id="f-password" placeholder="数据库密码" />
+            </div>
+            <div class="field full" id="f-database-wrap" style="display:none">
+              <label>连接数据库 <span class="opt">PostgreSQL</span></label>
+              <input type="text" id="f-database" placeholder="默认 postgres" />
+            </div>
+          </div>
+          <div id="db-test-status" style="margin-top:12px"></div>
+          <div class="btn-row">
+            <button class="btn btn-ghost" onclick="gotoStep(1)">← 上一步</button>
+            <button class="btn btn-ghost" id="btn-test-db" onclick="testDb()">🔗 测试连接</button>
+            <button class="btn btn-primary" onclick="gotoStep(3)">下一步 →</button>
+          </div>
+        </div>
+
+        <!-- Step 3: SSH 配置 -->
+        <div id="step3" class="card" style="display:none">
+          <div class="card-title">
+            <span>🔐</span> SSH 连接配置
+            <span class="badge">第 3 步 / 共 5 步</span>
+          </div>
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
+            配置 SSH 后，巡检报告将包含 CPU、内存、磁盘等系统资源信息。可跳过此步骤仅采集数据库指标。
+          </p>
+          <div class="toggle-row" onclick="toggleSsh()">
+            <span class="toggle-label">启用 SSH 系统信息采集</span>
+            <span class="toggle-sub" id="ssh-toggle-sub">当前：未启用</span>
+            <div class="toggle" id="ssh-toggle"></div>
+          </div>
+          <div class="ssh-fields form-grid" id="ssh-fields">
+            <div class="field">
+              <label>SSH 主机地址</label>
+              <input type="text" id="f-ssh-host" placeholder="与数据库主机相同" />
+            </div>
+            <div class="field">
+              <label>SSH 端口</label>
+              <input type="number" id="f-ssh-port" value="22" />
+            </div>
+            <div class="field">
+              <label>SSH 用户名</label>
+              <input type="text" id="f-ssh-user" value="root" />
+            </div>
+            <div class="field">
+              <label>认证方式</label>
+              <select id="f-ssh-auth" onchange="onSshAuthChange()">
+                <option value="password">密码认证</option>
+                <option value="key">私钥文件</option>
+              </select>
+            </div>
+            <div class="field full" id="f-ssh-password-wrap">
+              <label>SSH 密码</label>
+              <input type="password" id="f-ssh-password" placeholder="SSH 登录密码" />
+            </div>
+            <div class="field full" id="f-ssh-key-wrap" style="display:none">
+              <label>私钥文件路径</label>
+              <input type="text" id="f-ssh-key" placeholder="/root/.ssh/id_rsa" />
+            </div>
+          </div>
+          <div id="ssh-test-status" style="margin-top:12px"></div>
+          <div class="btn-row">
+            <button class="btn btn-ghost" onclick="gotoStep(2)">← 上一步</button>
+            <button class="btn btn-ghost" id="btn-test-ssh" onclick="testSsh()" style="display:none">🔗 测试 SSH</button>
+            <button class="btn btn-primary" onclick="gotoStep(4)">下一步 →</button>
+          </div>
+        </div>
+
+        <!-- Step 4: 巡检人员 -->
+        <div id="step4" class="card" style="display:none">
+          <div class="card-title">
+            <span>👤</span> 巡检人员信息
+            <span class="badge">第 4 步 / 共 5 步</span>
+          </div>
+          <div class="inspector-wrap">
+            <div class="inspector-avatar">👤</div>
+            <label>巡检人员姓名（将显示在报告封面）</label>
+            <input type="text" id="f-inspector" placeholder="Jack" />
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-ghost" onclick="gotoStep(3)">← 上一步</button>
+            <button class="btn btn-primary" onclick="gotoStep(5)">确认并预览 →</button>
+          </div>
+        </div>
+
+        <!-- Step 5: 执行巡检 -->
+        <div id="step5" class="card" style="display:none">
+          <div class="card-title">
+            <span>🚀</span> 执行巡检
+            <span class="badge">第 5 步 / 共 5 步</span>
+          </div>
+          <!-- 信息确认卡 -->
+          <div id="confirm-panel">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">
+              <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 16px">
+                <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">数据库类型</div>
+                <div id="cf-dbtype" style="font-size:14px;font-weight:600"></div>
+              </div>
+              <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 16px">
+                <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">实例标签</div>
+                <div id="cf-name" style="font-size:14px;font-weight:600"></div>
+              </div>
+              <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 16px">
+                <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">连接地址</div>
+                <div id="cf-conn" style="font-size:14px;font-weight:600"></div>
+              </div>
+              <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 16px">
+                <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">系统信息采集</div>
+                <div id="cf-ssh" style="font-size:14px;font-weight:600"></div>
+              </div>
+              <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 16px">
+                <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">巡检人员</div>
+                <div id="cf-inspector" style="font-size:14px;font-weight:600"></div>
+              </div>
+            </div>
+            <div class="btn-row" style="justify-content:space-between">
+              <button class="btn btn-ghost" onclick="gotoStep(4)">← 上一步</button>
+              <button class="btn btn-success" id="btn-run" onclick="startInspection()">
+                🚀 开始巡检
+              </button>
+            </div>
+          </div>
+
+          <!-- 运行面板 -->
+          <div id="run-panel" style="display:none">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+              <span style="font-size:13px;font-weight:500" id="run-status-text">正在准备...</span>
+              <span id="run-spinner" class="spinner"></span>
+            </div>
+            <div class="progress-bar-wrap">
+              <div class="progress-bar" id="progress-bar" style="width:5%"></div>
+            </div>
+            <div class="log-box" id="log-box"></div>
+            <div id="result-panel" style="display:none"></div>
+            <div class="btn-row" id="done-btns" style="display:none">
+              <button class="btn btn-ghost" onclick="startWizard()">🔄 新建巡检</button>
+              <button class="btn btn-ghost" onclick="showPage('reports')">📄 查看报告</button>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /page-wizard -->
+
+      <!-- ══ Page: Reports ══ -->
+      <div class="page" id="page-reports">
+        <div class="card">
+          <div class="card-title">
+            <span>📄</span> 历史巡检报告
+            <button class="btn btn-ghost" style="margin-left:auto;padding:6px 12px;font-size:12px" onclick="loadReports()">↻ 刷新</button>
+          </div>
+          <div class="reports-list" id="reports-list">
+            <div style="text-align:center;color:var(--text-muted);padding:32px">正在加载...</div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /app-shell -->
+
+<script>
+// ─── State ───
+let dbType = 'mysql';
+let sshEnabled = false;
+let currentTaskId = null;
+let pollTimer = null;
+let logOffset = 0;
+
+// ─── Page Navigation ───
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.getElementById('nav-' + name).classList.add('active');
+  const titles = { home: ['首页', '欢迎使用数据库巡检工具'], wizard: ['新建巡检', '逐步配置，一键生成报告'], reports: ['历史报告', '所有已生成的巡检报告'] };
+  const t = titles[name] || [name, ''];
+  document.getElementById('topbar-title').textContent = t[0];
+  document.getElementById('topbar-sub').textContent = t[1];
+  if (name === 'reports') loadReports();
+}
+
+function startWizard() {
+  dbType = 'mysql';
+  sshEnabled = false;
+  currentTaskId = null;
+  logOffset = 0;
+  selectDbType('mysql');
+  gotoStep(1);
+  showPage('wizard');
+  // reset run panel
+  document.getElementById('confirm-panel').style.display = '';
+  document.getElementById('run-panel').style.display = 'none';
+  document.getElementById('result-panel').style.display = 'none';
+  document.getElementById('done-btns').style.display = 'none';
+  document.getElementById('log-box').innerHTML = '';
+}
+
+// ─── Steps ───
+const STEP_COUNT = 5;
+function gotoStep(n) {
+  for (let i = 1; i <= STEP_COUNT; i++) {
+    document.getElementById('step' + i).style.display = (i === n) ? '' : 'none';
+    const s = document.getElementById('s' + i);
+    s.className = 'step' + (i < n ? ' done' : i === n ? ' active' : '');
+    if (i > 1) {
+      const sl = document.getElementById('sl' + i);
+      if (sl) sl.className = 'step-line' + (i <= n ? ' done' : '');
+    }
+  }
+  if (n === 5) fillConfirmPanel();
+}
+
+// ─── DB Type ───
+function selectDbType(type) {
+  dbType = type;
+  document.getElementById('tc-mysql').classList.toggle('selected', type === 'mysql');
+  document.getElementById('tc-pg').classList.toggle('selected', type === 'pg');
+  document.getElementById('chk-mysql').textContent = type === 'mysql' ? '✓' : '';
+  document.getElementById('chk-pg').textContent   = type === 'pg'    ? '✓' : '';
+  // 默认端口 & 用户名
+  document.getElementById('f-port').value = type === 'mysql' ? 3306 : 5432;
+  document.getElementById('f-user').value = type === 'mysql' ? 'root' : 'postgres';
+  document.getElementById('f-database-wrap').style.display = type === 'pg' ? '' : 'none';
+}
+
+// ─── Test DB ───
+async function testDb() {
+  const el = document.getElementById('db-test-status');
+  el.innerHTML = '<div class="status-banner info"><span class="spinner"></span> 正在测试连接...</div>';
+  try {
+    const res = await fetch('/api/test_db', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        db_type: dbType,
+        host:     document.getElementById('f-host').value.trim(),
+        port:     parseInt(document.getElementById('f-port').value) || (dbType==='mysql'?3306:5432),
+        user:     document.getElementById('f-user').value.trim(),
+        password: document.getElementById('f-password').value,
+        database: document.getElementById('f-database').value.trim() || 'postgres',
+      })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      el.innerHTML = `<div class="status-banner ok">✅ 连接成功：${escHtml(data.msg)}</div>`;
+    } else {
+      el.innerHTML = `<div class="status-banner err">❌ 连接失败：${escHtml(data.msg)}</div>`;
+    }
+  } catch(e) {
+    el.innerHTML = `<div class="status-banner err">❌ 请求失败：${escHtml(e.message)}</div>`;
+  }
+}
+
+// ─── SSH Toggle ───
+function toggleSsh() {
+  sshEnabled = !sshEnabled;
+  document.getElementById('ssh-toggle').className = 'toggle' + (sshEnabled ? ' on' : '');
+  document.getElementById('ssh-toggle-sub').textContent = sshEnabled ? '当前：已启用' : '当前：未启用';
+  document.getElementById('ssh-fields').className = 'ssh-fields form-grid' + (sshEnabled ? ' visible' : '');
+  document.getElementById('btn-test-ssh').style.display = sshEnabled ? '' : 'none';
+  if (sshEnabled && !document.getElementById('f-ssh-host').value) {
+    document.getElementById('f-ssh-host').value = document.getElementById('f-host').value;
+  }
+}
+
+function onSshAuthChange() {
+  const mode = document.getElementById('f-ssh-auth').value;
+  document.getElementById('f-ssh-password-wrap').style.display = mode === 'password' ? '' : 'none';
+  document.getElementById('f-ssh-key-wrap').style.display = mode === 'key' ? '' : 'none';
+}
+
+// ─── Test SSH ───
+async function testSsh() {
+  const el = document.getElementById('ssh-test-status');
+  el.innerHTML = '<div class="status-banner info"><span class="spinner"></span> 正在测试 SSH...</div>';
+  try {
+    const res = await fetch('/api/test_ssh', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        ssh_host:     document.getElementById('f-ssh-host').value.trim(),
+        ssh_port:     parseInt(document.getElementById('f-ssh-port').value) || 22,
+        ssh_user:     document.getElementById('f-ssh-user').value.trim(),
+        ssh_password: document.getElementById('f-ssh-password').value,
+        ssh_key_file: document.getElementById('f-ssh-key').value.trim(),
+      })
+    });
+    const data = await res.json();
+    el.innerHTML = data.ok
+      ? `<div class="status-banner ok">✅ ${escHtml(data.msg)}</div>`
+      : `<div class="status-banner err">❌ ${escHtml(data.msg)}</div>`;
+  } catch(e) {
+    el.innerHTML = `<div class="status-banner err">❌ 请求失败：${escHtml(e.message)}</div>`;
+  }
+}
+
+// ─── Confirm Panel ───
+function fillConfirmPanel() {
+  const typeLabel = dbType === 'mysql' ? '🐬 MySQL' : '🐘 PostgreSQL';
+  const name = document.getElementById('f-name').value.trim() || (dbType==='mysql'?'MySQL_Server':'PG_Server');
+  const host = document.getElementById('f-host').value.trim() || 'localhost';
+  const port = document.getElementById('f-port').value || (dbType==='mysql'?'3306':'5432');
+  const inspector = document.getElementById('f-inspector').value.trim() || 'Jack';
+  const sshLabel = sshEnabled ? `${document.getElementById('f-ssh-host').value || host}:${document.getElementById('f-ssh-port').value||22}` : '未配置（仅数据库指标）';
+
+  document.getElementById('cf-dbtype').innerHTML = `<span class="tag ${dbType==='mysql'?'tag-mysql':'tag-pg'}">${typeLabel}</span>`;
+  document.getElementById('cf-name').textContent = name;
+  document.getElementById('cf-conn').textContent = `${host}:${port}`;
+  document.getElementById('cf-ssh').textContent = sshLabel;
+  document.getElementById('cf-inspector').textContent = inspector;
+}
+
+// ─── Start Inspection ───
+async function startInspection() {
+  const btn = document.getElementById('btn-run');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 启动中...';
+
+  const name = document.getElementById('f-name').value.trim() || (dbType==='mysql'?'MySQL_Server':'PG_Server');
+  const host = document.getElementById('f-host').value.trim() || 'localhost';
+  const port = parseInt(document.getElementById('f-port').value) || (dbType==='mysql'?3306:5432);
+  const user = document.getElementById('f-user').value.trim() || (dbType==='mysql'?'root':'postgres');
+  const password = document.getElementById('f-password').value;
+  const database = document.getElementById('f-database').value.trim() || 'postgres';
+  const inspector = document.getElementById('f-inspector').value.trim() || 'Jack';
+
+  const payload = { db_type: dbType, name, host, port, user, password, database, inspector_name: inspector };
+  if (sshEnabled) {
+    payload.ssh_host     = document.getElementById('f-ssh-host').value.trim() || host;
+    payload.ssh_port     = parseInt(document.getElementById('f-ssh-port').value) || 22;
+    payload.ssh_user     = document.getElementById('f-ssh-user').value.trim() || 'root';
+    payload.ssh_password = document.getElementById('f-ssh-password').value;
+    payload.ssh_key_file = document.getElementById('f-ssh-key').value.trim();
+  }
+
+  try {
+    const res = await fetch('/api/start_inspection', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.msg || '启动失败');
+
+    currentTaskId = data.task_id;
+    logOffset = 0;
+
+    // 切换到运行面板
+    document.getElementById('confirm-panel').style.display = 'none';
+    document.getElementById('run-panel').style.display = '';
+    document.getElementById('progress-bar').style.width = '10%';
+
+    pollStatus();
+  } catch(e) {
+    btn.disabled = false;
+    btn.innerHTML = '🚀 开始巡检';
+    alert('启动失败: ' + e.message);
+  }
+}
+
+// ─── Poll Status ───
+function pollStatus() {
+  if (pollTimer) clearTimeout(pollTimer);
+  if (!currentTaskId) return;
+
+  fetch(`/api/task_status/${currentTaskId}?offset=${logOffset}`)
+    .then(r => r.json())
+    .then(data => {
+      if (!data.ok) return;
+
+      // 追加日志
+      const box = document.getElementById('log-box');
+      data.log.forEach(line => {
+        const d = document.createElement('div');
+        d.className = 'log-line' + (line.includes('✅') ? ' ok' : line.includes('❌') ? ' err' : line.includes('▶') || line.includes('📊') || line.includes('📝') ? ' info' : '');
+        d.textContent = line;
+        box.appendChild(d);
+      });
+      box.scrollTop = box.scrollHeight;
+      logOffset = data.offset;
+
+      // 进度模拟
+      const status = data.status;
+      const bar = document.getElementById('progress-bar');
+      if (status === 'running')  bar.style.width = Math.min(85, parseFloat(bar.style.width||10) + 8) + '%';
+      if (status === 'done')     bar.style.width = '100%';
+
+      // 状态文字
+      const st = document.getElementById('run-status-text');
+      const sp = document.getElementById('run-spinner');
+      if (status === 'pending' || status === 'running') {
+        st.textContent = status === 'pending' ? '等待执行...' : '巡检进行中，请稍候...';
+        pollTimer = setTimeout(pollStatus, 800);
+      } else if (status === 'done') {
+        st.textContent = '✅ 巡检完成！';
+        sp.style.display = 'none';
+        document.getElementById('result-panel').style.display = '';
+        document.getElementById('result-panel').innerHTML = `
+          <div class="result-card">
+            <div class="ri">📄</div>
+            <div class="rd">
+              <h3>报告已生成</h3>
+              <p>${escHtml(data.report_name || '')}</p>
+            </div>
+            <a class="btn btn-success" href="/api/download/${currentTaskId}" download>⬇ 下载报告</a>
+          </div>`;
+        document.getElementById('done-btns').style.display = '';
+      } else if (status === 'error') {
+        st.textContent = '❌ 巡检失败';
+        sp.style.display = 'none';
+        document.getElementById('done-btns').style.display = '';
+      }
+    })
+    .catch(() => {
+      pollTimer = setTimeout(pollStatus, 2000);
+    });
+}
+
+// ─── Reports ───
+async function loadReports() {
+  const list = document.getElementById('reports-list');
+  list.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:32px">正在加载...</div>';
+  try {
+    const res = await fetch('/api/reports');
+    const data = await res.json();
+    if (!data.files || data.files.length === 0) {
+      list.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:48px">暂无历史报告</div>';
+      return;
+    }
+    list.innerHTML = data.files.map(f => {
+      const isMySQL = f.name.includes('MySQL');
+      const isPG    = f.name.includes('PostgreSQL') || f.name.includes('Postgres');
+      const tagHtml = isMySQL ? '<span class="tag tag-mysql">MySQL</span>' : isPG ? '<span class="tag tag-pg">PostgreSQL</span>' : '';
+      const size = f.size > 1024*1024 ? (f.size/1024/1024).toFixed(1)+' MB' : (f.size/1024).toFixed(1)+' KB';
+      const dt = new Date(f.mtime*1000).toLocaleString('zh-CN');
+      return `
+        <div class="report-item">
+          <div class="ri-icon">📄</div>
+          <div class="ri-info">
+            <div class="ri-name">${escHtml(f.name)} ${tagHtml}</div>
+            <div class="ri-meta">${dt} · ${size}</div>
+          </div>
+          <a class="btn btn-ghost" style="font-size:12px;padding:7px 14px"
+             href="/api/download_file?name=${encodeURIComponent(f.name)}" download>⬇ 下载</a>
+        </div>`;
+    }).join('');
+  } catch(e) {
+    list.innerHTML = `<div class="status-banner err">加载失败: ${escHtml(e.message)}</div>`;
+  }
+}
+
+// ─── Utils ───
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─── Init ───
+showPage('home');
+</script>
+</body>
+</html>

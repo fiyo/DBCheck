@@ -108,6 +108,50 @@ python3 main.py
 
 > 注意：Excel 模板中请勿明文保存密码，填写完成后注意妥善保管配置文件。
 
+### Web UI（可视化界面）
+
+启动 Web 服务后，在浏览器访问 **http://localhost:5000** 即可通过图形界面完成所有巡检操作，无需记忆命令行参数。
+
+```bash
+pip3 install flask
+python3 web_ui.py
+```
+
+**操作流程（5 步向导）：**
+
+| 步骤 | 截图 | 说明 |
+|:---:|:---:|------|
+| 1 | webui1.png | 选择数据库类型（MySQL / PostgreSQL） |
+| 2 | webui2.png | 填写连接信息，支持在线测试连接 |
+| 3 | webui3.png | 配置 SSH 采集系统资源（可选） |
+| 4 | webui4.png | 填写巡检人员姓名 |
+| 5 | webui5.png | 确认信息后一键执行，实时查看日志进度 |
+| — | webui6.png | 巡检完成，在线下载 Word 报告 |
+| — | webui7.png | 历史报告页面，随时查阅和下载过往报告 |
+
+**界面截图：**
+
+![步骤一：选择数据库类型](snapshot/webui1.png)
+*图 1：选择数据库类型（MySQL 🐬 / PostgreSQL 🐘）*
+
+![步骤二：填写连接信息](snapshot/webui2.png)
+*图 2：填写数据库连接信息，支持在线连接测试*
+
+![步骤三：SSH 配置](snapshot/webui3.png)
+*图 3：配置 SSH（可选），支持密码或私钥认证*
+
+![步骤四：巡检人员](snapshot/webui4.png)
+*图 4：填写巡检人员姓名，将显示在报告封面*
+
+![步骤五：执行巡检](snapshot/webui5.png)
+*图 5：一键执行，实时日志轮询展示巡检进度*
+
+![报告下载](snapshot/webui6.png)
+*图 6：巡检完成后直接在页面下载 Word 报告*
+
+![历史报告](snapshot/webui7.png)
+*图 7：历史报告列表页，支持按名称、大小、时间浏览*
+
 ---
 
 ## 打包部署
