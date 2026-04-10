@@ -8,7 +8,7 @@
 |------|------|
 | 🖥️ 命令行 | `python main.py`，适合熟悉终端的用户 |
 | 🌐 Web UI | `python web_ui.py`，浏览器图形界面，点点点完成巡检 |
-| 🤖 **OpenClaw Skill** | 告诉 AI 助手"帮我巡检 XX 库"，零操作自动完成 |
+| 🦞 **OpenClaw Skill** | 告诉 AI 助手"帮我巡检 XX 库"，零操作自动完成 |
 | 📦 打包部署 | PyInstaller 打包成分发版，给团队成员使用 |
 
 > 本项目由 [Zhh9126/MySQLDBCHECK](https://github.com/Zhh9126/MySQLDBCHECK.git) 改进而来，在原 MySQL 支持的基础上新增了 PostgreSQL 支持。
