@@ -146,6 +146,28 @@ def run_mysql_task(task_id, db_info, inspector_name):
         ret.update({"port": [{'PORT': db_info['port']}]})
         ret.update({"ip": [{'IP': db_info['ip']}]})
 
+        # ── 增强分析：历史存储 + AI诊断 ──────────────
+        ai_advice = ''
+        try:
+            from analyzer import run_full_analysis
+            emit(f"[{_ts()}] 🔎 执行增强智能分析...")
+            analysis = run_full_analysis(
+                db_type='mysql', host=db_info['ip'], port=db_info['port'],
+                label=db_info['name'], context=ret, base_dir=SCRIPT_DIR
+            )
+            ret['auto_analyze'] = analysis['issues']
+            ai_advice = analysis.get('ai_advice', '')
+            if ai_advice:
+                emit(f"[{_ts()}] 🤖 AI 诊断完成")
+            emit(f"[{_ts()}] 📈 历史记录已更新（已记录 {analysis['trend'].get('snapshots_count', 1)} 次）")
+            task['trend'] = analysis.get('trend', {})
+            task['comparison'] = analysis.get('comparison', {})
+            task['ai_advice'] = ai_advice
+        except ImportError:
+            pass
+        except Exception as ex:
+            emit(f"[{_ts()}] ⚠️  增强分析异常（不影响报告生成）: {ex}")
+
         emit(f"[{_ts()}] 📝 正在渲染 Word 报告...")
         savedoc = mod.saveDoc(context=ret, ofile=ofile, ifile=ifile, inspector_name=inspector_name)
         success = savedoc.contextsave()
@@ -230,6 +252,28 @@ def run_pg_task(task_id, db_info, inspector_name):
         ret.update({"co_name": [{'CO_NAME': db_info['name']}]})
         ret.update({"port": [{'PORT': db_info['port']}]})
         ret.update({"ip": [{'IP': db_info['ip']}]})
+
+        # ── 增强分析：历史存储 + AI诊断 ──────────────
+        ai_advice = ''
+        try:
+            from analyzer import run_full_analysis
+            emit(f"[{_ts()}] 🔎 执行增强智能分析...")
+            analysis = run_full_analysis(
+                db_type='pg', host=db_info['ip'], port=db_info['port'],
+                label=db_info['name'], context=ret, base_dir=SCRIPT_DIR
+            )
+            ret['auto_analyze'] = analysis['issues']
+            ai_advice = analysis.get('ai_advice', '')
+            if ai_advice:
+                emit(f"[{_ts()}] 🤖 AI 诊断完成")
+            emit(f"[{_ts()}] 📈 历史记录已更新（已记录 {analysis['trend'].get('snapshots_count', 1)} 次）")
+            task['trend'] = analysis.get('trend', {})
+            task['comparison'] = analysis.get('comparison', {})
+            task['ai_advice'] = ai_advice
+        except ImportError:
+            pass
+        except Exception as ex:
+            emit(f"[{_ts()}] ⚠️  增强分析异常（不影响报告生成）: {ex}")
 
         emit(f"[{_ts()}] 📝 正在渲染 Word 报告...")
         savedoc = mod.saveDoc(context=ret, ofile=ofile, ifile=ifile, inspector_name=inspector_name)
@@ -364,6 +408,8 @@ def api_task_status(task_id):
         'offset':      offset + len(new_logs),
         'report_name': task.get('report_name'),
         'error':       task.get('error'),
+        'ai_advice':   task.get('ai_advice', ''),
+        'auto_analyze': task.get('auto_analyze', []),
     })
 
 
@@ -425,14 +471,108 @@ def api_download_file():
     )
 
 
+@app.route('/api/task_result/<task_id>')
+def api_task_result(task_id):
+    """获取任务完整结果（包含趋势、对比、AI建议）"""
+    task = tasks.get(task_id)
+    if not task:
+        return jsonify({'ok': False, 'msg': '任务不存在'})
+    return jsonify({
+        'ok': True,
+        'status': task.get('status'),
+        'ai_advice': task.get('ai_advice', ''),
+        'trend': task.get('trend', {}),
+        'comparison': task.get('comparison', {}),
+    })
+
+
+@app.route('/api/trend')
+def api_trend():
+    """获取指定数据库实例的历史趋势数据"""
+    db_type = request.args.get('db_type', 'mysql')
+    host = request.args.get('host', '')
+    port = request.args.get('port', 3306)
+    if not host:
+        return jsonify({'ok': False, 'msg': '缺少 host 参数'})
+    try:
+        from analyzer import HistoryManager
+        hm = HistoryManager(SCRIPT_DIR)
+        trend = hm.get_trend(db_type, host, port)
+        comparison = hm.get_comparison(db_type, host, port)
+        return jsonify({'ok': True, 'trend': trend, 'comparison': comparison})
+    except Exception as e:
+        return jsonify({'ok': False, 'msg': str(e)})
+
+
+@app.route('/api/history_instances')
+def api_history_instances():
+    """列出所有有历史记录的数据库实例"""
+    try:
+        from analyzer import HistoryManager
+        hm = HistoryManager(SCRIPT_DIR)
+        return jsonify({'ok': True, 'instances': hm.list_instances()})
+    except Exception as e:
+        return jsonify({'ok': False, 'msg': str(e)})
+
+
+@app.route('/api/ai_config', methods=['GET', 'POST'])
+def api_ai_config():
+    """读取或保存 AI 诊断配置（存储在 ai_config.json）"""
+    config_path = os.path.join(SCRIPT_DIR, 'ai_config.json')
+    if request.method == 'GET':
+        if os.path.exists(config_path):
+            with open(config_path, 'r', encoding='utf-8') as f:
+                cfg = json.load(f)
+            # 不返回 api_key 的真实值
+            cfg_safe = {k: ('***' if k == 'api_key' and v else v) for k, v in cfg.items()}
+            return jsonify({'ok': True, 'config': cfg_safe})
+        return jsonify({'ok': True, 'config': {'backend': 'disabled'}})
+    else:
+        data = request.json or {}
+        # 如果传入 *** 表示不修改 key
+        existing_key = ''
+        if os.path.exists(config_path):
+            with open(config_path, 'r', encoding='utf-8') as f:
+                existing_key = json.load(f).get('api_key', '')
+        cfg = {
+            'backend': data.get('backend', 'disabled'),
+            'api_key': data.get('api_key', '') if data.get('api_key', '') != '***' else existing_key,
+            'api_url': data.get('api_url', ''),
+            'model':   data.get('model', ''),
+        }
+        with open(config_path, 'w', encoding='utf-8') as f:
+            json.dump(cfg, f, ensure_ascii=False, indent=2)
+        # 更新环境变量，让当前进程的后续调用生效
+        os.environ['DBCHECK_AI_BACKEND'] = cfg['backend']
+        os.environ['DBCHECK_AI_KEY']     = cfg['api_key']
+        os.environ['DBCHECK_AI_URL']     = cfg['api_url']
+        os.environ['DBCHECK_AI_MODEL']   = cfg['model']
+        return jsonify({'ok': True, 'msg': 'AI 配置已保存'})
+
+
 # ──────────────────────────────────────────────
 # 启动
 # ──────────────────────────────────────────────
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
+
+    # 启动时加载 AI 配置到环境变量
+    _ai_cfg_path = os.path.join(SCRIPT_DIR, 'ai_config.json')
+    if os.path.exists(_ai_cfg_path):
+        try:
+            with open(_ai_cfg_path, 'r', encoding='utf-8') as _f:
+                _ai_cfg = json.load(_f)
+            os.environ.setdefault('DBCHECK_AI_BACKEND', _ai_cfg.get('backend', 'disabled'))
+            os.environ.setdefault('DBCHECK_AI_KEY',     _ai_cfg.get('api_key', ''))
+            os.environ.setdefault('DBCHECK_AI_URL',     _ai_cfg.get('api_url', ''))
+            os.environ.setdefault('DBCHECK_AI_MODEL',   _ai_cfg.get('model', ''))
+        except Exception:
+            pass
+
     print("=" * 55)
     print("   数据库巡检工具 Web UI")
     print(f"   访问地址: http://localhost:{port}")
     print("=" * 55)
     app.run(host='0.0.0.0', port=port, debug=False, threaded=True)
+

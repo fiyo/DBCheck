@@ -1898,40 +1898,29 @@ class getData(object):
         self.print_progress_bar(current_step, total_steps, prefix='巡检进度:', suffix='分析风险和建议')
         self.context.update({"auto_analyze": []})
         try:
-            if self.context.get('max_used_connections') and self.context.get('max_connections'):
-                max_used = int(self.context['max_used_connections'][0]['Value'])
-                max_conn = int(self.context['max_connections'][0]['Value'])
-                conn_usage = (max_used / max_conn) * 100 if max_conn > 0 else 0
-                if conn_usage > 80:
+            # 使用增强智能分析模块（15+ 条规则）
+            try:
+                from analyzer import smart_analyze_mysql
+                issues = smart_analyze_mysql(self.context)
+                self.context['auto_analyze'] = issues
+            except ImportError:
+                # 降级：使用内置基础规则
+                if self.context.get('max_used_connections') and self.context.get('max_connections'):
+                    max_used = int(self.context['max_used_connections'][0]['Value'])
+                    max_conn = int(self.context['max_connections'][0]['Value'])
+                    conn_usage = (max_used / max_conn) * 100 if max_conn > 0 else 0
+                    if conn_usage > 80:
+                        self.context['auto_analyze'].append({
+                            'col1': "连接数使用率", "col2": "高风险",
+                            "col3": f"连接数使用率高达 {conn_usage:.1f}%，接近最大连接数限制",
+                            "col4": "高", "col5": "DBA", "fix_sql": ""
+                        })
+                if self.context.get('system_info', {}).get('memory', {}).get('usage_percent', 0) > 90:
                     self.context['auto_analyze'].append({
-                        'col1': "连接数使用率", "col2": "高风险", 
-                        "col3": f"连接数使用率高达 {conn_usage:.1f}%，接近最大连接数限制", 
-                        "col4": "高", "col5": "DBA"
+                        'col1': "系统内存使用率", "col2": "高风险",
+                        "col3": f"系统内存使用率超过90%",
+                        "col4": "高", "col5": "系统管理员", "fix_sql": ""
                     })
-            if self.context.get('innodb_buffer_pool_size'):
-                buffer_pool_size = self.context['innodb_buffer_pool_size'][0]['Value']
-                if 'G' in buffer_pool_size:
-                    size_gb = float(buffer_pool_size.replace('G', ''))
-                    if size_gb < 1:
-                        self.context['auto_analyze'].append({
-                            'col1': "InnoDB缓冲池大小", "col2": "中风险", 
-                            "col3": f"InnoDB缓冲池大小仅为 {buffer_pool_size}，可能影响性能", 
-                            "col4": "中", "col5": "DBA"
-                        })
-            if self.context.get('system_info', {}).get('memory', {}).get('usage_percent', 0) > 90:
-                self.context['auto_analyze'].append({
-                    'col1': "系统内存使用率", "col2": "高风险", 
-                    "col3": f"系统内存使用率超过90%，当前为 {self.context['system_info']['memory']['usage_percent']:.1f}%", 
-                    "col4": "高", "col5": "系统管理员"
-                })
-            if self.context.get('system_info', {}).get('disk_list'):
-                for disk in self.context['system_info']['disk_list']:
-                    if disk.get('usage_percent', 0) > 90:
-                        self.context['auto_analyze'].append({
-                            'col1': f"磁盘空间使用率 ({disk['mountpoint']})", "col2": "高风险", 
-                            "col3": f"磁盘 {disk['mountpoint']} 使用率超过90%，当前为 {disk['usage_percent']:.1f}%", 
-                            "col4": "高", "col5": "系统管理员"
-                        })
         except Exception as e:
             print(f"\n❌ 风险分析失败: {e}")
         self.print_progress_bar(total_steps, total_steps, prefix='巡检进度:', suffix='完成')
@@ -2282,13 +2271,44 @@ class saveDoc(object):
 
 def print_banner():
     """
-    打印程序启动横幅。
-
-    在终端输出 MySQL 数据库巡检工具 v2.0 的名称横幅（分隔线 + 标题）。
+    打印程序启动横幅（彩色 ASCII Art）。
     """
-    print("=" * 60)
-    print("        MySQL 数据库巡检工具 (Word报告版) v2.0")
-    print("=" * 60)
+    # ANSI 颜色代码（不支持时降级为普通文本）
+    try:
+        import shutil
+        cols = shutil.get_terminal_size((80, 20)).columns
+    except Exception:
+        cols = 80
+
+    CYAN   = "\033[96m"
+    GREEN  = "\033[92m"
+    YELLOW = "\033[93m"
+    BOLD   = "\033[1m"
+    DIM    = "\033[2m"
+    RESET  = "\033[0m"
+
+    # Windows 旧终端开启 ANSI 支持
+    try:
+        import os, ctypes
+        if os.name == "nt":
+            kernel32 = ctypes.windll.kernel32
+            kernel32.SetConsoleMode(kernel32.GetStdHandle(-11), 7)
+    except Exception:
+        pass
+
+    art = f"""
+{CYAN}{BOLD}  ██████╗ ██████╗  ██████╗██╗  ██╗███████╗ ██████╗██╗  ██╗
+  ██╔══██╗██╔══██╗██╔════╝██║  ██║██╔════╝██╔════╝██║ ██╔╝
+  ██║  ██║██████╔╝██║     ███████║█████╗  ██║     █████╔╝
+  ██║  ██║██╔══██╗██║     ██╔══██║██╔══╝  ██║     ██╔═██╗
+  ██████╔╝██████╔╝╚██████╗██║  ██║███████╗╚██████╗██║  ██╗
+  ╚═════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝ ╚═════╝╚═╝  ╚═╝{RESET}
+{GREEN}{BOLD}              🐬  MySQL  数据库巡检工具  v2.0{RESET}
+{DIM}  ──────────────────────────────────────────────────────────{RESET}
+{YELLOW}  支持单机巡检 / 批量巡检 / Word报告 / SSH系统采集{RESET}
+{DIM}  ──────────────────────────────────────────────────────────{RESET}
+"""
+    print(art)
 
 def check_license():
     """

@@ -1938,43 +1938,28 @@ class getData(object):
         self.print_progress_bar(current_step, total_steps, prefix='巡检进度:', suffix='分析风险和建议')
         self.context.update({"auto_analyze": []})
         try:
-            # PostgreSQL 连接使用率风险分析
-            pg_conn = self.context.get('pg_connections', [])
-            if pg_conn and pg_conn[0]:
-                usage_pct = float(pg_conn[0].get('usage_percent', 0))
-                if usage_pct > 80:
-                    self.context['auto_analyze'].append({
-                        'col1': "连接数使用率", "col2": "高风险",
-                        "col3": f"连接数使用率高达 {usage_pct:.1f}%，接近最大连接数限制",
-                        "col4": "高", "col5": "DBA"
-                    })
-            # PostgreSQL 共享缓冲区风险分析
-            pg_sb = self.context.get('pg_settings_key', [])
-            for item in pg_sb:
-                if item.get('name') == 'shared_buffers':
-                    sb_val = item.get('setting', '0')
-                    if 'GB' in sb_val.upper():
-                        size_gb = float(sb_val.upper().replace('GB', '').replace('MB', ''))
-                        if size_gb < 1:
-                            self.context['auto_analyze'].append({
-                                'col1': "共享缓冲区大小", "col2": "中风险",
-                                "col3": f"shared_buffers 仅为 {sb_val}，建议设置物理内存的 25%",
-                                "col4": "中", "col5": "DBA"
-                            })
-            if self.context.get('system_info', {}).get('memory', {}).get('usage_percent', 0) > 90:
-                self.context['auto_analyze'].append({
-                    'col1': "系统内存使用率", "col2": "高风险", 
-                    "col3": f"系统内存使用率超过90%，当前为 {self.context['system_info']['memory']['usage_percent']:.1f}%", 
-                    "col4": "高", "col5": "系统管理员"
-                })
-            if self.context.get('system_info', {}).get('disk_list'):
-                for disk in self.context['system_info']['disk_list']:
-                    if disk.get('usage_percent', 0) > 90:
+            # 使用增强智能分析模块（15+ 条规则）
+            try:
+                from analyzer import smart_analyze_pg
+                issues = smart_analyze_pg(self.context)
+                self.context['auto_analyze'] = issues
+            except ImportError:
+                # 降级：使用内置基础规则
+                pg_conn = self.context.get('pg_connections', [])
+                if pg_conn and pg_conn[0]:
+                    usage_pct = float(pg_conn[0].get('usage_percent', 0))
+                    if usage_pct > 80:
                         self.context['auto_analyze'].append({
-                            'col1': f"磁盘空间使用率 ({disk['mountpoint']})", "col2": "高风险", 
-                            "col3": f"磁盘 {disk['mountpoint']} 使用率超过90%，当前为 {disk['usage_percent']:.1f}%", 
-                            "col4": "高", "col5": "系统管理员"
+                            'col1': "连接数使用率", "col2": "高风险",
+                            "col3": f"连接数使用率高达 {usage_pct:.1f}%，接近最大连接数限制",
+                            "col4": "高", "col5": "DBA", "fix_sql": ""
                         })
+                if self.context.get('system_info', {}).get('memory', {}).get('usage_percent', 0) > 90:
+                    self.context['auto_analyze'].append({
+                        'col1': "系统内存使用率", "col2": "高风险",
+                        "col3": f"系统内存使用率超过90%",
+                        "col4": "高", "col5": "系统管理员", "fix_sql": ""
+                    })
         except Exception as e:
             print(f"\n❌ 风险分析失败: {e}")
         self.print_progress_bar(total_steps, total_steps, prefix='巡检进度:', suffix='完成')
@@ -2384,13 +2369,42 @@ class saveDoc(object):
 
 def print_banner():
     """
-    打印程序启动横幅。
-
-    在终端输出 PostgreSQL 数据库巡检工具 v2.0 的名称横幅（分隔线 + 标题）。
+    打印程序启动横幅（彩色 ASCII Art）。
     """
-    print("=" * 60)
-    print("        PostgreSQL 数据库巡检工具 (Word报告版) v2.0")
-    print("=" * 60)
+    try:
+        import shutil
+        cols = shutil.get_terminal_size((80, 20)).columns
+    except Exception:
+        cols = 80
+
+    BLUE   = "\033[94m"
+    GREEN  = "\033[92m"
+    YELLOW = "\033[93m"
+    BOLD   = "\033[1m"
+    DIM    = "\033[2m"
+    RESET  = "\033[0m"
+
+    try:
+        import os, ctypes
+        if os.name == "nt":
+            kernel32 = ctypes.windll.kernel32
+            kernel32.SetConsoleMode(kernel32.GetStdHandle(-11), 7)
+    except Exception:
+        pass
+
+    art = f"""
+{BLUE}{BOLD}  ██████╗ ██████╗  ██████╗██╗  ██╗███████╗ ██████╗██╗  ██╗
+  ██╔══██╗██╔══██╗██╔════╝██║  ██║██╔════╝██╔════╝██║ ██╔╝
+  ██║  ██║██████╔╝██║     ███████║█████╗  ██║     █████╔╝
+  ██║  ██║██╔══██╗██║     ██╔══██║██╔══╝  ██║     ██╔═██╗
+  ██████╔╝██████╔╝╚██████╗██║  ██║███████╗╚██████╗██║  ██╗
+  ╚═════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝ ╚═════╝╚═╝  ╚═╝{RESET}
+{GREEN}{BOLD}             🐘  PostgreSQL  数据库巡检工具  v2.0{RESET}
+{DIM}  ──────────────────────────────────────────────────────────{RESET}
+{YELLOW}  支持单机巡检 / 批量巡检 / Word报告 / SSH系统采集{RESET}
+{DIM}  ──────────────────────────────────────────────────────────{RESET}
+"""
+    print(art)
 
 def check_license():
     """

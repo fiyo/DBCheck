@@ -523,6 +523,13 @@ select option { background: var(--surface2); }
     <div class="nav-item" onclick="showPage('reports')" id="nav-reports">
       <span class="icon">📄</span> 历史报告
     </div>
+    <div class="nav-item" onclick="showPage('trend')" id="nav-trend">
+      <span class="icon">📈</span> 趋势分析
+    </div>
+    <div class="nav-section">设置</div>
+    <div class="nav-item" onclick="showPage('ai')" id="nav-ai">
+      <span class="icon">🤖</span> AI 诊断设置
+    </div>
 
     <div class="sidebar-footer">
       MySQL · PostgreSQL<br/>
@@ -813,6 +820,96 @@ select option { background: var(--surface2); }
         </div>
       </div>
 
+      <!-- ══ Page: Trend ══ -->
+      <div class="page" id="page-trend">
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-title"><span>📈</span> 历史趋势分析
+            <button class="btn btn-ghost" style="margin-left:auto;padding:6px 12px;font-size:12px" onclick="loadTrendInstances()">↻ 刷新</button>
+          </div>
+          <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:flex-end">
+            <div style="flex:1;min-width:200px">
+              <label style="font-size:12px;color:var(--text-muted)">选择数据库实例</label>
+              <select id="trend-instance-select" style="width:100%;margin-top:6px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" onchange="onTrendInstanceChange()">
+                <option value="">-- 加载中 --</option>
+              </select>
+            </div>
+            <button class="btn btn-primary" style="padding:9px 20px" onclick="loadTrendData()">查看趋势</button>
+          </div>
+          <div id="trend-comparison" style="display:none;margin-bottom:16px"></div>
+        </div>
+
+        <div class="card" id="trend-chart-card" style="display:none">
+          <div class="card-title"><span>📊</span> 关键指标趋势图</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px" id="trend-charts-grid">
+          </div>
+        </div>
+
+        <div id="trend-empty" class="card" style="text-align:center;padding:48px;color:var(--text-muted)">
+          <div style="font-size:40px;margin-bottom:12px">📉</div>
+          <div>执行巡检后，历史趋势数据将在这里显示</div>
+          <div style="font-size:12px;margin-top:8px">同一个数据库（相同 IP + 端口）的多次巡检结果将被对比展示</div>
+        </div>
+      </div>
+
+      <!-- ══ Page: AI Settings ══ -->
+      <div class="page" id="page-ai">
+        <div class="card">
+          <div class="card-title"><span>🤖</span> AI 诊断设置</div>
+          <div style="color:var(--text-muted);font-size:13px;margin-bottom:20px;line-height:1.7">
+            开启 AI 诊断后，每次巡检完成后将自动把关键指标发给大语言模型，生成<strong style="color:var(--text)">个性化优化建议</strong>，附加在报告中。<br/>
+            <strong style="color:var(--warn)">注意：</strong>AI 诊断仅发送指标数值，不发送密码等敏感信息。
+          </div>
+
+          <div class="form-group">
+            <label>后端类型</label>
+            <select id="ai-backend" style="width:100%;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13.5px" onchange="onAIBackendChange()">
+              <option value="disabled">🚫 已关闭（默认）</option>
+              <option value="openai">🌐 OpenAI / 兼容 API（DeepSeek、Azure 等）</option>
+              <option value="ollama">🖥️ 本地 Ollama</option>
+            </select>
+          </div>
+
+          <div id="ai-openai-fields" style="display:none">
+            <div class="form-group">
+              <label>API Key</label>
+              <input type="password" id="ai-api-key" class="form-input" placeholder="sk-...（OpenAI）或 your-key（DeepSeek 等）"/>
+            </div>
+            <div class="form-group">
+              <label>API URL <span style="color:var(--text-muted);font-size:12px">（默认 OpenAI，可改为 DeepSeek 或本地代理）</span></label>
+              <input type="text" id="ai-api-url" class="form-input" placeholder="https://api.openai.com/v1"/>
+            </div>
+            <div class="form-group">
+              <label>模型名称</label>
+              <input type="text" id="ai-model" class="form-input" placeholder="gpt-4o-mini"/>
+            </div>
+            <div style="background:var(--surface2);border-radius:8px;padding:12px;font-size:12px;color:var(--text-muted);margin-bottom:8px">
+              💡 <strong>DeepSeek 用法</strong>：API URL 填 <code>https://api.deepseek.com/v1</code>，模型填 <code>deepseek-chat</code>，API Key 填 DeepSeek 的 key
+            </div>
+          </div>
+
+          <div id="ai-ollama-fields" style="display:none">
+            <div class="form-group">
+              <label>Ollama 地址</label>
+              <input type="text" id="ai-ollama-url" class="form-input" placeholder="http://localhost:11434"/>
+            </div>
+            <div class="form-group">
+              <label>模型名称</label>
+              <input type="text" id="ai-ollama-model" class="form-input" placeholder="qwen2.5:7b"/>
+            </div>
+            <div style="background:var(--surface2);border-radius:8px;padding:12px;font-size:12px;color:var(--text-muted);margin-bottom:8px">
+              💡 完全本地运行，无需 API Key，数据不出本机。先安装 <a href="https://ollama.ai" target="_blank" style="color:var(--accent2)">Ollama</a> 并拉取模型：<code>ollama pull qwen2.5:7b</code>
+            </div>
+          </div>
+
+          <div id="ai-save-banner" style="display:none" class="status-banner ok" style="margin-bottom:12px">✅ 配置已保存，下次巡检时生效</div>
+
+          <div class="btn-row">
+            <button class="btn btn-ghost" onclick="loadAIConfig()">↻ 重新加载</button>
+            <button class="btn btn-primary" onclick="saveAIConfig()">💾 保存配置</button>
+          </div>
+        </div>
+      </div>
+
     </div><!-- /content -->
   </div><!-- /main -->
 </div><!-- /app-shell -->
@@ -831,11 +928,19 @@ function showPage(name) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
   document.getElementById('nav-' + name).classList.add('active');
-  const titles = { home: ['首页', '欢迎使用数据库巡检工具'], wizard: ['新建巡检', '逐步配置，一键生成报告'], reports: ['历史报告', '所有已生成的巡检报告'] };
+  const titles = {
+    home:    ['首页',     '欢迎使用数据库巡检工具'],
+    wizard:  ['新建巡检', '逐步配置，一键生成报告'],
+    reports: ['历史报告', '所有已生成的巡检报告'],
+    trend:   ['趋势分析', '同一数据库多次巡检的历史指标趋势'],
+    ai:      ['AI 诊断设置', '配置大语言模型，巡检后自动生成优化建议'],
+  };
   const t = titles[name] || [name, ''];
   document.getElementById('topbar-title').textContent = t[0];
   document.getElementById('topbar-sub').textContent = t[1];
   if (name === 'reports') loadReports();
+  if (name === 'trend') loadTrendInstances();
+  if (name === 'ai') loadAIConfig();
 }
 
 function startWizard() {
@@ -1053,6 +1158,52 @@ function pollStatus() {
         st.textContent = '✅ 巡检完成！';
         sp.style.display = 'none';
         document.getElementById('result-panel').style.display = '';
+
+        // 智能分析摘要
+        let analyzeHtml = '';
+        const issues = data.auto_analyze || [];
+        const highRisk = issues.filter(i => i.col2 === '高风险').length;
+        const midRisk  = issues.filter(i => i.col2 === '中风险').length;
+        if (issues.length > 0) {
+          analyzeHtml = `
+          <div class="result-card" style="border-left:3px solid ${highRisk > 0 ? '#f44336' : midRisk > 0 ? '#ff9800' : '#4caf50'}">
+            <div class="ri">${highRisk > 0 ? '🔴' : midRisk > 0 ? '🟡' : '🟢'}</div>
+            <div class="rd">
+              <h3>智能分析发现问题 ${issues.length} 项</h3>
+              <p>高风险 ${highRisk} · 中风险 ${midRisk} · 低风险/建议 ${issues.length - highRisk - midRisk}</p>
+            </div>
+          </div>`;
+        }
+
+        // AI 诊断结果
+        let aiHtml = '';
+        const ai = data.ai_advice;
+        if (ai && ai.trim()) {
+          // 渲染 Markdown-like 内容（换行 + 列表）
+          const lines = escHtml(ai).split('\n');
+          const bodyHtml = lines.map(line => {
+            if (line.startsWith('- ') || line.startsWith('* '))
+              return '<li>' + line.slice(2) + '</li>';
+            if (line.trim()) return '<p>' + line + '</p>';
+            return '';
+          }).join('');
+          aiHtml = `
+          <div class="result-card" style="background:linear-gradient(135deg,rgba(56,139,253,.06),rgba(124,58,237,.06));border-left:3px solid #7c3aed">
+            <div class="ri">🤖</div>
+            <div class="rd" style="flex:1">
+              <h3 style="color:#7c3aed">AI 智能诊断建议</h3>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px">基于巡检数据自动生成，仅供参考</div>
+            </div>
+            <div style="margin-left:auto;flex-shrink:0">
+              <button class="btn btn-ghost" onclick="toggleAiAdvice()" style="font-size:12px;padding:7px 14px">${ai.length > 120 ? '展开' : '收起'}</button>
+            </div>
+          </div>
+          <div id="ai-advice-body" style="display:${ai.length > 120 ? 'none' : 'block'};margin-top:8px;padding:12px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:13px;line-height:1.8;color:var(--text-main)">
+            ${bodyHtml}
+          </div>
+          <scr" + "ipt>function toggleAiAdvice(){const b=document.getElementById('ai-advice-body');const btn=b.previousElementSibling.querySelector('button');if(b.style.display==='none'){b.style.display='block';btn.textContent='收起'}else{b.style.display='none';btn.textContent='展开'}}</scr" + "ipt>`;
+        }
+
         document.getElementById('result-panel').innerHTML = `
           <div class="result-card">
             <div class="ri">📄</div>
@@ -1061,7 +1212,9 @@ function pollStatus() {
               <p>${escHtml(data.report_name || '')}</p>
             </div>
             <a class="btn btn-success" href="/api/download/${currentTaskId}" download>⬇ 下载报告</a>
-          </div>`;
+          </div>
+          ${analyzeHtml}
+          ${aiHtml}`;
         document.getElementById('done-btns').style.display = '';
       } else if (status === 'error') {
         st.textContent = '❌ 巡检失败';
@@ -1107,6 +1260,285 @@ async function loadReports() {
   }
 }
 
+
+// ─── Trend Analysis ───────────────────────────────────────────────
+let trendInstances = [];
+
+async function loadTrendInstances() {
+  const sel = document.getElementById('trend-instance-select');
+  sel.innerHTML = '<option value="">-- 加载中 --</option>';
+  try {
+    const res = await fetch('/api/history_instances');
+    const data = await res.json();
+    trendInstances = data.instances || [];
+    if (trendInstances.length === 0) {
+      sel.innerHTML = '<option value="">-- 暂无历史记录，请先执行巡检 --</option>';
+      document.getElementById('trend-empty').style.display = 'block';
+      document.getElementById('trend-chart-card').style.display = 'none';
+      return;
+    }
+    sel.innerHTML = trendInstances.map((inst, i) =>
+      `<option value="${i}">${inst.db_type.toUpperCase()} · ${inst.label || inst.host} (${inst.host}:${inst.port}) · ${inst.snapshots_count} 次记录</option>`
+    ).join('');
+    document.getElementById('trend-empty').style.display = 'none';
+  } catch(e) {
+    sel.innerHTML = '<option value="">-- 加载失败 --</option>';
+  }
+}
+
+function onTrendInstanceChange() {
+  document.getElementById('trend-chart-card').style.display = 'none';
+  document.getElementById('trend-comparison').style.display = 'none';
+}
+
+async function loadTrendData() {
+  const sel = document.getElementById('trend-instance-select');
+  const idx = parseInt(sel.value);
+  if (isNaN(idx) || !trendInstances[idx]) return;
+  const inst = trendInstances[idx];
+
+  try {
+    const res = await fetch(`/api/trend?db_type=${inst.db_type}&host=${encodeURIComponent(inst.host)}&port=${inst.port}`);
+    const data = await res.json();
+    if (!data.ok || !data.trend || !data.trend.labels) {
+      document.getElementById('trend-empty').style.display = 'block';
+      document.getElementById('trend-chart-card').style.display = 'none';
+      return;
+    }
+
+    // 渲染对比
+    renderComparison(data.comparison, inst);
+
+    // 渲染趋势图
+    renderTrendCharts(data.trend, inst);
+
+    document.getElementById('trend-empty').style.display = 'none';
+    document.getElementById('trend-chart-card').style.display = 'block';
+  } catch(e) {
+    console.error(e);
+  }
+}
+
+function renderComparison(cmp, inst) {
+  const el = document.getElementById('trend-comparison');
+  if (!cmp || !cmp.curr) { el.style.display = 'none'; return; }
+  const metricLabels = {
+    mem_usage: '内存使用率', cpu_usage: 'CPU 使用率',
+    disk_usage_max: '磁盘使用率', connections: '当前连接数',
+    cache_hit_ratio: '缓存命中率', queries_total: '累计查询数',
+    max_used_connections: '历史最大连接数', risk_count: '风险项数量',
+  };
+  const diffRows = Object.entries(cmp.diff || {})
+    .filter(([k]) => metricLabels[k])
+    .map(([k, v]) => {
+      const isGood = (k === 'risk_count' || k === 'mem_usage' || k === 'disk_usage_max') ? v < 0 : v > 0;
+      const isPercent = ['mem_usage','cpu_usage','disk_usage_max','cache_hit_ratio'].includes(k);
+      const arrow = v > 0 ? '▲' : v < 0 ? '▼' : '─';
+      const color = v === 0 ? 'var(--text-muted)' : isGood ? 'var(--accent)' : 'var(--danger)';
+      const unit = isPercent ? '%' : '';
+      return `<tr>
+        <td style="padding:6px 12px;color:var(--text-muted)">${metricLabels[k]}</td>
+        <td style="padding:6px 12px">${cmp.prev[k] !== undefined ? cmp.prev[k] + unit : 'N/A'}</td>
+        <td style="padding:6px 12px">${cmp.curr[k] !== undefined ? cmp.curr[k] + unit : 'N/A'}</td>
+        <td style="padding:6px 12px;color:${color};font-weight:600">${arrow} ${Math.abs(v)}${unit}</td>
+      </tr>`;
+    }).join('');
+
+  el.innerHTML = `
+    <div class="card" style="background:var(--surface2)">
+      <div class="card-title" style="font-size:13.5px">
+        <span>🔄</span> 与上次巡检对比
+        <span style="font-size:12px;color:var(--text-muted);margin-left:auto">${cmp.prev_ts} → ${cmp.curr_ts}</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="border-bottom:1px solid var(--border)">
+          <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:500">指标</th>
+          <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:500">上次</th>
+          <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:500">本次</th>
+          <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:500">变化</th>
+        </tr></thead>
+        <tbody>${diffRows || '<tr><td colspan="4" style="padding:16px;text-align:center;color:var(--text-muted)">暂无可对比指标</td></tr>'}</tbody>
+      </table>
+    </div>`;
+  el.style.display = 'block';
+}
+
+function renderTrendCharts(trend, inst) {
+  const grid = document.getElementById('trend-charts-grid');
+  const metricConfigs = [
+    { key: 'mem_usage',           label: '内存使用率 (%)',    color: '#388bfd', warn: 80 },
+    { key: 'cpu_usage',           label: 'CPU 使用率 (%)',    color: '#e3b341', warn: 80 },
+    { key: 'disk_usage_max',      label: '磁盘使用率最大值 (%)', color: '#f85149', warn: 80 },
+    { key: 'connections',         label: '当前连接数',         color: '#2ea043', warn: null },
+    { key: 'cache_hit_ratio',     label: '缓存命中率 (%)',    color: '#a371f7', warn: 95 },
+    { key: 'risk_count',          label: '风险项数量',         color: '#e3b341', warn: 3 },
+    { key: 'max_used_connections',label: '历史最大连接数',     color: '#79c0ff', warn: null },
+  ];
+
+  const labels = trend.labels || [];
+  const shortLabels = labels.map(l => l.slice(5)); // MM-DD HH:mm
+
+  grid.innerHTML = '';
+  metricConfigs.forEach(cfg => {
+    const vals = (trend.metrics || {})[cfg.key];
+    if (!vals || vals.every(v => v === 0)) return;
+
+    const canvasId = 'chart-' + cfg.key;
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'background:var(--surface2);border-radius:10px;padding:16px';
+    wrapper.innerHTML = `<div style="font-size:13px;color:var(--text-muted);margin-bottom:8px">${cfg.label}</div><canvas id="${canvasId}" height="160"></canvas>`;
+    grid.appendChild(wrapper);
+
+    // 用纯 SVG/Canvas 自绘折线图（不依赖 Chart.js）
+    requestAnimationFrame(() => drawLineChart(canvasId, shortLabels, vals, cfg));
+  });
+}
+
+function drawLineChart(canvasId, labels, values, cfg) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.offsetWidth || 300;
+  const H = 160;
+  canvas.width = W;
+  canvas.height = H;
+  const pad = { top: 10, right: 10, bottom: 30, left: 40 };
+  const chartW = W - pad.left - pad.right;
+  const chartH = H - pad.top - pad.bottom;
+
+  const minV = Math.min(...values);
+  const maxV = Math.max(...values);
+  const range = maxV - minV || 1;
+
+  const xStep = values.length > 1 ? chartW / (values.length - 1) : chartW;
+
+  function toX(i) { return pad.left + i * xStep; }
+  function toY(v) { return pad.top + chartH - ((v - minV) / range) * chartH; }
+
+  ctx.clearRect(0, 0, W, H);
+
+  // 网格线
+  ctx.strokeStyle = '#30363d';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + (chartH / 4) * i;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + chartW, y); ctx.stroke();
+    const val = maxV - (range / 4) * i;
+    ctx.fillStyle = '#8b949e';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(val.toFixed(val < 10 ? 1 : 0), pad.left - 4, y + 3);
+  }
+
+  // 警戒线
+  if (cfg.warn !== null) {
+    const warnY = toY(cfg.warn);
+    if (warnY >= pad.top && warnY <= pad.top + chartH) {
+      ctx.strokeStyle = 'rgba(227,179,65,0.4)';
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(pad.left, warnY); ctx.lineTo(pad.left + chartW, warnY); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  // 渐变填充
+  const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + chartH);
+  grad.addColorStop(0, cfg.color + '40');
+  grad.addColorStop(1, cfg.color + '05');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.moveTo(toX(0), toY(values[0]));
+  values.forEach((v, i) => { if (i > 0) ctx.lineTo(toX(i), toY(v)); });
+  ctx.lineTo(toX(values.length - 1), pad.top + chartH);
+  ctx.lineTo(toX(0), pad.top + chartH);
+  ctx.closePath();
+  ctx.fill();
+
+  // 折线
+  ctx.strokeStyle = cfg.color;
+  ctx.lineWidth = 2;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  values.forEach((v, i) => {
+    if (i === 0) ctx.moveTo(toX(i), toY(v)); else ctx.lineTo(toX(i), toY(v));
+  });
+  ctx.stroke();
+
+  // 数据点
+  values.forEach((v, i) => {
+    ctx.fillStyle = cfg.color;
+    ctx.beginPath(); ctx.arc(toX(i), toY(v), 3, 0, Math.PI * 2); ctx.fill();
+  });
+
+  // X 轴标签（每隔几个显示一个）
+  const step = Math.max(1, Math.floor(labels.length / 4));
+  ctx.fillStyle = '#8b949e';
+  ctx.font = '10px sans-serif';
+  ctx.textAlign = 'center';
+  labels.forEach((l, i) => {
+    if (i % step === 0 || i === labels.length - 1) {
+      ctx.fillText(l.slice(-5), toX(i), H - 6);
+    }
+  });
+}
+
+
+// ─── AI Config ───────────────────────────────────────────────────
+async function loadAIConfig() {
+  try {
+    const res = await fetch('/api/ai_config');
+    const data = await res.json();
+    const cfg = data.config || {};
+    document.getElementById('ai-backend').value = cfg.backend || 'disabled';
+    document.getElementById('ai-api-key').value = cfg.api_key === '***' ? '' : (cfg.api_key || '');
+    document.getElementById('ai-api-url').value = cfg.api_url || '';
+    document.getElementById('ai-model').value = cfg.model || '';
+    if (cfg.api_url && cfg.api_url.includes('localhost')) {
+      document.getElementById('ai-ollama-url').value = cfg.api_url;
+      document.getElementById('ai-ollama-model').value = cfg.model || '';
+    }
+    onAIBackendChange();
+  } catch(e) { console.error(e); }
+}
+
+function onAIBackendChange() {
+  const b = document.getElementById('ai-backend').value;
+  document.getElementById('ai-openai-fields').style.display  = b === 'openai'  ? 'block' : 'none';
+  document.getElementById('ai-ollama-fields').style.display  = b === 'ollama'  ? 'block' : 'none';
+  document.getElementById('ai-save-banner').style.display = 'none';
+}
+
+async function saveAIConfig() {
+  const backend = document.getElementById('ai-backend').value;
+  let cfg = { backend };
+  if (backend === 'openai') {
+    cfg.api_key = document.getElementById('ai-api-key').value;
+    cfg.api_url = document.getElementById('ai-api-url').value || 'https://api.openai.com/v1';
+    cfg.model   = document.getElementById('ai-model').value || 'gpt-4o-mini';
+  } else if (backend === 'ollama') {
+    cfg.api_key = '';
+    cfg.api_url = document.getElementById('ai-ollama-url').value || 'http://localhost:11434';
+    cfg.model   = document.getElementById('ai-ollama-model').value || 'qwen2.5:7b';
+  }
+  try {
+    const res = await fetch('/api/ai_config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(cfg) });
+    const data = await res.json();
+    const banner = document.getElementById('ai-save-banner');
+    if (data.ok) {
+      banner.className = 'status-banner ok';
+      banner.textContent = '✅ ' + data.msg;
+    } else {
+      banner.className = 'status-banner err';
+      banner.textContent = '❌ 保存失败: ' + data.msg;
+    }
+    banner.style.display = 'flex';
+    setTimeout(() => { banner.style.display = 'none'; }, 4000);
+  } catch(e) {
+    console.error(e);
+  }
+}
+
+
 // ─── Utils ───
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -1114,6 +1546,8 @@ function escHtml(s) {
 
 // ─── Init ───
 showPage('home');
+loadTrendInstances();
+loadAIConfig();
 </script>
 </body>
 </html>
