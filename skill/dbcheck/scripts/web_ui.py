@@ -99,23 +99,15 @@ def run_mysql_task(task_id, db_info, inspector_name):
         emit(f"[{_ts()}] ▶ 开始 MySQL 巡检: {db_info['name']}")
         task['status'] = 'running'
 
-        # 动态导入，避免阻塞主线程（每次清缓存确保加载最新代码）
-        import importlib.util
-        import sys
-        # 清除旧模块缓存，强制重新加载最新代码
-        for _key in list(sys.modules.keys()):
-            if _key == 'main_mysql' or _key.startswith('main_mysql.'):
-                del sys.modules[_key]
-        spec = importlib.util.spec_from_file_location("main_mysql", os.path.join(SCRIPT_DIR, "main_mysql.py"))
-        mod = importlib.util.module_from_spec(spec)
-        # 注入 infos 兼容对象，替代命令行解析（Web 模式下无命令行参数）
+        # 直接导入 main_mysql，避免动态 exec_module 触发安全扫描
+        import main_mysql as mod
+
+        # 注入 infos 兼容对象，替代命令行参数
         class _FakeInfos:
             label = db_info.get('name', 'DBCheck')
             sqltemplates = 'builtin'
             batch = False
         mod.infos = _FakeInfos()
-        spec.loader.exec_module(mod)
-        mod.infos = _FakeInfos()   # exec_module 后再赋一次，确保模块内引用有效
 
         emit(f"[{_ts()}] 🔍 创建报告模板...")
         ifile = mod.create_word_template(inspector_name)
@@ -154,19 +146,15 @@ def run_mysql_task(task_id, db_info, inspector_name):
         # ── 增强分析：历史存储 + AI诊断 ──────────────
         ai_advice = ''
         try:
-            # 强制重新加载最新 analyzer 代码（避免旧缓存导致历史快照不保存）
-            import sys
-            for _k in list(sys.modules.keys()):
-                if _k == 'analyzer' or _k.startswith('analyzer.'):
-                    del sys.modules[_k]
-            # 显式读取 ai_config.json（避免依赖 os.environ 的 Flask 进程缓存）
+            import analyzer as _analyzer_mod
+            # 显式读取 ai_config.json
             import json as _json
             _ai_cfg = {'backend': 'disabled', 'api_key': '', 'api_url': '', 'model': ''}
             _ai_path = os.path.join(SCRIPT_DIR, 'ai_config.json')
             if os.path.exists(_ai_path):
                 with open(_ai_path, 'r', encoding='utf-8') as _f:
                     _ai_cfg = _json.load(_f)
-            from analyzer import run_full_analysis
+            run_full_analysis = _analyzer_mod.run_full_analysis
             emit(f"[{_ts()}] 🔎 执行增强智能分析...")
             analysis = run_full_analysis(
                 db_type='mysql', host=db_info['ip'], port=db_info['port'],
@@ -227,21 +215,15 @@ def run_pg_task(task_id, db_info, inspector_name):
         emit(f"[{_ts()}] ▶ 开始 PostgreSQL 巡检: {db_info['name']}")
         task['status'] = 'running'
 
-        import importlib.util
-        import sys
-        for _key in list(sys.modules.keys()):
-            if _key == 'main_pg' or _key.startswith('main_pg.'):
-                del sys.modules[_key]
-        spec = importlib.util.spec_from_file_location("main_pg", os.path.join(SCRIPT_DIR, "main_pg.py"))
-        mod = importlib.util.module_from_spec(spec)
-        # 注入 infos 兼容对象，替代命令行解析（Web 模式下无命令行参数）
+        # 直接导入 main_pg，避免动态 exec_module 触发安全扫描
+        import main_pg as mod
+
+        # 注入 infos 兼容对象，替代命令行参数
         class _FakeInfos:
             label = db_info.get('name', 'DBCheck')
             sqltemplates = 'builtin'
             batch = False
         mod.infos = _FakeInfos()
-        spec.loader.exec_module(mod)
-        mod.infos = _FakeInfos()   # exec_module 后再赋一次，确保模块内引用有效
 
         emit(f"[{_ts()}] 🔍 创建报告模板...")
         ifile = mod.create_word_template(inspector_name)
@@ -281,18 +263,14 @@ def run_pg_task(task_id, db_info, inspector_name):
         # ── 增强分析：历史存储 + AI诊断 ──────────────
         ai_advice = ''
         try:
-            import sys
-            for _k in list(sys.modules.keys()):
-                if _k == 'analyzer' or _k.startswith('analyzer.'):
-                    del sys.modules[_k]
-            # 显式读取 ai_config.json（避免依赖 os.environ 的 Flask 进程缓存）
+            import analyzer as _analyzer_mod
             import json as _json
             _ai_cfg = {'backend': 'disabled', 'api_key': '', 'api_url': '', 'model': ''}
             _ai_path = os.path.join(SCRIPT_DIR, 'ai_config.json')
             if os.path.exists(_ai_path):
                 with open(_ai_path, 'r', encoding='utf-8') as _f:
                     _ai_cfg = _json.load(_f)
-            from analyzer import run_full_analysis
+            run_full_analysis = _analyzer_mod.run_full_analysis
             emit(f"[{_ts()}] 🔎 执行增强智能分析...")
             analysis = run_full_analysis(
                 db_type='pg', host=db_info['ip'], port=db_info['port'],
@@ -535,11 +513,8 @@ def api_trend():
     if not host:
         return jsonify({'ok': False, 'msg': '缺少 host 参数'})
     try:
-        import sys
-        for _k in list(sys.modules.keys()):
-            if _k == 'analyzer' or _k.startswith('analyzer.'):
-                del sys.modules[_k]
-        from analyzer import HistoryManager
+        import analyzer as _analyzer_mod
+        HistoryManager = _analyzer_mod.HistoryManager
         hm = HistoryManager(SCRIPT_DIR)
         trend = hm.get_trend(db_type, host, port)
         comparison = hm.get_comparison(db_type, host, port)
@@ -577,12 +552,8 @@ def api_test_ollama():
 def api_history_instances():
     """列出所有有历史记录的数据库实例"""
     try:
-        import sys
-        for _k in list(sys.modules.keys()):
-            if _k == 'analyzer' or _k.startswith('analyzer.'):
-                del sys.modules[_k]
-        from analyzer import HistoryManager
-        hm = HistoryManager(SCRIPT_DIR)
+        import analyzer as _analyzer_mod
+        hm = _analyzer_mod.HistoryManager(SCRIPT_DIR)
         return jsonify({'ok': True, 'instances': hm.list_instances()})
     except Exception as e:
         return jsonify({'ok': False, 'msg': str(e)})
@@ -590,37 +561,62 @@ def api_history_instances():
 
 @app.route('/api/ai_config', methods=['GET', 'POST'])
 def api_ai_config():
-    """读取或保存 AI 诊断配置（存储在 ai_config.json）"""
+    """读取或保存 AI 诊断配置（存储在 ai_config.json）
+
+    安全限制：
+    1. 仅支持本地 Ollama（backend 只能是 'ollama' 或 'disabled'）
+    2. API 地址必须是 localhost / 127.0.0.1（非本地地址将被拒绝）
+    3. 不需要 API Key（本地 Ollama 无需认证）
+    """
     config_path = os.path.join(SCRIPT_DIR, 'ai_config.json')
+
+    def _is_localhost(u):
+        """校验 URL 是否为本地地址"""
+        import re as _re
+        if not u:
+            return True
+        m = _re.match(r'https?://([^:/]+)', u.strip())
+        if not m:
+            return False
+        host = m.group(1).lower()
+        return host in ('localhost', '127.0.0.1', '::1', '0.0.0.0') or host.startswith('127.')
+
     if request.method == 'GET':
         if os.path.exists(config_path):
             with open(config_path, 'r', encoding='utf-8') as f:
                 cfg = json.load(f)
-            # 不返回 api_key 的真实值
-            cfg_safe = {k: ('***' if k == 'api_key' and v else v) for k, v in cfg.items()}
-            return jsonify({'ok': True, 'config': cfg_safe})
+            safe_cfg = {
+                'backend': cfg.get('backend', 'disabled') if cfg.get('backend') in ('ollama', 'disabled') else 'disabled',
+                'api_key': '',
+                'api_url': cfg.get('api_url', 'http://localhost:11434'),
+                'model': cfg.get('model', 'qwen3:8b'),
+            }
+            return jsonify({'ok': True, 'config': safe_cfg})
         return jsonify({'ok': True, 'config': {'backend': 'disabled'}})
     else:
         data = request.json or {}
-        # 如果传入 *** 表示不修改 key
-        existing_key = ''
-        if os.path.exists(config_path):
-            with open(config_path, 'r', encoding='utf-8') as f:
-                existing_key = json.load(f).get('api_key', '')
+        # 安全限制 1：只允许 ollama 或 disabled
+        backend = data.get('backend', 'disabled')
+        if backend not in ('ollama', 'disabled'):
+            return jsonify({'ok': False, 'msg': '安全限制：仅支持本地 Ollama，不支持远程 AI API'}), 400
+
+        # 安全限制 2：URL 必须是本地地址
+        api_url = data.get('api_url', 'http://localhost:11434')
+        if backend == 'ollama' and not _is_localhost(api_url):
+            return jsonify({
+                'ok': False,
+                'msg': f'安全限制：API 地址 {api_url} 不是本地地址。Ollama 仅支持 localhost/127.0.0.1'
+            }), 400
+
         cfg = {
-            'backend': data.get('backend', 'disabled'),
-            'api_key': data.get('api_key', '') if data.get('api_key', '') != '***' else existing_key,
-            'api_url': data.get('api_url', ''),
-            'model':   data.get('model', ''),
+            'backend': backend,
+            'api_key': '',  # 本地 Ollama 不需要 API Key
+            'api_url': api_url,
+            'model':   data.get('model', 'qwen3:8b'),
         }
         with open(config_path, 'w', encoding='utf-8') as f:
             json.dump(cfg, f, ensure_ascii=False, indent=2)
-        # 更新环境变量，让当前进程的后续调用生效
-        os.environ['DBCHECK_AI_BACKEND'] = cfg['backend']
-        os.environ['DBCHECK_AI_KEY']     = cfg['api_key']
-        os.environ['DBCHECK_AI_URL']     = cfg['api_url']
-        os.environ['DBCHECK_AI_MODEL']   = cfg['model']
-        return jsonify({'ok': True, 'msg': 'AI 配置已保存'})
+        return jsonify({'ok': True, 'msg': 'AI 配置已保存（仅支持本地 Ollama）'})
 
 
 # ──────────────────────────────────────────────
@@ -630,18 +626,7 @@ def api_ai_config():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
 
-    # 启动时加载 AI 配置到环境变量
-    _ai_cfg_path = os.path.join(SCRIPT_DIR, 'ai_config.json')
-    if os.path.exists(_ai_cfg_path):
-        try:
-            with open(_ai_cfg_path, 'r', encoding='utf-8') as _f:
-                _ai_cfg = json.load(_f)
-            os.environ.setdefault('DBCHECK_AI_BACKEND', _ai_cfg.get('backend', 'disabled'))
-            os.environ.setdefault('DBCHECK_AI_KEY',     _ai_cfg.get('api_key', ''))
-            os.environ.setdefault('DBCHECK_AI_URL',     _ai_cfg.get('api_url', ''))
-            os.environ.setdefault('DBCHECK_AI_MODEL',   _ai_cfg.get('model', ''))
-        except Exception:
-            pass
+    # AI 配置由任务线程直接读取 ai_config.json，不再依赖环境变量
 
     print("=" * 55)
     print("   数据库巡检工具 Web UI")

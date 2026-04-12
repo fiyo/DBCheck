@@ -3,9 +3,13 @@
 DBCheck 增强智能分析模块
 ========================
 提供三个核心能力：
-1. smart_analyze_mysql / smart_analyze_pg  —— 15+ 条风险规则 + 修复 SQL
+1. smart_analyze_mysql / smart_analyze_pg  —— 16+ 条风险规则 + 修复 SQL
 2. HistoryManager   —— 历史指标存储与趋势数据生成
-3. AIAdvisor        —— 通用 AI 诊断适配器（OpenAI / Ollama / 自定义 / 关闭）
+3. AIAdvisor        —— 本地 Ollama 诊断适配器（仅支持本地部署）
+
+安全说明：
+- AI 诊断功能仅支持本地部署的 Ollama，不支持任何远程 AI API
+- 所有数据在本地处理，不会发送到第三方服务器
 """
 
 import os
@@ -659,26 +663,41 @@ class HistoryManager:
 
 
 # ═══════════════════════════════════════════════════════
-#  4. AI 诊断适配器
+#  4. AI 诊断适配器（仅支持本地 Ollama）
 # ═══════════════════════════════════════════════════════
+#
+# 安全限制：
+# 1. 仅支持本地 Ollama（backend='ollama'）或关闭（'disabled'）
+# 2. 不支持 OpenAI、DeepSeek 等任何远程 AI API（会被强制降级为 disabled）
+# 3. Ollama 的 API 地址必须为本地地址（localhost / 127.0.0.1），非本地地址将被拒绝
+#
+# 配置优先级：代码传参 > ai_config.json > 环境变量
+# 所有诊断数据在本地处理，绝不外传。
+#
+
+def _is_localhost_url(url: str) -> bool:
+    """校验 URL 是否为本地地址"""
+    if not url:
+        return True  # 空值走默认 localhost
+    import re as _re
+    parsed = _re.match(r'https?://([^:/]+)', url.strip())
+    if not parsed:
+        return False
+    host = parsed.group(1).lower()
+    return host in ('localhost', '127.0.0.1', '::1', '0.0.0.0') or host.startswith('127.')
+
 
 class AIAdvisor:
     """
-    通用 AI 诊断适配器。
+    AI 诊断适配器 —— **仅支持本地部署的 Ollama**。
 
-    支持三种后端：
-    - openai   : OpenAI / Azure OpenAI / 任何兼容 OpenAI API 的接口
-    - ollama   : 本地 Ollama（默认 http://localhost:11434）
-    - disabled : 关闭 AI 诊断（默认）
+    支持模式：
+    - ollama   : 本地 Ollama（默认 http://localhost:11434，地址必须是本地）
+    - disabled : 关闭 AI 诊断
 
-    配置方式（优先级从高到低）：
-    1. 代码传参
-    2. 环境变量：DBCHECK_AI_BACKEND / DBCHECK_AI_KEY / DBCHECK_AI_URL / DBCHECK_AI_MODEL
-
-    关于"AI诊断"和"智能分析"的区别：
-    - 智能分析（smart_analyze_*）：基于固定规则，离线执行，速度快，结果确定性高
-    - AI诊断（AIAdvisor）：将关键指标喂给大语言模型，生成个性化的自然语言建议
-      两者互补，AI诊断是对规则分析的补充和深化，并非替代关系
+    为安全起见：
+    - 不支持任何远程 AI API（openai/deepseek/custom 等均被拒绝）
+    - API 地址必须为 localhost/127.0.0.1，非本地地址将导致 AI 诊断禁用
     """
 
     METRIC_LABELS_ZH = {
@@ -696,24 +715,28 @@ class AIAdvisor:
 
     def __init__(self, backend: str = None, api_key: str = None,
                  api_url: str = None, model: str = None):
-        self.backend = (backend or os.environ.get('DBCHECK_AI_BACKEND', 'disabled')).lower()
-        self.api_key = api_key or os.environ.get('DBCHECK_AI_KEY', '')
-        self.api_url = api_url or os.environ.get('DBCHECK_AI_URL', '')
-        self.model   = model   or os.environ.get('DBCHECK_AI_MODEL', '')
+        # ── 安全限制 1: 只允许 ollama 或 disabled ──
+        raw_backend = (backend or os.environ.get('DBCHECK_AI_BACKEND', 'disabled')).lower()
+        if raw_backend == 'openai':
+            print("⚠️  安全限制：远程 AI API 已禁用，AI 诊断仅支持本地 Ollama")
+            raw_backend = 'disabled'
+        elif raw_backend not in ('ollama', 'disabled'):
+            print(f"⚠️  安全限制：不支持的 backend '{raw_backend}'，已禁用 AI 诊断")
+            raw_backend = 'disabled'
+        self.backend = raw_backend
 
-        # 默认 model
-        if not self.model:
-            if self.backend == 'openai':
-                self.model = 'gpt-4o-mini'
-            elif self.backend == 'ollama':
-                self.model = 'qwen2.5:7b'
+        # ── 安全限制 2: URL 必须是本地地址 ──
+        resolved_url = api_url or os.environ.get('DBCHECK_AI_URL', 'http://localhost:11434')
+        if self.backend == 'ollama' and not _is_localhost_url(resolved_url):
+            print(f"⚠️  安全限制：API 地址 {resolved_url} 不是本地地址，AI 诊断已禁用")
+            self.backend = 'disabled'
 
-        # 默认 api_url
-        if not self.api_url:
-            if self.backend == 'openai':
-                self.api_url = 'https://api.openai.com/v1'
-            elif self.backend == 'ollama':
-                self.api_url = 'http://localhost:11434'
+        self.api_key = ''  # 本地 Ollama 不需要 API Key
+        self.api_url = resolved_url
+        self.model   = model   or os.environ.get('DBCHECK_AI_MODEL', 'qwen3:8b')
+
+        if self.backend == 'ollama' and not model and not os.environ.get('DBCHECK_AI_MODEL'):
+            self.model = 'qwen3:8b'
 
     @property
     def enabled(self) -> bool:
@@ -791,9 +814,7 @@ class AIAdvisor:
         prompt = self._build_prompt(db_type, label, metrics, issues)
 
         try:
-            if self.backend == 'openai':
-                return self._call_openai(prompt, timeout)
-            elif self.backend == 'ollama':
+            if self.backend == 'ollama':
                 return self._call_ollama(prompt, timeout)
             else:
                 return ''
@@ -801,24 +822,6 @@ class AIAdvisor:
             print(f"⚠️  AI 诊断调用失败 [{self.backend}]: {e}")
             import traceback; traceback.print_exc()
             return ''
-
-    def _call_openai(self, prompt: str, timeout: int) -> str:
-        """调用 OpenAI 兼容 API"""
-        import urllib.request
-        import json as _json
-        url = self.api_url.rstrip('/') + '/chat/completions'
-        payload = _json.dumps({
-            'model': self.model,
-            'messages': [{'role': 'user', 'content': prompt}],
-            'max_tokens': 2000,
-            'temperature': 0.3,
-        }).encode('utf-8')
-        req = urllib.request.Request(url, data=payload, method='POST')
-        req.add_header('Content-Type', 'application/json')
-        req.add_header('Authorization', f'Bearer {self.api_key}')
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = _json.loads(resp.read().decode('utf-8'))
-            return data['choices'][0]['message']['content'].strip()
 
     def _call_ollama(self, prompt: str, timeout: int) -> str:
         """调用本地 Ollama API"""
@@ -859,13 +862,15 @@ def run_full_analysis(db_type: str, host: str, port, label: str,
     :param host/port/label: 数据库信息
     :param context: checkdb() 返回的 context
     :param base_dir: 项目根目录（用于存储 history.json）
-    :param ai_*: AI 诊断配置，不传则从环境变量读取
+    :param ai_*: AI 诊断配置（仅支持本地 Ollama，非本地地址将被拒绝）
     :return: {
         'issues': [...],       # 增强风险列表
         'ai_advice': str,      # AI 建议文本（未启用时为空字符串）
         'trend': {...},        # 历史趋势数据
         'comparison': {...},   # 与上次对比
     }
+
+    安全说明：AI 诊断仅使用本地 Ollama，所有数据不外传。
     """
     # 1. 增强智能分析
     if db_type == 'mysql':
