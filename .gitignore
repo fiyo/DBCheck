@@ -2,4 +2,5 @@ dist/
 build/
 __pycache__/
 *.docx
+*.pdf
 PUBLISH.md
