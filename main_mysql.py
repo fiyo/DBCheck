@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
+
+# 磁盘采集时忽略的外接 ISO / Media 挂载点前缀
+IGNORE_MOUNTS = {'/mnt/iso', '/media', '/run/media', '/iso', '/cdrom'}
+
 import warnings
 warnings.filterwarnings("ignore")
 import itertools
@@ -264,7 +268,12 @@ class RemoteSystemInfoCollector:
                  total_gb、used_gb、free_gb、usage_percent；失败时返回空列表
         """
         try:
-            cmd = "df -h | grep -v 'tmpfs' | grep -v 'devtmpfs' | tail -n +2"
+            IGNORE_PATTERN = "|".join([
+                "/mnt/iso", "/iso", "/media", "/run/media", "/cdrom",
+                "/mnt/iso/", "/mnt/media/", "/run/media/", "/iso/", "/cdrom/"
+            ])
+            ISO_FILTER = "mnt/iso|/iso|/media/|/run/media/|/cdrom"
+            cmd = f"df -h | grep -vE 'tmpfs|devtmpfs' | grep -vE '{ISO_FILTER}' | tail -n +2"
             output, _ = self.execute_command(cmd)
             disk_data = []
             if output:
@@ -418,7 +427,7 @@ class LocalSystemInfoCollector:
         try:
             disk_info = {}
             partitions = psutil.disk_partitions()
-            IGNORE_PREFIXES = ('/mnt/', '/media', '/run/media', '/snap')
+            IGNORE_PREFIXES = ('/mnt/', '/media', '/run/media', '/snap', '/iso', '/cdrom')
             for partition in partitions:
                 mp = partition.mountpoint
                 if partition.fstype and 'loop' not in partition.device and not mp.startswith(IGNORE_PREFIXES):
@@ -562,7 +571,7 @@ def get_host_disk_usage():
                             'device': device, 'mountpoint': mountpoint, 'fstype': "ext4",
                             'total_gb': total_gb, 'used_gb': used_gb, 'free_gb': free_gb, 'usage_percent': usage_percent
                         })
-            # 若没有匹配到重要挂载点，则回退采集全量（跳过虚拟文件系统）
+            # 若没有匹配到重要挂载点，则回退采集全量（跳过虚拟文件系统和 ISO/Media 分区）
             if not disk_data:
                 for line in lines:
                     parts = line.split()
@@ -570,7 +579,8 @@ def get_host_disk_usage():
                         device = parts[0]
                         mountpoint = parts[5]
                         if any(vfs in device for vfs in ['tmpfs', 'devtmpfs', 'overlay']): continue
-                        if mountpoint.startswith('/mnt/') and not mountpoint.startswith('/mnt/share'): continue  # 跳过挂载的 ISO 等外部存储
+                        # 跳过外接 ISO / Media 挂载点
+                        if mountpoint in IGNORE_MOUNTS or any(mountpoint.startswith(p) for p in IGNORE_MOUNTS): continue
                         size_str = parts[1]
                         used_str = parts[2]
                         avail_str = parts[3]
@@ -2103,10 +2113,10 @@ class saveDoc(object):
                 else:
                     doc2.add_paragraph('✅ 未发现明显风险项，MySQL 数据库运行状态良好。')
 
-                # 7.2 修复 SQL 速查
+                # 7.2 修复速查
                 fix_items = [i for i in auto_analyze if i.get('fix_sql','').strip()]
                 if fix_items:
-                    doc2.add_heading('7.2 修复 SQL 速查（可直接执行）', level=2)
+                    doc2.add_heading('7.2 修复速查', level=2)
                     for idx,item in enumerate(fix_items,1):
                         p = doc2.add_paragraph()
                         p.add_run(f'{idx}. [{item.get("col1")}] {item.get("col3","")[:60]}').bold = True
@@ -2406,10 +2416,10 @@ class saveDoc(object):
             else:
                 doc.add_paragraph('✅ 未发现明显风险项，MySQL 数据库运行状态良好。')
 
-            # ── 7.3 修复 SQL 速查 ──
+            # ── 7.3 修复速查 ──
             fix_items = [i for i in auto_analyze if i.get('fix_sql', '').strip()]
             if fix_items:
-                doc.add_heading('7.2 修复 SQL 速查（可直接执行）', level=2)
+                doc.add_heading('7.2 修复速查', level=2)
                 for idx, item in enumerate(fix_items, 1):
                     p = doc.add_paragraph()
                     p.add_run(f'{idx}. [{item.get("col1")}] {item.get("col3")[:60]}').bold = True

@@ -50,8 +50,8 @@ def print_banner():
 {CYAN}{BOLD}    🐘  2 │ PostgreSQL {RESET}{DIM}PostgreSQL 数据库健康巡检与报告生成{RESET}
 {YELLOW}    📋  3 │ 生成批量巡检模板  (MySQL)
     📋  4 │ 生成批量巡检模板  (PostgreSQL){RESET}
-{MAGENTA}    🌐  W │ 启动 Web UI     {RESET}{DIM}浏览器可视化操作界面{RESET}
-{DIM}        5 │ 退出{RESET}
+{MAGENTA}    🌐  5 │ 启动 Web UI     {RESET}{DIM}浏览器可视化操作界面{RESET}
+{DIM}        6 │ 退出{RESET}
 {DIM}  ──────────────────────────────────────────────────────────{RESET}
 """
     print(art)
@@ -95,7 +95,7 @@ def main():
     """统一入口主函数"""
     while True:
         print_banner()
-        choice = input("请选择功能 (1-5 / W): ").strip().lower()
+        choice = input("请选择功能 (1-6): ").strip().lower()
 
         if choice == '1':
             print("\n正在启动 MySQL 数据库巡检工具...")
@@ -109,13 +109,13 @@ def main():
         elif choice == '4':
             print("\n⚠️  请选择选项 2 进入 PostgreSQL 巡检菜单，选择 3 生成模板。")
             input("\n按回车键返回...")
-        elif choice in ('w', 'W'):
-            run_web_ui()
         elif choice == '5':
+            run_web_ui()
+        elif choice == '6':
             print("\n感谢使用 DBCheck 数据库巡检工具，再见！👋")
             break
         else:
-            print("\n❌ 无效选择，请输入 1-5 或 W。")
+            print("\n❌ 无效选择，请输入 1-6。")
             input("\n按回车键继续...")
 
 

@@ -564,7 +564,7 @@ select option { background: var(--surface2); }
         <div class="feature-grid">
           <div class="feature-item">
             <div class="fi-icon">🗄️</div>
-            <div class="fi-title">双数据库支持</div>
+            <div class="fi-title">多数据库支持</div>
             <div class="fi-desc">同时支持 MySQL 与 PostgreSQL，覆盖主流生产环境。</div>
           </div>
           <div class="feature-item">
@@ -579,7 +579,7 @@ select option { background: var(--surface2); }
           </div>
           <div class="feature-item">
             <div class="fi-icon">⚠️</div>
-            <div class="fi-title">智能风险分析</div>
+            <div class="fi-title">AI 智能风险分析</div>
             <div class="fi-desc">自动识别阈值异常，给出风险等级与处理建议。</div>
           </div>
           <div class="feature-item">
@@ -890,7 +890,11 @@ select option { background: var(--surface2); }
           <div id="ai-ollama-fields" style="display:none">
             <div class="form-group">
               <label>Ollama 地址</label>
-              <input type="text" id="ai-ollama-url" class="form-input" placeholder="http://localhost:11434"/>
+              <div style="display:flex;gap:8px;align-items:center">
+                <input type="text" id="ai-ollama-url" class="form-input" placeholder="http://localhost:11434" style="flex:1"/>
+                <button class="btn btn-ghost" onclick="testOllama()" style="font-size:12px;padding:7px 12px;white-space:nowrap;flex-shrink:0">🔗 测试连接</button>
+              </div>
+              <div id="ollama-test-result" style="font-size:11px;margin-top:4px;color:var(--text-muted)"></div>
             </div>
             <div class="form-group">
               <label>模型名称</label>
@@ -1575,6 +1579,33 @@ async function saveAIConfig() {
 // ─── Utils ───
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─── Ollama 连接测试 ───────────────────────────────────
+async function testOllama() {
+  const result = document.getElementById('ollama-test-result');
+  result.textContent = '⏳ 正在连接...';
+  result.style.color = 'var(--text-muted)';
+  try {
+    const url = document.getElementById('ai-ollama-url').value.trim() || 'http://localhost:11434';
+    const model = document.getElementById('ai-ollama-model').value.trim() || 'qwen2.5:7b';
+    const resp = await fetch('/api/test_ollama', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({api_url: url, model: model})
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      result.textContent = '✅ 连接成功！模型响应正常 ✓';
+      result.style.color = '#4caf50';
+    } else {
+      result.textContent = '❌ 连接失败：' + (data.error || '未知错误');
+      result.style.color = '#f44336';
+    }
+  } catch(e) {
+    result.textContent = '❌ 连接失败：' + e.message;
+    result.style.color = '#f44336';
+  }
 }
 
 // ─── Init ───

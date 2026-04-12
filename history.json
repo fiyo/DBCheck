@@ -147,6 +147,45 @@
         "report_time": "2026-04-12 08:30:32",
         "risk_count": 2,
         "health_status": "未知"
+      },
+      {
+        "cpu_usage": 0.0,
+        "mem_usage": 9.69,
+        "disk_usage_max": 100.0,
+        "connections": 0,
+        "max_connections": 100,
+        "cache_hit_ratio": 100.0,
+        "version": "PostgreSQL 14.7 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 8.5.0 20210514 (Anolis 8.5.0-20.0.3), 64-bit",
+        "ts": "2026-04-12 10:17:53",
+        "report_time": "2026-04-12 10:17:53",
+        "risk_count": 3,
+        "health_status": "未知"
+      },
+      {
+        "cpu_usage": 0.4,
+        "mem_usage": 9.69,
+        "disk_usage_max": 23.0,
+        "connections": 0,
+        "max_connections": 100,
+        "cache_hit_ratio": 100.0,
+        "version": "PostgreSQL 14.7 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 8.5.0 20210514 (Anolis 8.5.0-20.0.3), 64-bit",
+        "ts": "2026-04-12 10:47:09",
+        "report_time": "2026-04-12 10:47:09",
+        "risk_count": 2,
+        "health_status": "未知"
+      },
+      {
+        "cpu_usage": 0.8,
+        "mem_usage": 9.69,
+        "disk_usage_max": 23.0,
+        "connections": 0,
+        "max_connections": 100,
+        "cache_hit_ratio": 100.0,
+        "version": "PostgreSQL 14.7 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 8.5.0 20210514 (Anolis 8.5.0-20.0.3), 64-bit",
+        "ts": "2026-04-12 10:55:14",
+        "report_time": "2026-04-12 10:55:14",
+        "risk_count": 2,
+        "health_status": "未知"
       }
     ]
   }

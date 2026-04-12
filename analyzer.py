@@ -14,6 +14,9 @@ import time
 import hashlib
 from datetime import datetime
 
+# 忽略的挂载点（外接 ISO/Media 光盘等分区，不应计入磁盘使用率）
+IGNORE_MOUNTS = {'/mnt/iso', '/media', '/run/media', '/iso', '/cdrom'}
+
 
 # ═══════════════════════════════════════════════════════
 #  1. 智能风险分析（MySQL）
@@ -246,7 +249,6 @@ def smart_analyze_mysql(context: dict) -> list:
         })
 
     # ── 14. 磁盘使用率 ────────────────────────────────────
-    IGNORE_MOUNTS = {'/mnt/iso', '/media', '/run/media', '/iso', '/cdrom'}
     for disk in context.get('system_info', {}).get('disk_list', []):
         usage = _float(disk.get('usage_percent', 0))
         mp = disk.get('mountpoint', '/')
@@ -423,7 +425,6 @@ def smart_analyze_pg(context: dict) -> list:
         })
 
     # ── 8. 磁盘使用率 ────────────────────────────────────
-    IGNORE_MOUNTS = {'/mnt/iso', '/media', '/run/media', '/iso', '/cdrom'}
     for disk in context.get('system_info', {}).get('disk_list', []):
         usage = _float(disk.get('usage_percent', 0))
         mp = disk.get('mountpoint', '/')
@@ -556,7 +557,8 @@ class HistoryManager:
         m['cpu_usage'] = _safe_float([sys_info.get('cpu', {})], 'usage_percent') if isinstance(sys_info.get('cpu'), dict) else sys_info.get('cpu', {}).get('usage_percent', 0)
         m['mem_usage'] = sys_info.get('memory', {}).get('usage_percent', 0)
         disks = sys_info.get('disk_list', [])
-        m['disk_usage_max'] = max((d.get('usage_percent', 0) for d in disks), default=0)
+        m['disk_usage_max'] = max((d.get('usage_percent', 0) for d in disks
+                                   if d.get('mountpoint', '/') not in IGNORE_MOUNTS), default=0)
 
         if db_type == 'mysql':
             m['connections'] = _safe_int(context.get('threads_connected', []))
@@ -771,7 +773,8 @@ class AIAdvisor:
         metrics = {
             'mem_usage': sys_info.get('memory', {}).get('usage_percent', 0),
             'cpu_usage': sys_info.get('cpu', {}).get('usage_percent', 0) if isinstance(sys_info.get('cpu'), dict) else 0,
-            'disk_usage_max': max((d.get('usage_percent', 0) for d in sys_info.get('disk_list', [])), default=0),
+            'disk_usage_max': max((d.get('usage_percent', 0) for d in sys_info.get('disk_list', [])
+                                   if d.get('mountpoint', '/') not in IGNORE_MOUNTS), default=0),
             'risk_count': len(issues),
             'health_status': context.get('health_status', '未知'),
         }
@@ -795,7 +798,8 @@ class AIAdvisor:
             else:
                 return ''
         except Exception as e:
-            print(f"⚠️  AI 诊断调用失败: {e}")
+            print(f"⚠️  AI 诊断调用失败 [{self.backend}]: {e}")
+            import traceback; traceback.print_exc()
             return ''
 
     def _call_openai(self, prompt: str, timeout: int) -> str:
@@ -825,13 +829,19 @@ class AIAdvisor:
             'model': self.model,
             'prompt': prompt,
             'stream': False,
-            'options': {'temperature': 0.3, 'num_predict': 2000}
+            'think': False,
+            'options': {'temperature': 0.3}
         }).encode('utf-8')
         req = urllib.request.Request(url, data=payload, method='POST')
         req.add_header('Content-Type', 'application/json')
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        # 使用较长超时（120s），避免首次加载模型时冷启动超时
+        with urllib.request.urlopen(req, timeout=max(timeout, 120)) as resp:
             data = _json.loads(resp.read().decode('utf-8'))
-            return data.get('response', '').strip()
+            raw = data.get('response', '').strip()
+            # 过滤 qwen3 的 thinking 残留（如果 think:false 未生效）
+            import re
+            raw = re.sub(r'<\|reserved_for_thinking\|>[\s\S]*?<\|end_of_thought\|>', '', raw)
+            return raw
 
 
 # ═══════════════════════════════════════════════════════

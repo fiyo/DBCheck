@@ -2140,10 +2140,10 @@ class saveDoc(object):
                 else:
                     doc2.add_paragraph('✅ 未发现明显风险项，PostgreSQL 数据库运行状态良好。')
 
-                # 7.2 修复 SQL 速查
+                # 7.2 修复速查
                 fix_items = [i for i in auto_analyze if i.get('fix_sql','').strip()]
                 if fix_items:
-                    doc2.add_heading('7.2 修复 SQL 速查（可直接执行）', level=2)
+                    doc2.add_heading('7.2 修复速查', level=2)
                     for idx,item in enumerate(fix_items,1):
                         p = doc2.add_paragraph()
                         p.add_run(f'{idx}. [{item.get("col1")}] {item.get("col3","")[:60]}').bold = True
@@ -2468,10 +2468,10 @@ class saveDoc(object):
             else:
                 doc.add_paragraph('✅ 未发现明显风险项，PostgreSQL 数据库运行状态良好。')
 
-            # ── 7.3 修复 SQL 速查 ──
+            # ── 7.3 修复速查 ──
             fix_items = [i for i in auto_analyze if i.get('fix_sql', '').strip()]
             if fix_items:
-                doc.add_heading('7.2 修复 SQL 速查（可直接执行）', level=2)
+                doc.add_heading('7.2 修复速查', level=2)
                 for idx, item in enumerate(fix_items, 1):
                     p = doc.add_paragraph()
                     p.add_run(f'{idx}. [{item.get("col1")}] {item.get("col3")[:60]}').bold = True
