@@ -418,8 +418,10 @@ class LocalSystemInfoCollector:
         try:
             disk_info = {}
             partitions = psutil.disk_partitions()
+            IGNORE_PREFIXES = ('/mnt/', '/media', '/run/media', '/snap')
             for partition in partitions:
-                if partition.fstype and 'loop' not in partition.device:
+                mp = partition.mountpoint
+                if partition.fstype and 'loop' not in partition.device and not mp.startswith(IGNORE_PREFIXES):
                     try:
                         usage = psutil.disk_usage(partition.mountpoint)
                         disk_info[partition.mountpoint] = {
@@ -568,6 +570,7 @@ def get_host_disk_usage():
                         device = parts[0]
                         mountpoint = parts[5]
                         if any(vfs in device for vfs in ['tmpfs', 'devtmpfs', 'overlay']): continue
+                        if mountpoint.startswith('/mnt/') and not mountpoint.startswith('/mnt/share'): continue  # 跳过挂载的 ISO 等外部存储
                         size_str = parts[1]
                         used_str = parts[2]
                         avail_str = parts[3]
@@ -1923,6 +1926,31 @@ class getData(object):
                     })
         except Exception as e:
             print(f"\n❌ 风险分析失败: {e}")
+
+        # AI 智能诊断（从 ai_config.json 读取配置，传递给 analyzer.AIAdvisor）
+        self.context['ai_advice'] = ''
+        try:
+            from analyzer import AIAdvisor
+            import json as _json
+            cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_config.json')
+            ai_cfg = {}
+            if os.path.exists(cfg_path):
+                with open(cfg_path, 'r', encoding='utf-8') as f:
+                    ai_cfg = _json.load(f)
+            advisor = AIAdvisor(
+                backend=ai_cfg.get('backend'),
+                api_key=ai_cfg.get('api_key'),
+                api_url=ai_cfg.get('api_url'),
+                model=ai_cfg.get('model')
+            )
+            if advisor.enabled:
+                label = self.context.get('co_name', [{}])[0].get('CO_NAME', 'MySQL')
+                print(f"\n🤖 正在调用 AI 诊断（{advisor.backend} / {advisor.model}）...")
+                ai_advice = advisor.diagnose('mysql', label, self.context, issues)
+                self.context['ai_advice'] = ai_advice
+        except Exception as e:
+            self.context['ai_advice'] = ''
+
         self.print_progress_bar(total_steps, total_steps, prefix='巡检进度:', suffix='完成')
         return self.context
 
@@ -2005,6 +2033,123 @@ class saveDoc(object):
                 tpl = DocxTemplate(doc_stream)
                 tpl.render(self.context)
                 tpl.save(self.ofile)
+
+                # ── 追加新章节（第7章 7.1/7.2 + 第8章 AI诊断）───────────────────
+                # docxtpl 模板本身有旧的"7.报告说明"，先把它及之后的内容删掉，再追加新章节
+                doc2 = Document(self.ofile)
+                # 找到模板里旧的"7. 报告说明"段落位置，删掉它及之后的所有段落
+                cutoff_idx = None
+                for i, para in enumerate(doc2.paragraphs):
+                    t = para.text.strip()
+                    if t.startswith('7.') and '报告说明' in t:
+                        cutoff_idx = i
+                        break
+                if cutoff_idx is not None:
+                    # python-docx 不提供直接按索引批量删除段落，通过 element 操作
+                    body = doc2._element.body
+                    for para in list(body.iterchildren())[cutoff_idx:]:
+                        body.remove(para)
+
+                auto_analyze = self.context.get('auto_analyze', [])
+                high_risk = [i for i in auto_analyze if i.get('col2') == '高风险']
+                mid_risk  = [i for i in auto_analyze if i.get('col2') == '中风险']
+                low_risk  = [i for i in auto_analyze if i.get('col2') in ('低风险', '建议')]
+
+                # 第 7 章 风险与建议
+                h7 = doc2.add_heading('7. 风险与建议', level=1)
+
+                p = doc2.add_paragraph()
+                p.add_run('本次共检测到 ')
+                if high_risk:
+                    r = p.add_run(f'{len(high_risk)} 项高风险'); r.bold = True; r.font.color.rgb = RGBColor(0xC0,0x00,0x00)
+                if mid_risk:
+                    r = p.add_run(f' {len(mid_risk)} 项中风险'); r.bold = True; r.font.color.rgb = RGBColor(0xFF,0x78,0x00)
+                if low_risk:
+                    r = p.add_run(f' {len(low_risk)} 项低风险/建议'); r.bold = True; r.font.color.rgb = RGBColor(0x37,0x86,0x10)
+                p.add_run(f'，共计 {len(auto_analyze)} 项问题。')
+
+                # 7.1 问题明细
+                if auto_analyze:
+                    doc2.add_heading('7.1 问题明细', level=2)
+                    col_w = [Cm(0.8), Cm(3.2), Cm(1.5), Cm(4.0), Cm(1.0), Cm(1.5), Cm(4.0)]
+                    tbl = doc2.add_table(rows=1+len(auto_analyze), cols=7)
+                    tbl.style = 'Light Grid Accent 1'
+                    hdrs = ['序号','风险项','等级','详细描述','优先级','负责人','修复建议']
+                    for j,(cell,ht) in enumerate(zip(tbl.rows[0].cells, hdrs)):
+                        cell.text = ht
+                        cell.paragraphs[0].runs[0].bold = True
+                        cell.paragraphs[0].runs[0].font.size = Pt(9)
+                        cell.width = col_w[j]
+                    for idx,item in enumerate(auto_analyze,1):
+                        row = tbl.rows[idx].cells
+                        row[0].text = str(idx)
+                        row[1].text = item.get('col1','')
+                        row[2].text = item.get('col2','')
+                        row[3].text = item.get('col3','')
+                        row[4].text = item.get('col4','')
+                        row[5].text = item.get('col5','')
+                        fix_sql = item.get('fix_sql','').strip()
+                        row[6].text = fix_sql if fix_sql else '—'
+                        for j,cell in enumerate(row):
+                            for para in cell.paragraphs:
+                                for run in para.runs: run.font.size = Pt(9)
+                            cell.width = col_w[j]
+                        lvl = item.get('col2','')
+                        cm = {'高风险':RGBColor(0xC0,0x00,0x00),'中风险':RGBColor(0xFF,0x78,0x00),
+                              '低风险':RGBColor(0x37,0x86,0x10),'建议':RGBColor(0x00,0x70,0xC0)}
+                        if lvl in cm:
+                            row[2].paragraphs[0].runs[0].font.color.rgb = cm[lvl]
+                            row[2].paragraphs[0].runs[0].bold = True
+                else:
+                    doc2.add_paragraph('✅ 未发现明显风险项，MySQL 数据库运行状态良好。')
+
+                # 7.2 修复 SQL 速查
+                fix_items = [i for i in auto_analyze if i.get('fix_sql','').strip()]
+                if fix_items:
+                    doc2.add_heading('7.2 修复 SQL 速查（可直接执行）', level=2)
+                    for idx,item in enumerate(fix_items,1):
+                        p = doc2.add_paragraph()
+                        p.add_run(f'{idx}. [{item.get("col1")}] {item.get("col3","")[:60]}').bold = True
+                        qp = doc2.add_paragraph(item.get('fix_sql','').strip())
+                        qp.style = 'Quote'
+                        if qp.runs: qp.runs[0].font.size = Pt(9)
+
+                # 第 8 章 AI 智能诊断建议
+                ai_advice = self.context.get('ai_advice','').strip()
+                doc2.add_heading('8. AI 智能诊断建议', level=1)
+                if ai_advice:
+                    p = doc2.add_paragraph()
+                    p.add_run('🤖 以下建议由 AI 大模型基于本次巡检数据自动生成，仅供参考，'
+                              '实际操作请结合业务场景谨慎评估。').italic = True
+                    doc2.add_paragraph()
+                    for line in ai_advice.split('\n'):
+                        line = line.strip()
+                        if not line:
+                            doc2.add_paragraph()
+                        elif line.startswith(('- ','* ','• ')):
+                            bp = doc2.add_paragraph(style='List Bullet')
+                            bp.add_run(line[2:]).font.size = Pt(11)
+                        else:
+                            np = doc2.add_paragraph(line)
+                            if np.runs: np.runs[0].font.size = Pt(11)
+                else:
+                    p = doc2.add_paragraph()
+                    p.add_run('💡 AI 诊断未启用。如需开启，请在 Web UI「AI 诊断设置」中配置 AI 后端（支持 DeepSeek / OpenAI / Ollama）。').italic = True
+
+                # 第 9 章 报告说明
+                doc2.add_heading('9. 报告说明', level=1)
+                notes = [
+                    "1. 本报告基于 MySQL 数据库实时状态生成，反映了生成时刻的数据库健康状况",
+                    "2. 报告中空白的项表示未能获取到相关数据，可能是由于权限限制或该功能未启用",
+                    "3. 磁盘信息仅显示主要分区的使用率，如需查看完整磁盘信息请使用系统命令 'df -h'",
+                    "4. 巡检结果仅供参考，实际运维中请结合具体业务场景进行分析",
+                    "5. 建议定期进行数据库巡检，及时发现并解决潜在问题",
+                    f"6. AI 诊断功能（若启用）生成的建议仅供参考，不构成专业 DBA 意见"
+                ]
+                for note in notes:
+                    doc2.add_paragraph(note)
+
+                doc2.save(self.ofile)
                 return True
             except AttributeError as ae:
                 if 'part' in str(ae):
@@ -2201,23 +2346,107 @@ class saveDoc(object):
                 cells[4].text = str(u.get('col5', ''))
 
             doc.add_heading('7. 风险与建议', level=1)
-            auto_analyze = self.context.get('auto_analyze', [])
-            if auto_analyze:
-                for item in auto_analyze:
-                    p = doc.add_paragraph()
-                    p.add_run(f"[{item.get('col2', '')}] ").bold = True
-                    p.add_run(item.get('col3', ''))
-                    p.add_run(f" (处理优先级: {item.get('col4', '')}, 负责人: {item.get('col5', '')})")
-            else:
-                doc.add_paragraph("未发现明显风险项，系统运行良好。")
 
-            doc.add_heading('8. 报告说明', level=1)
+            # ── 7.1 概览统计 ──
+            auto_analyze = self.context.get('auto_analyze', [])
+            high_risk  = [i for i in auto_analyze if i.get('col2') == '高风险']
+            mid_risk   = [i for i in auto_analyze if i.get('col2') == '中风险']
+            low_risk   = [i for i in auto_analyze if i.get('col2') in ('低风险', '建议')]
+            p = doc.add_paragraph()
+            p.add_run('本次共检测到 ').bold = False
+            if high_risk:
+                run_h = p.add_run(f'{len(high_risk)} 项高风险')
+                run_h.bold = True; run_h.font.color.rgb = RGBColor(0xC0, 0x00, 0x00)
+            if mid_risk:
+                run_m = p.add_run(f' {len(mid_risk)} 项中风险')
+                run_m.bold = True; run_m.font.color.rgb = RGBColor(0xFF, 0x78, 0x00)
+            if low_risk:
+                run_l = p.add_run(f' {len(low_risk)} 项低风险/建议')
+                run_l.bold = True; run_l.font.color.rgb = RGBColor(0x37, 0x86, 0x10)
+            p.add_run(f'，共计 {len(auto_analyze)} 项问题。')
+
+            # ── 7.2 风险明细表格 ──
+            if auto_analyze:
+                doc.add_heading('7.1 问题明细', level=2)
+                # 列：序号、风险项、等级、详细描述、优先级、负责人、修复建议
+                col_widths = [Cm(0.8), Cm(3.2), Cm(1.5), Cm(4.0), Cm(1.0), Cm(1.5), Cm(4.0)]
+                tbl = doc.add_table(rows=1 + len(auto_analyze), cols=7)
+                tbl.style = 'Light Grid Accent 1'
+                hdr = tbl.rows[0].cells
+                headers = ['序号', '风险项', '等级', '详细描述', '优先级', '负责人', '修复建议']
+                for j, (cell, hdr_text) in enumerate(zip(hdr, headers)):
+                    cell.text = hdr_text
+                    cell.paragraphs[0].runs[0].bold = True
+                    cell.paragraphs[0].runs[0].font.size = Pt(9)
+                    cell.width = col_widths[j]
+                for idx, item in enumerate(auto_analyze, 1):
+                    row = tbl.rows[idx].cells
+                    row[0].text = str(idx)
+                    row[1].text = item.get('col1', '')
+                    row[2].text = item.get('col2', '')
+                    row[3].text = item.get('col3', '')
+                    row[4].text = item.get('col4', '')
+                    row[5].text = item.get('col5', '')
+                    fix_sql = item.get('fix_sql', '').strip()
+                    row[6].text = fix_sql if fix_sql else '—'
+                    for j, cell in enumerate(row):
+                        for para in cell.paragraphs:
+                            for run in para.runs:
+                                run.font.size = Pt(9)
+                        cell.width = col_widths[j]
+                    # 等级颜色
+                    level = item.get('col2', '')
+                    color_map = {'高风险': RGBColor(0xC0, 0x00, 0x00),
+                                 '中风险': RGBColor(0xFF, 0x78, 0x00),
+                                 '低风险': RGBColor(0x37, 0x86, 0x10),
+                                 '建议':   RGBColor(0x00, 0x70, 0xC0)}
+                    if level in color_map:
+                        row[2].paragraphs[0].runs[0].font.color.rgb = color_map[level]
+                        row[2].paragraphs[0].runs[0].bold = True
+            else:
+                doc.add_paragraph('✅ 未发现明显风险项，MySQL 数据库运行状态良好。')
+
+            # ── 7.3 修复 SQL 速查 ──
+            fix_items = [i for i in auto_analyze if i.get('fix_sql', '').strip()]
+            if fix_items:
+                doc.add_heading('7.2 修复 SQL 速查（可直接执行）', level=2)
+                for idx, item in enumerate(fix_items, 1):
+                    p = doc.add_paragraph()
+                    p.add_run(f'{idx}. [{item.get("col1")}] {item.get("col3")[:60]}').bold = True
+                    code_p = doc.add_paragraph(item.get('fix_sql', '').strip())
+                    code_p.style = 'Quote'
+                    code_p.runs[0].font.size = Pt(9)
+
+            # ── 8. AI 智能诊断建议 ──
+            ai_advice = self.context.get('ai_advice', '').strip()
+            doc.add_heading('8. AI 智能诊断建议', level=1)
+            if ai_advice:
+                p = doc.add_paragraph()
+                p.add_run('🤖 以下建议由 AI 大模型基于本次巡检数据自动生成，仅供参考，实际操作请结合业务场景谨慎评估。').italic = True
+                doc.add_paragraph()
+                # 分段渲染：保留列表格式
+                for line in ai_advice.split('\n'):
+                    line = line.strip()
+                    if not line:
+                        doc.add_paragraph()
+                    elif line.startswith(('- ', '* ', '• ')):
+                        p = doc.add_paragraph(style='List Bullet')
+                        p.add_run(line[2:]).font.size = Pt(11)
+                    else:
+                        doc.add_paragraph(line).runs[0].font.size = Pt(11)
+            else:
+                p = doc.add_paragraph()
+                p.add_run('💡 AI 诊断未启用。如需开启，请在 Web UI「AI 诊断设置」中配置 AI 后端（支持 DeepSeek / OpenAI / Ollama）。').italic = True
+
+            # ── 9. 报告说明 ──
+            doc.add_heading('9. 报告说明', level=1)
             notes = [
-                "1. 本报告基于MySQL数据库实时状态生成，反映了生成时刻的数据库健康状况",
+                "1. 本报告基于 MySQL 数据库实时状态生成，反映了生成时刻的数据库健康状况",
                 "2. 报告中空白的项表示未能获取到相关数据，可能是由于权限限制或该功能未启用",
-                "3. 磁盘信息仅显示主要分区的使用率，如需查看完整磁盘信息请使用系统命令'df -h'",
+                "3. 磁盘信息仅显示主要分区的使用率，如需查看完整磁盘信息请使用系统命令 'df -h'",
                 "4. 巡检结果仅供参考，实际运维中请结合具体业务场景进行分析",
-                "5. 建议定期进行数据库巡检，及时发现并解决潜在问题"
+                "5. 建议定期进行数据库巡检，及时发现并解决潜在问题",
+                f"6. AI 诊断功能（若启用）生成的建议仅供参考，不构成专业 DBA 意见"
             ]
             for note in notes:
                 doc.add_paragraph(note)

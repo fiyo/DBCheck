@@ -152,11 +152,13 @@ python3 main.py
 | 2 | PostgreSQL - PostgreSQL 数据库健康检查与报告生成 |
 | 3 | 生成 Excel 批量巡检模板（MySQL） |
 | 4 | 生成 Excel 批量巡检模板（PostgreSQL） |
+| W | 启动 Web UI     浏览器可视化操作界面
 | 5 | 退出 |
 
-1. 选择菜单 **1** 或 **2**，进入 `MySQL` 或 `PostgreSQL` 巡检功能菜单
-2. 选择菜单 **3** 或 **4**，生成 `mysql_batch_template.xlsx` 或 `pg_batch_template.xlsx` 配置模板
-3. 选择菜单 **5** 退出工具
+1. 输入 **1** 或 **2**，进入 `MySQL` 或 `PostgreSQL` 巡检功能菜单
+2. 输入 **3** 或 **4**，生成 `mysql_batch_template.xlsx` 或 `pg_batch_template.xlsx` 配置模板
+3. 输入 **W** 或 **w**，启动 Web UI 服务
+4. 输入 **5** 退出工具
 
 > 💡 命令行启动时显示彩色 ASCII Art Banner，按 `W` 可直接启动 Web UI。
 
@@ -233,6 +235,12 @@ python3 web_ui.py
 
 ![历史报告](snapshot/webui10.png)
 *图 10：历史报告列表页，支持按名称、大小、时间浏览*
+
+![AI 诊断建议](snapshot/webui11.png)
+*图 11：诊断建议*
+
+![历史趋势分析](snapshot/webui12.png)
+*图 12：历史趋势分析*
 
 ### OpenClaw Skill（AI 助手直连）
 

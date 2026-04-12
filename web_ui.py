@@ -99,8 +99,13 @@ def run_mysql_task(task_id, db_info, inspector_name):
         emit(f"[{_ts()}] ▶ 开始 MySQL 巡检: {db_info['name']}")
         task['status'] = 'running'
 
-        # 动态导入，避免阻塞主线程
+        # 动态导入，避免阻塞主线程（每次清缓存确保加载最新代码）
         import importlib.util
+        import sys
+        # 清除旧模块缓存，强制重新加载最新代码
+        for _key in list(sys.modules.keys()):
+            if _key == 'main_mysql' or _key.startswith('main_mysql.'):
+                del sys.modules[_key]
         spec = importlib.util.spec_from_file_location("main_mysql", os.path.join(SCRIPT_DIR, "main_mysql.py"))
         mod = importlib.util.module_from_spec(spec)
         # 注入 infos 兼容对象，替代命令行解析（Web 模式下无命令行参数）
@@ -207,6 +212,10 @@ def run_pg_task(task_id, db_info, inspector_name):
         task['status'] = 'running'
 
         import importlib.util
+        import sys
+        for _key in list(sys.modules.keys()):
+            if _key == 'main_pg' or _key.startswith('main_pg.'):
+                del sys.modules[_key]
         spec = importlib.util.spec_from_file_location("main_pg", os.path.join(SCRIPT_DIR, "main_pg.py"))
         mod = importlib.util.module_from_spec(spec)
         # 注入 infos 兼容对象，替代命令行解析（Web 模式下无命令行参数）

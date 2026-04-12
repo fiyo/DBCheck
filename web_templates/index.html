@@ -1179,14 +1179,47 @@ function pollStatus() {
         let aiHtml = '';
         const ai = data.ai_advice;
         if (ai && ai.trim()) {
-          // 渲染 Markdown-like 内容（换行 + 列表）
+          // 渲染内容：处理段落、bullet 列表、编号列表、标题
           const lines = escHtml(ai).split('\n');
-          const bodyHtml = lines.map(line => {
-            if (line.startsWith('- ') || line.startsWith('* '))
-              return '<li>' + line.slice(2) + '</li>';
-            if (line.trim()) return '<p>' + line + '</p>';
-            return '';
-          }).join('');
+          let inUl = false, inOl = false;
+          let html = '';
+          for (let line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) {
+              if (inUl) { html += '</ul>'; inUl = false; }
+              if (inOl) { html += '</ol>'; inOl = false; }
+              continue;
+            }
+            // 标题行（# 开头）
+            if (/^#{1,3}\s/.test(trimmed)) {
+              if (inUl) { html += '</ul>'; inUl = false; }
+              if (inOl) { html += '</ol>'; inOl = false; }
+              const lvl = trimmed.match(/^(#+)/)[1].length;
+              html += '<h' + Math.min(lvl + 2, 4) + ' style="margin:8px 0 4px;font-size:13px;font-weight:600">' + trimmed.replace(/^#+\s/, '') + '</h' + Math.min(lvl + 2, 4) + '>';
+              continue;
+            }
+            // bullet 列表
+            if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+              if (inOl) { html += '</ol>'; inOl = false; }
+              if (!inUl) { html += '<ul style="margin:4px 0;padding-left:18px">'; inUl = true; }
+              html += '<li style="margin-bottom:4px">' + trimmed.slice(2) + '</li>';
+              continue;
+            }
+            // 编号列表（1. 2. 3. 或 1) 2) 等）
+            if (/^\d+[.)]\s/.test(trimmed)) {
+              if (inUl) { html += '</ul>'; inUl = false; }
+              if (!inOl) { html += '<ol style="margin:4px 0;padding-left:18px">'; inOl = true; }
+              html += '<li style="margin-bottom:4px">' + trimmed.replace(/^\d+[.)]\s/, '') + '</li>';
+              continue;
+            }
+            // 普通段落
+            if (inUl) { html += '</ul>'; inUl = false; }
+            if (inOl) { html += '</ol>'; inOl = false; }
+            html += '<p style="margin:4px 0;line-height:1.8">' + trimmed + '</p>';
+          }
+          if (inUl) html += '</ul>';
+          if (inOl) html += '</ol>';
+
           aiHtml = `
           <div class="result-card" style="background:linear-gradient(135deg,rgba(56,139,253,.06),rgba(124,58,237,.06));border-left:3px solid #7c3aed">
             <div class="ri">🤖</div>
@@ -1195,13 +1228,13 @@ function pollStatus() {
               <div style="font-size:12px;color:var(--text-muted);margin-top:2px">基于巡检数据自动生成，仅供参考</div>
             </div>
             <div style="margin-left:auto;flex-shrink:0">
-              <button class="btn btn-ghost" onclick="toggleAiAdvice()" style="font-size:12px;padding:7px 14px">${ai.length > 120 ? '展开' : '收起'}</button>
+              <button class="btn btn-ghost" onclick="toggleAiAdvice()" style="font-size:12px;padding:7px 14px">${ai.length > 200 ? '展开' : '收起'}</button>
             </div>
           </div>
-          <div id="ai-advice-body" style="display:${ai.length > 120 ? 'none' : 'block'};margin-top:8px;padding:12px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:13px;line-height:1.8;color:var(--text-main)">
-            ${bodyHtml}
+          <div id="ai-advice-body" style="display:${ai.length > 200 ? 'none' : 'block'};margin-top:8px;padding:12px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-main)">
+            ${html}
           </div>
-          <scr" + "ipt>function toggleAiAdvice(){const b=document.getElementById('ai-advice-body');const btn=b.previousElementSibling.querySelector('button');if(b.style.display==='none'){b.style.display='block';btn.textContent='收起'}else{b.style.display='none';btn.textContent='展开'}}</scr" + "ipt>`;
+        `;
         }
 
         document.getElementById('result-panel').innerHTML = `
@@ -1548,6 +1581,22 @@ function escHtml(s) {
 showPage('home');
 loadTrendInstances();
 loadAIConfig();
+</script>
+
+<!-- AI 诊断展开/收起 -->
+<script>
+function toggleAiAdvice() {
+  const b = document.getElementById('ai-advice-body');
+  if (!b) return;
+  const btn = b.previousElementSibling.querySelector('button');
+  if (b.style.display === 'none') {
+    b.style.display = 'block';
+    btn.textContent = '收起';
+  } else {
+    b.style.display = 'none';
+    btn.textContent = '展开';
+  }
+}
 </script>
 </body>
 </html>
