@@ -68,7 +68,91 @@ def test_pg_connection(host, port, user, password, database='postgres'):
         return False, str(e)
 
 
-def test_ssh_connection(ssh_host, ssh_port, ssh_user, ssh_password, ssh_key_file):
+def test_oracle_connection(host, port, user, password, service_name=None):
+    """测试 Oracle 连接，返回 (ok: bool, msg: str)
+    支持 'sys as sysdba' / 'sys as sysoper' 等特权身份
+    """
+    try:
+        if service_name is None or not service_name.strip():
+            service_name = host
+
+        # 解析特权身份（如 'sys as sysdba' → ('sys', 'SYSDBA')）
+        raw = user.strip()
+        privilege = None
+        for suffix in [' as sysdba', ' as sysoper', ' as sysasm']:
+            if raw.lower().endswith(suffix):
+                user = raw[:-len(suffix)].strip()
+                privilege = suffix[4:].strip().upper()  # "SYSDBA"
+                break
+
+        try:
+            import oracledb as _ora
+            if privilege:
+                try:
+                    mode_map = {'SYSDBA': _ora.SYSDBA, 'SYSOPER': _ora.SYSOPER, 'SYSASM': _ora.SYSASM}
+                    mode_val = mode_map.get(privilege)
+                except AttributeError:
+                    mode_val = None
+            else:
+                mode_val = None
+            conn = _ora.connect(
+                user=user, password=password,
+                dsn=f"{host}:{int(port)}/{service_name}",
+                mode=mode_val
+            )
+        except ImportError:
+            import cx_Oracle as _ora
+            if privilege:
+                try:
+                    mode_map = {'SYSDBA': _ora.SYSDBA, 'SYSOPER': _ora.SYSOPER, 'SYSASM': _ora.SYSASM}
+                    mode_val = mode_map.get(privilege)
+                except AttributeError:
+                    mode_val = None
+            else:
+                mode_val = None
+            dsn = _ora.makedsn(host, int(port), service_name=service_name)
+            conn = _ora.connect(user=user, password=password, dsn=dsn, mode=mode_val)
+        cur = conn.cursor()
+        cur.execute("SELECT banner FROM v$version WHERE ROWNUM=1 AND banner LIKE 'Oracle%'")
+        ver = cur.fetchone()[0]
+        cur.close()
+        conn.close()
+        return True, str(ver)
+    except Exception as e:
+        return False, str(e)
+
+
+def test_ssh_connection(host, port=22, username='root', password=None, key_file=None):
+    """测试 SSH 连接，返回 (ok: bool, msg: str)"""
+    try:
+        import paramiko
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+        if key_file and os.path.isfile(key_file):
+            pkey = paramiko.RSAKey.from_private_key_file(key_file)
+            client.connect(hostname=host, port=int(port), username=username,
+                           pkey=pkey, timeout=10)
+        elif password:
+            client.connect(hostname=host, port=int(port), username=username,
+                           password=password, timeout=10)
+        else:
+            try:
+                client.connect(hostname=host, port=int(port), username=username,
+                               timeout=10)
+            except paramiko.AuthenticationException:
+                return True, f"SSH 主机可达，但认证失败（请确认密码或密钥）"
+        client.close()
+        return True, "SSH 连接成功"
+
+    except Exception as e:
+        err_msg = str(e)
+        if "timed out" in err_msg.lower() or "connection refused" in err_msg.lower():
+            return False, f"无法连接 SSH: 请检查主机地址和端口 ({err_msg})"
+        return False, f"SSH 连接失败: {err_msg}"
+
+
+
     """测试 SSH 连接，返回 (ok: bool, msg: str)"""
     try:
         import paramiko
@@ -318,6 +402,127 @@ def run_pg_task(task_id, db_info, inspector_name):
         task['error'] = str(e)
 
 
+def run_oracle_task(task_id, db_info, inspector_name):
+    """在后台线程中执行 Oracle 巡检"""
+    task = tasks[task_id]
+    log = task['log']
+
+    def emit(msg):
+        log.append(msg)
+        task['last_update'] = time.time()
+
+    try:
+        emit(f"[{_ts()}] ▶ 开始 Oracle 巡检: {db_info['name']}")
+        task['status'] = 'running'
+
+        # 直接导入 main_oracle，避免动态 exec_module 触发安全扫描
+        import main_oracle as mod
+
+        # 注入 infos 兼容对象
+        class _FakeInfos:
+            label = db_info.get('name', 'DBCheck')
+            sqltemplates = 'builtin'
+            batch = False
+        mod.infos = _FakeInfos()
+
+        emit(f"[{_ts()}] 🔍 创建报告模板...")
+        ifile = mod.create_word_template(inspector_name)
+        if not ifile:
+            raise RuntimeError("Word 模板创建失败")
+
+        dir_path = os.path.join(SCRIPT_DIR, "reports")
+        os.makedirs(dir_path, exist_ok=True)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        file_name = f"Oracle巡检报告_{db_info['name']}_{timestamp}.docx"
+        ofile = os.path.join(dir_path, file_name)
+
+        service_name = db_info.get('service_name', db_info.get('ip', '')) or None
+
+        emit(f"[{_ts()}] 🔍 测试数据库连接 {db_info['ip']}:{db_info['port']}/{service_name or db_info['ip']}...")
+        ok, ver = test_oracle_connection(
+            db_info['ip'], db_info['port'], db_info['user'], db_info['password'],
+            service_name=service_name
+        )
+        if not ok:
+            raise RuntimeError(f"数据库连接失败: {ver}")
+        emit(f"[{_ts()}] ✅ 数据库连接成功: {ver}")
+
+        ssh_info = {}
+        if db_info.get('ssh_host'):
+            ssh_info = {k: db_info[k] for k in ('ssh_host','ssh_port','ssh_user','ssh_password','ssh_key_file') if k in db_info}
+
+        emit(f"[{_ts()}] 📊 开始执行巡检 SQL...")
+        data = mod.getData(db_info['ip'], db_info['port'], db_info['user'], db_info['password'],
+                           service_name=service_name, ssh_info=ssh_info)
+        if data is None or data.conn_db2 is None:
+            raise RuntimeError("无法建立数据库连接，getData 返回 None")
+
+        ret = data.checkdb('builtin')
+        if not ret:
+            raise RuntimeError("巡检执行失败（checkdb 返回空）")
+
+        ret.update({"co_name": [{'CO_NAME': db_info['name']}]})
+        ret.update({"port": [{'PORT': db_info['port']}]})
+        ret.update({"ip": [{'IP': db_info['ip']}]})
+
+        # ── 增强分析：历史存储 + AI诊断 ──────────────
+        ai_advice = ''
+        try:
+            import analyzer as _analyzer_mod
+            import json as _json
+            _ai_cfg = {'backend': 'disabled', 'api_key': '', 'api_url': '', 'model': ''}
+            _ai_path = os.path.join(SCRIPT_DIR, 'ai_config.json')
+            if os.path.exists(_ai_path):
+                with open(_ai_path, 'r', encoding='utf-8') as _f:
+                    _ai_cfg = _json.load(_f)
+            run_full_analysis = _analyzer_mod.run_full_analysis
+            emit(f"[{_ts()}] 🔎 执行增强智能分析...")
+            analysis = run_full_analysis(
+                db_type='oracle', host=db_info['ip'], port=db_info['port'],
+                label=db_info['name'], context=ret, base_dir=SCRIPT_DIR,
+                ai_backend=_ai_cfg.get('backend', 'disabled'),
+                ai_key=_ai_cfg.get('api_key', ''),
+                ai_url=_ai_cfg.get('api_url', ''),
+                ai_model=_ai_cfg.get('model', '')
+            )
+            ret['auto_analyze'] = analysis['issues']
+            ai_advice = analysis.get('ai_advice', '')
+            if ai_advice:
+                emit(f"[{_ts()}] 🤖 AI 诊断完成")
+            emit(f"[{_ts()}] 📈 历史记录已更新（已记录 {analysis['trend'].get('snapshots_count', 1)} 次）")
+            task['trend'] = analysis.get('trend', {})
+            task['comparison'] = analysis.get('comparison', {})
+            task['ai_advice'] = ai_advice
+        except ImportError:
+            pass
+        except Exception as ex:
+            emit(f"[{_ts()}] ⚠️  增强分析异常（不影响报告生成）: {ex}")
+
+        emit(f"[{_ts()}] 📝 正在渲染 Word 报告...")
+        savedoc = mod.saveDoc(context=ret, ofile=ofile, ifile=ifile, inspector_name=inspector_name)
+        success = savedoc.contextsave()
+
+        if success:
+            emit(f"[{_ts()}] ✅ 报告生成成功: {file_name}")
+            task['status'] = 'done'
+            task['report_file'] = ofile
+            task['report_name'] = file_name
+        else:
+            raise RuntimeError("Word 报告渲染失败")
+
+        try:
+            if os.path.exists(ifile):
+                os.remove(ifile)
+        except Exception:
+            pass
+
+    except Exception as e:
+        emit(f"[{_ts()}] ❌ 巡检失败: {e}")
+        emit(traceback.format_exc())
+        task['status'] = 'error'
+        task['error'] = str(e)
+
+
 def _ts():
     return datetime.now().strftime('%H:%M:%S')
 
@@ -344,6 +549,8 @@ def api_test_db():
 
     if db_type == 'mysql':
         ok, msg = test_mysql_connection(host, port, user, password)
+    elif db_type == 'oracle':
+        ok, msg = test_oracle_connection(host, port, user, password, service_name=data.get('service_name', None))
     else:
         ok, msg = test_pg_connection(host, port, user, password, database)
 
@@ -371,13 +578,18 @@ def api_start_inspection():
     db_type = data.get('db_type', 'mysql')
     inspector_name = data.get('inspector_name', 'Jack') or 'Jack'
 
+    # 根据数据库类型设置默认端口
+    default_ports = {'mysql': 3306, 'pg': 5432, 'oracle': 1521}
+    default_users = {'mysql': 'root', 'pg': 'postgres', 'oracle': 'system'}
+
     db_info = {
         'name':        data.get('name', f'{db_type.upper()}_Server'),
         'ip':          data.get('host', 'localhost'),
-        'port':        data.get('port', 3306 if db_type == 'mysql' else 5432),
-        'user':        data.get('user', 'root'),
+        'port':        int(data.get('port', default_ports.get(db_type, 1521))),
+        'user':        data.get('user', default_users.get(db_type, 'root')),
         'password':    data.get('password', ''),
         'database':    data.get('database', 'postgres'),
+        'service_name': data.get('service_name', None),
     }
 
     if data.get('ssh_host'):
@@ -402,7 +614,13 @@ def api_start_inspection():
         'last_update': time.time(),
     }
 
-    target = run_mysql_task if db_type == 'mysql' else run_pg_task
+    # 路由到对应的巡检函数
+    if db_type == 'mysql':
+        target = run_mysql_task
+    elif db_type == 'oracle':
+        target = run_oracle_task
+    else:
+        target = run_pg_task
     t = threading.Thread(target=target, args=(task_id, db_info, inspector_name), daemon=True)
     t.start()
 

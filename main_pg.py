@@ -2845,6 +2845,12 @@ def main():
     6. 程序退出前打印总运行耗时
     """
     start_time = time.time()
+
+    # 支持从主入口通过 --template 直接生成 Excel 模板
+    if len(sys.argv) > 1 and sys.argv[1] == '--template':
+        create_excel_template()
+        return
+
     print_banner()
     check_license()
     while True:

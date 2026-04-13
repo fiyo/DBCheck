@@ -151,7 +151,7 @@ AI 诊断与智能分析的关系：
 
 - **操作系统**：Linux / macOS / Windows
 - **Python**：3.6 及以上
-- **依赖**：pymysql、psycopg2-binary、python-docx、docxtpl、paramiko、psutil、openpyxl、pandas
+- **依赖**：pymysql、psycopg2-binary、python-docx、docxtpl、paramiko、psutil、openpyxl、pandas、flask、oracledb
 - **MySQL 权限**：查询 information_schema、performance_schema、mysql 库的只读权限
 - **PostgreSQL 权限**：查询 pg_stat_* 系列系统视图及 pg_roles 的只读权限
 - **SSH（可选）**：用于远程采集系统资源
@@ -163,7 +163,7 @@ AI 诊断与智能分析的关系：
 ### 安装依赖
 
 ```bash
-pip3 install pyinstaller pymysql psycopg2-binary paramiko openpyxl docxtpl python-docx pandas psutil==5.9.0 flask
+pip3 install pyinstaller pymysql psycopg2-binary paramiko openpyxl docxtpl python-docx pandas psutil==5.9.0 flask oracledb
 ```
 
 ### 启动巡检

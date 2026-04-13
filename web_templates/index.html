@@ -532,7 +532,7 @@ select option { background: var(--surface2); }
     </div>
 
     <div class="sidebar-footer">
-      MySQL · PostgreSQL<br/>
+      MySQL · PostgreSQL · Oracle<br/>
       <span style="opacity:.5">© 2026 DBCheck</span>
     </div>
   </aside>
@@ -550,7 +550,7 @@ select option { background: var(--surface2); }
       <div class="page active" id="page-home">
         <div class="home-hero">
           <h2>数据库健康巡检</h2>
-          <p>自动采集 MySQL / PostgreSQL 数据库关键指标，结合系统资源监控，一键生成专业 Word 巡检报告。</p>
+          <p>自动采集 MySQL / PostgreSQL / Oracle 数据库关键指标，结合系统资源监控，一键生成专业 Word 巡检报告。</p>
           <div class="quick-actions">
             <button class="btn btn-primary" onclick="startWizard()">
               ▶ 开始巡检
@@ -565,7 +565,7 @@ select option { background: var(--surface2); }
           <div class="feature-item">
             <div class="fi-icon">🗄️</div>
             <div class="fi-title">多数据库支持</div>
-            <div class="fi-desc">同时支持 MySQL 与 PostgreSQL，覆盖主流生产环境。</div>
+            <div class="fi-desc">同时支持 MySQL、PostgreSQL 与 Oracle，覆盖主流生产环境。</div>
           </div>
           <div class="feature-item">
             <div class="fi-icon">📊</div>
@@ -634,6 +634,14 @@ select option { background: var(--surface2); }
               <div class="tc-name">PostgreSQL</div>
               <div class="tc-desc">适用于 PostgreSQL 10+ 实例，采集连接、缓存、Vacuum、索引、复制等核心指标。</div>
             </div>
+            <div class="type-card" id="tc-oracle" onclick="selectDbType('oracle')">
+              <div class="tc-header">
+                <div class="tc-logo">🔴</div>
+                <div class="tc-check" id="chk-oracle"></div>
+              </div>
+              <div class="tc-name">Oracle</div>
+              <div class="tc-desc">适用于 Oracle 11g / 12c / 19c / 21c，采集表空间、SGA/PGA、Redo、Data Guard、ASM、RAC 等全面指标。</div>
+            </div>
           </div>
           <div class="btn-row">
             <button class="btn btn-primary" onclick="gotoStep(2)">下一步 →</button>
@@ -671,6 +679,10 @@ select option { background: var(--surface2); }
             <div class="field full" id="f-database-wrap" style="display:none">
               <label>连接数据库 <span class="opt">PostgreSQL</span></label>
               <input type="text" id="f-database" placeholder="默认 postgres" />
+            </div>
+            <div class="field full" id="f-service-wrap" style="display:none">
+              <label>服务名/SID (Service Name) <span class="opt">Oracle</span></label>
+              <input type="text" id="f-service-name" placeholder="ORCL 或 orcl.example.com（留空则使用主机地址）" />
             </div>
           </div>
           <div id="db-test-status" style="margin-top:12px"></div>
@@ -983,12 +995,19 @@ function selectDbType(type) {
   dbType = type;
   document.getElementById('tc-mysql').classList.toggle('selected', type === 'mysql');
   document.getElementById('tc-pg').classList.toggle('selected', type === 'pg');
+  document.getElementById('tc-oracle').classList.toggle('selected', type === 'oracle');
   document.getElementById('chk-mysql').textContent = type === 'mysql' ? '✓' : '';
   document.getElementById('chk-pg').textContent   = type === 'pg'    ? '✓' : '';
+  document.getElementById('chk-oracle').textContent = type === 'oracle' ? '✓' : '';
   // 默认端口 & 用户名
-  document.getElementById('f-port').value = type === 'mysql' ? 3306 : 5432;
-  document.getElementById('f-user').value = type === 'mysql' ? 'root' : 'postgres';
+  const portMap = { mysql: 3306, pg: 5432, oracle: 1521 };
+  const userMap = { mysql: 'root', pg: 'postgres', oracle: 'system' };
+  document.getElementById('f-port').value = portMap[type] || 3306;
+  document.getElementById('f-user').value = userMap[type] || 'root';
   document.getElementById('f-database-wrap').style.display = type === 'pg' ? '' : 'none';
+  // Oracle 服务名输入框
+  var svcWrap = document.getElementById('f-service-wrap');
+  if (svcWrap) svcWrap.style.display = type === 'oracle' ? '' : 'none';
 }
 
 // ─── Test DB ───
@@ -1002,10 +1021,11 @@ async function testDb() {
       body: JSON.stringify({
         db_type: dbType,
         host:     document.getElementById('f-host').value.trim(),
-        port:     parseInt(document.getElementById('f-port').value) || (dbType==='mysql'?3306:5432),
+        port:     parseInt(document.getElementById('f-port').value) || (dbType==='oracle'?1521:(dbType==='mysql'?3306:5432)),
         user:     document.getElementById('f-user').value.trim(),
         password: document.getElementById('f-password').value,
         database: document.getElementById('f-database').value.trim() || 'postgres',
+        service_name: document.getElementById('f-service-name') ? document.getElementById('f-service-name').value.trim() : null,
       })
     });
     const data = await res.json();
@@ -1064,11 +1084,14 @@ async function testSsh() {
 
 // ─── Confirm Panel ───
 function fillConfirmPanel() {
-  const typeLabel = dbType === 'mysql' ? '🐬 MySQL' : '🐘 PostgreSQL';
-  const name = document.getElementById('f-name').value.trim() || (dbType==='mysql'?'MySQL_Server':'PG_Server');
+  const typeLabels = { mysql: '🐬 MySQL', pg: '🐘 PostgreSQL', oracle: '🔴 Oracle' };
+  const nameDefaults = { mysql: 'MySQL_Server', pg: 'PG_Server', oracle: 'Oracle_Server' };
+  const portDefaults = { mysql: '3306', pg: '5432', oracle: '1521' };
+  const userDefaults = { mysql: 'root', pg: 'postgres', oracle: 'system' };
+  const typeLabel = typeLabels[dbType] || dbType;
+  const name = document.getElementById('f-name').value.trim() || (nameDefaults[dbType]||'_Server');
   const host = document.getElementById('f-host').value.trim() || 'localhost';
-  const port = document.getElementById('f-port').value || (dbType==='mysql'?'3306':'5432');
-  const inspector = document.getElementById('f-inspector').value.trim() || 'Jack';
+  const port = document.getElementById('f-port').value || (portDefaults[dbType]||'1521');
   const sshLabel = sshEnabled ? `${document.getElementById('f-ssh-host').value || host}:${document.getElementById('f-ssh-port').value||22}` : '未配置（仅数据库指标）';
 
   document.getElementById('cf-dbtype').innerHTML = `<span class="tag ${dbType==='mysql'?'tag-mysql':'tag-pg'}">${typeLabel}</span>`;
@@ -1087,12 +1110,13 @@ async function startInspection() {
   const name = document.getElementById('f-name').value.trim() || (dbType==='mysql'?'MySQL_Server':'PG_Server');
   const host = document.getElementById('f-host').value.trim() || 'localhost';
   const port = parseInt(document.getElementById('f-port').value) || (dbType==='mysql'?3306:5432);
-  const user = document.getElementById('f-user').value.trim() || (dbType==='mysql'?'root':'postgres');
+  const user = document.getElementById('f-user').value.trim() || (userDefaults[dbType]||'root');
   const password = document.getElementById('f-password').value;
   const database = document.getElementById('f-database').value.trim() || 'postgres';
+  const svcName = document.getElementById('f-service-name') ? document.getElementById('f-service-name').value.trim() : null;
   const inspector = document.getElementById('f-inspector').value.trim() || 'Jack';
 
-  const payload = { db_type: dbType, name, host, port, user, password, database, inspector_name: inspector };
+  const payload = { db_type: dbType, name, host, port, user, password, database, service_name: svcName, inspector_name: inspector };
   if (sshEnabled) {
     payload.ssh_host     = document.getElementById('f-ssh-host').value.trim() || host;
     payload.ssh_port     = parseInt(document.getElementById('f-ssh-port').value) || 22;
@@ -1278,7 +1302,8 @@ async function loadReports() {
     list.innerHTML = data.files.map(f => {
       const isMySQL = f.name.includes('MySQL');
       const isPG    = f.name.includes('PostgreSQL') || f.name.includes('Postgres');
-      const tagHtml = isMySQL ? '<span class="tag tag-mysql">MySQL</span>' : isPG ? '<span class="tag tag-pg">PostgreSQL</span>' : '';
+      const isOracle = f.name.includes('Oracle');
+      const tagHtml = isMySQL ? '<span class="tag tag-mysql">MySQL</span>' : isPG ? '<span class="tag tag-pg">PostgreSQL</span>' : isOracle ? '<span class="tag tag-oracle">Oracle</span>' : '';
       const size = f.size > 1024*1024 ? (f.size/1024/1024).toFixed(1)+' MB' : (f.size/1024).toFixed(1)+' KB';
       const dt = new Date(f.mtime*1000).toLocaleString('zh-CN');
       return `

@@ -476,6 +476,373 @@ def smart_analyze_pg(context: dict) -> list:
 
 
 # ═══════════════════════════════════════════════════════
+#  2b. Oracle 增强智能分析（20+ 条规则）
+# ═══════════════════════════════════════════════════════
+
+def smart_analyze_oracle(context: dict) -> list:
+    """
+    对 Oracle 巡检结果执行 20+ 条增强风险规则分析。
+    覆盖：表空间、会话、锁、内存、Redo、归档、用户安全、无效对象等
+    """
+    issues = []
+
+    def _float(v, default=0.0):
+        try: return float(str(v).replace(',', '').replace('%', ''))
+        except Exception: return default
+
+    def _int(v, default=0):
+        try: return int(str(v).replace(',', ''))
+        except Exception: return default
+
+    # ── 1. 表空间使用率（含自动扩展）─────────────
+    for ts in context.get('ora_tablespace', []):
+        tsname = ts.get('TABLESPACE_NAME', '?')
+        used_pct = _float(ts.get('USED_PCT_WITH_MAXEXT', ts.get('USED_PCT', 0)))
+        total_mb = _float(ts.get('TOTAL_MB', 0))
+        if used_pct > 95:
+            issues.append({
+                'col1': f'表空间 {tsname} 严重不足', 'col2': '高风险',
+                'col3': f'表空间 {tsname} 使用率 {used_pct:.1f}%（含自动扩展），即将满',
+                'col4': '高', 'col5': 'DBA',
+                'fix_sql': f"-- 检查大对象：\nSELECT segment_name, segment_type, owner, bytes/1024/1024 AS mb\nFROM dba_segments WHERE tablespace_name='{tsname}' ORDER BY bytes DESC;\n-- 清理方案：\n-- 1) 删除不需要的对象\n-- 2) TRUNCATE 大表\n-- 3) ALTER TABLESPACE {tsname} ADD DATAFILE SIZE 1G AUTOEXTEND ON;"
+            })
+        elif used_pct > 85:
+            issues.append({
+                'col1': f'表空间 {tsname} 偏高', 'col2': '中风险',
+                'col3': f'表空间 {tsname} 使用率 {used_pct:.1f}%（总容量 {total_mb:.0f} MB）',
+                'col4': '中', 'col5': 'DBA',
+                'fix_sql': ''
+            })
+
+    # ── 2. TEMP 表空间使用率 ─────────────────────
+    for tmp in context.get('ora_temp_ts', []):
+        tmpname = tmp.get('TABLESPACE_NAME', '?')
+        tmp_used = _float(tmp.get('USED_PCT', 0))
+        if tmp_used > 80:
+            issues.append({
+                'col1': f'TEMP 表空间 {tmpname} 使用率偏高', 'col2': '中风险',
+                'col3': f'TEMP 表空间 {tmpname} 使用率 {tmp_used:.1f}%，可能有大量排序/临时操作',
+                'col4': '中', 'col5': 'DBA',
+                'fix_sql': "-- 查看 TEMP 使用者：\nSELECT s.sid, s.serial#, s.username, u.tablespace, u.segtype,\n       ROUND(u.blocks * p.value / 1024 / 1024, 2) AS mb_used\nFROM v$tempseg_usage u JOIN v$session s ON u.session_addr = s.saddr\nJOIN v$parameter p ON p.name='db_block_size'\nORDER BY mb_used DESC;"
+            })
+
+    # ── 3. 会话数接近上限 ───────────────────────
+    sess = context.get('ora_sessions', [])
+    limit = context.get('ora_session_limit', [])
+    plimit = context.get('ora_process_limit', [])
+    if sess and limit:
+        total = _int(sess[0].get('TOTAL_SESSIONS', 0))
+        active = _int(sess[0].get('ACTIVE_SESSIONS', 0))
+        max_sess = _int(limit[0].get('SESSIONS_LIMIT', 0))
+        max_proc = _int(plimit[0].get('PROCESSES_LIMIT', 0)) if plimit else 0
+        if max_sess > 0:
+            usage = (total / max_sess) * 100
+            if usage > 90:
+                issues.append({
+                    'col1': '会话数严重超标', 'col2': '高风险',
+                    'col3': f'当前会话数 {total}/{max_sess}（{usage:.1f}%），活跃会话 {active}',
+                    'col4': '高', 'col5': 'DBA',
+                    'fix_sql': '-- 查看会话详情：\nSELECT sid, serial#, username, status, machine, program, sql_id, logon_time FROM v$session WHERE type=\'USER\' AND username IS NOT NULL ORDER BY logon_time;'
+                })
+            elif usage > 80:
+                issues.append({
+                    'col1': '会话数偏高', 'col2': '中风险',
+                    'col3': f'当前会话数 {total}/{max_sess}（{usage:.1f}%）',
+                    'col4': '中', 'col5': 'DBA',
+                    'fix_sql': ''
+                })
+        if max_proc > 0 and total > max_proc * 0.85:
+            issues.append({
+                'col1': '进程数可能超限', 'col2': '高风险',
+                'col3': f'sessions={total}, processes上限={max_proc}，sessions 应小于 processes*1.5+22',
+                'col4': '高', 'col5': 'DBA',
+                'fix_sql': '-- 调整参数：\nALTER SYSTEM SET processes=<新值> SCOPE=SPFILE;\nALTER SYSTEM SET sessions=<新值> SCOPE=SPFILE;\n-- 重启后生效'
+            })
+
+    # ── 4. 锁等待 / 阻塞 ─────────────────────────
+    blocked = context.get('ora_blocked', [])
+    if blocked:
+        b_count = len(blocked)
+        max_wait = max((_float(b.get('SEC_IN_WAIT', 0)) for b in blocked), default=0)
+        fix_lines = []
+        for b in blocked[:5]:
+            bsid = b.get("BLOCKED_SID", "")
+            fix_lines.append(
+                f"ALTER SYSTEM KILL SESSION '{bsid},{bsid}'; "
+                "-- 杀掉被阻塞的会话"
+            )
+        issues.append({
+            'col1': f'发现 {b_count} 组锁阻塞', 'col2': '高风险',
+            'col3': f'{b_count} 个会话被锁阻塞，最长等待 {max_wait:.0f} 秒，可能影响业务响应速度',
+            'col4': '高', 'col5': 'DBA',
+            'fix_sql': '\n'.join(fix_lines)
+        })
+
+    # ── 5. SGA 总量检查 ───────────────────────────
+    sga_total = context.get('ora_sga_total', [])
+    if sga_total:
+        sga_mb = _float(sga_total[0].get('SGA_TOTAL_MB', 0))
+        mem_mb = _float(context.get('system_info', {}).get('memory', {}).get('total_mb', 0)) * 1000  # GB to MB approx
+        if mem_mb > 100 and sga_mb > mem_mb * 0.8:
+            issues.append({
+                'col1': 'SGA 占用物理内存比例过高', 'col2': '中风险',
+                'col3': f'SGA 总计 {sga_mb:.0f} MB，约占物理内存的 {(sga_mb/mem_mb)*100:.0f}%，可能导致操作系统换页',
+                'col4': '中', 'col5': 'DBA',
+                'fix_sql': '-- 调整 SGA_TARGET（需重启）：\n-- ALTER SYSTEM SET sga_target = <较小值> SCOPE=SPFILE;\n-- 或启用 AMM: memory_target = 物理内存 * 70%'
+            })
+
+    # ── 6. Redo 日志组状态 ───────────────────────
+    redo_logs = context.get('ora_redo_logs', [])
+    inactive_count = sum(1 for r in redo_logs if str(r.get('STATUS','')).upper() == 'INACTIVE')
+    current_logs = [r for r in redo_logs if str(r.get('STATUS','')).upper() == 'CURRENT']
+    if redo_logs and inactive_count <= 1 and len(redo_logs) >= 3:
+        issues.append({
+            'col1': 'Redo 日志组可能过少或切换频繁', 'col2': '建议',
+            'col3': f'Redo 共 {len(redo_logs)} 组，仅 {inactive_count} 组为 INACTIVE，可能需要增加日志组大小或数量',
+            'col4': '低', 'col5': 'DBA',
+            'fix_sql': '-- 查看日志切换频率：\nSELECT TO_CHAR(first_time,\'YYYY-MM-DD HH24\') AS hour, COUNT(*) AS switch_count\nFROM v$log_history GROUP BY TO_CHAR(first_time,\'YYYY-MM-DD HH24\') ORDER BY hour;\n-- 新增日志组：\n-- ALTER DATABASE ADD LOGFILE GROUP <N> SIZE 512M;\n'
+        })
+    for r in redo_logs:
+        if str(r.get('STATUS','')).upper() not in ('CURRENT', 'ACTIVE', 'INACTIVE'):
+            issues.append({
+                'col1': f'Redo 日志组异常状态: {r.get("STATUS","")}', 'col2': '高风险',
+                'col3': f'Group# {r.get("GROUP#")} 状态为 {r.get("STATUS","")}',
+                'col4': '高', 'col5': 'DBA',
+                'fix_sql': ''
+            })
+
+    # ── 7. 归档模式与备份 ───────────────────────
+    dbinfo = context.get('ora_database', [{}])
+    if dbinfo and str(dbinfo[0].get('LOG_MODE','')).upper() == 'NOARCHIVELOG':
+        issues.append({
+            'col1': '数据库未开启归档模式', 'col2': '高风险',
+            'col3': 'log_mode=NOARCHIVELOG，无法进行在线热备份和时间点恢复(PITR)',
+            'col4': '高', 'col5': 'DBA',
+            'fix_sql': '-- 开启归档模式（需要重启到 MOUNT 状态）：\n-- SHUTDOWN IMMEDIATE;\n-- STARTUP MOUNT;\n-- ALTER DATABASE ARCHIVELOG;\n-- ALTER DATABASE OPEN;\n-- 设置归档路径：\n-- ALTER SYSTEM SET log_archive_dest_1=\'LOCATION=/arch/orcl\' SCOPE=SPFILE;'
+        })
+
+    backup = context.get('ora_backup', [])
+    if not backup:
+        issues.append({
+            'col1': '未找到最近的 RMAN 备份记录', 'col2': '高风险',
+            'col3': 'v$rman_backup_job_details 中无备份记录，请确认备份策略是否正常运行',
+            'col4': '高', 'col5': 'DBA',
+            'fix_sql': ''
+        })
+    elif backup:
+        last_bk = backup[0]
+        bk_time = str(last_bk.get('START_TIME', ''))
+        if bk_time and '1970' in bk_time or '0001' in bk_time:
+            pass  # 无效时间
+        else:
+            issues.append({  # 仅记录最近备份信息作为参考
+                'col1': 'RMAN 备份记录', 'col2': '信息',
+                'col3': f"最近一次备份: {bk_time}, 类型={last_bk.get('INPUT_TYPE','?'),}, 状态={last_bk.get('STATUS','?')}",
+                'col4': '低', 'col5': 'DBA', 'fix_sql': ''
+            })
+
+    # ── 8. Data Guard / ADG 同步延迟 ────────────
+    dg = context.get('ora_dg_status', [{}])
+    if dg and str(dg[0].get('DATABASE_ROLE','')).upper() != 'PRIMARY':
+        role = dg[0].get('DATABASE_ROLE','')
+        apply_info = context.get('ora_dg_apply', [])
+        mrp_running = any(str(a.get('STATUS','')).upper() in ('APPLYING','MANAGED') for a in apply_info)
+        if not mrp_running and apply_info:
+            issues.append({
+                'col1': f'Data Guard 备库 ({role}) MRP 未运行', 'col2': '高风险',
+                'col3': f'MRP 进程状态非 APPLYING/MANAGED，备库可能未同步主库 Redo',
+                'col4': '高', 'col5': 'DBA',
+                'fix_sql': '-- 在备库上启动实时应用：\nALTER DATABASE RECOVER MANAGED STANDBY DATABASE DISCONNECT USING CURRENT SESSION;\n-- 或查看告警日志排查原因'
+            })
+        # 检查保护模式
+        prot_mode = str(dg[0].get('PROTECTION_MODE',''))
+        if prot_mode and 'MAXIMUM PERFORMANCE' in prot_mode.upper():
+            mode_text = "MAXIMUM PERFORMANCE(异步)"
+            issues.append({
+                'col1': 'Data Guard 保护模式较低', 'col2': '中风险',
+                'col3': f'保护模式为 {mode_text}，故障切换时可能丢失数据',
+                'col4': '中', 'col5': 'DBA',
+                'fix_sql': '-- 如业务允许零丢失，升级保护模式：\n-- 主库: ALTER DATABASE SET STANDBY DATABASE TO MAXIMIZE AVAILABILITY;  \n-- 需要配置 standby_redo_log 和确认网络带宽'
+            } if False else {
+                'col1': 'Data Guard 保护模式较低', 'col2': '中风险',
+                'col3': f'保护模式为 {prot_mode}，如业务要求零数据丢失请考虑升级',
+                'col4': '中', 'col5': 'DBA',
+                'fix_sql': ''
+            })
+
+    # ── 9. ASM 磁盘组 ─────────────────────────────
+    asm_list = context.get('ora_asm_diskgroup', [])
+    for asm in asm_list:
+        asmname = asm.get('NAME', '?')
+        asm_used = _float(asm.get('USED_PCT', 0))
+        offline = _int(asm.get('OFFLINE_DISKS', 0))
+        if asm_used > 90:
+            issues.append({
+                'col1': f'ASM 磁盘组 {asmname} 空间紧张', 'col2': '高风险',
+                'col3': f'ASM 磁盘组 {asmname} 使用率 {asm_used:.1f}%',
+                'col4': '高', 'col5': 'DBA',
+                'fix_sql': f"-- 查看 ASM 磁盘组使用情况：\nSELECT name, type, total_mb, free_mb, required_mirror_free_mb AS rmf_mb,\n       usable_file_mb, offline_disks FROM v$asm_diskgroup WHERE name='{asmname}';"
+            })
+        if offline > 0:
+            issues.append({
+                'col1': f'ASM 磁盘组 {asmname} 有离线磁盘', 'col2': '高风险',
+                'col3': f'{offline} 个磁盘处于 OFFLINE 状态，存在冗余降级风险',
+                'col4': '高', 'col5': 'DBA',
+                'fix_sql': f"-- 检查磁盘组冗余和磁盘状态：\nSELECT group_number, disk_number, name, header_status, mode_status, state, failgroup\nFROM v$asm_disk WHERE group_number=(SELECT group_number FROM v$asm_diskgroup WHERE name='{asmname}') ORDER BY disk_number;"
+            })
+
+    # ── 10. 闪回恢复区使用率 ─────────────────────
+    fb_area = context.get('ora_flashback_area', [])
+    for fb in fb_area:
+        fb_used = _float(fb.get('USED_PCT', 0))
+        if fb_used > 85:
+            issues.append({
+                'col1': '闪回恢复区(FRA)使用率偏高', 'col2': '高风险',
+                'col3': f'FRA 使用率 {fb_used:.1f}%，可能影响备份和归档操作',
+                'col4': '高', 'col5': 'DBA',
+                'fix_sql': '-- 查看FRA占用：\nSELECT file_type, percent_space_used, space_used/1024/1024 MB_used, number_of_files\nFROM v$recovery_file_dest_usage ORDER BY percent_space_used DESC;\n-- 解决方案：\n-- 1) 扩大 DB_RECOVERY_FILE_DEST_SIZE\n-- 2) 删除过期备份: RMAN> delete obsolete;\n-- 3) 调整保留策略: CONFIGURE RETENTION POLICY TO RECOVERY WINDOW OF 7 DAYS;'
+            })
+
+    # ── 11. 无效对象 ─────────────────────────────
+    inv_cnt = context.get('ora_invalid_cnt', [])
+    for inv in inv_cnt:
+        cnt = _int(inv.get('INVALID_COUNT', 0))
+        owner = inv.get('OWNER', '?')
+        if cnt > 10:
+            issues.append({
+                'col1': f'用户 {owner} 有 {cnt} 个无效对象', 'col2': '中风险',
+                'col3': f'Schema {owner} 存在 {cnt} 个 INVALID 对象，可能导致功能异常',
+                'col4': '中', 'col5': 'DBA',
+                'fix_sql': f"-- 编译无效对象（推荐以 SYS 执行）：\nEXEC DBMS_UTILITY.compile_schema(schema=>'{owner}', compile_all=>FALSE);\n-- 或逐个编译：\n-- @?/rdbms/admin/utlrp.sql"
+            })
+
+    # ── 12. 用户密码策略 ─────────────────────────
+    profile_pwd = context.get('ora_profile_pwd', [])
+    unlimited_pwd = [p for p in profile_pwd if str(p.get('LIMIT','')).upper() in ('UNLIMITED', '') and p.get('RESOURCE_NAME') not in ('FAILED_LOGIN_ATTEMPTS',)]
+    if unlimited_pwd:
+        names = ', '.join(p['RESOURCE_NAME'] for p in unlimited_pwd[:3])
+        issues.append({
+            'col1': 'DEFAULT Profile 密码策略宽松', 'col2': '建议',
+            'col3': f'DEFAULT Profile 的 {names} 设为 UNLIMITED，生产环境建议设置合理限制',
+            'col4': '低', 'col5': 'DBA',
+            'fix_sql': '-- 示例：修改密码有效期为 180 天\n-- ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME 180;\n-- ALTER PROFILE DEFAULT LIMIT PASSWORD_REUSE_TIME 365;\n-- ALTER PROFILE DEFAULT LIMIT PASSWORD_LOCK_TIME 1/24;'
+        })
+
+    # ── 13. 锁定/过期用户 ─────────────────────────
+    users = context.get('ora_users', [])
+    locked_users = [u for u in users if 'LOCKED' in str(u.get('ACCOUNT_STATUS',''))]
+    expired_users = [u for u in users if 'EXPIRED' in str(u.get('ACCOUNT_STATUS',''))]
+    if locked_users and len(locked_users) > 10:
+        names = ','.join([u['USERNAME'] for u in locked_users[:5]]) + '...'
+        issues.append({
+            'col1': f'{len(locked_users)} 个用户被锁定', 'col2': '信息',
+            'col3': f'锁定用户: {names} 等',
+            'col4': '低', 'col5': 'DBA', 'fix_sql': ''
+        })
+
+    # ── 14. 统计信息陈旧 ─────────────────────────
+    stale = context.get('ora_stale_stats', [])
+    if stale:
+        owners = set(s.get('OWNER','?') for s in stale)
+        issues.append({
+            'col1': f'统计信息陈旧（{len(stale)}个对象）', 'col2': '中风险',
+            'col3': f'涉及 Schema: {", ".join(list(owners)[:5])}，共 {len(stale)} 张表统计信息已过时，CBO 可能生成次优执行计划',
+            'col4': '中', 'col5': 'DBA',
+            'fix_sql': '-- 收集全库统计信息（低峰期执行）：\nEXEC DBMS_STATS.GATHER_DATABASE_STATS(options => \'GATHER AUTO\', estimate_percent => DBMS_STATS.AUTO_SAMPLE_SIZE);\n-- 或针对特定 Schema：\nEXEC DBMS_STATS.GATHER_SCHEMA_STATS(ownname=>\'<SCHEMA_NAME>\', cascade=>TRUE);'
+        })
+
+    # ── 15. 系统资源（CPU/内存/磁盘）──────────────
+    sys_info = context.get('system_info', {})
+    mem = sys_info.get('memory', {})
+    mem_usage = _float(mem.get('usage_percent', 0))
+    if mem_usage > 90:
+        issues.append({'col1': '系统内存使用率过高', 'col2': '高风险',
+                       'col3': f'内存使用率 {mem_usage:.1f}%，Oracle 可能被 OOM Kill',
+                       'col4': '高', 'col5': '系统管理员', 'fix_sql': ''})
+    cpu_val = sys_info.get('cpu', {})
+    cpu_usage = _float(cpu_val.get('usage_percent', 0)) if isinstance(cpu_val, dict) else 0
+    if cpu_usage > 95:
+        issues.append({'col1': '系统 CPU 过载', 'col2': '高风险',
+                       'col3': f'CPU 使用率 {cpu_usage:.1f}%',
+                       'col4': '高', 'col5': '系统管理员', 'fix_sql': ''})
+    for disk in sys_info.get('disk_list', []):
+        dusage = _float(disk.get('usage_percent', 0))
+        mp = disk.get('mountpoint', '/')
+        if mp in IGNORE_MOUNTS: continue
+        if dusage > 90:
+            issues.append({'col1': f'磁盘空间不足 ({mp})', 'col2': '高风险',
+                           'col3': f'磁盘 {mp} 使用率 {dusage:.1f}%',
+                           'col4': '高', 'col5': '系统管理员', 'fix_sql': ''})
+
+    # ── 16. Undo 段争用（如果有 undo 信息）────────
+    # （undo SQL 较复杂，如果采集失败则跳过）
+    undo = context.get('ora_undo_info', [])
+    if undo and len(undo) > 0:
+        urow = undo[0] if isinstance(undo, list) else undo
+        active_blks = _int(urow.get('ACTIVE_BLKS', 0))
+        exp_blks = _int(urow.get('EXP_UNDO_BLKS', 0))
+        if active_blks > 10000:
+            issues.append({
+                'col1': 'Undo 段活跃事务过多', 'col2': '中风险',
+                'col3': f'当前活跃 Undo 块数 {active_blks}，可能有大事务长时间运行',
+                'col4': '中', 'col5': 'DBA',
+                'fix_sql': '-- 查看长事务：\nSELECT sid, serial#, status, username, to_char(start_time,\'YYYY-MM-DD HH24:MI:SS\') start_time, elapsed_seconds, sql_id\nFROM v$transaction t JOIN v$session s ON t.addr = taddr\nWHERE t.status=\'ACTIVE\' ORDER BY start_time;'
+            })
+
+    # ── 17. 回收站占用空间 ───────────────────────
+    rb = context.get('ora_recyclebin', [])
+    if rb:
+        total_rb_mb = sum(_float(r.get('SIZE_MB', 0)) for r in rb)
+        if total_rb_mb > 500:
+            issues.append({
+                'col1': '回收站占用空间过大', 'col2': '中风险',
+                'col3': f'回收站中共有 {len(rb)} 个对象，约 {total_rb_mb:.0f} MB',
+                'col4': '中', 'col5': 'DBA',
+                'fix_sql': '-- 清空回收站（谨慎操作！）：\nPURGE RECYCLEBIN;\n-- 或清空特定用户的回收站：\nPURGE TABLESPACE <ts_name> USER <username>;'
+            })
+
+    # ── 18. open_cursors 参数 ────────────────────
+    params = context.get('ora_params', [])
+    oc_param = next((p for p in params if p.get('NAME')=='OPEN_CURSORS'), None)
+    if oc_param:
+        oc_val = _int(oc_param.get('VALUE', 300))
+        if oc_val < 300:
+            issues.append({
+                'col1': 'open_cursors 参数偏小', 'col2': '建议',
+                'col3': f'open_cursors={oc_val}，复杂应用建议设为 500-2000 以避免 ORA-01000 错误',
+                'col4': '低', 'col5': 'DBA',
+                'fix_sql': f'ALTER SYSTEM SET open_cursors=1000 SCOPE=BOTH;  -- 根据实际需求调整'
+            })
+
+    # ── 19. audit_trail 审计 ─────────────────────
+    aud = next((p for p in params if p.get('NAME')=='AUDIT_TRAIL'), None)
+    if aud and str(aud.get('VALUE','')).upper() == 'NONE':
+        issues.append({
+            'col1': '审计功能未开启', 'col2': '建议',
+            'col3': 'audit_trail=NONE，无法追踪敏感操作（登录/DDL/DML），合规性要求建议开启',
+            'col4': '低', 'col5': 'DBA',
+            'fix_sql': '-- 开启标准审计（无需重启）：\nALTER SYSTEM SET audit_trail=DB SCOPE=SPFILE;\n-- 或仅审计特定操作：\nAUDIT CREATE SESSION, ALTER USER, DROP ANY TABLE;'
+        })
+
+    # ── 20. 数据文件脱机 ─────────────────────────
+    datafiles = context.get('ora_datafiles', [])
+    off_df = [d for d in datafiles if str(d.get('STATUS','')).upper() == 'OFFLINE']
+    if off_df:
+        fix_lines = []
+        for d in off_df[:3]:
+            fname = d.get("FILE_NAME", "?")
+            fix_lines.append(f"-- 尝试联机:\n-- ALTER DATABASE DATAFILE '{fname}' ONLINE;")
+        issues.append({
+            'col1': f'{len(off_df)} 个数据文件处于 OFFLINE', 'col2': '高风险',
+            'col3': ', '.join(f"{d.get('FILE_NAME','?')} ({d.get('TABLESPACE_NAME','?')})" for d in off_df[:3]),
+            'col4': '高', 'col5': 'DBA',
+            'fix_sql': '\n'.join(fix_lines)
+        })
+
+    return issues
+
+
+# ═══════════════════════════════════════════════════════
 #  3. 历史记录管理器
 # ═══════════════════════════════════════════════════════
 
@@ -517,7 +884,7 @@ class HistoryManager:
         """
         从 context 提取关键指标并存入历史记录。
 
-        :param db_type: 'mysql' 或 'pg'
+        :param db_type: 'mysql'、'pg' 或 'oracle'
         :param host: 数据库 IP
         :param port: 数据库端口
         :param label: 数据库标签名
@@ -571,13 +938,28 @@ class HistoryManager:
             queries_data = context.get('queries', [])
             m['queries_total'] = _safe_int(queries_data)
             m['version'] = context.get('myversion', [{}])[0].get('version', '') if context.get('myversion') else ''
-        else:
+        elif db_type in ('postgres', 'postgresql'):
             pg_conn = context.get('pg_connections', [])
             m['connections'] = _safe_int(pg_conn, 'used_connections') if pg_conn else 0
             m['max_connections'] = _safe_int(pg_conn, 'max_connections') if pg_conn else 0
             cache_hits = context.get('pg_cache_hit', [])
             m['cache_hit_ratio'] = _safe_float(cache_hits, 'cache_hit_ratio') if cache_hits else 0.0
             m['version'] = context.get('pg_version', [{}])[0].get('version', '') if context.get('pg_version') else ''
+        elif db_type == 'oracle':
+            # Oracle 指标
+            ora_sess = context.get('ora_sessions', [])
+            m['connections'] = _safe_int(ora_sess, 'TOTAL_SESSIONS') if ora_sess else 0
+            ora_limit = context.get('ora_session_limit', [])
+            m['max_connections'] = _safe_int(ora_limit, 'SESSIONS_LIMIT') if ora_limit else _safe_int(ora_sess, 'TOTAL_SESSIONS') + 100
+            sga_total = context.get('ora_sga_total', [])
+            m['sga_total_mb'] = _safe_float(sga_total, 'SGA_TOTAL_MB') if sga_total else 0.0
+
+            # 表空间最大使用率（用于趋势）
+            ts_list = context.get('ora_tablespace', [])
+            if ts_list:
+                max_ts_used = max((_safe_float(ts.get('USED_PCT_WITH_MAXEXT', ts.get('USED_PCT', 0))) for ts in ts_list), default=0)
+                m['max_tablespace_pct'] = max_ts_used
+            m['version'] = context.get('ora_version', [{}])[0].get('BANNER', '') if context.get('ora_version') else ''
 
         return m
 
@@ -606,7 +988,8 @@ class HistoryManager:
         snaps = record['snapshots']
         labels = [s['ts'] for s in snaps]
         metric_keys = ['mem_usage', 'cpu_usage', 'disk_usage_max', 'connections',
-                       'cache_hit_ratio', 'queries_total', 'max_used_connections']
+                       'cache_hit_ratio', 'queries_total', 'max_used_connections',
+                       'sga_total_mb', 'max_tablespace_pct']
         metrics = {}
         for mk in metric_keys:
             vals = [s.get(mk, None) for s in snaps]
@@ -858,7 +1241,7 @@ def run_full_analysis(db_type: str, host: str, port, label: str,
     """
     一键执行完整增强分析（智能规则 + 历史存储 + AI诊断）。
 
-    :param db_type: 'mysql' 或 'pg'
+    :param db_type: 'mysql'、'pg' 或 'oracle'
     :param host/port/label: 数据库信息
     :param context: checkdb() 返回的 context
     :param base_dir: 项目根目录（用于存储 history.json）
@@ -875,8 +1258,10 @@ def run_full_analysis(db_type: str, host: str, port, label: str,
     # 1. 增强智能分析
     if db_type == 'mysql':
         issues = smart_analyze_mysql(context)
-    else:
+    elif db_type == 'pg':
         issues = smart_analyze_pg(context)
+    else:
+        issues = smart_analyze_oracle(context)
 
     # 2. 保存历史并获取趋势
     hm = HistoryManager(base_dir)
