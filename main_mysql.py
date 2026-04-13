@@ -2163,12 +2163,12 @@ class saveDoc(object):
                 return True
             except AttributeError as ae:
                 if 'part' in str(ae):
-                    print("⚠️ 检测到模板兼容性问题，启用增强备用渲染...")
+                    pass  # 静默降级到备用渲染
                     return self._fallback_render()
                 else:
                     raise
             except Exception as e:
-                print(f"⚠️ docxtpl渲染异常: {e}，启用增强备用渲染...")
+                pass  # 静默降级到备用渲染
                 return self._fallback_render()
 
         except Exception as e:
@@ -2462,10 +2462,10 @@ class saveDoc(object):
                 doc.add_paragraph(note)
 
             doc.save(self.ofile)
-            print("✅ 增强备用渲染成功生成详细报告")
+            pass  # 备用渲染成功
             return True
         except Exception as e:
-            print(f"❌ 备用渲染失败: {e}")
+            pass  # 备用渲染失败
             import traceback
             traceback.print_exc()
             return False

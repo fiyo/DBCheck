@@ -961,7 +961,7 @@ class saveDoc(object):
                 doc2.save(self.ofile)
                 return True
             except Exception as e:
-                print(f"docxtpl 渲染异常: {e}，启用增强备用渲染...")
+                # docxtpl 模板解析异常时自动降级为备用渲染，无需向用户展示
                 return self._fallback_render()
         except Exception as e:
             print(f"报告生成异常: {e}")

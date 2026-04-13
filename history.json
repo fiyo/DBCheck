@@ -214,5 +214,27 @@
         "health_status": "未知"
       }
     ]
+  },
+  "2046f1e355fe_192.168.42.220_1521": {
+    "db_type": "oracle",
+    "host": "192.168.42.220",
+    "port": "1521",
+    "label": "test-orcl",
+    "snapshots": [
+      {
+        "cpu_usage": 8.1,
+        "mem_usage": 4.9,
+        "disk_usage_max": 23.0,
+        "connections": 121,
+        "max_connections": 1952,
+        "sga_total_mb": 1199.998191833496,
+        "max_tablespace_pct": 0.0,
+        "version": "Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production",
+        "ts": "2026-04-13 09:22:45",
+        "report_time": "2026-04-13 09:22:45",
+        "risk_count": 7,
+        "health_status": "未知"
+      }
+    ]
   }
 }

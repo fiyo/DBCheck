@@ -961,7 +961,7 @@ class saveDoc(object):
                 doc2.save(self.ofile)
                 return True
             except Exception as e:
-                print(f"docxtpl 渲染异常: {e}，启用增强备用渲染...")
+                # docxtpl 模板解析异常时自动降级为备用渲染，无需向用户展示
                 return self._fallback_render()
         except Exception as e:
             print(f"报告生成异常: {e}")
@@ -1403,13 +1403,13 @@ def run_inspection(db_info, service_name=None):
 
 def print_banner():
     print("""
-═══════════════════════════════════════════════════════════
-             DBCheck - Oracle 数据库健康巡检工具          
-             支持 Oracle 11g / 12c / 19c / 21c             
-                                                             
-   巡检项目：表空间 · SGA/PGA · 会话 · 锁 · Redo · 归档     
-            Data Guard · ASM · RAC · 用户安全 · 等待事件   
-═══════════════════════════════════════════════════════════
+╔═══════════════════════════════════════════════════════════╗
+║         DBCheck - Oracle 数据库健康巡检工具 v1.0          ║
+║              支持 Oracle 11g / 12c / 19c / 21c             ║
+║                                                             ║
+║   巡检项目：表空间 · SGA/PGA · 会话 · 锁 · Redo · 归档     ║
+║              Data Guard · ASM · RAC · 用户安全 · 等待事件   ║
+╚═══════════════════════════════════════════════════════════╝
 """)
 
 
