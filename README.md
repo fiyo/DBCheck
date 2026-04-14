@@ -2,8 +2,6 @@
 
 支持对 **MySQL**、**PostgreSQL**、**Oracle** 和 **达梦 DM8** 四种主流关系型数据库进行自动化健康巡检，生成格式规范的 Microsoft Word 报告，帮助 DBA 和运维人员快速掌握数据库运行状况、发现潜在风险。
 
-> 本项目由 [Zhh9126/MySQLDBCHECK](https://github.com/Zhh9126/MySQLDBCHECK.git) 改进而来，在原 MySQL 支持的基础上新增了 PostgreSQL 和 Oracle 支持。
-
 ## AI 辅助 · 问题发现即处理
 
 ### 🤖 AI 智能诊断
@@ -354,6 +352,8 @@ pyinstaller --onefile --name dbcheck \
     --hidden-import openpyxl \
     --hidden-import pandas \
     --hidden-import oracledb \
+    --hidden-import dmpython \
+    --hidden-import flask_socketio
     main.py
 ```
 
@@ -373,7 +373,7 @@ dbcheck.exe         # Windows
 
 | 章节 | 内容（DM8）|
 |------|------|
-| 封面 | 8 行基本信息表：数据库名称、服务器地址、版本、主机名、启动时间、巡检人员、平台、报告时间 |
+| 封面 | 数据库名称、服务器地址、版本、主机名、启动时间、巡检人员、平台、报告时间 |
 | 第1章 | 数据库基本信息（版本/实例名/服务器版本等）|
 | 第2章 | 巡检执行摘要（执行时间、耗时、异常项统计）|
 | 第3章 | 表空间使用情况（含各数据文件使用率）|
@@ -495,5 +495,7 @@ dbcheck.exe         # Windows
 ## 鸣谢
 
 感谢 [Zhh9126/MySQLDBCHECK](https://github.com/Zhh9126/MySQLDBCHECK.git) 作者的贡献！
+> 本项目由 [Zhh9126/MySQLDBCHECK](https://github.com/Zhh9126/MySQLDBCHECK.git) 改进而来，在原 MySQL 支持的基础上新增了 PostgreSQL、Oracle、DM8 支持。
+
 
 目前部分功能仍在持续完善中，欢迎共同参与功能开发以及反馈问题与建议。
