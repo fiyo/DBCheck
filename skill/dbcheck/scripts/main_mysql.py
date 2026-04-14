@@ -55,6 +55,7 @@ template = ./templates/wordtemplates_v2.0.docx
 output = /tmp/MySQLCheckReport.docx
 
 [variables]
+datadir = show global variables like 'datadir';
 myversion = SELECT VERSION() as version;
 threads_connected = SHOW STATUS LIKE 'Threads_connected';
 back_log = show variables like 'back_log%';
@@ -313,7 +314,28 @@ class RemoteSystemInfoCollector:
         except Exception as e:
             print(f"获取磁盘信息失败: {e}")
             return []
-    
+        except Exception as e:
+            print(f"获取磁盘信息失败: {e}")
+            return []
+
+    def get_mysql_datadir(self):
+        """
+        通过远程 Shell 命令采集 MySQL datadir 路径。
+
+        使用 `mysql -e "show global variables like 'datadir'"` 命令查询。
+
+        :return: 包含 datadir 路径的字典，字段：datadir；失败时返回空字典
+        """
+        try:
+            cmd = 'mysql -e "show global variables like \'datadir\';" 2>/dev/null | tail -n 1 | awk \'{print $2}\''
+            output, _ = self.execute_command(cmd)
+            if output:
+                return {'datadir': output.strip()}
+            return {}
+        except Exception as e:
+            print(f"获取MySQL datadir失败: {e}")
+            return {}
+
     def get_system_info(self):
         """
         聚合采集远程主机的全部系统信息。
@@ -334,7 +356,8 @@ class RemoteSystemInfoCollector:
                 'disk': self.get_disk_info(),
                 'hostname': "",
                 'platform': "",
-                'boot_time': ""
+                'boot_time': "",
+                'mysql_datadir': ""
             }
             cmd = "hostname"
             output, _ = self.execute_command(cmd)
@@ -345,6 +368,10 @@ class RemoteSystemInfoCollector:
             cmd = "who -b | awk '{print $3 \" \" $4}'"
             output, _ = self.execute_command(cmd)
             if output: system_info['boot_time'] = output.strip()
+            # 采集 MySQL datadir
+            datadir_result = self.get_mysql_datadir()
+            if datadir_result:
+                system_info['mysql_datadir'] = datadir_result.get('datadir', '')
             return system_info
         finally:
             self.disconnect()
@@ -1900,6 +1927,12 @@ class getData(object):
                 disk_info = get_host_disk_usage()
                 system_info['disk_list'] = disk_info
             self.context.update({"system_info": system_info})
+            # 如果通过SSH获取到MySQL datadir，覆盖SQL查询结果（SSH更精准）
+            if self.ssh_info and self.ssh_info.get('ssh_host') and system_info.get('mysql_datadir'):
+                ssh_datadir = system_info.get('mysql_datadir', '')
+                if ssh_datadir:
+                    self.context['datadir'] = [{'Value': ssh_datadir}]
+                    print(f"\n✅ 通过SSH获取MySQL datadir: {ssh_datadir}")
         except Exception as e:
             print(f"\n❌ 收集系统信息失败: {e}")
             self.context.update({"system_info": {
