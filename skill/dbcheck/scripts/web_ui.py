@@ -8,14 +8,10 @@ from flask import Flask, request, jsonify, render_template, Response, send_file
 from flask_socketio import SocketIO, emit
 import socket
 
-# gevent / eventlet 的 monkey-patch 必须在最前面执行，
-# 确保所有标准库 socket 都替换为非阻塞版本
-try:
-    from gevent import monkey
-    monkey.patch_all()
-    _ASYNC_MODE = 'gevent'
-except ImportError:
-    _ASYNC_MODE = 'eventlet'
+# async_mode='threading' 最稳定，跨平台/打包零兼容问题，
+# 满足 DBCheck Web UI 低并发使用场景（单用户/少量连接）。
+# 不依赖 gevent/eventlet，避免打包后版本冲突。
+socketio = SocketIO(cors_allowed_origins='*', async_mode='threading')
 
 # ── 本地模块 ──────────────────────────────────────────────
 try:
@@ -25,7 +21,7 @@ except ImportError:
 
 app = Flask(__name__, template_folder='web_templates', static_folder='web_templates')
 app.config['SECRET_KEY'] = os.urandom(24)
-socketio = SocketIO(app, cors_allowed_origins='*', async_mode=_ASYNC_MODE)
+socketio.init_app(app)
 
 # 全局任务状态
 tasks = {}

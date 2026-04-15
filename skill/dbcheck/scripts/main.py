@@ -3,9 +3,10 @@
 数据库巡检工具统一入口
 ===========================
 作者: Jack Ge
-版本: {VER}
+版本: v2.3.1
 功能: 提供 MySQL、PostgreSQL、Oracle 和达梦 DM8 数据库巡检的统一入口
 """
+
 import sys
 import os
 import warnings
@@ -13,12 +14,10 @@ import warnings
 # 屏蔽打包后 jinja2/markupsafe 引发的 pkg_resources 废弃警告
 warnings.filterwarnings("ignore", category=UserWarning, message="pkg_resources is deprecated")
 
-# 解决 PyInstaller onefile 模式下子模块找不到 version.py 的问题
-# 将 DBCheck 根目录加入 Python 搜索路径（打包后 _MEIPASS 临时目录中也有一份）
+# frozen 模式下 sys._MEIPASS 包含打包后的临时目录，
+# 将其加入搜索路径以确保子模块能找到 version.py 等资源
 if getattr(sys, 'frozen', False):
     sys.path.insert(0, sys._MEIPASS)
-else:
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from version import __version__ as VER
 
@@ -49,7 +48,7 @@ def print_banner():
     art = f"""
 {CYAN}{BOLD}  ██████╗ ██████╗  ██████╗██╗  ██╗███████╗ ██████╗██╗  ██╗
   ██╔══██╗██╔══██╗██╔════╝██║  ██║██╔════╝██╔════╝██║ ██╔╝
-  ██║  ██║██████╔╝██║     ███████║█████╗  ██║     █████╔╝
+  ██║  ██║██████╔╝██║     ███████║██║     ██║     █████╔╝
   ██║  ██║██╔══██╗██║     ██╔══██║██╔══╝  ██║     ██╔═██╗
   ██████╔╝██████╔╝╚██████╗██║  ██║███████╗╚██████╗██║  ██╗
   ╚═════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝ ╚═════╝╚═╝  ╚═╝{RESET}
@@ -68,12 +67,12 @@ def print_banner():
 
 
 def _run_web_ui():
-    """启动 Web UI（直接 import + 调用 main()）"""
+    """启动 Web UI"""
     import web_ui
     print("\n🌐 正在启动 Web UI，请在浏览器打开 http://localhost:5003")
     print("   按 Ctrl+C 停止服务\n")
     try:
-        web_ui.main()
+        web_ui.socketio.run(web_ui.app, host='0.0.0.0', port=5003)
     except KeyboardInterrupt:
         print("\n⏹️  Web UI 已停止")
 
