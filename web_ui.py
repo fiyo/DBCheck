@@ -5,6 +5,7 @@ DBCheck Web UI - Flask 应用
 """
 import os, sys, threading, datetime, json, uuid, time, re
 from flask import Flask, request, jsonify, render_template, Response, send_file
+from version import __version__
 from flask_socketio import SocketIO, emit
 import socket
 
@@ -420,7 +421,7 @@ def test_ssh_connection(host, port=22, username='root', password=None, key_file=
 # ── 路由 ────────────────────────────────────────────────────
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template('index.html', version=__version__)
 
 @app.route('/api/reports')
 def api_reports():

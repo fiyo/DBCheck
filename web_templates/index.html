@@ -102,6 +102,18 @@ body {
   padding: 16px;
   border-top: 1px solid var(--border);
   font-size: 11px; color: var(--text-muted);
+  text-align: center;
+}
+.version-badge {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 8px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .5px;
 }
 
 /* ─── Main ─── */
@@ -133,6 +145,16 @@ body {
 .content {
   padding: 36px 40px;
   max-width: 900px;
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 历史报告 / 趋势分析页面更宽 */
+#page-reports .content,
+#page-trends .content {
+  max-width: 1400px;
 }
 
 /* ─── Cards ─── */
@@ -454,7 +476,12 @@ select option { background: var(--surface2); }
 .home-hero p { color: var(--text-muted); font-size: 14px; max-width: 480px; margin: 0 auto 32px; }
 
 .feature-grid {
-  display: grid; grid-template-columns: repeat(3,1fr); gap: 14px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  width: 100%;
+  max-width: 820px;
+  margin: 0 auto;
 }
 .feature-item {
   background: var(--surface2);
@@ -495,12 +522,28 @@ select option { background: var(--surface2); }
 .tag-dm    { background: rgba(255,193,7,.12); color: #ffc107; }
 
 /* ─── Responsive ─── */
+/* ─── 响应式断点 ─── */
+@media (max-width: 1100px) {
+  .feature-grid { grid-template-columns: repeat(2, 1fr); }
+  .type-grid    { grid-template-columns: 1fr 1fr; }
+  /* 确认面板在宽屏下保持 2 列，缩小后切 1 列 */
+  #confirm-panel > div[style*="1fr 1fr"] { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 900px) {
+  #confirm-panel > div[style*="1fr 1fr"] { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 760px) {
   .sidebar { width: 200px; }
   .main { margin-left: 200px; }
   .form-grid { grid-template-columns: 1fr; }
-  .type-grid  { grid-template-columns: 1fr; }
+  .type-grid { grid-template-columns: 1fr; }
   .feature-grid { grid-template-columns: 1fr; }
+  /* 确认面板 / 趋势图 / 报告列表 */
+  #confirm-panel > div,
+  #trend-charts-grid { grid-template-columns: 1fr; }
+  .report-list { grid-template-columns: 1fr; }
 }
 </style>
 </head>
@@ -535,7 +578,8 @@ select option { background: var(--surface2); }
 
     <div class="sidebar-footer">
       MySQL · PostgreSQL · Oracle · DM<br/>
-      <span style="opacity:.5">© 2026 DBCheck</span>
+      <span style="opacity:.5">© 2026 DBCheck · Powered by fiyo</span>
+      <span class="version-badge" id="version-badge">{{ version }}</span>
     </div>
   </aside>
 
