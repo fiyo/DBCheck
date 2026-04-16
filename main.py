@@ -3,7 +3,6 @@
 数据库巡检工具统一入口
 ===========================
 作者: Jack Ge
-版本: v2.3.1
 功能: 提供 MySQL、PostgreSQL、Oracle 和达梦 DM8 数据库巡检的统一入口
 """
 
@@ -54,28 +53,20 @@ def print_banner():
   ╚═════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝ ╚═════╝╚═╝  ╚═╝{RESET}
 {BOLD}          🗄️  数据库自动化巡检工具  {VER}  统一入口{RESET}
 {DIM}  ──────────────────────────────────────────────────────────{RESET}
-{GREEN}{BOLD}    🐬  1 │ MySQL      {RESET}{DIM}MySQL 命令行巡检{RESET}
-{CYAN}{BOLD}    🐘  2 │ PostgreSQL {RESET}{DIM}PostgreSQL 命令行巡检{RESET}
-{RED}{BOLD}    🔴  3 │ Oracle     {RESET}{DIM}Oracle (11g以上版本) 命令行巡检{RESET}
-{GREEN}{BOLD}    🟡  4 │ DM8 达梦  {RESET}{DIM}达梦 DM8 数据库命令行巡检{RESET}
-{YELLOW}    📋  5 │ 生成巡检模板    {RESET}{DIM}生成批量巡检 Excel 模板{RESET}
-{MAGENTA}    🌐  6 │ 启动 Web UI     {RESET}{DIM}通过可视化界面巡检{RESET}
+{GREEN}{BOLD}    🐬  1 │ MySQL 巡检          {RESET}{DIM}（5.6/5.7/8.0+）{RESET}
+{CYAN}{BOLD}    🐘  2 │ PostgreSQL 巡检     {RESET}{DIM}（10/11/12/13/14/15/16/17+）{RESET}
+{RED}{BOLD}    🔴  3 │ Oracle 巡检         {RESET}{DIM}（10g/11g/12c+）{RESET}
+{GREEN}{BOLD}    🟡  4 │ DM8 达梦巡检       {RESET}{DIM}（DM8+）{RESET}
+{DIM}  ──────────────────────────────────────────────────────────{RESET}
+{YELLOW}    📋  5 │ 批量生成巡检模板     {RESET}{DIM}生成 Excel 模板{RESET}
+{MAGENTA}    🌐  6 │ 启动 Web UI          {RESET}{DIM}通过浏览器可视化巡检{RESET}
 {DIM}        7 │ 退出{RESET}
 {DIM}  ──────────────────────────────────────────────────────────{RESET}
 """
     print(art)
 
 
-def _run_web_ui():
-    """启动 Web UI"""
-    import web_ui
-    print("\n🌐 正在启动 Web UI，请在浏览器打开 http://localhost:5003")
-    print("   按 Ctrl+C 停止服务\n")
-    try:
-        web_ui.socketio.run(web_ui.app, host='0.0.0.0', port=5003)
-    except KeyboardInterrupt:
-        print("\n⏹️  Web UI 已停止")
-
+# ── 数据库巡检函数 ────────────────────────────────────────────────
 
 def _run_mysql():
     import main_mysql
@@ -87,15 +78,18 @@ def _run_pg():
     main_pg.main()
 
 
-def _run_oracle():
-    import main_oracle
-    main_oracle.main()
-
-
 def _run_dm():
     import main_dm
     main_dm.main()
 
+
+def _run_oracle_full():
+    """Oracle 全面巡检（增强版，基于 OS 层 + 数据库层）"""
+    import main_oracle_full
+    main_oracle_full.main()
+
+
+# ── 批量模板生成 ─────────────────────────────────────────────────
 
 def _run_template_menu():
     while True:
@@ -104,11 +98,10 @@ def _run_template_menu():
         print(f"{DIM}{'='*50}{RESET}")
         print(f"  {GREEN}1{RESET}. MySQL 批量巡检模板 (xlsx)")
         print(f"  {CYAN}2{RESET}. PostgreSQL 批量巡检模板 (xlsx)")
-        print(f"  {RED}3{RESET}. Oracle 批量巡检模板 (xlsx)")
-        print(f"  {GREEN}4{RESET}. DM8 达梦 批量巡检模板 (xlsx)")
+        print(f"  {RED}3{RESET}. DM8 达梦 批量巡检模板 (xlsx)")
         print(f"  {DIM}0. 返回主菜单{RESET}")
         print(f"{DIM}{'='*50}{RESET}")
-        sub = input("请选择 [0-4]: ").strip()
+        sub = input("请选择 [0-3]: ").strip()
 
         if sub == '1':
             import main_mysql
@@ -123,12 +116,6 @@ def _run_template_menu():
             else:
                 print("❌ 当前版本不支持 PostgreSQL 批量模板")
         elif sub == '3':
-            import main_oracle
-            if hasattr(main_oracle, 'create_excel_template'):
-                main_oracle.create_excel_template()
-            else:
-                print("❌ 当前版本不支持 Oracle 批量模板")
-        elif sub == '4':
             import main_dm
             if hasattr(main_dm, 'create_excel_template'):
                 main_dm.create_excel_template()
@@ -140,10 +127,25 @@ def _run_template_menu():
             print("\n❌ 无效选择。")
 
 
+# ── Web UI ────────────────────────────────────────────────────────
+
+def _run_web_ui():
+    """启动 Web UI"""
+    import web_ui
+    print("\n🌐 正在启动 Web UI，请在浏览器打开 http://localhost:5003")
+    print("   按 Ctrl+C 停止服务\n")
+    try:
+        web_ui.socketio.run(web_ui.app, host='0.0.0.0', port=5003)
+    except KeyboardInterrupt:
+        print("\n⏹️  Web UI 已停止")
+
+
+# ── 主循环 ───────────────────────────────────────────────────────
+
 def main():
     while True:
         print_banner()
-        choice = input("请选择功能 (1-7): ").strip().lower()
+        choice = input("请选择功能 (1-7): ").strip()
 
         if choice == '1':
             print("\n正在启动 MySQL 数据库巡检工具...\n")
@@ -152,8 +154,8 @@ def main():
             print("\n正在启动 PostgreSQL 数据库巡检工具...\n")
             _run_pg()
         elif choice == '3':
-            print("\n正在启动 Oracle 数据库巡检工具...\n")
-            _run_oracle()
+            print("\n正在启动 Oracle 全面巡检工具（增强版）...\n")
+            _run_oracle_full()
         elif choice == '4':
             print("\n正在启动达梦 DM8 数据库巡检工具...\n")
             _run_dm()

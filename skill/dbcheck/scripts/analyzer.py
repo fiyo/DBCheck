@@ -1094,6 +1094,14 @@ class AIAdvisor:
         'queries_total': '累计查询次数',
         'risk_count': '风险项数量',
         'health_status': '健康状态',
+        # ── Oracle 专用指标 ──────────────────────────────────────
+        'db_version': '数据库版本',
+        'hostname': '主机名',
+        'uptime': '运行时长',
+        'tablespace_count': '表空间数量',
+        'wait_events_top5': '等待事件 Top5',
+        'blocked_sessions': '阻塞会话',
+        'top_sql_top5': 'Top SQL 前5',
     }
 
     def __init__(self, backend: str = None, api_key: str = None,
@@ -1134,29 +1142,56 @@ class AIAdvisor:
                 metric_lines.append(f"  - {zh}: {v}")
 
         issue_lines = []
-        for i, iss in enumerate(issues[:8], 1):
+        for i, iss in enumerate(issues[:10], 1):
             issue_lines.append(f"  {i}. [{iss.get('col2','')}] {iss.get('col1','')}: {iss.get('col3','')}")
 
-        prompt = f"""你是一位经验丰富的数据库运维专家（DBA）。
-以下是对 {db_type.upper()} 数据库「{label}」的巡检数据，请给出专业的优化建议。
+        # Oracle 专属详细信息节（由 main_oracle_full.py 预构建）
+        oracle_extra = ""
+        if 'wait_events_top5' in metrics and metrics['wait_events_top5'] not in ('N/A', None, ''):
+            oracle_extra += f"\n【等待事件 Top5】\n{metrics['wait_events_top5']}"
+        if 'blocked_sessions' in metrics and metrics['blocked_sessions'] not in ('N/A', None, ''):
+            oracle_extra += f"\n【阻塞会话】\n  {metrics['blocked_sessions']}"
+        if 'top_sql_top5' in metrics and metrics['top_sql_top5'] not in ('N/A', None, ''):
+            oracle_extra += f"\n【Top SQL（Buffer Gets 前5）】\n{metrics['top_sql_top5']}"
 
-【关键指标】
+        prompt = f"""你是一位拥有20年经验的 Oracle 数据库资深DBA，以下是对 {db_type.upper()} 数据库「{label}」的全面巡检结果，请进行深度诊断。
+
+{'='*60}
+【一、关键健康指标】
+{'='*60}
 {chr(10).join(metric_lines) or '  (无)'}
 
-【发现的风险项】
-{chr(10).join(issue_lines) or '  未发现风险项，运行状态良好'}
+{'='*60}
+【二、发现的风险项】
+{'='*60}
+{chr(10).join(issue_lines) or '  未发现明显风险项'}
 
-请基于以上数据，给出 3~5 条最重要的优化建议。要求：
-1. 每条建议简洁明了，直接说明"做什么"和"为什么"
-2. 如果有明确的参数调整建议，给出具体数值参考
-3. 按优先级从高到低排列
-4. 最后给出一句话整体评价
+{oracle_extra if oracle_extra else ''}
+{'='*60}
+【三、诊断要求】
+{'='*60}
+请基于以上巡检数据，给出 4~6 条专业优化建议，要求：
+1. 优先分析【等待事件 Top5】：识别主要等待类型（如 db file sequential read、log file sync、buffer busy waits 等），给出具体优化方向
+2. 如存在【阻塞会话】：分析阻塞原因（锁竞争、热块更新等）并给出解决思路
+3. 针对【Top SQL】：评估是否存在全表扫描、大量磁盘读等问题，给出优化建议
+4. 结合【关键指标】和【风险项】综合判断，给出整体健康评价
+5. 每条建议必须包含：问题定位 → 原因分析 → 具体修复方案（或参数调整参考值）
+6. 最后给出该数据库的整体健康评价（优秀/良好/一般/危险）及主要关注点
 
-格式如下（直接输出，不要加额外标题）：
-1. [建议内容]
-2. [建议内容]
+格式要求（直接输出 Markdown，不要加"以下是"等前缀）：
+## 重点关注
+
+[Top SQL 和等待事件的深度分析]
+
+## 优化建议
+
+1. [建议1]
+2. [建议2]
 ...
-整体评价：[一句话评价]"""
+
+## 整体评价
+
+[一句话整体评价]"""
         return prompt
 
     def diagnose(self, db_type: str, label: str, context: dict, issues: list,
@@ -1164,9 +1199,10 @@ class AIAdvisor:
         """
         调用 AI 后端进行诊断分析。
 
-        :param db_type: 'mysql' 或 'pg'
+        :param db_type: 'mysql'、'pg' 或 'oracle'
         :param label: 数据库标签名
-        :param context: getData.checkdb() 返回的 context
+        :param context: MySQL/PG: getData.checkdb() 返回的 context；
+                        Oracle: 预构建的 metrics dict（含 wait_events_top5/top_sql_top5 等）
         :param issues: smart_analyze_* 返回的风险列表
         :param timeout: 请求超时秒数
         :return: AI 生成的建议文本，失败时返回空字符串
@@ -1174,25 +1210,35 @@ class AIAdvisor:
         if not self.enabled:
             return ''
 
-        # 提取关键指标（轻量版）
-        sys_info = context.get('system_info', {})
-        metrics = {
-            'mem_usage': sys_info.get('memory', {}).get('usage_percent', 0),
-            'cpu_usage': sys_info.get('cpu', {}).get('usage_percent', 0) if isinstance(sys_info.get('cpu'), dict) else 0,
-            'disk_usage_max': max((d.get('usage_percent', 0) for d in sys_info.get('disk_list', [])
-                                   if d.get('mountpoint', '/') not in IGNORE_MOUNTS), default=0),
-            'risk_count': len(issues),
-            'health_status': context.get('health_status', '未知'),
-        }
-        if db_type == 'mysql':
-            metrics['connections'] = context.get('threads_connected', [{}])[0].get('Value', 0) if context.get('threads_connected') else 0
-            metrics['max_connections'] = context.get('max_connections', [{}])[0].get('Value', 0) if context.get('max_connections') else 0
+        # ── 判断传入的是预构建 metrics（Oracle）还是原始 context（MySQL/PG）──
+        # Oracle 全面巡检在 main_oracle_full.py 中预构建了 metrics dict，
+        # 其中包含 wait_events_top5 / top_sql_top5 / blocked_sessions 等专属字段；
+        # 而 MySQL/PG 传入的是 getData.checkdb() 返回的原始 context。
+        _is_oracle_metrics = 'wait_events_top5' in context or 'top_sql_top5' in context
+
+        if _is_oracle_metrics:
+            # Oracle 路径：直接使用预构建的 metrics（已包含所有关键字段）
+            metrics = context
         else:
-            pg_conn = context.get('pg_connections', [{}])
-            if pg_conn and pg_conn[0]:
-                metrics['connections'] = pg_conn[0].get('used_connections', 0)
-                metrics['max_connections'] = pg_conn[0].get('max_connections', 0)
-                metrics['cache_hit_ratio'] = context.get('pg_cache_hit', [{}])[0].get('cache_hit_ratio', 0) if context.get('pg_cache_hit') else 0
+            # MySQL / PG 路径：从原始 context 中提取指标
+            sys_info = context.get('system_info', {})
+            metrics = {
+                'mem_usage': sys_info.get('memory', {}).get('usage_percent', 0),
+                'cpu_usage': sys_info.get('cpu', {}).get('usage_percent', 0) if isinstance(sys_info.get('cpu'), dict) else 0,
+                'disk_usage_max': max((d.get('usage_percent', 0) for d in sys_info.get('disk_list', [])
+                                       if d.get('mountpoint', '/') not in IGNORE_MOUNTS), default=0),
+                'risk_count': len(issues),
+                'health_status': context.get('health_status', '未知'),
+            }
+            if db_type == 'mysql':
+                metrics['connections'] = context.get('threads_connected', [{}])[0].get('Value', 0) if context.get('threads_connected') else 0
+                metrics['max_connections'] = context.get('max_connections', [{}])[0].get('Value', 0) if context.get('max_connections') else 0
+            else:
+                pg_conn = context.get('pg_connections', [{}])
+                if pg_conn and pg_conn[0]:
+                    metrics['connections'] = pg_conn[0].get('used_connections', 0)
+                    metrics['max_connections'] = pg_conn[0].get('max_connections', 0)
+                    metrics['cache_hit_ratio'] = context.get('pg_cache_hit', [{}])[0].get('cache_hit_ratio', 0) if context.get('pg_cache_hit') else 0
 
         prompt = self._build_prompt(db_type, label, metrics, issues)
 
@@ -1220,8 +1266,8 @@ class AIAdvisor:
         }).encode('utf-8')
         req = urllib.request.Request(url, data=payload, method='POST')
         req.add_header('Content-Type', 'application/json')
-        # 使用较长超时（120s），避免首次加载模型时冷启动超时
-        with urllib.request.urlopen(req, timeout=max(timeout, 120)) as resp:
+        # 使用较长超时（300s），避免首次加载模型时冷启动超时；qwen3:30b 等大模型加载时间可达数分钟
+        with urllib.request.urlopen(req, timeout=max(timeout, 300)) as resp:
             data = _json.loads(resp.read().decode('utf-8'))
             raw = data.get('response', '').strip()
             # 过滤 qwen3 的 thinking 残留（如果 think:false 未生效）

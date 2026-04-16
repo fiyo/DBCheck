@@ -253,5 +253,31 @@
         "health_status": "优秀"
       }
     ]
+  },
+  "74864c6dd0ec_192.168.42.220_1521": {
+    "db_type": "oracle_full",
+    "host": "192.168.42.220",
+    "port": "1521",
+    "label": "ORACLE19",
+    "snapshots": [
+      {
+        "cpu_usage": 0.0,
+        "mem_usage": 0,
+        "disk_usage_max": 0,
+        "ts": "2026-04-15 23:33:56",
+        "report_time": "2026-04-15 23:33:56",
+        "risk_count": 0,
+        "health_status": "良好"
+      },
+      {
+        "cpu_usage": 0.0,
+        "mem_usage": 0,
+        "disk_usage_max": 0,
+        "ts": "2026-04-16 07:43:36",
+        "report_time": "2026-04-16 07:43:36",
+        "risk_count": 0,
+        "health_status": "良好"
+      }
+    ]
   }
 }

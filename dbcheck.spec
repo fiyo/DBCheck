@@ -105,6 +105,7 @@ a = Analysis(
         'main_mysql',
         'main_pg',
         'main_oracle',
+        'main_oracle_full',
         'main_dm',
         'web_ui',
     ],

@@ -534,7 +534,7 @@ select option { background: var(--surface2); }
     </div>
 
     <div class="sidebar-footer">
-      MySQL · PostgreSQL · Oracle<br/>
+      MySQL · PostgreSQL · Oracle · DM<br/>
       <span style="opacity:.5">© 2026 DBCheck</span>
     </div>
   </aside>
@@ -636,14 +636,6 @@ select option { background: var(--surface2); }
               <div class="tc-name">PostgreSQL</div>
               <div class="tc-desc">适用于 PostgreSQL 10+ 实例，采集连接、缓存、Vacuum、索引、复制等核心指标。</div>
             </div>
-            <div class="type-card" id="tc-oracle" onclick="selectDbType('oracle')">
-              <div class="tc-header">
-                <div class="tc-logo">🔴</div>
-                <div class="tc-check" id="chk-oracle"></div>
-              </div>
-              <div class="tc-name">Oracle</div>
-              <div class="tc-desc">适用于 Oracle 11g / 12c / 19c / 21c，采集表空间、SGA/PGA、Redo、Data Guard、ASM、RAC 等全面指标。</div>
-            </div>
             <div class="type-card" id="tc-dm" onclick="selectDbType('dm')">
               <div class="tc-header">
                 <div class="tc-logo">🟡</div>
@@ -651,6 +643,14 @@ select option { background: var(--surface2); }
               </div>
               <div class="tc-name">达梦 DM8</div>
               <div class="tc-desc">适用于达梦 DM8 及以上版本，采集表空间、内存、会话、事务、备份等核心指标。</div>
+            </div>
+            <div class="type-card" id="tc-oracle_full" onclick="selectDbType('oracle_full')">
+              <div class="tc-header">
+                <div class="tc-logo">🔴✨</div>
+                <div class="tc-check" id="chk-oracle_full"></div>
+              </div>
+              <div class="tc-name">Oracle 全面巡检</div>
+              <div class="tc-desc">增强版：基于 OS 层 + 数据库层，覆盖 80+ 检查项，适合 10g~21c。</div>
             </div>
           </div>
           <div class="btn-row">
@@ -678,9 +678,15 @@ select option { background: var(--surface2); }
               <label>端口 <span class="req">*</span></label>
               <input type="number" id="f-port" value="3306" />
             </div>
-            <div class="field">
-              <label>用户名 <span class="req">*</span></label>
-              <input type="text" id="f-user" placeholder="root / postgres" />
+            <div class="field" style="flex-direction: column; align-items: flex-start">
+              <label style="margin-bottom: 6px">用户名 <span class="req">*</span></label>
+              <div style="display: flex; width: 100%; align-items: center; gap: 12px">
+                <input type="text" id="f-user" placeholder="root / postgres" style="flex: 1; min-width: 0" />
+                <span id="f-sysdba-wrap" style="display:none; white-space: nowrap; flex-shrink: 0">
+                  <input type="checkbox" id="f-sysdba" />
+                  <span style="font-size: 13px">以 SYSDBA 身份连接</span>
+                </span>
+              </div>
             </div>
             <div class="field">
               <label>密码</label>
@@ -922,6 +928,11 @@ select option { background: var(--surface2); }
               <label>模型名称</label>
               <input type="text" id="ai-ollama-model" class="form-input" placeholder="qwen2.5:7b"/>
             </div>
+            <div class="form-group">
+              <label>超时时间（秒）</label>
+              <input type="number" id="ai-timeout" class="form-input" placeholder="600" value="600" min="30" max="3600" style="width:120px"/>
+              <span style="font-size:12px;color:var(--text-muted);margin-left:8px">建议 300~600 秒，大模型加载较慢</span>
+            </div>
             <div style="background:var(--surface2);border-radius:8px;padding:12px;font-size:12px;color:var(--text-muted);margin-bottom:8px">
               💡 完全本地运行，无需 API Key，数据不出本机。先安装 <a href="https://ollama.ai" target="_blank" style="color:var(--accent2)">Ollama</a> 并拉取模型：<code>ollama pull qwen2.5:7b</code>
             </div>
@@ -974,7 +985,18 @@ function startWizard() {
   sshEnabled = false;
   currentTaskId = null;
   logOffset = 0;
+
+  // 1. 先切换到 mysql 类型（更新 UI 显示，隐藏 Oracle 特有字段）
   selectDbType('mysql');
+  // 2. 清除所有表单字段（port/user/ssh-port 由默认值覆盖，需保留）
+  const fids = ['f-host','f-password','f-database',
+                'f-service-name','f-inspector','f-ssh-host',
+                'f-ssh-user','f-ssh-password','f-ssh-key'];
+  fids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('f-sysdba').checked = false;
   gotoStep(1);
   showPage('wizard');
   // reset run panel
@@ -983,6 +1005,8 @@ function startWizard() {
   document.getElementById('result-panel').style.display = 'none';
   document.getElementById('done-btns').style.display = 'none';
   document.getElementById('log-box').innerHTML = '';
+  document.getElementById('btn-run').disabled = false;
+  document.getElementById('btn-run').innerHTML = '🚀 开始巡检';
 }
 
 // ─── Steps ───
@@ -1005,21 +1029,24 @@ function selectDbType(type) {
   dbType = type;
   document.getElementById('tc-mysql').classList.toggle('selected', type === 'mysql');
   document.getElementById('tc-pg').classList.toggle('selected', type === 'pg');
-  document.getElementById('tc-oracle').classList.toggle('selected', type === 'oracle');
   document.getElementById('tc-dm').classList.toggle('selected', type === 'dm');
+  document.getElementById('tc-oracle_full').classList.toggle('selected', type === 'oracle_full');
   document.getElementById('chk-mysql').textContent = type === 'mysql' ? '✓' : '';
   document.getElementById('chk-pg').textContent   = type === 'pg'    ? '✓' : '';
-  document.getElementById('chk-oracle').textContent = type === 'oracle' ? '✓' : '';
   document.getElementById('chk-dm').textContent = type === 'dm' ? '✓' : '';
+  document.getElementById('chk-oracle_full').textContent = type === 'oracle_full' ? '✓' : '';
   // 默认端口 & 用户名
-  const portMap = { mysql: 3306, pg: 5432, oracle: 1521, dm: 5236 };
-  const userMap = { mysql: 'root', pg: 'postgres', oracle: 'system', dm: 'SYSDBA' };
+  const portMap = { mysql: 3306, pg: 5432, dm: 5236, oracle_full: 1521 };
+  const userMap = { mysql: 'root', pg: 'postgres', dm: 'SYSDBA', oracle_full: 'sys' };
   document.getElementById('f-port').value = portMap[type] || 3306;
   document.getElementById('f-user').value = userMap[type] || 'root';
   document.getElementById('f-database-wrap').style.display = type === 'pg' ? '' : 'none';
-  // Oracle 服务名输入框
+  // Oracle全面巡检：显示服务名输入框
   var svcWrap = document.getElementById('f-service-wrap');
-  if (svcWrap) svcWrap.style.display = type === 'oracle' ? '' : 'none';
+  if (svcWrap) svcWrap.style.display = type === 'oracle_full' ? '' : 'none';
+  // Oracle全面巡检：显示 SYSDBA 复选框
+  var sysdbaWrap = document.getElementById('f-sysdba-wrap');
+  if (sysdbaWrap) sysdbaWrap.style.display = type === 'oracle_full' ? '' : 'none';
 }
 
 // ─── Test DB ───
@@ -1038,6 +1065,7 @@ async function testDb() {
         password: document.getElementById('f-password').value,
         database: document.getElementById('f-database').value.trim() || 'postgres',
         service_name: document.getElementById('f-service-name') ? document.getElementById('f-service-name').value.trim() : null,
+        sysdba: document.getElementById('f-sysdba').checked,
       })
     });
     const data = await res.json();
@@ -1096,17 +1124,17 @@ async function testSsh() {
 
 // ─── Confirm Panel ───
 function fillConfirmPanel() {
-  const typeLabels = { mysql: '🐬 MySQL', pg: '🐘 PostgreSQL', oracle: '🔴 Oracle', dm: '🟡 DM8' };
-  const nameDefaults = { mysql: 'MySQL_Server', pg: 'PG_Server', oracle: 'Oracle_Server', dm: 'DM8_Server' };
-  const portDefaults = { mysql: '3306', pg: '5432', oracle: '1521', dm: '5236' };
-  const userDefaults = { mysql: 'root', pg: 'postgres', oracle: 'system', dm: 'SYSDBA' };
+  const typeLabels = { mysql: '🐬 MySQL', pg: '🐘 PostgreSQL', oracle_full: '🔴 Oracle 全面巡检', dm: '🟡 DM8' };
+  const nameDefaults = { mysql: 'MySQL_Server', pg: 'PG_Server', oracle_full: 'Oracle_Server', dm: 'DM8_Server' };
+  const portDefaults = { mysql: '3306', pg: '5432', oracle_full: '1521', dm: '5236' };
+  const userDefaults = { mysql: 'root', pg: 'postgres', oracle_full: 'sys', dm: 'SYSDBA' };
   const typeLabel = typeLabels[dbType] || dbType;
   const name = document.getElementById('f-name').value.trim() || (nameDefaults[dbType]||'_Server');
   const host = document.getElementById('f-host').value.trim() || 'localhost';
   const port = document.getElementById('f-port').value || (portDefaults[dbType]||'1521');
   const sshLabel = sshEnabled ? `${document.getElementById('f-ssh-host').value || host}:${document.getElementById('f-ssh-port').value||22}` : '未配置（仅数据库指标）';
 
-  const tagClass = dbType === 'mysql' ? 'tag-mysql' : dbType === 'oracle' ? 'tag-oracle' : dbType === 'dm' ? 'tag-dm' : 'tag-pg';
+  const tagClass = dbType === 'mysql' ? 'tag-mysql' : dbType === 'oracle_full' ? 'tag-oracle' : dbType === 'dm' ? 'tag-dm' : 'tag-pg';
   document.getElementById('cf-dbtype').innerHTML = `<span class="tag ${tagClass}">${typeLabel}</span>`;
   document.getElementById('cf-name').textContent = name;
   document.getElementById('cf-conn').textContent = `${host}:${port}`;
@@ -1120,16 +1148,16 @@ async function startInspection() {
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> 启动中...';
 
-  const name = document.getElementById('f-name').value.trim() || (dbType==='mysql'?'MySQL_Server':dbType==='oracle'?'Oracle_Server':dbType==='dm'?'DM8_Server':'PG_Server');
+  const name = document.getElementById('f-name').value.trim() || (dbType==='mysql'?'MySQL_Server':dbType==='oracle'?'Oracle_Server':dbType==='oracle_full'?'Oracle_Full':dbType==='dm'?'DM8_Server':'PG_Server');
   const host = document.getElementById('f-host').value.trim() || 'localhost';
-  const port = parseInt(document.getElementById('f-port').value) || (dbType==='mysql'?3306:dbType==='oracle'?1521:dbType==='dm'?5236:5432);
+  const port = parseInt(document.getElementById('f-port').value) || (dbType==='mysql'?3306:dbType==='oracle'||dbType==='oracle_full'?1521:dbType==='dm'?5236:5432);
   const user = document.getElementById('f-user').value.trim() || (userDefaults[dbType]||'root');
   const password = document.getElementById('f-password').value;
   const database = document.getElementById('f-database').value.trim() || 'postgres';
   const svcName = document.getElementById('f-service-name') ? document.getElementById('f-service-name').value.trim() : null;
   const inspector = document.getElementById('f-inspector').value.trim() || 'Jack';
 
-  const payload = { db_type: dbType, name, host, port, user, password, database, service_name: svcName, inspector_name: inspector };
+  const payload = { db_type: dbType, name, host, port, user, password, database, service_name: svcName, inspector_name: inspector, sysdba: document.getElementById('f-sysdba').checked };
   if (sshEnabled) {
     payload.ssh_host     = document.getElementById('f-ssh-host').value.trim() || host;
     payload.ssh_port     = parseInt(document.getElementById('f-ssh-port').value) || 22;
@@ -1219,8 +1247,17 @@ function pollStatus() {
         // AI 诊断结果
         let aiHtml = '';
         const ai = data.ai_advice;
+        // 友好处理：区分真实诊断内容与错误提示
         if (ai && ai.trim()) {
-          // 渲染内容：处理段落、bullet 列表、编号列表、标题
+          const isError = /^⚠|timed out|timeout|Traceback|error.*occurred|失败|异常/i.test(ai.trim());
+          if (isError) {
+            aiHtml = `<div style="padding:12px 16px;background:#fff3cd;border:1px solid #ffc107;border-radius:8px;font-size:13px;color:#856404">
+              🤖 AI 诊断暂时无法完成<br>
+              <span style="font-size:12px;color:#85640499">${escHtml(ai.trim().split('\n').slice(-3).join(' '))}</span>
+              <div style="margin-top:8px;font-size:12px;color:#85640499">请检查 Ollama 服务状态，或在 AI 配置中增加超时时间</div>
+            </div>`;
+          } else {
+          // 正常渲染内容：处理段落、bullet 列表、编号列表、标题
           const lines = escHtml(ai).split('\n');
           let inUl = false, inOl = false;
           let html = '';
@@ -1276,7 +1313,8 @@ function pollStatus() {
             ${html}
           </div>
         `;
-        }
+          }  // end else (not error)
+        }  // end if (ai)
 
         document.getElementById('result-panel').innerHTML = `
           <div class="result-card">
@@ -1564,7 +1602,7 @@ async function loadAIConfig() {
   try {
     const res = await fetch('/api/ai_config');
     const data = await res.json();
-    const cfg = data.config || {};
+    const cfg = data;  // API 直接返回配置对象，无嵌套
     document.getElementById('ai-backend').value = cfg.backend || 'disabled';
     document.getElementById('ai-api-key').value = cfg.api_key === '***' ? '' : (cfg.api_key || '');
     document.getElementById('ai-api-url').value = cfg.api_url || '';
@@ -1572,6 +1610,7 @@ async function loadAIConfig() {
     if (cfg.api_url && cfg.api_url.includes('localhost')) {
       document.getElementById('ai-ollama-url').value = cfg.api_url;
       document.getElementById('ai-ollama-model').value = cfg.model || '';
+      document.getElementById('ai-timeout').value = cfg.timeout || 600;
     }
     onAIBackendChange();
   } catch(e) { console.error(e); }
@@ -1593,8 +1632,9 @@ async function saveAIConfig() {
     cfg.model   = document.getElementById('ai-model').value || 'gpt-4o-mini';
   } else if (backend === 'ollama') {
     cfg.api_key = '';
-    cfg.api_url = document.getElementById('ai-ollama-url').value || 'http://localhost:11434';
-    cfg.model   = document.getElementById('ai-ollama-model').value || 'qwen2.5:7b';
+    cfg.api_url  = document.getElementById('ai-ollama-url').value || 'http://localhost:11434';
+    cfg.model    = document.getElementById('ai-ollama-model').value || 'qwen2.5:7b';
+    cfg.timeout  = parseInt(document.getElementById('ai-timeout').value) || 600;
   }
   try {
     const res = await fetch('/api/ai_config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(cfg) });
@@ -1628,6 +1668,7 @@ async function testOllama() {
   try {
     const url = document.getElementById('ai-ollama-url').value.trim() || 'http://localhost:11434';
     const model = document.getElementById('ai-ollama-model').value.trim() || 'qwen2.5:7b';
+    const timeout = parseInt(document.getElementById('ai-timeout').value) || 600;
     const resp = await fetch('/api/test_ollama', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},

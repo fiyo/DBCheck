@@ -746,7 +746,7 @@ def create_word_template(inspector_name="Jack"):
 class getData(object):
     """数据采集类 - 负责连接 Oracle 数据库并执行全量巡检 SQL"""
 
-    def __init__(self, ip, port, user, password, service_name=None, ssh_info=None):
+    def __init__(self, ip, port, user, password, service_name=None, ssh_info=None, sysdba=None):
         self.label = str(infos.label)
         self.H = ip
         self.P = int(port)
@@ -754,6 +754,7 @@ class getData(object):
         self.password = password
         self.service_name = service_name or ip
         self.ssh_info = ssh_info or {}
+        self._sysdba_arg = sysdba  # 显式传入的 SYSDBA 标识（True/False/None）
         self.conn_db2 = None
         self._connect()
 
@@ -769,6 +770,12 @@ class getData(object):
     def _connect(self):
         try:
             user_clean, privilege = self._parse_sysdba_user(self.user)
+
+            # 若显式指定了 sysdba 参数，覆盖解析结果
+            if self._sysdba_arg is True:
+                privilege = 'sysdba'
+            elif self._sysdba_arg is False:
+                privilege = None
 
             # 确定 mode 参数值
             if ORACLE_DRIVER == 'oracledb':
@@ -1930,13 +1937,13 @@ def run_inspection(db_info, service_name=None):
 
 def print_banner():
     print(f"""
-═══════════════════════════════════════════════════════════
-         DBCheck - Oracle 巡检工具 {VER}          
-              支持 Oracle 11g / 12c / 19c / 21c             
-                                                             
-   巡检项目：表空间 · SGA/PGA · 会话 · 锁 · Redo · 归档     
-              Data Guard · ASM · RAC · 用户安全 · 等待事件   
-═══════════════════════════════════════════════════════════
+╔═══════════════════════════════════════════════════════════╗
+║         DBCheck - Oracle 巡检工具 {VER}          ║
+║              支持 Oracle 11g / 12c / 19c / 21c             ║
+║                                                             ║
+║   巡检项目：表空间 · SGA/PGA · 会话 · 锁 · Redo · 归档     ║
+║              Data Guard · ASM · RAC · 用户安全 · 等待事件   ║
+╚═══════════════════════════════════════════════════════════╝
 """)
 
 
