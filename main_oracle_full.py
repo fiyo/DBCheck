@@ -2547,10 +2547,34 @@ def single_inspection(args):
                     })
             return rows
 
+        # 当前会话总数（session_by_status: [(status, count), ...] → [{TOTAL_SESSIONS: N}])
+        sess_rows = perf.get('session_by_status', [])
+        total_sess = sum(int(r[1]) for r in sess_rows if len(r) >= 2 and str(r[1]).isdigit())
+        ora_sessions_formatted = [{'TOTAL_SESSIONS': total_sess}]
+
+        # SGA 总计（sga_total: [[12345.6]] → [{SGA_TOTAL_MB: 12345.6}]）
+        sga_rows = check_results.get('SGA/PGA内存', {}).get('sga_total', [])
+        sga_val = sga_rows[0][0] if sga_rows and sga_rows[0] else 0.0
+        ora_sga_formatted = [{'SGA_TOTAL_MB': float(sga_val)}]
+
+        # 会话上限（从关键参数 processes/sessions 中取）
+        params = check_results.get('关键参数', {})
+        sess_limit = 0
+        for row in params.get('params', []):
+            if len(row) >= 2 and str(row[0]).lower() == 'sessions':
+                try:
+                    sess_limit = int(float(str(row[1])))
+                except (ValueError, TypeError):
+                    pass
+                break
+        ora_session_limit_formatted = [{'SESSIONS_LIMIT': sess_limit}] if sess_limit else []
+
         context = {
             'ora_version': [{'BANNER': version_str}],
             'ora_tablespace': _ts_rows(ts.get('data_tablespaces', [])),
-            'ora_sessions': perf.get('session_by_status', []),
+            'ora_sessions': ora_sessions_formatted,
+            'ora_sga_total': ora_sga_formatted,
+            'ora_session_limit': ora_session_limit_formatted,
             'system_info': {
                 'hostname': os_data.get('hostname', ''),
                 'cpu': {'usage_percent': os_data.get('cpu_percent', 0)},

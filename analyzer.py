@@ -945,12 +945,16 @@ class HistoryManager:
             cache_hits = context.get('pg_cache_hit', [])
             m['cache_hit_ratio'] = _safe_float(cache_hits, 'cache_hit_ratio') if cache_hits else 0.0
             m['version'] = context.get('pg_version', [{}])[0].get('version', '') if context.get('pg_version') else ''
-        elif db_type == 'oracle':
-            # Oracle 指标
+        elif db_type in ('oracle', 'oracle_full'):
+            # Oracle / Oracle 全面巡检指标
             ora_sess = context.get('ora_sessions', [])
             m['connections'] = _safe_int(ora_sess, 'TOTAL_SESSIONS') if ora_sess else 0
             ora_limit = context.get('ora_session_limit', [])
-            m['max_connections'] = _safe_int(ora_limit, 'SESSIONS_LIMIT') if ora_limit else _safe_int(ora_sess, 'TOTAL_SESSIONS') + 100
+            # oracle_full 没有 ora_session_limit，降级用当前连接+100估算
+            if ora_limit:
+                m['max_connections'] = _safe_int(ora_limit, 'SESSIONS_LIMIT')
+            else:
+                m['max_connections'] = m['connections'] + 100
             sga_total = context.get('ora_sga_total', [])
             m['sga_total_mb'] = _safe_float(sga_total, 'SGA_TOTAL_MB') if sga_total else 0.0
 
@@ -960,6 +964,22 @@ class HistoryManager:
                 max_ts_used = max((_safe_float(ts.get('USED_PCT_WITH_MAXEXT', ts.get('USED_PCT', 0))) for ts in ts_list), default=0)
                 m['max_tablespace_pct'] = max_ts_used
             m['version'] = context.get('ora_version', [{}])[0].get('BANNER', '') if context.get('ora_version') else ''
+
+        elif db_type == 'dm':
+            # DM8 达梦指标
+            dm_sess = context.get('dm_sessions', [])
+            m['connections'] = _safe_int(dm_sess, 'TOTAL_SESSIONS') if dm_sess else 0
+            dm_limit = context.get('dm_session_limit', [])
+            m['max_connections'] = _safe_int(dm_limit, 'SESSIONS_LIMIT') if dm_limit else m['connections'] + 100
+            dm_sga = context.get('dm_sga_total', [])
+            m['sga_total_mb'] = _safe_float(dm_sga, 'SGA_TOTAL_MB') if dm_sga else 0.0
+
+            # 表空间最大使用率
+            dm_ts = context.get('dm_tablespace', [])
+            if dm_ts:
+                max_ts_used = max((_safe_float(ts.get('USED_PCT', 0)) for ts in dm_ts), default=0)
+                m['max_tablespace_pct'] = max_ts_used
+            m['version'] = context.get('dm_version', [{}])[0].get('BANNER', '') if context.get('dm_version') else ''
 
         return m
 

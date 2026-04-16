@@ -458,6 +458,9 @@ dbcheck.exe         # Windows
 
 ## 界面截图
 
+![首页](snapshot/webui0.png)
+*平台首页*
+
 ![步骤一：选择数据库类型](snapshot/webui1.png)
 *图 1：选择数据库类型（MySQL 🐬 / PostgreSQL 🐘 / Oracle 🔴 / DM8 🟡）*
 
@@ -467,45 +470,45 @@ dbcheck.exe         # Windows
 ![步骤三：在线连接测试数据库连接](snapshot/webui3.png)
 *图 3：在线连接测试数据库连接*
 
-![步骤四：SSH 配置](snapshot/webui4.png)
+![步骤四：SSH 连接配置](snapshot/webui5.png)
 *图 4：SSH 连接配置（可选，默认端口 22）*
 
-![步骤五：测试 SSH 连接](snapshot/webui5.png)
-*图 5：测试 SSH 连接*
+![步骤五：巡检人员](snapshot/webui6.png)
+*图 5：巡检人员配置（默认为 dbcheck）*
 
-![步骤六：巡检人员](snapshot/webui6.png)
-*图 6：巡检人员配置（默认为 dbcheck）*
+![步骤六：确认巡检信息](snapshot/webui7.png)
+*图 6：确认巡检信息*
 
-![步骤七：确认巡检信息](snapshot/webui7.png)
-*图 7：确认巡检信息*
+![步骤七：执行巡检](snapshot/webui8.png)
+*图 7：一键巡检，实时预览巡检进度*
 
-![步骤八：执行巡检](snapshot/webui8.png)
-*图 8：一键巡检，实时预览巡检进度*
-
-![步骤九：报告下载](snapshot/webui9.png)
-*图 9：巡检完成后直接下载 Word 报告*
+![报告下载](snapshot/webui9.png)
+*图 8：巡检完成后直接下载 Word 报告*
 
 ![历史报告](snapshot/webui10.png)
-*图 10：历史报告列表页，支持按名称、大小、时间浏览*
+*图 9：历史报告列表页，支持按名称、大小、时间浏览*
 
 ![历史趋势分析](snapshot/webui12.png)
-*图 11：历史趋势分析*
+*图 10：历史趋势分析*
 
 ![AI 诊断配置](snapshot/webui13.png)
-*图 12：AI 诊断配置，可完全本地运行，无需 API Key，数据不出本机。*
+*图 11：AI 诊断配置，可完全本地运行，无需 API Key，数据不出本机。*
 
 ![Clawhub dbcheck skill](snapshot/skill0.png)
-*图 13：dbcheck 已发布到 Clawhub*
+*图 12：dbcheck 已发布到 Clawhub*
 
 ![QClaw](snapshot/skill1.png)
-*图 14：在 QClaw 等支持 OpenClaw Skills 的软件中使用 dbcheck。*
+*图 13：在 QClaw 等支持 OpenClaw Skills 的软件中使用 dbcheck。*
 
 ![Reports](snapshot/report.png)
-*图 15：AI 诊断报告（Markdown 自动渲染为 Word 格式）。*
+*图 14：AI 诊断报告（Markdown 自动渲染为 Word 格式）。*
 ---
 ## 鸣谢
 
 感谢 [Zhh9126/MySQLDBCHECK](https://github.com/Zhh9126/MySQLDBCHECK.git) 作者的贡献！
 > 本项目由 [Zhh9126/MySQLDBCHECK](https://github.com/Zhh9126/MySQLDBCHECK.git) 改进而来，在原 MySQL 支持的基础上新增了 PostgreSQL、Oracle、DM8 支持。
+
+![WeiChat Pay](snapshot/pay.jpg)
+*收款码*
 
 目前部分功能仍在持续完善中，欢迎共同参与功能开发以及反馈问题与建议。

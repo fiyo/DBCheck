@@ -1392,7 +1392,7 @@ async function loadTrendInstances() {
       return;
     }
     sel.innerHTML = trendInstances.map((inst, i) =>
-      `<option value="${i}">${inst.db_type.toUpperCase()} · ${inst.label || inst.host} (${inst.host}:${inst.port}) · ${inst.snapshots_count} 次记录</option>`
+      `<option value="${i}">${inst.db_type.toUpperCase()} · ${inst.label || inst.host} (${inst.host}:${inst.port}) · ${inst.snapshot_count} 次记录</option>`
     ).join('');
     document.getElementById('trend-empty').style.display = 'none';
   } catch(e) {
