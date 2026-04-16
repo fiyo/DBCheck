@@ -31,10 +31,72 @@ body {
                'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
   min-height: 100vh;
   line-height: 1.6;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* ─── 背景动画层 ─── */
+.bg-anim {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+.bg-anim svg {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 水波纹（CSS 动画） */
+.ripple-container {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+}
+.ripple {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.5);
+  box-shadow: 0 0 6px 1px rgba(255,255,255,0.15), inset 0 0 4px rgba(255,255,255,0.1);
+  animation: rippleOut 3s ease-out forwards;
+}
+@keyframes rippleOut {
+  0%   { width: 20px; height: 20px; opacity: 0.7; }
+  100% { width: 200px; height: 200px; opacity: 0; }
+}
+
+/* 水印字样 */
+@keyframes watermarkFade {
+  0%   { opacity: 0; }
+  10% { opacity: 1; }
+  60% { opacity: 1; }
+  100%{ opacity: 0; }
+}
+
+.watermark {
+  position: absolute;
+  font-family: 'Segoe UI', sans-serif;
+  font-weight: 400;
+  font-size: 13px;
+  color: rgba(255,255,255,0.1);
+  pointer-events: none;
+  animation: watermarkFade 4s ease-out forwards;
+  white-space: nowrap;
+  user-select: none;
+  letter-spacing: 3px;
+  text-transform: uppercase;
 }
 
 /* ─── Layout ─── */
 .app-shell {
+  position: relative;
+  z-index: 2;
   display: flex;
   min-height: 100vh;
 }
@@ -548,6 +610,70 @@ select option { background: var(--surface2); }
 </style>
 </head>
 <body>
+<!-- 背景层 -->
+<div class="bg-anim">
+  <svg viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+  </svg>
+</div>
+<!-- 水波纹层（CSS 动画） -->
+<div class="ripple-container" id="ripple-container"></div>
+<!-- 水印 + 水波效果 -->
+<script>
+(function(){
+var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
+  var el = document.createElement('div');
+  el.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:1;overflow:hidden';
+  document.body.appendChild(el);
+
+  // 创建水波纹（HTML + CSS 动画，位置与水印重合）
+  function mkRipple(x, y){
+    var container = document.getElementById('ripple-container');
+    if(!container) return;
+
+    // 水印在视口中的像素位置
+    var px = (x / 100) * window.innerWidth;
+    var py = (y / 100) * window.innerHeight;
+
+    // 3圈波纹，依次延迟出现
+    [0, 0.25, 0.5].forEach(function(delay){
+      var ripple = document.createElement('div');
+      ripple.className = 'ripple';
+      // 居中：left/top 设为圆心坐标减去初始宽高的一半
+      ripple.style.left = (px - 10) + 'px';
+      ripple.style.top  = (py - 10) + 'px';
+      ripple.style.animationDelay = delay + 's';
+      container.appendChild(ripple);
+
+      // 动画结束后移除
+      setTimeout(function(){
+        if(ripple.parentNode) ripple.parentNode.removeChild(ripple);
+      }, (3 + delay + 0.1) * 1000);
+    });
+  }
+
+  function mk(){
+    var ph = phrases[Math.floor(Math.random() * phrases.length)];
+    var div = document.createElement('div');
+    div.className = 'watermark';
+    // 避开左侧侧边栏
+    var leftPct = 30 + Math.random() * 65;
+    var topPct  = 5  + Math.random() * 85;
+    div.style.cssText = [
+      'left:'      + leftPct + '%',
+      'top:'       + topPct  + '%',
+      'transform:rotate(' + (Math.random()*26-13) + 'deg)'
+    ].join(';');
+    div.textContent = ph;
+    el.appendChild(div);
+
+    // 在水印出现位置生成水波纹
+    mkRipple(leftPct, topPct);
+
+    setTimeout(function(){ div.remove(); }, 4000);
+  }
+  mk(); setInterval(mk, 3200);
+})();
+</script>
 <div class="app-shell">
 
   <!-- ─── Sidebar ─── -->
