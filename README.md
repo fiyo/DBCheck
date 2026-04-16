@@ -459,7 +459,6 @@ dbcheck.exe         # Windows
 ## 界面截图
 
 ![首页](snapshot/webui0.png)
-*平台首页*
 
 ![步骤一：选择数据库类型](snapshot/webui1.png)
 *图 1：选择数据库类型（MySQL 🐬 / PostgreSQL 🐘 / Oracle 🔴 / DM8 🟡）*
