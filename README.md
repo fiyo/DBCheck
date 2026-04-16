@@ -508,7 +508,14 @@ dbcheck.exe         # Windows
 感谢 [Zhh9126/MySQLDBCHECK](https://github.com/Zhh9126/MySQLDBCHECK.git) 作者的贡献！
 > 本项目由 [Zhh9126/MySQLDBCHECK](https://github.com/Zhh9126/MySQLDBCHECK.git) 改进而来，在原 MySQL 支持的基础上新增了 PostgreSQL、Oracle、DM8 支持。
 
-![WeiChat Pay](snapshot/pay.jpg)
-*收款码*
-
 目前部分功能仍在持续完善中，欢迎共同参与功能开发以及反馈问题与建议。
+
+---
+
+## 捐赠支持
+
+DBCheck 从初版到功能完善，历经了大量版本迭代和实测打磨。如果这个工具对你的工作有帮助，欢迎通过以下方式支持项目持续迭代：
+
+<img src="snapshot/pay.jpg" alt="PayPal 捐赠二维码" width="200" />
+
+> 捐赠时备注你的名字或昵称，让我们知道谁在支持这个项目 ❤️
