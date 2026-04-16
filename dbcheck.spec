@@ -17,7 +17,6 @@ a = Analysis(
         (os.path.join(project_root, 'templates'), 'templates'),
         # ── Web UI ───────────────────────────────────────────
         (os.path.join(project_root, 'web_templates'), 'web_templates'),
-        (os.path.join(project_root, 'skill', 'dbcheck', 'scripts', 'ai_config.json'), 'ai_config.json'),
     ],
     hiddenimports=[
         # ── 数据库驱动 ───────────────────────────────────────

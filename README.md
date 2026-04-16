@@ -269,7 +269,7 @@ python main.py
 
 ### Web UI（可视化界面）
 
-启动 Web 服务后，在浏览器访问 **http://localhost:5000** 即可通过图形界面完成所有巡检操作。
+启动 Web 服务后，在浏览器访问 **http://localhost:5003** 即可通过图形界面完成所有巡检操作。
 
 ```bash
 python web_ui.py
