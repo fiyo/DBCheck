@@ -1,6 +1,16 @@
 # 数据库巡检工具 - DBCheck
 
-支持对 **MySQL**、**PostgreSQL**、**Oracle**和 **达梦 DM8** 四种主流关系型数据库进行自动化健康巡检，生成格式规范的 Microsoft Word 报告，帮助 DBA 和运维人员快速掌握数据库运行状况、发现潜在风险。
+>支持对 **MySQL**、**PostgreSQL**、**Oracle**和 **达梦 DM8** 四种主流关系型数据库进行自动化健康巡检，生成格式规范的 Microsoft Word 报告，帮助 DBA 和运维人员快速掌握数据库运行状况、发现潜在风险。
+
+
+[![Version](https://img.shields.io/badge/version-2.3.3-blue.svg)]()
+[![MySQL](https://img.shields.io/badge/MySQL-gray.svg)]()
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-blue.svg)]()
+[![Oracle](https://img.shields.io/badge/Oracle-red.svg)]()
+[![DM](https://img.shields.io/badge/DM-yellow.svg)]()
+[![License](https://img.shields.io/badge/license-MIT-green.svg)]()
+
+> Language: [English](#english) | [中文](#中文)
 
 ## AI 辅助 · 问题发现即处理
 
