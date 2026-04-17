@@ -4,8 +4,8 @@
 
 
 [![Version](https://img.shields.io/badge/version-2.3.3-blue.svg)]()
-[![MySQL](https://img.shields.io/badge/MySQL-gray.svg)]()
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-blue.svg)]()
+[![MySQL](https://img.shields.io/badge/database-MySQL-blue.svg)]()
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-gray.svg)]()
 [![Oracle](https://img.shields.io/badge/Oracle-red.svg)]()
 [![DM](https://img.shields.io/badge/DM-yellow.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg)]()
