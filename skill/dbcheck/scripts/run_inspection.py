@@ -224,7 +224,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
-  python run_inspection.py --type mysql --host 192.168.1.10 --port 3306 \\
+  python run_inspection.py --type mysql --host localhost --port 3306 \\
       --user root --password mypass --label "生产MySQL" --inspector "张三"
 
   python run_inspection.py --type pg --host 192.168.1.20 --port 5432 \\

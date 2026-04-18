@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 # -*- coding:utf-8 -*-
 from version import __version__ as VER
 
@@ -54,6 +54,20 @@ except ImportError:
     sys.exit(1)
 
 importlib.reload(sys)
+
+# ── i18n setup for CLI ─────────────────────────────────────────────
+try:
+    from i18n import get_lang
+    _PG_LANG = get_lang()
+except Exception:
+    _PG_LANG = 'zh'
+
+def _t(key):
+    try:
+        from i18n import t as _tt
+        return _tt(key, _PG_LANG)
+    except Exception:
+        return key
 
 # ============================================================
 # 内置 PostgreSQL 巡检 SQL 模板
@@ -1524,8 +1538,8 @@ class ExcelTemplateManager:
             for col, width in enumerate(column_widths, 1):
                 ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = width
             example_data = [
-                [1, "生产数据库", "192.168.1.100", 5432, "postgres", "password", "postgres",
-                 "192.168.1.100", 22, "root", "ssh_password", "/path/to/private_key", "主数据库"],
+                [1, "生产数据库", "localhost", 5432, "postgres", "password", "postgres",
+                 "localhost", 22, "root", "ssh_password", "/path/to/private_key", "主数据库"],
                 [2, "测试数据库", "localhost", 5432, "postgres", "test123", "test_db",
                  "", 22, "", "", "", "测试环境"],
             ]
@@ -1570,12 +1584,12 @@ class ExcelTemplateManager:
                 if row == 1:
                     ws2.cell(row=row, column=1).font = Font(bold=True, size=14)
             wb.save(self.template_file)
-            print(f"✅ Excel模板已创建: {self.template_file}")
-            print("📝 请填写模板中的数据库连接信息后使用批量巡检功能")
-            print("🔐 如需获取系统信息，请填写SSH连接信息")
+            print(_t("pg_cli_excel_created").format(path=self.template_file))
+            print(_t("pg_cli_excel_fill_note"))
+            print(_t("pg_cli_excel_ssh_note"))
             return True
         except Exception as e:
-            print(f"❌ 创建Excel模板失败: {e}")
+            print(_t("pg_cli_excel_create_fail").format(e=e))
             return False
     def read_template(self, file_path=None):
         """
@@ -1594,7 +1608,7 @@ class ExcelTemplateManager:
         if file_path is None:
             file_path = self.template_file
         if not os.path.exists(file_path):
-            print(f"❌ Excel模板文件不存在: {file_path}")
+            print(_t("pg_cli_excel_not_exist_batch").format(path=file_path))
             return None
         try:
             wb = openpyxl.load_workbook(file_path)
@@ -1660,14 +1674,14 @@ class ExcelTemplateManager:
                 }
                 db_list.append(db_info)
             if not db_list:
-                print("❌ Excel模板中没有有效的数据库配置")
+                print(_t("pg_cli_excel_no_valid_config"))
                 return None
-            print(f"✅ 从Excel模板读取到 {len(db_list)} 个数据库配置")
+            print(_t("pg_cli_excel_read_count").format(n=len(db_list)))
             ssh_count = sum(1 for db in db_list if db['ssh_host'] and (db['ssh_password'] or db['ssh_key_file']))
-            print(f"🔐 其中 {ssh_count} 个配置包含SSH连接信息，可以获取系统信息")
+            print(_t("pg_cli_excel_ssh_count").format(n=ssh_count))
             return db_list
         except Exception as e:
-            print(f"❌ 读取Excel模板失败: {e}")
+            print(_t("pg_cli_excel_read_fail").format(e=e))
             return None
 
 def input_db_info():
@@ -1682,50 +1696,50 @@ def input_db_info():
     :return: 包含数据库连接信息的字典（含 SSH 信息字段）；
              用户放弃输入或连接验证失败且不重试时返回 None
     """
-    print("\n请输入数据库连接信息:")
-    host = input("主机地址 [localhost]: ").strip() or "localhost"
-    port_input = input("端口 [5432]: ").strip()
+    print("\n" + _t("cli_db_info_title"))
+    host = input(_t("cli_db_host").format(default="localhost")).strip() or "localhost"
+    port_input = input(_t("cli_db_port").format(default=5432)).strip()
     if not port_input:
         port = '5432'
     else:
         try:
             port = int(port_input)
         except ValueError:
-            print("⚠️  端口输入无效，使用默认值5432")
+            print(_t("cli_db_port_invalid").format(default=5432))
             port = '5432'
-    user = input("用户名 [postgres]: ").strip() or "postgres"
+    user = input(_t("cli_db_user").format(default="postgres")).strip() or "postgres"
     import getpass
-    password = getpass.getpass("密码: ").strip()
-    db_name = input("数据库名称(用于报告标识) [PostgreSQL_Server]: ").strip() or "PostgreSQL_Server"
-    print("\n🔐 系统信息收集配置:")
-    print("如需获取系统信息（CPU、内存、磁盘等），请配置SSH连接")
-    enable_ssh = input("是否配置SSH连接? (y/n) [n]: ").strip().lower()
+    password = getpass.getpass(_t("cli_db_password")).strip()
+    db_name = input(_t("cli_db_name").format(default="PostgreSQL_Server")).strip() or "PostgreSQL_Server"
+    print("\n" + _t("cli_ssh_config_title"))
+    print(_t("cli_ssh_config_note"))
+    enable_ssh = input(_t("cli_ssh_enable")).strip().lower()
     ssh_info = {}
     if enable_ssh in ['y', 'yes']:
-        ssh_host = input(f"SSH主机地址 [{host}]: ").strip() or host
-        ssh_port_input = input("SSH端口 [22]: ").strip()
+        ssh_host = input(_t("cli_ssh_host").format(default=host)).strip() or host
+        ssh_port_input = input(_t("cli_ssh_port").format(default=22)).strip()
         if not ssh_port_input:
             ssh_port = 22
         else:
             try:
                 ssh_port = int(ssh_port_input)
             except ValueError:
-                print("⚠️  SSH端口输入无效，使用默认值22")
+                print(_t("cli_ssh_port_invalid").format(default=22))
                 ssh_port = 22
-        ssh_user = input("SSH用户名 [root]: ").strip() or "root"
-        auth_choice = input("SSH认证方式: 1.密码 2.密钥文件 [1]: ").strip()
+        ssh_user = input(_t("cli_ssh_user").format(default="root")).strip() or "root"
+        auth_choice = input(_t("cli_ssh_auth_method")).strip()
         if auth_choice == '2':
-            ssh_key_file = input("SSH私钥文件路径: ").strip()
+            ssh_key_file = input(_t("cli_ssh_key_path")).strip()
             ssh_password = ""
             if not os.path.exists(ssh_key_file):
-                print(f"❌ 密钥文件不存在: {ssh_key_file}")
-                retry = input("是否重新输入? (y/n) [y]: ").strip().lower()
+                print(_t("cli_ssh_key_not_exist").format(path=ssh_key_file))
+                retry = input(_t("cli_retry_yes")).strip().lower()
                 if retry in ['', 'y', 'yes']:
                     return input_db_info()
                 else:
                     ssh_key_file = ""
         else:
-            ssh_password = getpass.getpass("SSH密码: ").strip()
+            ssh_password = getpass.getpass(_t("cli_ssh_password")).strip()
             ssh_key_file = ""
         ssh_info = {
             'ssh_host': ssh_host,
@@ -1734,20 +1748,20 @@ def input_db_info():
             'ssh_password': ssh_password,
             'ssh_key_file': ssh_key_file
         }
-    print(f"\n🔍 正在验证PostgreSQL连接 {host}:{port}...")
+    print("\n🔍 " + _t("pg_cli_verifying_pg").format(host=host, port=port))
     try:
         conn = psycopg2.connect(host=host, port=port, user=user, password=password, dbname=db_name, client_encoding='UTF8', connect_timeout=10)
         conn.close()
-        print(f"✅ 成功连接到PostgreSQL {host}:{port}")
+        print(_t("pg_cli_pg_success").format(host=host, port=port))
     except Exception as e:
-        print(f"❌ PostgreSQL连接失败: {e}")
-        retry = input("是否重新输入? (y/n) [n]: ").strip().lower()
+        print(_t("pg_cli_pg_fail").format(e=e))
+        retry = input(_t("pg_cli_retry_no")).strip().lower()
         if retry == 'y':
             return input_db_info()
         else:
             return None
     if ssh_info:
-        print(f"🔍 正在验证SSH连接 {ssh_info['ssh_host']}:{ssh_info['ssh_port']}...")
+        print("🔍 " + _t("pg_cli_verifying_ssh").format(host=ssh_info['ssh_host'], port=ssh_info['ssh_port']))
         try:
             collector = RemoteSystemInfoCollector(
                 host=ssh_info['ssh_host'], port=ssh_info['ssh_port'], username=ssh_info['ssh_user'],
@@ -1755,12 +1769,12 @@ def input_db_info():
                 key_file=ssh_info['ssh_key_file'] if ssh_info['ssh_key_file'] else None
             )
             if collector.connect():
-                print(f"✅ 成功连接到SSH {ssh_info['ssh_host']}:{ssh_info['ssh_port']}")
+                print(_t("cli_ssh_success"))
                 collector.disconnect()
             else:
-                print(f"❌ SSH连接失败")
+                print(_t("cli_ssh_fail_no_msg"))
         except Exception as e:
-            print(f"❌ SSH连接失败: {e}")
+            print(_t("cli_ssh_fail").format(e=e))
     db_info = {'name': db_name, 'ip': host, 'port': port, 'user': user, 'password': password, 'database': db_name}
     db_info.update(ssh_info)
     return db_info
@@ -1776,24 +1790,24 @@ def show_main_menu():
     :return: 用户选择的菜单项字符串（"1"/"2"/"3"/"4"）
     """
     print("\n" + "=" * 60)
-    print("            DBCheck - PostgreSQL 巡检工具 " + VER)
+    print("            " + _t("pg_cli_banner") + " " + VER)
     print("=" * 60)
-    print("1. 单机巡检")
-    print("2. 批量巡检(从Excel导入)")
-    print("3. 创建Excel配置模板")
-    print("4. 退出")
+    print(_t("pg_cli_menu_item1"))
+    print(_t("pg_cli_menu_item2"))
+    print(_t("pg_cli_menu_item3"))
+    print(_t("pg_cli_menu_item4"))
     print("=" * 60)
     while True:
-        choice = input("请选择巡检模式 (1-4): ").strip()
+        choice = input(_t("pg_cli_choose_prompt")).strip()
         if choice in ['1', '2', '3', '4']:
             return choice
         else:
-            print("❌ 无效选择，请输入1-4之间的数字")
+            print("\u274c " + _t("pg_cli_invalid_choice"))
 
 class getData(object):
     """数据采集类 - 负责连接 PostgreSQL 数据库并执行全量巡检 SQL，同步采集系统信息和风险分析"""
 
-    def __init__(self, ip, port, user, password, database='postgres', ssh_info=None):
+    def __init__(self, ip, port, user, password, database='postgres', ssh_info=None, label=None):
         """
         初始化数据采集实例并建立 PostgreSQL 连接。
 
@@ -1807,8 +1821,10 @@ class getData(object):
         :param password: PostgreSQL 登录密码
         :param ssh_info: SSH 连接信息字典（可选），含 ssh_host、ssh_port、ssh_user、
                          ssh_password、ssh_key_file 字段；为空则使用本地采集模式
+        :param label: 巡检标签名（可选）；CLI模式通过 infos.label 传入，
+                      直接调用时通过此参数传入
         """
-        self.label = str(infos.label)
+        self.label = str(label if label is not None else infos.label) if 'infos' in dir() else str(label or db_info.get('name', 'pg_inspection'))
         self.H = ip
         self.P = int(port)
         self.user = user
@@ -1818,7 +1834,7 @@ class getData(object):
         try:
             self.conn_db2 = psycopg2.connect(host=self.H, port=self.P, user=self.user, password=self.password, dbname=self.database, client_encoding='UTF8', connect_timeout=10)
         except Exception as e:
-            print(f"❌ 数据库连接失败: {e}")
+            print(_t("pg_cli_db_conn_fail").format(e=e))
             self.conn_db2 = None
         self.context = {}
     def print_progress_bar(self, iteration, total, prefix='', suffix='', decimals=1, length=50, fill='█'):
@@ -1854,7 +1870,7 @@ class getData(object):
                         传入空字符串或文件路径时从文件加载
         :return: 包含所有巡检结果的 context 字典；连接异常或读取模板失败时返回当前已有内容
         """
-        print("\n开始巡检...")
+        print("\n" + _t("pg_cli_starting"))
         total_steps = 15
         current_step = 0
         cfg = configparser.RawConfigParser()
@@ -1864,7 +1880,7 @@ class getData(object):
             else:
                 cfg.read(sqlfile, encoding='utf-8')
         except Exception as e:
-            print(f"❌ 读取SQL模板失败: {e}")
+            print(_t("pg_cli_sql_template_fail").format(e=e))
             return self.context
         init_keys = ["myversion", "pg_uptime", "pg_connections", "pg_conn_detail",
                     "pg_wait_events", "pg_long_queries", "pg_lock_info", "pg_db_size",
@@ -1882,7 +1898,7 @@ class getData(object):
             self.context.update({"myversion": [{'version': pg_version_str}]})
             self.context.update({"health_summary": [{'health_summary': '运行良好'}]})
         except Exception as e:
-            print(f"❌ 获取版本信息失败: {e}")
+            print(_t("pg_cli_version_fail").format(e=e))
             self.context.update({"myversion": [{'version': 'Unknown'}]})
             self.context.update({"health_summary": [{'health_summary': '运行良好'}]})
         try:
@@ -1891,13 +1907,13 @@ class getData(object):
             for i, (name, stmt) in enumerate(variables_items):
                 try:
                     current_step = int((i / len(variables_items)) * total_steps)
-                    self.print_progress_bar(current_step, total_steps, prefix='巡检进度:', suffix=f'步骤 {i+1}/{len(variables_items)}')
+                    self.print_progress_bar(current_step, total_steps, prefix=_t('pg_cli_progress_prefix'), suffix=_t('pg_cli_progress_step').format(i=i+1, total=len(variables_items)))
                     cursor2.execute(stmt.replace('\n', ' ').replace('\r', ' '))
                     result = [dict((cursor2.description[i][0], value) for i, value in enumerate(row)) for row in cursor2.fetchall()]
                     self.context[name] = result
                     time.sleep(0.05)
                 except Exception as e:
-                    print(f"\n⚠️  步骤 {name} 执行失败: {e}")
+                    print("\n⚠️  " + _t("pg_cli_step_fail").format(name=name, e=e))
                     self.context[name] = []
                     try:
                         self.conn_db2.rollback()
@@ -1905,22 +1921,22 @@ class getData(object):
                         pass
                     time.sleep(0.05)
         except Exception as e:
-            print(f'\n❌ 数据库查询失败: {e}')
+            print("\n❌ " + _t("pg_cli_query_fail").format(e=e))
         finally:
             if 'cursor2' in locals():
                 cursor2.close()
         current_step = total_steps - 2
-        self.print_progress_bar(current_step, total_steps, prefix='巡检进度:', suffix='收集系统信息')
+        self.print_progress_bar(current_step, total_steps, prefix=_t('pg_cli_progress_prefix'), suffix=_t('pg_cli_sysinfo_suffix'))
         try:
             if self.ssh_info and self.ssh_info.get('ssh_host'):
-                print(f"\n🔍 通过SSH收集系统信息: {self.ssh_info['ssh_host']}")
+                print("\n🔍 " + _t("cli_ssh_collecting").format(host=self.ssh_info['ssh_host']))
                 collector = RemoteSystemInfoCollector(
                     host=self.ssh_info['ssh_host'], port=self.ssh_info.get('ssh_port', 22),
                     username=self.ssh_info.get('ssh_user', 'root'),
                     password=self.ssh_info.get('ssh_password'), key_file=self.ssh_info.get('ssh_key_file')
                 )
             else:
-                print(f"\n🔍 收集本地系统信息")
+                print("\n🔍 " + _t("pg_cli_local_sysinfo"))
                 collector = LocalSystemInfoCollector()
             system_info = collector.get_system_info()
             if isinstance(system_info.get('disk'), dict):
@@ -1933,14 +1949,14 @@ class getData(object):
                 system_info['disk_list'] = disk_info
             self.context.update({"system_info": system_info})
         except Exception as e:
-            print(f"\n❌ 收集系统信息失败: {e}")
+            print("\n❌ " + _t("pg_cli_sysinfo_fail").format(e=e))
             self.context.update({"system_info": {
                 'hostname': '未知', 'platform': '未知', 'boot_time': '未知',
                 'cpu': {}, 'memory': {},
                 'disk_list': [{'device': '/dev/sda1', 'mountpoint': '/', 'fstype': 'ext4', 'total_gb': 0, 'used_gb': 0, 'free_gb': 0, 'usage_percent': 0}]
             }})
         current_step = total_steps - 1
-        self.print_progress_bar(current_step, total_steps, prefix='巡检进度:', suffix='分析风险和建议')
+        self.print_progress_bar(current_step, total_steps, prefix=_t('pg_cli_progress_prefix'), suffix=_t('pg_cli_risk_suffix'))
         self.context.update({"auto_analyze": []})
         try:
             # 使用增强智能分析模块（15+ 条规则）
@@ -1966,7 +1982,7 @@ class getData(object):
                         "col4": "高", "col5": "系统管理员", "fix_sql": ""
                     })
         except Exception as e:
-            print(f"\n❌ 风险分析失败: {e}")
+            print("\n❌ " + _t("pg_cli_risk_fail").format(e=e))
 
         # AI 智能诊断（从 ai_config.json 读取配置，传递给 analyzer.AIAdvisor）
         self.context['ai_advice'] = ''
@@ -1986,13 +2002,13 @@ class getData(object):
             )
             if advisor.enabled:
                 label = self.context.get('co_name', [{}])[0].get('CO_NAME', 'PostgreSQL')
-                print(f"\n🤖 正在调用 AI 诊断（{advisor.backend} / {advisor.model}）...")
+                print("\n🤖 " + _t("pg_cli_ai_calling").format(backend=advisor.backend, model=advisor.model))
                 ai_advice = advisor.diagnose('pg', label, self.context, issues)
                 self.context['ai_advice'] = ai_advice
         except Exception as e:
             self.context['ai_advice'] = ''
 
-        self.print_progress_bar(total_steps, total_steps, prefix='巡检进度:', suffix='完成')
+        self.print_progress_bar(total_steps, total_steps, prefix=_t('pg_cli_progress_prefix'), suffix=_t('pg_cli_complete_suffix'))
         return self.context
 
 class saveDoc(object):
@@ -2011,6 +2027,18 @@ class saveDoc(object):
         self.ofile = ofile
         self.ifile = ifile
         self.inspector_name = inspector_name
+        try:
+            from i18n import get_lang
+            self._lang = get_lang()
+        except Exception:
+            self._lang = 'zh'
+
+    def _t(self, key):
+        try:
+            from i18n import t
+            return t(key, self._lang)
+        except Exception:
+            return key
 
     def contextsave(self):
         """
@@ -2030,7 +2058,7 @@ class saveDoc(object):
             for key in required_keys:
                 if key not in self.context:
                     if key == 'health_summary':
-                        self.context[key] = [{'health_summary': '运行良好'}]
+                        self.context[key] = [{'health_summary': self._t('report.running_ok')}]
                     elif key == 'auto_analyze':
                         self.context[key] = []
                     elif key == 'myversion':
@@ -2038,7 +2066,7 @@ class saveDoc(object):
                     elif key == 'system_info':
                         self.context[key] = {}
                     else:
-                        self.context[key] = [{'placeholder': '数据缺失'}]
+                        self.context[key] = [{'placeholder': self._t('report.data_missing')}]
 
             if 'disk_list' not in self.context['system_info'] or not self.context['system_info']['disk_list']:
                 self.context['system_info']['disk_list'] = [{
@@ -2057,13 +2085,13 @@ class saveDoc(object):
             self.context.update({"problem_count": problem_count})
 
             if problem_count == 0:
-                health_status = "优秀"
+                health_status = self._t("report.health_excellent")
             elif problem_count <= 3:
-                health_status = "良好"
+                health_status = self._t("report.health_good")
             elif problem_count <= 6:
-                health_status = "一般"
+                health_status = self._t("report.health_fair")
             else:
-                health_status = "需关注"
+                health_status = self._t("report.health_attention")
             self.context.update({"health_status": health_status})
 
             # 尝试使用 docxtpl 正常渲染
@@ -2090,29 +2118,29 @@ class saveDoc(object):
                         body.remove(para)
 
                 auto_analyze = self.context.get('auto_analyze', [])
-                high_risk = [i for i in auto_analyze if i.get('col2') == '高风险']
-                mid_risk  = [i for i in auto_analyze if i.get('col2') == '中风险']
-                low_risk  = [i for i in auto_analyze if i.get('col2') in ('低风险', '建议')]
+                high_risk = [i for i in auto_analyze if i.get('col2') == self._t('report.risk_high')]
+                mid_risk  = [i for i in auto_analyze if i.get('col2') == self._t('report.risk_mid')]
+                low_risk  = [i for i in auto_analyze if i.get('col2') in (self._t('report.risk_low'), self._t('report.risk_suggest'))]
 
                 # 第 7 章 风险与建议
-                doc2.add_heading('7. 风险与建议', level=1)
+                doc2.add_heading('7. ' + self._t('report.risk_chapter'), level=1)
                 p = doc2.add_paragraph()
-                p.add_run('本次共检测到 ')
+                p.add_run(self._t('report.detected_prefix'))
                 if high_risk:
-                    r = p.add_run(f'{len(high_risk)} 项高风险'); r.bold = True; r.font.color.rgb = RGBColor(0xC0,0x00,0x00)
+                    r = p.add_run(self._t('report.high_risk_n').format(n=len(high_risk))); r.bold = True; r.font.color.rgb = RGBColor(0xC0,0x00,0x00)
                 if mid_risk:
-                    r = p.add_run(f' {len(mid_risk)} 项中风险'); r.bold = True; r.font.color.rgb = RGBColor(0xFF,0x78,0x00)
+                    r = p.add_run(self._t('report.mid_risk_n').format(n=len(mid_risk))); r.bold = True; r.font.color.rgb = RGBColor(0xFF,0x78,0x00)
                 if low_risk:
-                    r = p.add_run(f' {len(low_risk)} 项低风险/建议'); r.bold = True; r.font.color.rgb = RGBColor(0x37,0x86,0x10)
-                p.add_run(f'，共计 {len(auto_analyze)} 项问题。')
+                    r = p.add_run(self._t('report.low_risk_n').format(n=len(low_risk))); r.bold = True; r.font.color.rgb = RGBColor(0x37,0x86,0x10)
+                p.add_run(self._t('report.detected_suffix').format(c=len(auto_analyze)))
 
                 # 7.1 问题明细
                 if auto_analyze:
-                    doc2.add_heading('7.1 问题明细', level=2)
+                    doc2.add_heading('7.1 ' + self._t('report.risk_detail_chapter'), level=2)
                     col_w = [Cm(0.8), Cm(3.2), Cm(1.5), Cm(4.0), Cm(1.0), Cm(1.5), Cm(4.0)]
                     tbl = doc2.add_table(rows=1+len(auto_analyze), cols=7)
                     tbl.style = 'Light Grid Accent 1'
-                    hdrs = ['序号','风险项','等级','详细描述','优先级','负责人','修复建议']
+                    hdrs = [self._t('report.col_seq'), self._t('report.col_risk_item'), self._t('report.col_level'), self._t('report.col_desc'), self._t('report.col_priority'), self._t('report.col_owner'), self._t('report.col_fix')]
                     for j,(cell,ht) in enumerate(zip(tbl.rows[0].cells, hdrs)):
                         cell.text = ht
                         cell.paragraphs[0].runs[0].bold = True
@@ -2139,12 +2167,12 @@ class saveDoc(object):
                             row[2].paragraphs[0].runs[0].font.color.rgb = cm[lvl]
                             row[2].paragraphs[0].runs[0].bold = True
                 else:
-                    doc2.add_paragraph('✅ 未发现明显风险项，PostgreSQL 数据库运行状态良好。')
+                    doc2.add_paragraph(self._t('report.no_risk_found_pg'))
 
                 # 7.2 修复速查
                 fix_items = [i for i in auto_analyze if i.get('fix_sql','').strip()]
                 if fix_items:
-                    doc2.add_heading('7.2 修复速查', level=2)
+                    doc2.add_heading('7.2 ' + self._t('report.fix_chapter'), level=2)
                     for idx,item in enumerate(fix_items,1):
                         p = doc2.add_paragraph()
                         p.add_run(f'{idx}. [{item.get("col1")}] {item.get("col3","")[:60]}').bold = True
@@ -2154,11 +2182,10 @@ class saveDoc(object):
 
                 # 第 8 章 AI 智能诊断建议
                 ai_advice = self.context.get('ai_advice','').strip()
-                doc2.add_heading('8. AI 智能诊断建议', level=1)
+                doc2.add_heading('8. ' + self._t('report.ai_chapter'), level=1)
                 if ai_advice:
                     p = doc2.add_paragraph()
-                    p.add_run('🤖 以下建议由 AI 大模型基于本次巡检数据自动生成，仅供参考，'
-                              '实际操作请结合业务场景谨慎评估。').italic = True
+                    p.add_run(self._t('report.ai_disclaimer')).italic = True
                     doc2.add_paragraph()
                     for line in ai_advice.split('\n'):
                         line = line.strip()
@@ -2172,10 +2199,10 @@ class saveDoc(object):
                             if np.runs: np.runs[0].font.size = Pt(11)
                 else:
                     p = doc2.add_paragraph()
-                    p.add_run('💡 AI 诊断未启用。如需开启，请在 Web UI「AI 诊断设置」中配置后端（仅支持本地 Ollama）').italic = True
+                    p.add_run(self._t('report.ai_disabled')).italic = True
 
                 # 第 9 章 报告说明
-                doc2.add_heading('9. 报告说明', level=1)
+                doc2.add_heading('9. ' + self._t('report.notes_chapter'), level=1)
                 notes = [
                     "1. 本报告基于 PostgreSQL 数据库实时状态生成，反映了生成时刻的数据库健康状况",
                     "2. 报告中空白的项表示未能获取到相关数据，可能是由于权限限制或该功能未启用",
@@ -2200,7 +2227,7 @@ class saveDoc(object):
                 return self._fallback_render()
 
         except Exception as e:
-            print(f"❌ 生成Word文档失败: {e}")
+            print("❌ " + _t("pg_cli_word_fail_gen").format(e=e))
             import traceback
             traceback.print_exc()
             return False
@@ -2498,7 +2525,7 @@ class saveDoc(object):
                         doc.add_paragraph(line).runs[0].font.size = Pt(11)
             else:
                 p = doc.add_paragraph()
-                p.add_run('💡 AI 诊断未启用。如需开启，请在 Web UI「AI 诊断设置」中配置后端（仅支持本地 Ollama）').italic = True
+                p.add_run(self._t('report.ai_disabled')).italic = True
 
             # ── 9. 报告说明 ──
             doc.add_heading('9. 报告说明', level=1)
@@ -2597,6 +2624,18 @@ def print_banner():
     打印程序启动横幅（彩色 ASCII Art）。
     """
     try:
+        from i18n import get_lang, t as _tt
+        _lang = get_lang()
+    except Exception:
+        _lang = 'zh'
+
+    def _t(key):
+        try:
+            return _tt(key, _lang)
+        except Exception:
+            return key
+
+    try:
         import shutil
         cols = shutil.get_terminal_size((80, 20)).columns
     except Exception:
@@ -2624,9 +2663,9 @@ def print_banner():
   ██║  ██║██╔══██╗██║     ██╔══██║██╔══╝  ██║     ██╔═██╗
   ██████╔╝██████╔╝╚██████╗██║  ██║███████╗╚██████╗██║  ██╗
   ╚═════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝ ╚═════╝╚═╝  ╚═╝{RESET}
-{GREEN}{BOLD}             🐘  DBCheck - PostgreSQL 巡检工具  {VER}{RESET}
+{GREEN}{BOLD}             🐘  {_t('pg_cli_banner_title')}  {VER}{RESET}
 {DIM}  ──────────────────────────────────────────────────────────{RESET}
-{YELLOW}  支持单机巡检 / 批量巡检 / Word报告 / SSH系统采集{RESET}
+{YELLOW}  {_t('pg_cli_banner_subtitle')}{RESET}
 {DIM}  ──────────────────────────────────────────────────────────{RESET}
 """
     print(art)
@@ -2638,7 +2677,7 @@ def single_inspection():
     调用 input_db_info() 进行交互式连接信息输入，
     输入有效后调用 run_inspection() 执行巡检并生成报告。
     """
-    print("\n=== 单机巡检模式 ===")
+    print("\n=== " + _t("pg_cli_single_mode") + " ===")
     db_info = input_db_info()
     if not db_info:
         return
@@ -2653,32 +2692,32 @@ def batch_inspection():
     逐一调用 run_inspection() 完成每个数据库的巡检，
     最终汇总输出成功 / 失败统计。
     """
-    print("\n=== 批量巡检模式 ===")
+    print("\n=== " + _t("pg_cli_batch_mode") + " ===")
     excel_manager = ExcelTemplateManager()
     if not os.path.exists(excel_manager.template_file):
-        print("❌ Excel模板文件不存在，请先创建模板")
-        create_template = input("是否立即创建Excel模板? (y/n) [y]: ").strip().lower()
+        print("\u274c " + _t("pg_cli_excel_not_exist"))
+        create_template = input(_t("pg_cli_create_template_now")).strip().lower()
         if create_template in ['', 'y', 'yes']:
             excel_manager.create_template()
         return
     db_list = excel_manager.read_template()
     if not db_list:
         return
-    print(f"\n📋 即将巡检以下 {len(db_list)} 个数据库:")
+    print("\n\U0001f4cb " + _t("pg_cli_will_inspect_n").format(n=len(db_list)))
     for i, db in enumerate(db_list, 1):
-        ssh_info = " (含系统信息)" if db.get('ssh_host') and (db.get('ssh_password') or db.get('ssh_key_file')) else ""
-        print(f"  {i}. {db['name']} - {db['ip']}:{db['port']}{ssh_info}")
-    confirm = input("\n是否开始批量巡检? (y/n) [y]: ").strip().lower()
+        ssh_suffix = " " + _t("cli_ssh_suffix") if db.get("ssh_host") and (db.get("ssh_password") or db.get("ssh_key_file")) else ""
+        print("  " + str(i) + ". " + db["name"] + " - " + db["ip"] + ":" + str(db["port"]) + ssh_suffix)
+    confirm = input("\n" + _t("pg_cli_confirm_batch")).strip().lower()
     if confirm in ['', 'y', 'yes']:
         total_dbs = len(db_list)
         success_count = 0
         for i, db_info in enumerate(db_list, 1):
-            print(f"\n[{i}/{total_dbs}] 开始巡检 {db_info['name']}...")
+            print("\n[" + str(i) + "/" + str(total_dbs) + "] " + _t("pg_cli_start_inspect_n").format(name=db_info["name"]))
             if run_inspection(db_info):
                 success_count += 1
-        print(f"\n=== 批量巡检完成 ===")
-        print(f"成功巡检: {success_count}/{total_dbs} 个数据库")
-        print(f"报告输出目录: reports/")
+        print("\n=== " + _t("pg_cli_batch_done") + " ===")
+        print(_t("pg_cli_success_count").format(s=success_count, t=total_dbs))
+        print(_t("pg_cli_report_dir"))
 
 def create_excel_template():
     """
@@ -2687,7 +2726,7 @@ def create_excel_template():
     实例化 ExcelTemplateManager 并调用其 create_template() 方法，
     在当前目录生成 pg_batch_template.xlsx 文件。
     """
-    print("\n=== 创建Excel配置模板 ===")
+    print("\n=== " + _t("pg_cli_create_excel") + " ===")
     excel_manager = ExcelTemplateManager()
     excel_manager.create_template()
 
@@ -2706,10 +2745,10 @@ def create_word_template(inspector_name="Jack"):
         generator = WordTemplateGenerator(inspector_name)
         doc = generator.create_template()
         doc.save(template_path)
-        print(f"✅ Word模板已创建: {template_path}")
+        print("\u2705 " + _t("pg_cli_word_ok").format(path=template_path))
         return template_path
     except Exception as e:
-        print(f"❌ 创建Word模板失败: {e}")
+        print("\u274c " + _t("pg_cli_word_fail").format(e=e))
         import traceback
         traceback.print_exc()
         return None
@@ -2745,7 +2784,7 @@ def run_inspection(db_info):
             'ssh_password': db_info.get('ssh_password', ''),
             'ssh_key_file': db_info.get('ssh_key_file', '')
         }
-    inspector_name = input("巡检人员（默认 Jack）: ").strip() or "Jack"
+    inspector_name = input(_t("pg_cli_inspector_prompt")).strip() or "Jack"
     ifile = create_word_template(inspector_name)
     if not ifile:
         return False
@@ -2753,10 +2792,10 @@ def run_inspection(db_info):
     if not os.path.exists(dir_path):
         os.makedirs(dir_path)
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    file_name = f"PostgreSQL巡检报告_{label_name}_{timestamp}.docx"
+    file_name = _t("pg_cli_report_filename").format(name=label_name, ts=timestamp) + ".docx"
     ofile = os.path.join(dir_path, file_name)
     try:
-        print(f"🔍 正在测试连接 {ip}:{port}...")
+        print("\U0001f50d " + _t("pg_cli_testing_connection").format(ip=ip, port=port))
         conn_test = psycopg2.connect(
             host=ip, port=int(port), user=user, password=password,
             dbname='postgres', client_encoding='UTF8', connect_timeout=10
@@ -2766,11 +2805,10 @@ def run_inspection(db_info):
         version = cursor.fetchone()[0]
         cursor.close()
         conn_test.close()
-        print(f"📊 数据库版本: PostgreSQL {version}")
+        print("\U0001f4ca " + _t("pg_cli_version").format(ver=version))
     except Exception as e:
-        print(f"❌ 连接测试失败: {e}")
-        return False
-    data = getData(ip, port, user, password, database=db_info.get('database', 'postgres'), ssh_info=ssh_info)
+        print("\u274c " + _t("pg_cli_conn_fail").format(e=e))
+    data = getData(ip, port, user, password, database=db_info.get('database', 'postgres'), ssh_info=ssh_info, label=label_name)
     if data is None or data.conn_db2 is None:
         return False
     ret = data.checkdb('builtin')
@@ -2782,7 +2820,7 @@ def run_inspection(db_info):
     savedoc = saveDoc(context=ret, ofile=ofile, ifile=ifile, inspector_name=inspector_name)
     success = savedoc.contextsave()
     if success:
-        print(f"✅ 报告已生成: {file_name}")
+        print("\u2705 " + _t("pg_cli_report_ok").format(fname=file_name))
         try:
             if os.path.exists(ifile):
                 os.remove(ifile)
@@ -2790,7 +2828,7 @@ def run_inspection(db_info):
             pass
         return True
     else:
-        print(f"❌ 报告生成失败: {label_name}")
+        print("❌ " + _t("pg_cli_report_fail").format(name=label_name))
         return False
 
 def main():
@@ -2825,17 +2863,17 @@ def main():
         elif choice == '3':
             create_excel_template()
         elif choice == '4':
-            print("\n感谢使用 DBCheck PostgreSQL 数据库巡检工具！")
+            print("\n" + _t("pg_cli_thanks"))
             break
         if choice != '4':
-            continue_choice = input("\n是否返回主菜单? (y/n) [y]: ").strip().lower()
+            continue_choice = input("\n" + _t("pg_cli_back_menu")).strip().lower()
             if continue_choice in ['', 'y', 'yes']:
                 continue
             else:
-                print("\n感谢使用 DBCheck PostgreSQL 数据库巡检工具！")
+                print("\n" + _t("pg_cli_thanks"))
                 break
     end_time = time.time()
-    print(f"\n程序运行总耗时: {end_time - start_time:.2f}秒")
+    print("\n" + _t("pg_cli_total_time").format(t=end_time - start_time))
 
 if __name__ == '__main__':
     infos = passArgu().get_argus()

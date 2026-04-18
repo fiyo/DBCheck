@@ -364,6 +364,84 @@
         "report_time": "2026-04-16 20:59:49",
         "risk_count": 0,
         "health_status": "良好"
+      },
+      {
+        "cpu_usage": 11.0,
+        "mem_usage": "4.86464",
+        "disk_usage_max": 100,
+        "connections": 196,
+        "max_connections": 1952,
+        "sga_total_mb": 1199.998191833496,
+        "version": "19.0.0.0.0",
+        "ts": "2026-04-17 19:27:18",
+        "report_time": "2026-04-17 19:27:18",
+        "risk_count": 0,
+        "health_status": "Good"
+      },
+      {
+        "cpu_usage": 11.0,
+        "mem_usage": "4.85836",
+        "disk_usage_max": 100,
+        "connections": 197,
+        "max_connections": 1952,
+        "sga_total_mb": 1199.998191833496,
+        "version": "19.0.0.0.0",
+        "ts": "2026-04-17 19:44:32",
+        "report_time": "2026-04-17 19:44:32",
+        "risk_count": 0,
+        "health_status": "Good"
+      },
+      {
+        "cpu_usage": 11.0,
+        "mem_usage": "4.92431",
+        "disk_usage_max": 100,
+        "connections": 196,
+        "max_connections": 1952,
+        "sga_total_mb": 1199.998191833496,
+        "version": "19.0.0.0.0",
+        "ts": "2026-04-17 19:57:59",
+        "report_time": "2026-04-17 19:57:59",
+        "risk_count": 0,
+        "health_status": "Good"
+      },
+      {
+        "cpu_usage": 11.0,
+        "mem_usage": "4.94316",
+        "disk_usage_max": 100,
+        "connections": 196,
+        "max_connections": 1952,
+        "sga_total_mb": 1199.998191833496,
+        "version": "19.0.0.0.0",
+        "ts": "2026-04-17 20:02:22",
+        "report_time": "2026-04-17 20:02:22",
+        "risk_count": 0,
+        "health_status": "Good"
+      },
+      {
+        "cpu_usage": 11.0,
+        "mem_usage": "4.92431",
+        "disk_usage_max": 100,
+        "connections": 196,
+        "max_connections": 1952,
+        "sga_total_mb": 1199.998191833496,
+        "version": "19.0.0.0.0",
+        "ts": "2026-04-17 20:04:48",
+        "report_time": "2026-04-17 20:04:48",
+        "risk_count": 0,
+        "health_status": "Good"
+      },
+      {
+        "cpu_usage": 11.0,
+        "mem_usage": "4.94002",
+        "disk_usage_max": 100,
+        "connections": 197,
+        "max_connections": 1952,
+        "sga_total_mb": 1199.998191833496,
+        "version": "19.0.0.0.0",
+        "ts": "2026-04-17 20:08:33",
+        "report_time": "2026-04-17 20:08:33",
+        "risk_count": 0,
+        "health_status": "Good"
       }
     ]
   }

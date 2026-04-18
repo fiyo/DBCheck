@@ -1690,10 +1690,17 @@ def _docx_table(doc, headers, rows, header_bg='336699'):
     return tbl
 
 
-def build_word_report(db_info, os_data, check_results, db_version, ai_advice='', inspector=''):
+def build_word_report(db_info, os_data, check_results, db_version, ai_advice='', inspector='', lang='zh'):
     """构建完整 Word 巡检报告（纯 python-docx，无模板依赖）"""
     if not _HAS_DOCX:
         return None
+
+    def _t(key):
+        try:
+            from i18n import t
+            return t(key, lang)
+        except Exception:
+            return key
 
     doc = Document()
 
@@ -1707,7 +1714,7 @@ def build_word_report(db_info, os_data, check_results, db_version, ai_advice='',
     section.bottom_margin = Cm(2)
 
     # ── 封面标题 ────────────────────────────────────────────────────────────
-    title_p = doc.add_heading('DBCheck Oracle 全面巡检报告', level=1)
+    title_p = doc.add_heading(_t('report.oracle_title'), level=1)
     title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     for run in title_p.runs:
         run.font.color.rgb = RGBColor(0, 102, 204)
@@ -1717,7 +1724,7 @@ def build_word_report(db_info, os_data, check_results, db_version, ai_advice='',
     sub_p.add_run(f'版本: {db_version}').font.color.rgb = RGBColor(102, 102, 102)
     sub_p.add_run(f'\n巡检时间: {time.strftime("%Y-%m-%d %H:%M:%S")}').font.color.rgb = RGBColor(102, 102, 102)
     if inspector:
-        sub_p.add_run(f'\n巡检人: {inspector}').font.color.rgb = RGBColor(0, 102, 204)
+        sub_p.add_run(_t('report.inspector_label').format(i=inspector)).font.color.rgb = RGBColor(0, 102, 204)
 
     doc.add_paragraph()  # 空行
 
@@ -1733,7 +1740,7 @@ def build_word_report(db_info, os_data, check_results, db_version, ai_advice='',
         ('主机名', hostname), ('数据库版本', ver), ('运行时间', uptime),
         ('CPU', cpu), ('内存', mem),
     ]
-    tbl = _docx_table(doc, ['项目', '内容'], summary_data, '0066CC')
+    tbl = _docx_table(doc, [_t('report.tbl_col_key'), _t('report.tbl_col_val')], summary_data, '0066CC')
     tbl.columns[0].width = Cm(4)
     tbl.columns[1].width = Cm(10)
 
@@ -2289,6 +2296,21 @@ def build_word_report(db_info, os_data, check_results, db_version, ai_advice='',
 # ═══════════════════════════════════════════════════════════════════════════
 
 def print_banner():
+    # Detect language
+    try:
+        from i18n import get_lang, t as _tt
+        _lang = get_lang()
+    except Exception:
+        _lang = 'zh'
+
+    def _t(key):
+        try:
+            return _tt(key, _lang)
+        except Exception:
+            return key
+
+    banner_tool = _t('oracle_banner_tool')
+    banner_sub  = _t('oracle_banner_subtitle')
     art = f"""
 {CYAN}{BOLD}  ██████╗ ██████╗  ██████╗██╗  ██╗███████╗ ██████╗██╗  ██╗
   ██╔══██╗██╔══██╗██╔════╝██║  ██║██╔════╝██╔════╝██║ ██╔╝
@@ -2296,9 +2318,9 @@ def print_banner():
   ██║  ██║██╔══██╗██║     ██╔══██║██╔══╝  ██║     ██╔═██╗
   ██████╔╝██████╔╝╚██████╗██║  ██║███████╗╚██████╗██║  ██╗
   ╚═════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝ ╚═════╝╚═╝  ╚═╝{RESET}
-{BOLD}      🗄️  DBCheck Oracle 全面巡检工具  {VER}{RESET}
+{BOLD}      🗄️  {banner_tool}  {VER}{RESET}
 {DIM}  ──────────────────────────────────────────────────────────{RESET}
-{GREEN}  基于 OS 层 + 数据库层{RESET}
+{GREEN}  {banner_sub}{RESET}
 {DIM}  ──────────────────────────────────────────────────────────{RESET}
 """
     print(art)
@@ -2308,11 +2330,58 @@ def single_inspection(args):
     """单机巡检主流程"""
     import paramiko
 
-    print(f"\n{GREEN}▶ 开始 Oracle 全面巡检{RESET}")
+    # Get language and local _t for this function
+    try:
+        from i18n import get_lang
+        _lang = get_lang()
+    except Exception:
+        _lang = 'zh'
+
+    def _t(key):
+        try:
+            from i18n import t as _tt
+            return _tt(key, _lang)
+        except Exception:
+            return key
+
+    def _plural(cnt, singular, plural):
+        """Return singular or plural form. EN: 1→singular else→plural; ZH: always singular."""
+        return singular if _lang == 'en' and cnt == 1 else plural
+
+    # Map internal Chinese check-item keys to i18n display names
+    _item_i18n = {
+        '实例信息':      'oracle_check_item_instance',
+        '数据库信息':    'oracle_check_item_database',
+        '版本/补丁':     'oracle_check_item_version',
+        '表空间':        'oracle_check_item_tablespace',
+        'Redo日志':      'oracle_check_item_redolog',
+        '控制文件':      'oracle_check_item_controlfile',
+        'SGA/PGA内存': 'oracle_check_item_sga_pga',
+        '关键参数':      'oracle_check_item_params',
+        'Undo信息':      'oracle_check_item_undo',
+        '长SQL':         'oracle_check_item_long_sql',
+        '性能指标':      'oracle_check_item_perf',
+        'Top SQL':       'oracle_check_item_top_sql',
+        '无效对象':     'oracle_check_item_invalid_obj',
+        '用户安全':     'oracle_check_item_users',
+        '备份信息':     'oracle_check_item_backup',
+        '闪回/回收站': 'oracle_check_item_flashback',
+        'Data Guard':   'oracle_check_item_dataguard',
+        'RAC+ASM':      'oracle_check_item_rac_asm',
+        'AWR快照':      'oracle_check_item_awr',
+        '作业调度':     'oracle_check_item_jobs',
+        'Alert日志':    'oracle_check_item_alert',
+    }
+
+    def _item_name(name):
+        key = _item_i18n.get(name)
+        return _t(key) if key else name
+
+    print(f"\n{GREEN}▶ {_t('oracle_log_start')}{RESET}")
     t0 = time.time()
 
     # ── 1. Oracle 连接 ─────────────────────────────────────────────────────
-    print(f"\n[{GREEN}1/6{RESET}] 连接 Oracle 数据库...")
+    print(f"\n[{GREEN}1/6{RESET}] {_t('oracle_log_connect_db')}")
     try:
         if args.servicename:
             dsn = oracledb.makedsn(args.host, args.port, service_name=args.servicename)
@@ -2325,18 +2394,18 @@ def single_inspection(args):
             conn = oracledb.connect(user=args.user, password=args.password, dsn=dsn, mode=oracledb.SYSDBA)
         else:
             conn = oracledb.connect(user=args.user, password=args.password, dsn=dsn)
-        print(f"  ✅ 连接成功 (mode: {'SYSDBA' if args.sysdba else 'NORMAL'})")
+        print(f"  ✅ {_t('oracle_log_connect_ok')} (mode: {'SYSDBA' if args.sysdba else 'NORMAL'})")
     except Exception as e:
-        print(f"  ❌ 连接失败: {e}")
+        print(f"  ❌ {_t('oracle_log_connect_fail')}: {e}")
         return
 
     # ── 2. 获取版本 ───────────────────────────────────────────────────────
-    print(f"\n[{GREEN}2/6{RESET}] 获取数据库版本...")
+    print(f"\n[{GREEN}2/6{RESET}] {_t('oracle_log_get_version')}")
     version_str, ver_major = get_db_version_and_major(conn)
-    print(f"  版本: {version_str}  (主版本: {ver_major})")
+    print(f"  {_t('oracle_log_version_fmt').format(ver=version_str, major=ver_major)}")
 
     # ── 3. OS 层采集 ──────────────────────────────────────────────────────
-    print(f"\n[{GREEN}3/6{RESET}] 采集 OS 层信息...")
+    print(f"\n[{GREEN}3/6{RESET}] {_t('oracle_log_collect_os')}")
     os_data = {}
     ssh_client = None
     if args.ssh_host:
@@ -2350,18 +2419,18 @@ def single_inspection(args):
             )
             collector = OSCollector(ssh_client)
             os_data = collector.collect()
-            print(f"  ✅ SSH 采集成功 (host: {args.ssh_host})")
+            print(f"  ✅ {_t('oracle_log_ssh_ok')} (host: {args.ssh_host})")
         except Exception as e:
-            print(f"  ⚠ SSH 采集失败: {e}，使用本地采集")
+            print(f"  ⚠ {_t('oracle_log_ssh_fail')}: {e}，{_t('oracle_log_use_local')}")
             collector = OSCollector(None)
             os_data = collector.collect()
     else:
         collector = OSCollector(None)
         os_data = collector.collect()
-        print(f"  ✅ 本地采集完成")
+        print(f"  ✅ {_t('oracle_log_local_ok')}")
 
     # ── 4. 数据库层巡检（版本自适应）──────────────────────────────────────
-    print(f"\n[{GREEN}4/6{RESET}] 执行数据库层巡检（Oracle {ver_major}c）...")
+    print(f"\n[{GREEN}4/6{RESET}] {_t('oracle_log_db_inspect')} (Oracle {ver_major}c)...")
     check_results = {}
 
     # 根据版本号动态选择检查列表
@@ -2374,19 +2443,19 @@ def single_inspection(args):
                 check_results[name] = result
                 rows = list(result.values())[0] if result else []
                 cnt = len(rows) if isinstance(rows, list) else '-'
-                print(f"  ✅ {name}  ({cnt} 条)")
+                print(f"  ✅ {_item_name(name)}  ({cnt} {_plural(cnt, 'row', 'rows')})")
             elif result and 'error' in result:
                 # 有 error 键，说明查询执行了但失败了，打印具体错误
-                print(f"  ⚠ {name}  查询失败: {result.get('error', '未知错误')}")
+                print(f"  ⚠ {_item_name(name)}  {_t('oracle_log_check_fail').format(error=result.get('error', 'unknown'))}")
             else:
-                print(f"  ⚠ {name}  无数据")
+                print(f"  ⚠ {_item_name(name)}  {_t('oracle_log_check_empty')}")
         except Exception as e:
-            print(f"  ⚠ {name}  跳过: {e}")
+            print(f"  ⚠ {_item_name(name)}  {_t('oracle_log_check_skip')}: {e}")
 
     conn.close()
 
     # ── 4.5 AI 诊断（根据配置判断是否启用）───────────────────────────────────
-    print(f"\n[{GREEN}4.5/6{RESET}] AI 诊断...")
+    print(f"\n[{GREEN}4.5/6{RESET}] {_t('oracle_log_ai_diagnosis')}")
     ai_advice = ''
     try:
         from analyzer import AIAdvisor
@@ -2418,7 +2487,7 @@ def single_inspection(args):
                     _db_info.setdefault('HOST_NAME', row[2])
                     _db_info.setdefault('VERSION', row[3])
             label = _db_info.get('NAME', args.servicename or args.sid or 'ORACLE')
-            print(f"  🤖 正在调用 AI 诊断（{advisor.backend} / {advisor.model}）...")
+            print(f"  🤖 {_t('oracle_log_ai_calling')} ({advisor.backend} / {advisor.model})...")
             # 收集风险项作为上下文
             risk_items = []
             ts = check_results.get('表空间', {})
@@ -2437,16 +2506,16 @@ def single_inspection(args):
             # 收集等待事件 Top5
             perf = check_results.get('性能指标', {})
             wait_top5 = perf.get('wait_events', [])[:5]
-            wait_summary = '\n'.join([f"- {w[0]}: {w[1]}次等待, {w[2]}秒, 占比{w[3]}%"
+            wait_summary = '\n'.join([_t('oracle_log_ai_wait_fmt').format(w0=w[0], w1=w[1], w2=w[2], w3=w[3])
                                       for w in wait_top5]) if wait_top5 else 'N/A'
             # 收集阻塞会话
             blocked_sessions = check_results.get('阻塞会话', [])
-            blocked_summary = f"共 {len(blocked_sessions)} 个阻塞会话" if blocked_sessions else '无阻塞会话'
+            blocked_summary = _t('oracle_log_ai_blocked').format(n=len(blocked_sessions)) if blocked_sessions else _t('oracle_log_ai_no_blocked')
             # 收集 Top SQL（按 Buffer Gets 前5）
             top_sql_raw = check_results.get('Top SQL', {})
             top_sql5 = top_sql_raw.get('top_sql_buffer_gets', [])[:5]
             top_sql_summary = '\n'.join([
-                f"- SQL_ID={r[0]}: Buf={r[2]}MB, Execs={r[4]},耗时={r[5]}s, 片断={str(r[1])[:60]}"
+                _t('oracle_log_ai_top_sql_fmt').format(s0=r[0], s1=str(r[1])[:60], s2=r[2], s4=r[4], s5=r[5])
                 for r in top_sql5]) if top_sql5 else 'N/A'
             # 构建详细指标
             metrics = {
@@ -2461,24 +2530,24 @@ def single_inspection(args):
             }
             ai_advice = advisor.diagnose('oracle', label, metrics, risk_items, timeout=600)
             if ai_advice:
-                print(f"  ✅ AI 诊断完成")
+                print(f"  ✅ {_t('oracle_log_ai_ok')}")
             else:
-                print(f"  ⚠ AI 诊断返回空")
+                print(f"  ⚠ {_t('oracle_log_ai_empty')}")
         else:
-            print(f"  ⏭ AI 诊断未启用（backend: {advisor.backend}）")
+            print(f"  ⏭ {_t('oracle_log_ai_disabled')} (backend: {advisor.backend})")
     except TimeoutError as e:
-        ai_advice = "⚠ AI 诊断超时：大模型加载时间较长，请到「AI 配置」中增加超时时间后重试"
+        ai_advice = f"⚠ {_t('oracle_log_ai_timeout')}"
         print(f"  {ai_advice}")
     except Exception as e:
         err_str = str(e)
         if 'connection' in err_str.lower() or 'refused' in err_str.lower():
-            ai_advice = "⚠ AI 诊断连接失败：请确认 Ollama 服务已启动"
+            ai_advice = f"⚠ {_t('oracle_log_ai_conn_fail')}"
         else:
-            ai_advice = f"⚠ AI 诊断失败：{err_str[:120]}"
+            ai_advice = f"⚠ {_t('oracle_log_ai_fail')}: {err_str[:120]}"
         print(f"  {ai_advice}")
 
     # ── 5. 生成报告 ────────────────────────────────────────────────────────
-    print(f"\n[{GREEN}5/6{RESET}] 生成巡检报告...")
+    print(f"\n[{GREEN}5/6{RESET}] {_t('oracle_log_gen_report')}")
     # 从 check_results 提取 db_info
     db_info = {}
     inst_rows = check_results.get('实例信息', {}).get('instance', [])
@@ -2500,10 +2569,11 @@ def single_inspection(args):
         db_info['STARTUP_TIME']  = inst_rows[0][4]
         db_info['STATUS']         = inst_rows[0][5]
 
-    docx = build_word_report(db_info, os_data, check_results, version_str, ai_advice, inspector=args.inspector or 'dbcheck')
+    docx = build_word_report(db_info, os_data, check_results, version_str, ai_advice,
+                              inspector=args.inspector or 'dbcheck', lang=_lang)
 
     # ── 6. 保存报告 ────────────────────────────────────────────────────────
-    print(f"\n[{GREEN}6/6{RESET}] 保存报告...")
+    print(f"\n[{GREEN}6/6{RESET}] {_t('oracle_log_save_report')}")
     output_dir = args.output or os.path.join(os.getcwd(), 'reports')
     os.makedirs(output_dir, exist_ok=True)
 
@@ -2519,7 +2589,7 @@ def single_inspection(args):
             docx.save(docx_path)
             print(f"   Word:  {docx_path}")
         except Exception as e:
-            print(f"   Word报告生成失败: {e}")
+            print(f"   {_t('oracle_log_word_report')}: {e}")
 
     # ── 保存历史记录 ──────────────────────────────────────────────────────
     try:
@@ -2583,16 +2653,16 @@ def single_inspection(args):
                               for d in os_data.get('disk_list', [])],
                 'disk_usage': os_data.get('disk_usage', ''),  # SSH 采集原始文本，disk_list 为空时备用
             },
-            'health_status': '良好' if not risk_items else ('存在风险' if any(r.get('col2') == '高风险' for r in risk_items) else '一般'),
+            'health_status': _t('report.health_good') if not risk_items else (_t('report.health_attention') if any(r.get('col2') == _t('report.risk_high') for r in risk_items) else _t('report.health_fair')),
             'auto_analyze': risk_items if risk_items else [],
         }
         hm.save_snapshot('oracle_full', args.host, args.port, label, context)
-        print(f"  ✅ 历史记录已保存")
+        print(f"  ✅ {_t('oracle_log_history_ok')}")
     except Exception as e:
-        print(f"  ⚠ 保存历史记录失败: {e}")
+        print(f"  ⚠ {_t('oracle_log_history_fail')}: {e}")
 
     elapsed = time.time() - t0
-    print(f"\n{GREEN}{BOLD}✅ 巡检完成！耗时 {elapsed:.1f} 秒{RESET}")
+    print(f"\n{GREEN}{BOLD}✅ {_t('oracle_log_complete')}！{_t('oracle_log_time')} {_t('oracle_log_time_secs').format(elapsed=elapsed)}{RESET}")
 
     if ssh_client:
         ssh_client.close()
@@ -2608,45 +2678,46 @@ def _input(prompt, default=''):
 
 def interactive_single_inspection():
     """交互式单机巡检（替代 argparse，适合无参数直接运行）"""
+    from i18n import t
     print(f"\n{BOLD}{'='*52}{RESET}")
-    print(f"{RED}{BOLD}   Oracle 全面巡检（增强版）{RESET}")
+    print(f"{RED}{BOLD}   {t('oracle_banner_title')}{RESET}")
     print(f"{DIM}{'='*52}{RESET}\n")
 
     # ── Oracle 连接信息 ─────────────────────────────────────────
-    host        = _input(f"{CYAN}Oracle 主机IP{RESET}",    '192.168.1.10')
-    port        = _input(f"{CYAN}端口{RESET}",             '1521')
-    connect_by  = _input(f"{CYAN}连接方式 (S=SID / N=ServiceName){RESET}", 'S').upper()
+    host        = _input(f"{CYAN}{t('oracle_host_ip')}{RESET}",    'localhost')
+    port        = _input(f"{CYAN}{t('oracle_port')}{RESET}",             '1521')
+    connect_by  = _input(f"{CYAN}{t('oracle_connect_by')}{RESET}", 'S').upper()
     if connect_by == 'N':
-        sid_or_svc = _input(f"{CYAN}ServiceName{RESET}")
+        sid_or_svc = _input(f"{CYAN}{t('oracle_servicename')}{RESET}")
         sid, svc = None, sid_or_svc
     else:
-        sid     = _input(f"{CYAN}ORACLE_SID{RESET}",       'ORCL')
+        sid     = _input(f"{CYAN}{t('oracle_sid')}{RESET}",       'ORCL')
         svc     = None
-    user        = _input(f"{CYAN}用户名{RESET}",           'sys')
-    password    = _input(f"{CYAN}密码{RESET}")
+    user        = _input(f"{CYAN}{t('oracle_username')}{RESET}",           'sys')
+    password    = _input(f"{CYAN}{t('oracle_password')}{RESET}")
     # sys 用户默认以 SYSDBA 登录，其他用户可自行选择
     if user.upper() == 'SYS':
         sysdba_default = 'Y'
     else:
         sysdba_default = 'N'
-    sysdba_opt  = _input(f"{CYAN}是否以 SYSDBA 身份连接 (Y/N){RESET}", sysdba_default).upper()
+    sysdba_opt  = _input(f"{CYAN}{t('oracle_sysdba_prompt')}{RESET}", sysdba_default).upper()
     sysdba      = (sysdba_opt == 'Y')
 
     # ── SSH 信息（可选）────────────────────────────────────────
-    use_ssh = _input(f"\n{GREEN}是否使用 SSH 采集 OS 信息 (y/N){RESET}", 'N').upper()
+    use_ssh = _input(f"\n{GREEN}{t('oracle_ssh_use')}{RESET}", 'n').upper()
     ssh_host, ssh_port, ssh_user, ssh_pass = None, 22, None, None
     if use_ssh == 'Y':
-        ssh_host = _input(f"{CYAN}SSH 主机IP{RESET}", host)
-        ssh_port = _input(f"{CYAN}SSH 端口{RESET}",   '22')
-        ssh_user = _input(f"{CYAN}SSH 用户名{RESET}")
-        ssh_pass = _input(f"{CYAN}SSH 密码{RESET}")
+        ssh_host = _input(f"{CYAN}{t('oracle_ssh_host')}{RESET}", host)
+        ssh_port = _input(f"{CYAN}{t('oracle_ssh_port')}{RESET}",   '22')
+        ssh_user = _input(f"{CYAN}{t('oracle_ssh_username')}{RESET}")
+        ssh_pass = _input(f"{CYAN}{t('oracle_ssh_password')}{RESET}")
         if not ssh_user or not ssh_pass:
-            print(f"  {YELLOW}⚠ SSH 用户名和密码不能为空，已跳过 SSH 采集{RESET}")
+            print(f"  {YELLOW}⚠ {t('oracle_ssh_skip_warning')}{RESET}")
             ssh_host, ssh_user, ssh_pass = None, None, None
 
     # ── 输出选项 ───────────────────────────────────────────────
-    output_dir = _input(f"\n{GREEN}报告输出目录（默认当前目录 reports）{RESET}", 'reports')
-    inspector  = _input(f"{GREEN}巡检人姓名（默认 dbcheck）{RESET}")
+    output_dir = _input(f"\n{GREEN}{t('oracle_output_dir')}{RESET}", 'reports')
+    inspector  = _input(f"{GREEN}{t('oracle_inspector_name')}{RESET}", 'dbcheck')
 
     # ── 构造 args ───────────────────────────────────────────────
     class _Args:
@@ -2678,14 +2749,14 @@ def main():
         epilog="""
 示例:
   # 本地 Oracle（使用 SID）
-  python main_oracle_full.py -h 192.168.1.10 -P 1521 -s ORCL -u system -p xxx
+  python main_oracle_full.py -h localhost -P 1521 -s ORCL -u system -p xxx
 
   # 使用 ServiceName 连接
-  python main_oracle_full.py -h 192.168.1.10 -P 1521 -S ORCL -u system -p xxx
+  python main_oracle_full.py -h localhost -P 1521 -S ORCL -u system -p xxx
 
   # SSH 采集 OS 信息
-  python main_oracle_full.py -h 192.168.1.10 -P 1521 -s ORCL -u system -p xxx \\
-      --ssh-host 192.168.1.10 --ssh-user oracle --ssh-pass xxx
+  python main_oracle_full.py -h localhost -P 1521 -s ORCL -u system -p xxx \\
+      --ssh-host localhost --ssh-user oracle --ssh-pass xxx
 
         """
     )
@@ -2705,6 +2776,20 @@ def main():
 
     args = parser.parse_args()
 
+    # Local _t for main() error messages
+    try:
+        from i18n import get_lang
+        _lang = get_lang()
+    except Exception:
+        _lang = 'zh'
+
+    def _t(key):
+        try:
+            from i18n import t as _tt
+            return _tt(key, _lang)
+        except Exception:
+            return key
+
     # 无参数时进入交互模式
     if len(sys.argv) == 1 or (
            not args.host and not args.sid and not args.servicename
@@ -2713,11 +2798,11 @@ def main():
         return
 
     if not args.sid and not args.servicename:
-        print("❌ 必须指定 --sid 或 --servicename")
+        print(f"❌ {_t('oracle_log_need_sid_svc')}")
         return
 
     if args.ssh_host and not (args.ssh_user and args.ssh_pass):
-        print("❌ SSH 采集需要同时指定 --ssh-user 和 --ssh-pass")
+        print(f"❌ {_t('oracle_log_need_ssh_cred')}")
         return
 
     print_banner()

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>DBCheck · 数据库巡检工具</title>
+<title>DBCheck · Database Inspector</title>
 <style>
 /* ─── Reset & Base ─── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -681,25 +681,25 @@ var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
     <div class="sidebar-logo">
       <div class="logo-icon">🛡️</div>
       <h1>DBCheck</h1>
-      <p>数据库巡检工具</p>
+      <p data-i18n="webui.logo_subtitle">数据库巡检工具</p>
     </div>
 
-    <div class="nav-section">功能</div>
+    <div class="nav-section" data-i18n="webui.nav_section_feature">功能</div>
     <div class="nav-item active" onclick="showPage('home')" id="nav-home">
-      <span class="icon">🏠</span> 首页
+      <span class="icon">🏠</span> <span data-i18n="webui.nav_home">首页</span>
     </div>
     <div class="nav-item" onclick="showPage('wizard')" id="nav-wizard">
-      <span class="icon">🔍</span> 新建巡检
+      <span class="icon">🔍</span> <span data-i18n="webui.nav_wizard">新建巡检</span>
     </div>
     <div class="nav-item" onclick="showPage('reports')" id="nav-reports">
-      <span class="icon">📄</span> 历史报告
+      <span class="icon">📄</span> <span data-i18n="webui.reports_title">历史报告</span>
     </div>
     <div class="nav-item" onclick="showPage('trend')" id="nav-trend">
-      <span class="icon">📈</span> 趋势分析
+      <span class="icon">📈</span> <span data-i18n="webui.trend_title">趋势分析</span>
     </div>
-    <div class="nav-section">设置</div>
+    <div class="nav-section" data-i18n="webui.nav_section_setting">设置</div>
     <div class="nav-item" onclick="showPage('ai')" id="nav-ai">
-      <span class="icon">🤖</span> AI 诊断设置
+      <span class="icon">🤖</span> <span data-i18n="webui.nav_ai">AI 诊断设置</span>
     </div>
 
     <div class="sidebar-footer">
@@ -714,6 +714,9 @@ var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
     <div class="topbar">
       <span class="topbar-title" id="topbar-title">首页</span>
       <span class="topbar-sub" id="topbar-sub">欢迎使用数据库巡检工具</span>
+      <button class="btn btn-ghost" id="lang-toggle" onclick="toggleLang()" style="margin-left:auto;font-size:12px;padding:4px 10px;border-radius:6px;cursor:pointer;">
+        🌐 <span id="lang-label">EN</span>
+      </button>
     </div>
 
     <div class="content">
@@ -721,48 +724,44 @@ var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
       <!-- ══ Page: Home ══ -->
       <div class="page active" id="page-home">
         <div class="home-hero">
-          <h2>数据库健康巡检</h2>
-          <p>自动采集 MySQL / PostgreSQL / Oracle 数据库关键指标，结合系统资源监控，一键生成专业 Word 巡检报告。</p>
+          <h2 data-i18n="webui.hero_title">数据库健康巡检</h2>
+          <p data-i18n="webui.hero_desc">自动采集 MySQL / PostgreSQL / Oracle 数据库关键指标，结合系统资源监控，一键生成专业 Word 巡检报告。</p>
           <div class="quick-actions">
-            <button class="btn btn-primary" onclick="startWizard()">
-              ▶ 开始巡检
-            </button>
-            <button class="btn btn-ghost" onclick="showPage('reports')">
-              📄 查看历史报告
-            </button>
+            <button class="btn btn-primary" onclick="startWizard()" data-i18n="webui.btn_start_inspection">▶ 开始巡检</button>
+            <button class="btn btn-ghost" onclick="showPage('reports')" data-i18n="webui.view_history_reports">📄 查看历史报告</button>
           </div>
         </div>
 
         <div class="feature-grid">
           <div class="feature-item">
             <div class="fi-icon">🗄️</div>
-            <div class="fi-title">多数据库支持</div>
-            <div class="fi-desc">同时支持 MySQL、PostgreSQL 与 Oracle，覆盖主流生产环境。</div>
+            <div class="fi-title" data-i18n="webui.fi_support">多数据库支持</div>
+            <div class="fi-desc" data-i18n="webui.fi_support_desc">同时支持 MySQL、PostgreSQL 与 Oracle，覆盖主流生产环境。</div>
           </div>
           <div class="feature-item">
             <div class="fi-icon">📊</div>
-            <div class="fi-title">全面指标采集</div>
-            <div class="fi-desc">连接、内存、锁、复制、索引、慢查询等 20+ 项指标。</div>
+            <div class="fi-title" data-i18n="webui.fi_metrics">全面指标采集</div>
+            <div class="fi-desc" data-i18n="webui.fi_metrics_desc">连接、内存、锁、复制、索引、慢查询等 20+ 项指标。</div>
           </div>
           <div class="feature-item">
             <div class="fi-icon">🖥️</div>
-            <div class="fi-title">系统资源监控</div>
-            <div class="fi-desc">支持本地采集或 SSH 远程采集 CPU / 内存 / 磁盘信息。</div>
+            <div class="fi-title" data-i18n="webui.fi_system">系统资源监控</div>
+            <div class="fi-desc" data-i18n="webui.fi_system_desc">支持本地采集或 SSH 远程采集 CPU / 内存 / 磁盘信息。</div>
           </div>
           <div class="feature-item">
             <div class="fi-icon">⚠️</div>
-            <div class="fi-title">AI 智能风险分析</div>
-            <div class="fi-desc">自动识别阈值异常，给出风险等级与处理建议。</div>
+            <div class="fi-title" data-i18n="webui.fi_risk">AI 智能风险分析</div>
+            <div class="fi-desc" data-i18n="webui.fi_risk_desc">自动识别阈值异常，给出风险等级与处理建议。</div>
           </div>
           <div class="feature-item">
             <div class="fi-icon">📝</div>
-            <div class="fi-title">专业 Word 报告</div>
-            <div class="fi-desc">规范模板，覆盖封面、配置、性能、安全等完整章节。</div>
+            <div class="fi-title" data-i18n="webui.fi_report">专业 Word 报告</div>
+            <div class="fi-desc" data-i18n="webui.fi_report_desc">规范模板，覆盖封面、配置、性能、安全等完整章节。</div>
           </div>
           <div class="feature-item">
             <div class="fi-icon">🚀</div>
-            <div class="fi-title">Web 可视化操作</div>
-            <div class="fi-desc">全程界面化，告别命令行，支持实时日志追踪。</div>
+            <div class="fi-title" data-i18n="webui.fi_web">Web 可视化操作</div>
+            <div class="fi-desc" data-i18n="webui.fi_web_desc">全程界面化，告别命令行，支持实时日志追踪。</div>
           </div>
         </div>
       </div>
@@ -772,22 +771,22 @@ var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
 
         <!-- 步骤指示器 -->
         <div class="steps" id="wizard-steps">
-          <div class="step active" id="s1"><div class="dot">1</div><span>数据库类型</span></div>
+          <div class="step active" id="s1"><div class="dot">1</div><span data-i18n="webui.wizard_step1">数据库类型</span></div>
           <div class="step-line"></div>
-          <div class="step" id="s2"><div class="dot">2</div><span>连接信息</span></div>
+          <div class="step" id="s2"><div class="dot">2</div><span data-i18n="webui.wizard_step2">连接信息</span></div>
           <div class="step-line" id="sl2"></div>
-          <div class="step" id="s3"><div class="dot">3</div><span>SSH 配置</span></div>
+          <div class="step" id="s3"><div class="dot">3</div><span data-i18n="webui.wizard_step3">SSH 配置</span></div>
           <div class="step-line" id="sl3"></div>
-          <div class="step" id="s4"><div class="dot">4</div><span>巡检人员</span></div>
+          <div class="step" id="s4"><div class="dot">4</div><span data-i18n="webui.wizard_step4">巡检人员</span></div>
           <div class="step-line" id="sl4"></div>
-          <div class="step" id="s5"><div class="dot">5</div><span>执行巡检</span></div>
+          <div class="step" id="s5"><div class="dot">5</div><span data-i18n="webui.wizard_step5">执行巡检</span></div>
         </div>
 
         <!-- Step 1: 选择数据库类型 -->
         <div id="step1" class="card">
           <div class="card-title">
-            <span>🗄️</span> 选择数据库类型
-            <span class="badge">第 1 步 / 共 5 步</span>
+            <span>🗄️</span> <span data-i18n="webui.step1_title">选择数据库类型</span>
+            <span class="badge" data-i18n="webui.step_badge">第 1 步 / 共 5 步</span>
           </div>
           <div class="type-grid">
             <div class="type-card selected" id="tc-mysql" onclick="selectDbType('mysql')">
@@ -795,32 +794,32 @@ var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
                 <div class="tc-logo">🐬</div>
                 <div class="tc-check" id="chk-mysql">✓</div>
               </div>
-              <div class="tc-name">MySQL</div>
-              <div class="tc-desc">适用于 MySQL 5.7 / 8.x 实例，采集连接、InnoDB、慢查询、Binlog 等核心指标。</div>
+              <div class="tc-name" data-i18n="webui.db_mysql_name">MySQL</div>
+              <div class="tc-desc" data-i18n="webui.db_mysql_desc">适用于 MySQL 5.7 / 8.x 实例，采集连接、InnoDB、慢查询、Binlog 等核心指标。</div>
             </div>
             <div class="type-card" id="tc-pg" onclick="selectDbType('pg')">
               <div class="tc-header">
                 <div class="tc-logo">🐘</div>
                 <div class="tc-check" id="chk-pg"></div>
               </div>
-              <div class="tc-name">PostgreSQL</div>
-              <div class="tc-desc">适用于 PostgreSQL 10+ 实例，采集连接、缓存、Vacuum、索引、复制等核心指标。</div>
+              <div class="tc-name" data-i18n="webui.db_pg_name">PostgreSQL</div>
+              <div class="tc-desc" data-i18n="webui.db_pg_desc">适用于 PostgreSQL 10+ 实例，采集连接、缓存、Vacuum、索引、复制等核心指标。</div>
             </div>
             <div class="type-card" id="tc-dm" onclick="selectDbType('dm')">
               <div class="tc-header">
                 <div class="tc-logo">🟡</div>
                 <div class="tc-check" id="chk-dm"></div>
               </div>
-              <div class="tc-name">达梦 DM8</div>
-              <div class="tc-desc">适用于达梦 DM8 及以上版本，采集表空间、内存、会话、事务、备份等核心指标。</div>
+              <div class="tc-name" data-i18n="webui.db_dm_name">达梦 DM8</div>
+              <div class="tc-desc" data-i18n="webui.db_dm_desc">适用于达梦 DM8 及以上版本，采集表空间、内存、会话、事务、备份等核心指标。</div>
             </div>
             <div class="type-card" id="tc-oracle_full" onclick="selectDbType('oracle_full')">
               <div class="tc-header">
                 <div class="tc-logo">🔴✨</div>
                 <div class="tc-check" id="chk-oracle_full"></div>
               </div>
-              <div class="tc-name">Oracle 全面巡检</div>
-              <div class="tc-desc">增强版：基于 OS 层 + 数据库层，覆盖 80+ 检查项，适合 10g~21c。</div>
+              <div class="tc-name" data-i18n="webui.db_oracle_full_name">Oracle 全面巡检</div>
+              <div class="tc-desc" data-i18n="webui.db_oracle_full_desc">增强版：基于 OS 层 + 数据库层，覆盖 80+ 检查项，适合 10g~21c。</div>
             </div>
           </div>
           <div class="btn-row">
@@ -831,155 +830,155 @@ var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
         <!-- Step 2: 连接信息 -->
         <div id="step2" class="card" style="display:none">
           <div class="card-title">
-            <span>🔌</span> 数据库连接信息
-            <span class="badge">第 2 步 / 共 5 步</span>
+            <span>🔌</span> <span data-i18n="webui.step2_title">数据库连接信息</span>
+            <span class="badge" data-i18n="webui.step_badge">第 2 步 / 共 5 步</span>
           </div>
           <div class="form-grid">
             <div class="field full">
-              <label>实例标签 <span class="req">*</span>
-                <span class="opt">用于报告命名</span></label>
-              <input type="text" id="f-name" placeholder="例: 生产-主库" />
+              <label><span data-i18n="webui.label_instance_tag">实例标签</span> <span class="req">*</span>
+                <span class="opt" data-i18n="webui.label_instance_tag_opt">用于报告命名</span></label>
+              <input type="text" id="f-name" data-i18n="webui.placeholder_instance_tag" placeholder="例: 生产-主库" />
             </div>
             <div class="field">
-              <label>主机地址 <span class="req">*</span></label>
-              <input type="text" id="f-host" placeholder="localhost 或 IP 地址" />
+              <label data-i18n="webui.label_host">主机地址</label> <span class="req">*</span>
+              <input type="text" id="f-host" data-i18n="webui.placeholder_host" placeholder="localhost 或 IP 地址" />
             </div>
             <div class="field">
-              <label>端口 <span class="req">*</span></label>
+              <label data-i18n="webui.label_port">端口</label> <span class="req">*</span>
               <input type="number" id="f-port" value="3306" />
             </div>
             <div class="field" style="flex-direction: column; align-items: flex-start">
-              <label style="margin-bottom: 6px">用户名 <span class="req">*</span></label>
+              <label style="margin-bottom: 6px" data-i18n="webui.label_username">用户名</label> <span class="req">*</span>
               <div style="display: flex; width: 100%; align-items: center; gap: 12px">
                 <input type="text" id="f-user" placeholder="root / postgres" style="flex: 1; min-width: 0" />
                 <span id="f-sysdba-wrap" style="display:none; white-space: nowrap; flex-shrink: 0">
                   <input type="checkbox" id="f-sysdba" />
-                  <span style="font-size: 13px">以 SYSDBA 身份连接</span>
+                  <span style="font-size: 13px" data-i18n="webui.checkbox_sysdba">以 SYSDBA 身份连接</span>
                 </span>
               </div>
             </div>
             <div class="field">
-              <label>密码</label>
-              <input type="password" id="f-password" placeholder="数据库密码" />
+              <label data-i18n="webui.label_password">密码</label>
+              <input type="password" id="f-password" data-i18n="webui.placeholder_password" placeholder="数据库密码" />
             </div>
             <div class="field full" id="f-database-wrap" style="display:none">
-              <label>连接数据库 <span class="opt">PostgreSQL</span></label>
-              <input type="text" id="f-database" placeholder="默认 postgres" />
+              <label><span data-i18n="webui.label_database">连接数据库</span> <span class="opt" data-i18n="webui.label_database_opt">PostgreSQL</span></label>
+              <input type="text" id="f-database" data-i18n="webui.placeholder_database" placeholder="默认 postgres" />
             </div>
             <div class="field full" id="f-service-wrap" style="display:none">
-              <label>服务名/SID (Service Name) <span class="opt">Oracle</span></label>
-              <input type="text" id="f-service-name" placeholder="ORCL 或 orcl.example.com（留空则使用主机地址）" />
+              <label><span data-i18n="webui.label_service_sid">服务名/SID (Service Name)</span> <span class="opt" data-i18n="webui.label_service_sid_opt">Oracle</span></label>
+              <input type="text" id="f-service-name" data-i18n="webui.placeholder_service" placeholder="ORCL 或 orcl.example.com（留空则使用主机地址）" />
             </div>
           </div>
           <div id="db-test-status" style="margin-top:12px"></div>
           <div class="btn-row">
-            <button class="btn btn-ghost" onclick="gotoStep(1)">← 上一步</button>
-            <button class="btn btn-ghost" id="btn-test-db" onclick="testDb()">🔗 测试连接</button>
-            <button class="btn btn-primary" onclick="gotoStep(3)">下一步 →</button>
+            <button class="btn btn-ghost" onclick="gotoStep(1)" data-i18n="webui.btn_prev">← 上一步</button>
+            <button class="btn btn-ghost" id="btn-test-db" onclick="testDb()" data-i18n="webui.test_connection_btn">🔗 测试连接</button>
+            <button class="btn btn-primary" onclick="gotoStep(3)" data-i18n="webui.btn_next">下一步 →</button>
           </div>
         </div>
 
         <!-- Step 3: SSH 配置 -->
         <div id="step3" class="card" style="display:none">
           <div class="card-title">
-            <span>🔐</span> SSH 连接配置
-            <span class="badge">第 3 步 / 共 5 步</span>
+            <span>🔐</span> <span data-i18n="webui.ssh_config">SSH 连接配置</span>
+            <span class="badge" id="step-badge-3" data-i18n="webui.step_badge">第 3 步 / 共 5 步</span>
           </div>
-          <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;" data-i18n="webui.ssh_desc">
             配置 SSH 后，巡检报告将包含 CPU、内存、磁盘等系统资源信息。可跳过此步骤仅采集数据库指标。
           </p>
           <div class="toggle-row" onclick="toggleSsh()">
-            <span class="toggle-label">启用 SSH 系统信息采集</span>
-            <span class="toggle-sub" id="ssh-toggle-sub">当前：未启用</span>
+            <span class="toggle-label" data-i18n="webui.ssh_enable">启用 SSH 系统信息采集</span>
+            <span class="toggle-sub" id="ssh-toggle-sub" data-i18n="webui.ssh_enable_state_off">当前：未启用</span>
             <div class="toggle" id="ssh-toggle"></div>
           </div>
           <div class="ssh-fields form-grid" id="ssh-fields">
             <div class="field">
-              <label>SSH 主机地址</label>
-              <input type="text" id="f-ssh-host" placeholder="与数据库主机相同" />
+              <label data-i18n="webui.label_ssh_host">SSH 主机地址</label>
+              <input type="text" id="f-ssh-host" data-i18n="webui.placeholder_ssh_host" placeholder="与数据库主机相同" />
             </div>
             <div class="field">
-              <label>SSH 端口</label>
+              <label data-i18n="webui.label_ssh_port">SSH 端口</label>
               <input type="number" id="f-ssh-port" value="22" />
             </div>
             <div class="field">
-              <label>SSH 用户名</label>
+              <label data-i18n="webui.label_ssh_user">SSH 用户名</label>
               <input type="text" id="f-ssh-user" value="root" />
             </div>
             <div class="field">
-              <label>认证方式</label>
+              <label data-i18n="webui.label_auth_method">认证方式</label>
               <select id="f-ssh-auth" onchange="onSshAuthChange()">
-                <option value="password">密码认证</option>
-                <option value="key">私钥文件</option>
+                <option value="password" data-i18n="webui.opt_auth_password">密码认证</option>
+                <option value="key" data-i18n="webui.opt_auth_key">私钥文件</option>
               </select>
             </div>
             <div class="field full" id="f-ssh-password-wrap">
-              <label>SSH 密码</label>
-              <input type="password" id="f-ssh-password" placeholder="SSH 登录密码" />
+              <label data-i18n="webui.ssh_password">SSH 密码</label>
+              <input type="password" id="f-ssh-password" data-i18n="webui.placeholder_ssh_password" placeholder="SSH 登录密码" />
             </div>
             <div class="field full" id="f-ssh-key-wrap" style="display:none">
-              <label>私钥文件路径</label>
-              <input type="text" id="f-ssh-key" placeholder="/root/.ssh/id_rsa" />
+              <label data-i18n="webui.ssh_key">私钥文件路径</label>
+              <input type="text" id="f-ssh-key" data-i18n="webui.placeholder_ssh_key" placeholder="/root/.ssh/id_rsa" />
             </div>
           </div>
           <div id="ssh-test-status" style="margin-top:12px"></div>
           <div class="btn-row">
-            <button class="btn btn-ghost" onclick="gotoStep(2)">← 上一步</button>
-            <button class="btn btn-ghost" id="btn-test-ssh" onclick="testSsh()" style="display:none">🔗 测试 SSH</button>
-            <button class="btn btn-primary" onclick="gotoStep(4)">下一步 →</button>
+            <button class="btn btn-ghost" onclick="gotoStep(2)" data-i18n="webui.btn_prev">← 上一步</button>
+            <button class="btn btn-ghost" id="btn-test-ssh" onclick="testSsh()" style="display:none" data-i18n="webui.ssh_test_btn">🔗 测试 SSH</button>
+            <button class="btn btn-primary" onclick="gotoStep(4)" data-i18n="webui.btn_next">下一步 →</button>
           </div>
         </div>
 
         <!-- Step 4: 巡检人员 -->
         <div id="step4" class="card" style="display:none">
           <div class="card-title">
-            <span>👤</span> 巡检人员信息
-            <span class="badge">第 4 步 / 共 5 步</span>
+            <span>👤</span> <span data-i18n="webui.inspector_info">巡检人员信息</span>
+            <span class="badge" data-i18n="webui.step_badge">第 4 步 / 共 5 步</span>
           </div>
           <div class="inspector-wrap">
             <div class="inspector-avatar">👤</div>
-            <label>巡检人员姓名（将显示在报告封面）</label>
+            <label data-i18n="webui.inspector_name_placeholder">巡检人员姓名（将显示在报告封面）</label>
             <input type="text" id="f-inspector" placeholder="Jack" />
           </div>
           <div class="btn-row">
-            <button class="btn btn-ghost" onclick="gotoStep(3)">← 上一步</button>
-            <button class="btn btn-primary" onclick="gotoStep(5)">确认并预览 →</button>
+            <button class="btn btn-ghost" onclick="gotoStep(3)" data-i18n="webui.btn_prev">← 上一步</button>
+            <button class="btn btn-primary" onclick="gotoStep(5)" data-i18n="webui.btn_confirm">✅ 确认</button>
           </div>
         </div>
 
         <!-- Step 5: 执行巡检 -->
         <div id="step5" class="card" style="display:none">
           <div class="card-title">
-            <span>🚀</span> 执行巡检
-            <span class="badge">第 5 步 / 共 5 步</span>
+            <span>🚀</span> <span data-i18n="webui.run_inspection">执行巡检</span>
+            <span class="badge" data-i18n="webui.step_badge">第 5 步 / 共 5 步</span>
           </div>
           <!-- 信息确认卡 -->
           <div id="confirm-panel">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">
               <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 16px">
-                <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">数据库类型</div>
+                <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px" data-i18n="webui.cf_dbtype">数据库类型</div>
                 <div id="cf-dbtype" style="font-size:14px;font-weight:600"></div>
               </div>
               <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 16px">
-                <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">实例标签</div>
+                <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px" data-i18n="webui.cf_name">实例标签</div>
                 <div id="cf-name" style="font-size:14px;font-weight:600"></div>
               </div>
               <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 16px">
-                <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">连接地址</div>
+                <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px" data-i18n="webui.cf_conn">连接地址</div>
                 <div id="cf-conn" style="font-size:14px;font-weight:600"></div>
               </div>
               <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 16px">
-                <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">系统信息采集</div>
+                <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px" data-i18n="webui.cf_ssh">系统信息采集</div>
                 <div id="cf-ssh" style="font-size:14px;font-weight:600"></div>
               </div>
               <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 16px">
-                <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">巡检人员</div>
+                <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px" data-i18n="webui.inspector_label">巡检人员</div>
                 <div id="cf-inspector" style="font-size:14px;font-weight:600"></div>
               </div>
             </div>
             <div class="btn-row" style="justify-content:space-between">
-              <button class="btn btn-ghost" onclick="gotoStep(4)">← 上一步</button>
-              <button class="btn btn-success" id="btn-run" onclick="startInspection()">
+              <button class="btn btn-ghost" onclick="gotoStep(4)" data-i18n="webui.btn_prev">← 上一步</button>
+              <button class="btn btn-success" id="btn-run" onclick="startInspection()" data-i18n="webui.btn_start_run">
                 🚀 开始巡检
               </button>
             </div>
@@ -988,7 +987,7 @@ var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
           <!-- 运行面板 -->
           <div id="run-panel" style="display:none">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-              <span style="font-size:13px;font-weight:500" id="run-status-text">正在准备...</span>
+              <span style="font-size:13px;font-weight:500" id="run-status-text" data-i18n="webui.status_preparing">正在准备...</span>
               <span id="run-spinner" class="spinner"></span>
             </div>
             <div class="progress-bar-wrap">
@@ -997,8 +996,8 @@ var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
             <div class="log-box" id="log-box"></div>
             <div id="result-panel" style="display:none"></div>
             <div class="btn-row" id="done-btns" style="display:none">
-              <button class="btn btn-ghost" onclick="startWizard()">🔄 新建巡检</button>
-              <button class="btn btn-ghost" onclick="showPage('reports')">📄 查看报告</button>
+              <button class="btn btn-ghost" onclick="startWizard()" data-i18n="webui.btn_new_inspection">🔄 新建巡检</button>
+              <button class="btn btn-ghost" onclick="showPage('reports')" data-i18n="webui.view_history_reports">📄 查看报告</button>
             </div>
           </div>
         </div>
@@ -1009,11 +1008,11 @@ var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
       <div class="page" id="page-reports">
         <div class="card">
           <div class="card-title">
-            <span>📄</span> 历史巡检报告
-            <button class="btn btn-ghost" style="margin-left:auto;padding:6px 12px;font-size:12px" onclick="loadReports()">↻ 刷新</button>
+            <span>📄</span> <span data-i18n="webui.reports_title">历史巡检报告</span>
+            <button class="btn btn-ghost" style="margin-left:auto;padding:6px 12px;font-size:12px" onclick="loadReports()" data-i18n="webui.reports_refresh">↻ 刷新</button>
           </div>
           <div class="reports-list" id="reports-list">
-            <div style="text-align:center;color:var(--text-muted);padding:32px">正在加载...</div>
+            <div style="text-align:center;color:var(--text-muted);padding:32px" data-i18n="webui.reports_loading">正在加载...</div>
           </div>
         </div>
       </div>
@@ -1021,98 +1020,98 @@ var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
       <!-- ══ Page: Trend ══ -->
       <div class="page" id="page-trend">
         <div class="card" style="margin-bottom:16px">
-          <div class="card-title"><span>📈</span> 历史趋势分析
-            <button class="btn btn-ghost" style="margin-left:auto;padding:6px 12px;font-size:12px" onclick="loadTrendInstances()">↻ 刷新</button>
+          <div class="card-title"><span>📈</span> <span data-i18n="webui.trend_title">历史趋势分析</span>
+            <button class="btn btn-ghost" style="margin-left:auto;padding:6px 12px;font-size:12px" onclick="loadTrendInstances()" data-i18n="webui.reports_refresh">↻ 刷新</button>
           </div>
           <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:flex-end">
             <div style="flex:1;min-width:200px">
-              <label style="font-size:12px;color:var(--text-muted)">选择数据库实例</label>
+              <label style="font-size:12px;color:var(--text-muted)" data-i18n="webui.trend_select_instance">选择数据库实例</label>
               <select id="trend-instance-select" style="width:100%;margin-top:6px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" onchange="onTrendInstanceChange()">
-                <option value="">-- 加载中 --</option>
+                <option value="" data-i18n="webui.trend_loading">-- 加载中 --</option>
               </select>
             </div>
-            <button class="btn btn-primary" style="padding:9px 20px" onclick="loadTrendData()">查看趋势</button>
+            <button class="btn btn-primary" style="padding:9px 20px" onclick="loadTrendData()" data-i18n="webui.btn_view_trend">查看趋势</button>
           </div>
           <div id="trend-comparison" style="display:none;margin-bottom:16px"></div>
         </div>
 
         <div class="card" id="trend-chart-card" style="display:none">
-          <div class="card-title"><span>📊</span> 关键指标趋势图</div>
+          <div class="card-title"><span>📊</span> <span data-i18n="webui.chart_title">关键指标趋势图</span></div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px" id="trend-charts-grid">
           </div>
         </div>
 
         <div id="trend-empty" class="card" style="text-align:center;padding:48px;color:var(--text-muted)">
           <div style="font-size:40px;margin-bottom:12px">📉</div>
-          <div>执行巡检后，历史趋势数据将在这里显示</div>
-          <div style="font-size:12px;margin-top:8px">同一个数据库（相同 IP + 端口）的多次巡检结果将被对比展示</div>
+          <div data-i18n="webui.trend_no_data">执行巡检后，历史趋势数据将在这里显示</div>
+          <div style="font-size:12px;margin-top:8px" data-i18n="webui.trend_same_db_note">同一个数据库（相同 IP + 端口）的多次巡检结果将被对比展示</div>
         </div>
       </div>
 
       <!-- ══ Page: AI Settings ══ -->
       <div class="page" id="page-ai">
         <div class="card">
-          <div class="card-title"><span>🤖</span> AI 诊断设置</div>
-          <div style="color:var(--text-muted);font-size:13px;margin-bottom:20px;line-height:1.7">
+          <div class="card-title"><span>🤖</span> <span data-i18n="webui.ai_title">AI 诊断设置</span></div>
+          <div style="color:var(--text-muted);font-size:13px;margin-bottom:20px;line-height:1.7" data-i18n="webui.ai_enable_desc">
             开启 AI 诊断后，每次巡检完成后将自动把关键指标发给大语言模型，生成<strong style="color:var(--text)">个性化优化建议</strong>，附加在报告中。<br/>
             <strong style="color:var(--warn)">注意：</strong>AI 诊断仅发送指标数值，不发送密码等敏感信息。
           </div>
 
           <div class="form-group">
-            <label>后端类型</label>
+            <label data-i18n="webui.ai_backend">后端类型</label>
             <select id="ai-backend" style="width:100%;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13.5px" onchange="onAIBackendChange()">
-              <option value="disabled">🚫 已关闭（默认）</option>
-              <option value="openai">🌐 OpenAI / 兼容 API（DeepSeek、Azure 等）</option>
-              <option value="ollama">🖥️ 本地 Ollama</option>
+              <option value="disabled" data-i18n="webui.ai_backend_disabled">🚫 已关闭（默认）</option>
+              <option value="openai" data-i18n="webui.ai_backend_openai">🌐 OpenAI / 兼容 API（DeepSeek、Azure 等）</option>
+              <option value="ollama" data-i18n="webui.ai_backend_ollama">🖥️ 本地 Ollama</option>
             </select>
           </div>
 
           <div id="ai-openai-fields" style="display:none">
             <div class="form-group">
-              <label>API Key</label>
+              <label data-i18n="webui.ai_openai_key">API Key</label>
               <input type="password" id="ai-api-key" class="form-input" placeholder="sk-...（OpenAI）或 your-key（DeepSeek 等）"/>
             </div>
             <div class="form-group">
-              <label>API URL <span style="color:var(--text-muted);font-size:12px">（默认 OpenAI，可改为 DeepSeek 或本地代理）</span></label>
+              <label data-i18n="webui.ai_openai_url">API URL</label>
               <input type="text" id="ai-api-url" class="form-input" placeholder="https://api.openai.com/v1"/>
             </div>
             <div class="form-group">
-              <label>模型名称</label>
+              <label data-i18n="webui.ai_openai_model">模型名称</label>
               <input type="text" id="ai-model" class="form-input" placeholder="gpt-4o-mini"/>
             </div>
-            <div style="background:var(--surface2);border-radius:8px;padding:12px;font-size:12px;color:var(--text-muted);margin-bottom:8px">
-              💡 <strong>DeepSeek 用法</strong>：API URL 填 <code>https://api.deepseek.com/v1</code>，模型填 <code>deepseek-chat</code>，API Key 填 DeepSeek 的 key
+            <div style="background:var(--surface2);border-radius:8px;padding:12px;font-size:12px;color:var(--text-muted);margin-bottom:8px" data-i18n="webui.ai_openai_tip">
+              💡 DeepSeek 用法：API URL 填 https://api.deepseek.com/v1，模型填 deepseek-chat，API Key 填 DeepSeek 的 key
             </div>
           </div>
 
           <div id="ai-ollama-fields" style="display:none">
             <div class="form-group">
-              <label>Ollama 地址</label>
+              <label data-i18n="webui.ai_ollama_url">Ollama 地址</label>
               <div style="display:flex;gap:8px;align-items:center">
                 <input type="text" id="ai-ollama-url" class="form-input" placeholder="http://localhost:11434" style="flex:1"/>
-                <button class="btn btn-ghost" onclick="testOllama()" style="font-size:12px;padding:7px 12px;white-space:nowrap;flex-shrink:0">🔗 测试连接</button>
+                <button class="btn btn-ghost" onclick="testOllama()" style="font-size:12px;padding:7px 12px;white-space:nowrap;flex-shrink:0" data-i18n="webui.ai_test_btn">🔗 测试连接</button>
               </div>
               <div id="ollama-test-result" style="font-size:11px;margin-top:4px;color:var(--text-muted)"></div>
             </div>
             <div class="form-group">
-              <label>模型名称</label>
+              <label data-i18n="webui.ai_ollama_model">模型名称</label>
               <input type="text" id="ai-ollama-model" class="form-input" placeholder="qwen2.5:7b"/>
             </div>
             <div class="form-group">
-              <label>超时时间（秒）</label>
+              <label data-i18n="webui.ai_timeout">超时时间（秒）</label>
               <input type="number" id="ai-timeout" class="form-input" placeholder="600" value="600" min="30" max="3600" style="width:120px"/>
-              <span style="font-size:12px;color:var(--text-muted);margin-left:8px">建议 300~600 秒，大模型加载较慢</span>
+              <span style="font-size:12px;color:var(--text-muted);margin-left:8px" data-i18n="webui.ai_ollama_timeout_hint">建议 300~600 秒，大模型加载较慢</span>
             </div>
-            <div style="background:var(--surface2);border-radius:8px;padding:12px;font-size:12px;color:var(--text-muted);margin-bottom:8px">
-              💡 完全本地运行，无需 API Key，数据不出本机。先安装 <a href="https://ollama.ai" target="_blank" style="color:var(--accent2)">Ollama</a> 并拉取模型：<code>ollama pull qwen2.5:7b</code>
+            <div style="background:var(--surface2);border-radius:8px;padding:12px;font-size:12px;color:var(--text-muted);margin-bottom:8px" data-i18n="webui.ai_ollama_tip">
+              💡 完全本地运行，无需 API Key，数据不出本机。先安装 Ollama 并拉取模型：ollama pull qwen2.5:7b
             </div>
           </div>
 
-          <div id="ai-save-banner" style="display:none" class="status-banner ok" style="margin-bottom:12px">✅ 配置已保存，下次巡检时生效</div>
+          <div id="ai-save-banner" style="display:none" class="status-banner ok" style="margin-bottom:12px" data-i18n="webui.ai_save_ok">✅ 配置已保存，下次巡检时生效</div>
 
           <div class="btn-row">
-            <button class="btn btn-ghost" onclick="loadAIConfig()">↻ 重新加载</button>
-            <button class="btn btn-primary" onclick="saveAIConfig()">💾 保存配置</button>
+            <button class="btn btn-ghost" onclick="loadAIConfig()" data-i18n="webui.ai_reload_btn">↻ 重新加载</button>
+            <button class="btn btn-primary" onclick="saveAIConfig()" data-i18n="webui.ai_save_btn">💾 保存配置</button>
           </div>
         </div>
       </div>
@@ -1128,6 +1127,62 @@ let sshEnabled = false;
 let currentTaskId = null;
 let pollTimer = null;
 let logOffset = 0;
+let I18N = {};       // 翻译字典 {key: text}
+let CURRENT_LANG = 'zh';
+
+// ─── i18n 初始化 ───────────────────────────────────────────────
+async function initI18N() {
+  try {
+    const res = await fetch('/api/i18n');
+    const data = await res.json();
+    if (data.ok) {
+      I18N = data.data || {};
+      CURRENT_LANG = data.lang;
+      applyI18N();
+    }
+  } catch(e) { console.error('i18n load failed', e); }
+}
+
+function i18n(key) {
+  return I18N[key] || key;
+}
+
+function applyI18N() {
+  // 语言切换按钮
+  const langLabel = document.getElementById('lang-label');
+  if (langLabel) langLabel.textContent = CURRENT_LANG === 'zh' ? 'EN' : '中';
+
+  // 顶部标题
+  const title = document.getElementById('topbar-title');
+  if (title) title.textContent = i18n('webui.home_title') || '首页';
+  const subtitle = document.getElementById('topbar-sub');
+  if (subtitle) subtitle.textContent = i18n('webui.home_subtitle') || '欢迎使用数据库巡检工具';
+
+  // 应用 data-i18n 属性的元素
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) {
+      el.placeholder = i18n(key);
+    } else {
+      el.textContent = i18n(key);
+    }
+  });
+}
+
+async function toggleLang() {
+  const newLang = CURRENT_LANG === 'zh' ? 'en' : 'zh';
+  try {
+    await fetch('/api/set_lang', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({lang: newLang})
+    });
+    // 刷新页面以重新渲染
+    location.reload();
+  } catch(e) {
+    alert('Language switch failed: ' + e.message);
+  }
+}
 
 // ─── Page Navigation ───
 function showPage(name) {
@@ -1136,11 +1191,11 @@ function showPage(name) {
   document.getElementById('page-' + name).classList.add('active');
   document.getElementById('nav-' + name).classList.add('active');
   const titles = {
-    home:    ['首页',     '欢迎使用数据库巡检工具'],
-    wizard:  ['新建巡检', '逐步配置，一键生成报告'],
-    reports: ['历史报告', '所有已生成的巡检报告'],
-    trend:   ['趋势分析', '同一数据库多次巡检的历史指标趋势'],
-    ai:      ['AI 诊断设置', '配置大语言模型，巡检后自动生成优化建议'],
+    home:    [i18n('webui.home_title'),     i18n('webui.home_subtitle')],
+    wizard:  [i18n('webui.nav_wizard'),    i18n('webui.wizard_desc')],
+    reports: [i18n('webui.history_reports'), i18n('webui.reports_desc')],
+    trend:   [i18n('webui.trend_analysis'), i18n('webui.trend_desc')],
+    ai:      [i18n('webui.ai_title'),        i18n('webui.ai_desc')],
   };
   const t = titles[name] || [name, ''];
   document.getElementById('topbar-title').textContent = t[0];
@@ -1176,7 +1231,7 @@ function startWizard() {
   document.getElementById('done-btns').style.display = 'none';
   document.getElementById('log-box').innerHTML = '';
   document.getElementById('btn-run').disabled = false;
-  document.getElementById('btn-run').innerHTML = '🚀 开始巡检';
+  document.getElementById('btn-run').innerHTML = i18n('webui.btn_start_run');
 }
 
 // ─── Steps ───
@@ -1191,6 +1246,10 @@ function gotoStep(n) {
       if (sl) sl.className = 'step-line' + (i <= n ? ' done' : '');
     }
   }
+  // 动态更新步骤 badge（第 N 步 / 共 5 步）
+  document.querySelectorAll('[data-i18n="webui.step_badge"]').forEach(el => {
+    el.textContent = i18n('webui.step_badge').replace('{}', n).replace('{}', STEP_COUNT);
+  });
   if (n === 5) fillConfirmPanel();
 }
 
@@ -1222,7 +1281,7 @@ function selectDbType(type) {
 // ─── Test DB ───
 async function testDb() {
   const el = document.getElementById('db-test-status');
-  el.innerHTML = '<div class="status-banner info"><span class="spinner"></span> 正在测试连接...</div>';
+  el.innerHTML = '<div class="status-banner info"><span class="spinner"></span> ' + i18n('webui.testing_connection') + '</div>';
   try {
     const res = await fetch('/api/test_db', {
       method: 'POST',
@@ -1240,12 +1299,12 @@ async function testDb() {
     });
     const data = await res.json();
     if (data.ok) {
-      el.innerHTML = `<div class="status-banner ok">✅ 连接成功：${escHtml(data.msg)}</div>`;
+      el.innerHTML = `<div class="status-banner ok">${i18n('webui.connection_ok')}：${escHtml(data.msg)}</div>`;
     } else {
-      el.innerHTML = `<div class="status-banner err">❌ 连接失败：${escHtml(data.msg)}</div>`;
+      el.innerHTML = `<div class="status-banner err">${i18n('webui.connection_fail')}：${escHtml(data.msg)}</div>`;
     }
   } catch(e) {
-    el.innerHTML = `<div class="status-banner err">❌ 请求失败：${escHtml(e.message)}</div>`;
+    el.innerHTML = `<div class="status-banner err">${i18n('webui.connection_fail')}：${escHtml(e.message)}</div>`;
   }
 }
 
@@ -1253,7 +1312,7 @@ async function testDb() {
 function toggleSsh() {
   sshEnabled = !sshEnabled;
   document.getElementById('ssh-toggle').className = 'toggle' + (sshEnabled ? ' on' : '');
-  document.getElementById('ssh-toggle-sub').textContent = sshEnabled ? '当前：已启用' : '当前：未启用';
+  document.getElementById('ssh-toggle-sub').textContent = sshEnabled ? i18n('webui.ssh_enable_state_on') : i18n('webui.ssh_enable_state_off');
   document.getElementById('ssh-fields').className = 'ssh-fields form-grid' + (sshEnabled ? ' visible' : '');
   document.getElementById('btn-test-ssh').style.display = sshEnabled ? '' : 'none';
   if (sshEnabled && !document.getElementById('f-ssh-host').value) {
@@ -1270,7 +1329,7 @@ function onSshAuthChange() {
 // ─── Test SSH ───
 async function testSsh() {
   const el = document.getElementById('ssh-test-status');
-  el.innerHTML = '<div class="status-banner info"><span class="spinner"></span> 正在测试 SSH...</div>';
+  el.innerHTML = '<div class="status-banner info"><span class="spinner"></span> ' + i18n('webui.ssh_testing') + '</div>';
   try {
     const res = await fetch('/api/test_ssh', {
       method: 'POST',
@@ -1285,16 +1344,21 @@ async function testSsh() {
     });
     const data = await res.json();
     el.innerHTML = data.ok
-      ? `<div class="status-banner ok">✅ ${escHtml(data.msg)}</div>`
-      : `<div class="status-banner err">❌ ${escHtml(data.msg)}</div>`;
+      ? `<div class="status-banner ok">${i18n('webui.ssh_test_ok')} ${escHtml(data.msg)}</div>`
+      : `<div class="status-banner err">${i18n('webui.ssh_test_fail')} ${escHtml(data.msg)}</div>`;
   } catch(e) {
-    el.innerHTML = `<div class="status-banner err">❌ 请求失败：${escHtml(e.message)}</div>`;
+    el.innerHTML = `<div class="status-banner err">${i18n('webui.ssh_test_fail')} ${escHtml(e.message)}</div>`;
   }
 }
 
 // ─── Confirm Panel ───
 function fillConfirmPanel() {
-  const typeLabels = { mysql: '🐬 MySQL', pg: '🐘 PostgreSQL', oracle_full: '🔴 Oracle 全面巡检', dm: '🟡 DM8' };
+  const typeLabels = {
+    mysql: '🐬 ' + i18n('webui.db_type_mysql'),
+    pg: '🐘 ' + i18n('webui.db_type_pg'),
+    oracle_full: '🔴 ' + i18n('webui.db_type_oracle') + ' ' + i18n('webui.oracle_full_suffix'),
+    dm: '🟡 ' + i18n('webui.db_type_dm'),
+  };
   const nameDefaults = { mysql: 'MySQL_Server', pg: 'PG_Server', oracle_full: 'Oracle_Server', dm: 'DM8_Server' };
   const portDefaults = { mysql: '3306', pg: '5432', oracle_full: '1521', dm: '5236' };
   const userDefaults = { mysql: 'root', pg: 'postgres', oracle_full: 'sys', dm: 'SYSDBA' };
@@ -1302,7 +1366,7 @@ function fillConfirmPanel() {
   const name = document.getElementById('f-name').value.trim() || (nameDefaults[dbType]||'_Server');
   const host = document.getElementById('f-host').value.trim() || 'localhost';
   const port = document.getElementById('f-port').value || (portDefaults[dbType]||'1521');
-  const sshLabel = sshEnabled ? `${document.getElementById('f-ssh-host').value || host}:${document.getElementById('f-ssh-port').value||22}` : '未配置（仅数据库指标）';
+  const sshLabel = sshEnabled ? `${document.getElementById('f-ssh-host').value || host}:${document.getElementById('f-ssh-port').value||22}` : i18n('webui.ssh_not_configured');
 
   const tagClass = dbType === 'mysql' ? 'tag-mysql' : dbType === 'oracle_full' ? 'tag-oracle' : dbType === 'dm' ? 'tag-dm' : 'tag-pg';
   document.getElementById('cf-dbtype').innerHTML = `<span class="tag ${tagClass}">${typeLabel}</span>`;
@@ -1316,7 +1380,7 @@ function fillConfirmPanel() {
 async function startInspection() {
   const btn = document.getElementById('btn-run');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> 启动中...';
+  btn.innerHTML = '<span class="spinner"></span> ' + i18n('webui.btn_starting');
 
   const name = document.getElementById('f-name').value.trim() || (dbType==='mysql'?'MySQL_Server':dbType==='oracle'?'Oracle_Server':dbType==='oracle_full'?'Oracle_Full':dbType==='dm'?'DM8_Server':'PG_Server');
   const host = document.getElementById('f-host').value.trim() || 'localhost';
@@ -1356,7 +1420,7 @@ async function startInspection() {
   } catch(e) {
     btn.disabled = false;
     btn.innerHTML = '🚀 开始巡检';
-    alert('启动失败: ' + e.message);
+    alert(i18n('webui.start_fail') + ': ' + e.message);
   }
 }
 
@@ -1391,25 +1455,25 @@ function pollStatus() {
       const st = document.getElementById('run-status-text');
       const sp = document.getElementById('run-spinner');
       if (status === 'pending' || status === 'running') {
-        st.textContent = status === 'pending' ? '等待执行...' : '巡检进行中，请稍候...';
+        st.textContent = status === 'pending' ? i18n('webui.status_pending') : i18n('webui.status_running');
         pollTimer = setTimeout(pollStatus, 800);
       } else if (status === 'done') {
-        st.textContent = '✅ 巡检完成！';
+        st.textContent = i18n('webui.done_title') + '!';
         sp.style.display = 'none';
         document.getElementById('result-panel').style.display = '';
 
         // 智能分析摘要
         let analyzeHtml = '';
         const issues = data.auto_analyze || [];
-        const highRisk = issues.filter(i => i.col2 === '高风险').length;
-        const midRisk  = issues.filter(i => i.col2 === '中风险').length;
+        const highRisk = issues.filter(i => i.col2 === i18n('webui.risk_high')).length;
+        const midRisk  = issues.filter(i => i.col2 === i18n('webui.risk_mid')).length;
         if (issues.length > 0) {
           analyzeHtml = `
           <div class="result-card" style="border-left:3px solid ${highRisk > 0 ? '#f44336' : midRisk > 0 ? '#ff9800' : '#4caf50'}">
             <div class="ri">${highRisk > 0 ? '🔴' : midRisk > 0 ? '🟡' : '🟢'}</div>
             <div class="rd">
-              <h3>智能分析发现问题 ${issues.length} 项</h3>
-              <p>高风险 ${highRisk} · 中风险 ${midRisk} · 低风险/建议 ${issues.length - highRisk - midRisk}</p>
+              <h3>${i18n('webui.analyze_issues').replace('{}', issues.length)}</h3>
+              <p>${i18n('webui.risk_high')} ${highRisk} · ${i18n('webui.risk_mid')} ${midRisk} · ${i18n('webui.risk_low')} ${issues.length - highRisk - midRisk}</p>
             </div>
           </div>`;
         }
@@ -1422,9 +1486,9 @@ function pollStatus() {
           const isError = /^⚠|timed out|timeout|Traceback|error.*occurred|失败|异常/i.test(ai.trim());
           if (isError) {
             aiHtml = `<div style="padding:12px 16px;background:#fff3cd;border:1px solid #ffc107;border-radius:8px;font-size:13px;color:#856404">
-              🤖 AI 诊断暂时无法完成<br>
+              🤖 ${i18n('webui.ai_error_title')}<br>
               <span style="font-size:12px;color:#85640499">${escHtml(ai.trim().split('\n').slice(-3).join(' '))}</span>
-              <div style="margin-top:8px;font-size:12px;color:#85640499">请检查 Ollama 服务状态，或在 AI 配置中增加超时时间</div>
+              <div style="margin-top:8px;font-size:12px;color:#85640499">${i18n('webui.ai_error_hint')}</div>
             </div>`;
           } else {
           // 正常渲染内容：处理段落、bullet 列表、编号列表、标题
@@ -1472,11 +1536,11 @@ function pollStatus() {
           <div class="result-card" style="background:linear-gradient(135deg,rgba(56,139,253,.06),rgba(124,58,237,.06));border-left:3px solid #7c3aed">
             <div class="ri">🤖</div>
             <div class="rd" style="flex:1">
-              <h3 style="color:#7c3aed">AI 智能诊断建议</h3>
-              <div style="font-size:12px;color:var(--text-muted);margin-top:2px">基于巡检数据自动生成，仅供参考</div>
+              <h3 style="color:#7c3aed">${i18n('webui.ai_diagnosis_title')}</h3>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${i18n('webui.ai_diagnosis_subtitle')}</div>
             </div>
             <div style="margin-left:auto;flex-shrink:0">
-              <button class="btn btn-ghost" onclick="toggleAiAdvice()" style="font-size:12px;padding:7px 14px">${ai.length > 200 ? '展开' : '收起'}</button>
+              <button class="btn btn-ghost" onclick="toggleAiAdvice()" style="font-size:12px;padding:7px 14px">${ai.length > 200 ? i18n('webui.ai_expand') : i18n('webui.ai_collapse')}</button>
             </div>
           </div>
           <div id="ai-advice-body" style="display:${ai.length > 200 ? 'none' : 'block'};margin-top:8px;padding:12px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-main)">
@@ -1490,16 +1554,16 @@ function pollStatus() {
           <div class="result-card">
             <div class="ri">📄</div>
             <div class="rd">
-              <h3>报告已生成</h3>
+              <h3>${i18n('webui.report_done_title')}</h3>
               <p>${escHtml(data.report_name || '')}</p>
             </div>
-            <a class="btn btn-success" href="/api/download/${currentTaskId}" download>⬇ 下载报告</a>
+            <a class="btn btn-success" href="/api/download/${currentTaskId}" download>${i18n('webui.btn_download_report')}</a>
           </div>
           ${analyzeHtml}
           ${aiHtml}`;
         document.getElementById('done-btns').style.display = '';
       } else if (status === 'error') {
-        st.textContent = '❌ 巡检失败';
+        st.textContent = i18n('webui.status_error');
         sp.style.display = 'none';
         document.getElementById('done-btns').style.display = '';
       }
@@ -1512,12 +1576,12 @@ function pollStatus() {
 // ─── Reports ───
 async function loadReports() {
   const list = document.getElementById('reports-list');
-  list.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:32px">正在加载...</div>';
+  list.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:32px">' + i18n('webui.reports_loading') + '</div>';
   try {
     const res = await fetch('/api/reports');
     const data = await res.json();
     if (!data.files || data.files.length === 0) {
-      list.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:48px">暂无历史报告</div>';
+      list.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:48px">' + i18n('webui.reports_empty') + '</div>';
       return;
     }
     list.innerHTML = data.files.map(f => {
@@ -1525,7 +1589,7 @@ async function loadReports() {
       const isPG    = f.name.includes('PostgreSQL') || f.name.includes('Postgres');
       const isOracle = f.name.includes('Oracle');
       const isDM    = f.name.includes('DM8') || f.name.includes('达梦');
-      const tagHtml = isMySQL ? '<span class="tag tag-mysql">MySQL</span>' : isPG ? '<span class="tag tag-pg">PostgreSQL</span>' : isOracle ? '<span class="tag tag-oracle">Oracle</span>' : isDM ? '<span class="tag tag-dm">DM8</span>' : '';
+      const tagHtml = isMySQL ? '<span class="tag tag-mysql">' + i18n('webui.db_type_mysql') + '</span>' : isPG ? '<span class="tag tag-pg">' + i18n('webui.db_type_pg') + '</span>' : isOracle ? '<span class="tag tag-oracle">' + i18n('webui.db_type_oracle') + '</span>' : isDM ? '<span class="tag tag-dm">' + i18n('webui.db_type_dm') + '</span>' : '';
       const size = f.size > 1024*1024 ? (f.size/1024/1024).toFixed(1)+' MB' : (f.size/1024).toFixed(1)+' KB';
       const dt = new Date(f.mtime*1000).toLocaleString('zh-CN');
       return `
@@ -1536,11 +1600,11 @@ async function loadReports() {
             <div class="ri-meta">${dt} · ${size}</div>
           </div>
           <a class="btn btn-ghost" style="font-size:12px;padding:7px 14px"
-             href="/api/download_file?name=${encodeURIComponent(f.name)}" download>⬇ 下载</a>
+             href="/api/download_file?name=${encodeURIComponent(f.name)}" download>⬇ ${i18n('webui.download_report')}</a>
         </div>`;
     }).join('');
   } catch(e) {
-    list.innerHTML = `<div class="status-banner err">加载失败: ${escHtml(e.message)}</div>`;
+    list.innerHTML = `<div class="status-banner err">${i18n('webui.reports_load_fail')}: ${escHtml(e.message)}</div>`;
   }
 }
 
@@ -1550,23 +1614,23 @@ let trendInstances = [];
 
 async function loadTrendInstances() {
   const sel = document.getElementById('trend-instance-select');
-  sel.innerHTML = '<option value="">-- 加载中 --</option>';
+  sel.innerHTML = '<option value="">' + i18n('webui.trend_loading') + '</option>';
   try {
     const res = await fetch('/api/history_instances');
     const data = await res.json();
     trendInstances = data.instances || [];
     if (trendInstances.length === 0) {
-      sel.innerHTML = '<option value="">-- 暂无历史记录，请先执行巡检 --</option>';
+      sel.innerHTML = '<option value="">' + i18n('webui.trend_no_history') + '</option>';
       document.getElementById('trend-empty').style.display = 'block';
       document.getElementById('trend-chart-card').style.display = 'none';
       return;
     }
     sel.innerHTML = trendInstances.map((inst, i) =>
-      `<option value="${i}">${inst.db_type.toUpperCase()} · ${inst.label || inst.host} (${inst.host}:${inst.port}) · ${inst.snapshot_count} 次记录</option>`
+      `<option value="${i}">${inst.db_type.toUpperCase()} · ${inst.label || inst.host} (${inst.host}:${inst.port}) · ${inst.snapshot_count} ${i18n('webui.trend_records')}</option>`
     ).join('');
     document.getElementById('trend-empty').style.display = 'none';
   } catch(e) {
-    sel.innerHTML = '<option value="">-- 加载失败 --</option>';
+    sel.innerHTML = '<option value="">' + i18n('webui.trend_load_fail') + '</option>';
   }
 }
 
@@ -1607,10 +1671,14 @@ function renderComparison(cmp, inst) {
   const el = document.getElementById('trend-comparison');
   if (!cmp || !cmp.curr) { el.style.display = 'none'; return; }
   const metricLabels = {
-    mem_usage: '内存使用率', cpu_usage: 'CPU 使用率',
-    disk_usage_max: '磁盘使用率', connections: '当前连接数',
-    cache_hit_ratio: '缓存命中率', queries_total: '累计查询数',
-    max_used_connections: '历史最大连接数', risk_count: '风险项数量',
+    mem_usage: i18n('webui.ind_mem_usage'),
+    cpu_usage: i18n('webui.ind_cpu_usage'),
+    disk_usage_max: i18n('webui.ind_disk_usage_max'),
+    connections: i18n('webui.ind_connections'),
+    cache_hit_ratio: i18n('webui.ind_cache_hit_ratio'),
+    queries_total: i18n('webui.ind_queries_total'),
+    max_used_connections: i18n('webui.ind_max_used_connections'),
+    risk_count: i18n('webui.ind_risk_count'),
   };
   const diffRows = Object.entries(cmp.diff || {})
     .filter(([k]) => metricLabels[k])
@@ -1631,17 +1699,17 @@ function renderComparison(cmp, inst) {
   el.innerHTML = `
     <div class="card" style="background:var(--surface2)">
       <div class="card-title" style="font-size:13.5px">
-        <span>🔄</span> 与上次巡检对比
+        <span>🔄</span> ${i18n('webui.trend_compare')}
         <span style="font-size:12px;color:var(--text-muted);margin-left:auto">${cmp.prev_ts} → ${cmp.curr_ts}</span>
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:13px">
         <thead><tr style="border-bottom:1px solid var(--border)">
-          <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:500">指标</th>
-          <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:500">上次</th>
-          <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:500">本次</th>
-          <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:500">变化</th>
+          <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:500">${i18n('webui.trend_indicator')}</th>
+          <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:500">${i18n('webui.trend_prev')}</th>
+          <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:500">${i18n('webui.trend_curr')}</th>
+          <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:500">${i18n('webui.trend_change')}</th>
         </tr></thead>
-        <tbody>${diffRows || '<tr><td colspan="4" style="padding:16px;text-align:center;color:var(--text-muted)">暂无可对比指标</td></tr>'}</tbody>
+        <tbody>${diffRows || '<tr><td colspan="4" style="padding:16px;text-align:center;color:var(--text-muted)">' + i18n('webui.trend_no_compare') + '</td></tr>'}</tbody>
       </table>
     </div>`;
   el.style.display = 'block';
@@ -1650,13 +1718,13 @@ function renderComparison(cmp, inst) {
 function renderTrendCharts(trend, inst) {
   const grid = document.getElementById('trend-charts-grid');
   const metricConfigs = [
-    { key: 'mem_usage',           label: '内存使用率 (%)',    color: '#388bfd', warn: 80 },
-    { key: 'cpu_usage',           label: 'CPU 使用率 (%)',    color: '#e3b341', warn: 80 },
-    { key: 'disk_usage_max',      label: '磁盘使用率最大值 (%)', color: '#f85149', warn: 80 },
-    { key: 'connections',         label: '当前连接数',         color: '#2ea043', warn: null },
-    { key: 'cache_hit_ratio',     label: '缓存命中率 (%)',    color: '#a371f7', warn: 95 },
-    { key: 'risk_count',          label: '风险项数量',         color: '#e3b341', warn: 3 },
-    { key: 'max_used_connections',label: '历史最大连接数',     color: '#79c0ff', warn: null },
+    { key: 'mem_usage',            label: i18n('webui.ind_mem_usage'),           color: '#388bfd', warn: 80 },
+    { key: 'cpu_usage',            label: i18n('webui.ind_cpu_usage'),           color: '#e3b341', warn: 80 },
+    { key: 'disk_usage_max',       label: i18n('webui.ind_disk_usage_max'),      color: '#f85149', warn: 80 },
+    { key: 'connections',          label: i18n('webui.ind_connections'),         color: '#2ea043', warn: null },
+    { key: 'cache_hit_ratio',      label: i18n('webui.ind_cache_hit_ratio'),     color: '#a371f7', warn: 95 },
+    { key: 'risk_count',           label: i18n('webui.ind_risk_count'),          color: '#e3b341', warn: 3 },
+    { key: 'max_used_connections', label: i18n('webui.ind_max_used_connections'), color: '#79c0ff', warn: null },
   ];
 
   const labels = trend.labels || [];
@@ -1812,10 +1880,10 @@ async function saveAIConfig() {
     const banner = document.getElementById('ai-save-banner');
     if (data.ok) {
       banner.className = 'status-banner ok';
-      banner.textContent = '✅ ' + data.msg;
+      banner.textContent = i18n('webui.ai_save_ok');
     } else {
       banner.className = 'status-banner err';
-      banner.textContent = '❌ 保存失败: ' + data.msg;
+      banner.textContent = i18n('webui.ai_save_fail') + ': ' + (data.msg || '');
     }
     banner.style.display = 'flex';
     setTimeout(() => { banner.style.display = 'none'; }, 4000);
@@ -1833,7 +1901,7 @@ function escHtml(s) {
 // ─── Ollama 连接测试 ───────────────────────────────────
 async function testOllama() {
   const result = document.getElementById('ollama-test-result');
-  result.textContent = '⏳ 正在连接...';
+  result.textContent = i18n('webui.ai_testing');
   result.style.color = 'var(--text-muted)';
   try {
     const url = document.getElementById('ai-ollama-url').value.trim() || 'http://localhost:11434';
@@ -1846,19 +1914,20 @@ async function testOllama() {
     });
     const data = await resp.json();
     if (data.ok) {
-      result.textContent = '✅ 连接成功！模型响应正常 ✓';
+      result.textContent = i18n('webui.ai_test_ok');
       result.style.color = '#4caf50';
     } else {
-      result.textContent = '❌ 连接失败：' + (data.error || '未知错误');
+      result.textContent = i18n('webui.ai_test_fail') + ': ' + (data.error || '');
       result.style.color = '#f44336';
     }
   } catch(e) {
-    result.textContent = '❌ 连接失败：' + e.message;
+    result.textContent = i18n('webui.ai_test_fail') + ': ' + e.message;
     result.style.color = '#f44336';
   }
 }
 
 // ─── Init ───
+initI18N();
 showPage('home');
 loadTrendInstances();
 loadAIConfig();
@@ -1872,10 +1941,10 @@ function toggleAiAdvice() {
   const btn = b.previousElementSibling.querySelector('button');
   if (b.style.display === 'none') {
     b.style.display = 'block';
-    btn.textContent = '收起';
+    btn.textContent = i18n('webui.ai_collapse');
   } else {
     b.style.display = 'none';
-    btn.textContent = '展开';
+    btn.textContent = i18n('webui.ai_expand');
   }
 }
 </script>

@@ -8,6 +8,7 @@ from flask import Flask, request, jsonify, render_template, Response, send_file
 from version import __version__
 from flask_socketio import SocketIO, emit
 import socket
+from i18n import t as _t
 
 # async_mode='threading' 最稳定，跨平台/打包零兼容问题，
 # 满足 DBCheck Web UI 低并发使用场景（单用户/少量连接）。
@@ -78,36 +79,36 @@ def run_mysql_task(task_id, db_info, inspector_name):
             task.setdefault('log', []).append(msg)
         emit(event, data, room=task_id)
 
-    _emit('log', {'msg': f"[{_ts()}] [MySQL] 开始巡检..."})
+    _emit('log', {'msg': _t('webui.log_mysql_start').format(ts=_ts())})
 
     if not main_mysql:
-        _emit('error', {'msg': 'MySQL 模块未安装'})
+        _emit('error', {'msg': _t('webui.err_mysql_module')})
         return
 
     try:
         import main_mysql as mod
-        _emit('log', {'msg': f"[{_ts()}] 连接 {db_info['ip']}:{db_info['port']}..."})
+        _emit('log', {'msg': _t('webui.log_connecting').format(ts=_ts(), host=db_info['ip'], port=db_info['port'])})
         ok, ver = test_mysql_connection(db_info['ip'], db_info['port'], db_info['user'], db_info['password'])
         if not ok:
-            raise RuntimeError(f"数据库连接失败: {ver}")
-        _emit('log', {'msg': f"[{_ts()}] ✅ 数据库连接成功: {ver}"})
+            raise RuntimeError(_t('webui.err_db_connect').format(ver=ver))
+        _emit('log', {'msg': _t('webui.log_connected').format(ts=_ts(), ver=ver)})
 
         ssh_info = {}
         if db_info.get('ssh_host'):
             ssh_info = {k: db_info[k] for k in ('ssh_host','ssh_port','ssh_user','ssh_password','ssh_key_file') if k in db_info}
 
-        _emit('log', {'msg': f"[{_ts()}] 📊 开始执行巡检 SQL..."})
+        _emit('log', {'msg': _t('webui.log_executing_sql').format(ts=_ts())})
         data = mod.getData(db_info['ip'], db_info['port'], db_info['user'], db_info['password'], ssh_info)
         if data is None or data.conn_db2 is None:
-            raise RuntimeError("无法建立数据库连接，getData 返回 None")
+            raise RuntimeError(_t('webui.err_getdata_none'))
         ret = data.checkdb('builtin')
         if not ret:
-            raise RuntimeError("checkdb 返回 False")
+            raise RuntimeError(_t('webui.err_checkdb_false'))
         if task:
             task['status'] = 'done'
-        _emit('done', {'msg': f'巡检完成: {ver}', 'task_id': task_id})
+        _emit('done', {'msg': _t('webui.log_inspection_done').format(ver=ver), 'task_id': task_id})
     except Exception as e:
-        _emit('error', {'msg': f"[MySQL] 巡检异常: {e}"})
+        _emit('error', {'msg': _t('webui.err_inspection').format(task='MySQL', e=e)})
         if task:
             task['status'] = 'error'
 
@@ -120,37 +121,37 @@ def run_pg_task(task_id, db_info, inspector_name):
             task.setdefault('log', []).append(msg)
         emit(event, data, room=task_id)
 
-    _emit('log', {'msg': f"[{_ts()}] [PostgreSQL] 开始巡检..."})
+    _emit('log', {'msg': _t('webui.log_pg_start').format(ts=_ts())})
 
     if not main_pg:
-        _emit('error', {'msg': 'PostgreSQL 模块未安装'})
+        _emit('error', {'msg': _t('webui.err_pg_module')})
         return
 
     try:
         import main_pg as mod
-        _emit('log', {'msg': f"[{_ts()}] 连接 {db_info['ip']}:{db_info['port']}..."})
+        _emit('log', {'msg': _t('webui.log_connecting').format(ts=_ts(), host=db_info['ip'], port=db_info['port'])})
         ok, ver = test_pg_connection(db_info['ip'], db_info['port'], db_info['user'], db_info['password'], db_info.get('database', 'postgres'))
         if not ok:
-            raise RuntimeError(f"数据库连接失败: {ver}")
-        _emit('log', {'msg': f"[{_ts()}] ✅ 数据库连接成功: {ver}"})
+            raise RuntimeError(_t('webui.err_db_connect').format(ver=ver))
+        _emit('log', {'msg': _t('webui.log_connected').format(ts=_ts(), ver=ver)})
 
         ssh_info = {}
         if db_info.get('ssh_host'):
             ssh_info = {k: db_info[k] for k in ('ssh_host','ssh_port','ssh_user','ssh_password','ssh_key_file') if k in db_info}
 
-        _emit('log', {'msg': f"[{_ts()}] 📊 开始执行巡检 SQL..."})
+        _emit('log', {'msg': _t('webui.log_executing_sql').format(ts=_ts())})
         data = mod.getData(db_info['ip'], db_info['port'], db_info['user'], db_info['password'],
                            database=db_info.get('database', 'postgres'), ssh_info=ssh_info)
         if data is None or data.conn_db2 is None:
-            raise RuntimeError("无法建立数据库连接，getData 返回 None")
+            raise RuntimeError(_t('webui.err_getdata_none'))
         ret = data.checkdb('builtin')
         if not ret:
-            raise RuntimeError("checkdb 返回 False")
+            raise RuntimeError(_t('webui.err_checkdb_false'))
         if task:
             task['status'] = 'done'
-        _emit('done', {'msg': f'巡检完成: {ver}', 'task_id': task_id})
+        _emit('done', {'msg': _t('webui.log_inspection_done').format(ver=ver), 'task_id': task_id})
     except Exception as e:
-        _emit('error', {'msg': f"[PostgreSQL] 巡检异常: {e}"})
+        _emit('error', {'msg': _t('webui.err_inspection').format(task='PostgreSQL', e=e)})
         if task:
             task['status'] = 'error'
 
@@ -164,10 +165,10 @@ def run_oracle_full_task(task_id, db_info, inspector_name):
             task.setdefault('log', []).append(msg)
         emit(event, data, room=task_id)
 
-    _emit('log', {'msg': f"[{_ts()}] [Oracle 全面巡检] 开始巡检..."})
+    _emit('log', {'msg': _t('webui.log_oracle_start').format(ts=_ts())})
 
     if not main_oracle_full:
-        _emit('error', {'msg': 'Oracle 全面巡检模块未安装'})
+        _emit('error', {'msg': _t('webui.err_oracle_module')})
         return
 
     try:
@@ -210,10 +211,10 @@ def run_oracle_full_task(task_id, db_info, inspector_name):
 
         ok, ver = test_oracle_connection(args.host, args.port, args.user, args.password, args.servicename or args.sid, args.sysdba)
         if not ok:
-            raise RuntimeError(f"数据库连接失败: {ver}")
-        _emit('log', {'msg': f"[{_ts()}] ✅ 连接成功: {ver}"})
+            raise RuntimeError(_t('webui.err_db_connect').format(ver=ver))
+        _emit('log', {'msg': _t('webui.log_connected').format(ts=_ts(), ver=ver)})
 
-        _emit('log', {'msg': f"[{_ts()}] 📊 开始 Oracle 全面巡检（OS层+数据库层）..."})
+        _emit('log', {'msg': _t('webui.log_oracle_inspecting').format(ts=_ts())})
 
         # ── 将 mod.single_inspection 中的 print 输出重定向到 WebUI 日志 ──────
         import builtins
@@ -236,9 +237,9 @@ def run_oracle_full_task(task_id, db_info, inspector_name):
 
         if task:
             task['status'] = 'done'
-        _emit('done', {'msg': f'Oracle 全面巡检完成', 'task_id': task_id})
+        _emit('done', {'msg': _t('webui.log_oracle_done'), 'task_id': task_id})
     except Exception as e:
-        _emit('error', {'msg': f"[Oracle 全面巡检] 异常: {e}"})
+        _emit('error', {'msg': _t('webui.err_inspection').format(task='Oracle 全面巡检', e=e)})
         if task:
             task['status'] = 'error'
 
@@ -253,50 +254,50 @@ def run_dm_task(task_id, db_info, inspector_name):
             task.setdefault('log', []).append(msg)
         emit(event, data, room=task_id)
 
-    _emit('log', {'msg': f"[{_ts()}] [DM8] 开始巡检..."})
+    _emit('log', {'msg': _t('webui.log_dm_start').format(ts=_ts())})
 
     if not main_dm:
-        _emit('error', {'msg': 'DM8 模块未安装'})
+        _emit('error', {'msg': _t('webui.err_dm_module')})
         return
 
     try:
         import main_dm as mod
-        _emit('log', {'msg': f"[{_ts()}] 连接 {db_info['ip']}:{db_info['port']}..."})
+        _emit('log', {'msg': _t('webui.log_connecting').format(ts=_ts(), host=db_info['ip'], port=db_info['port'])})
         ok, ver = test_dm_connection(db_info['ip'], db_info['port'], db_info['user'], db_info['password'])
         if not ok:
-            raise RuntimeError(f"数据库连接失败: {ver}")
-        _emit('log', {'msg': f"[{_ts()}] ✅ 数据库连接成功: {ver}"})
+            raise RuntimeError(_t('webui.err_db_connect').format(ver=ver))
+        _emit('log', {'msg': _t('webui.log_connected').format(ts=_ts(), ver=ver)})
 
         ssh_info = {}
         if db_info.get('ssh_host'):
             ssh_info = {k: db_info[k] for k in ('ssh_host','ssh_port','ssh_user','ssh_password','ssh_key_file') if k in db_info}
 
-        _emit('log', {'msg': f"[{_ts()}] 📊 开始执行巡检 SQL..."})
+        _emit('log', {'msg': _t('webui.log_executing_sql').format(ts=_ts())})
         # 传 db_name（getData 第5参数），CLI 模式默认 DAMENG
         data = mod.getData(db_info['ip'], db_info['port'], db_info['user'], db_info['password'],
                            db_name=db_info.get('database', 'DAMENG'), ssh_info=ssh_info)
         if data is None or data.conn_db is None:
-            raise RuntimeError("无法建立数据库连接，getData 返回空")
-        _emit('log', {'msg': f"[{_ts()}] 📊 执行增强智能分析..."})
+            raise RuntimeError(_t('webui.err_getdata_none'))
+        _emit('log', {'msg': _t('webui.log_dm_analyzing').format(ts=_ts())})
         context = data.checkdb('builtin')
         if not context:
-            raise RuntimeError("checkdb 返回空")
+            raise RuntimeError(_t('webui.err_checkdb_empty'))
 
         # 修正 co_name、dm_version 和 dm_instance（checkdb 内部查询结果可能为空）
         context['co_name'] = [{'DB_NAME': db_info.get('database') or 'DAMENG'}]
-        context['dm_version'] = [{'BANNER': '达梦 DM8'}]
+        context['dm_version'] = [{'BANNER': _t('webui.dm_banner')}]
         # dm_instance 用于第1章表格，确保不为空
         if not context.get('dm_instance'):
             context['dm_instance'] = [{'INSTANCE_NAME': db_info.get('database') or 'DAMENG'}]
 
         # AI 诊断结果（checkdb 内部已执行）
         if context.get('ai_advice'):
-            _emit('log', {'msg': f"[{_ts()}] 🤖 AI 诊断完成"})
+            _emit('log', {'msg': _t('webui.log_ai_done').format(ts=_ts())})
         if task:
             task['ai_advice'] = context.get('ai_advice', '')
 
         # 生成报告文件
-        _emit('log', {'msg': f"[{_ts()}] 📄 生成 Word 报告..."})
+        _emit('log', {'msg': _t('webui.log_generating_report').format(ts=_ts())})
         reports_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reports')
         os.makedirs(reports_dir, exist_ok=True)
         _dt = __import__('datetime').datetime
@@ -304,19 +305,19 @@ def run_dm_task(task_id, db_info, inspector_name):
         ifile = mod.create_word_template(inspector_name)
         saver = mod.saveDoc(context, ofile, ifile, inspector_name, H=data.H, P=data.P)
         if not saver.contextsave():
-            raise RuntimeError("报告生成失败")
-        _emit('log', {'msg': f"[{_ts()}] ✅ 报告已生成: {os.path.basename(ofile)}"})
+            raise RuntimeError(_t('webui.err_report_failed'))
+        _emit('log', {'msg': _t('webui.log_report_done').format(ts=_ts(), fname=os.path.basename(ofile))})
 
         if task:
             task['status'] = 'done'
             task['report_name'] = os.path.basename(ofile)
             task['report_file'] = ofile
-        _emit('done', {'msg': f'巡检完成: {ver}', 'task_id': task_id,
+        _emit('done', {'msg': _t('webui.log_inspection_done').format(ver=ver), 'task_id': task_id,
                        'ai_advice': context.get('ai_advice', '')})
     except Exception as e:
         import traceback
         traceback.print_exc(file=sys.stdout)
-        _emit('error', {'msg': f"[DM8] 巡检异常: {e}\n{traceback.format_exc()}"})
+        _emit('error', {'msg': _t('webui.err_inspection').format(task='DM8', e=f"{e}\n{traceback.format_exc()}")})
         if task:
             task['status'] = 'error'
 
@@ -407,21 +408,58 @@ def test_ssh_connection(host, port=22, username='root', password=None, key_file=
                                timeout=10, look_for_keys=False, allow_agent=False,
                                disabled_algorithms={'pubkeys': ['ssh-rsa']})
             except paramiko.AuthenticationException:
-                return True, f"SSH 主机可达，但认证失败（请确认密码或密钥）"
+                return True, _t('webui.ssh_reachable_auth_fail')
         client.close()
-        return True, "SSH 连接成功"
+        return True, _t('webui.ssh_ok')
 
     except Exception as e:
         err_msg = str(e)
         if "timed out" in err_msg.lower() or "connection refused" in err_msg.lower():
-            return False, f"无法连接 SSH: 请检查主机地址和端口 ({err_msg})"
-        return False, f"SSH 连接失败: {err_msg}"
+            return False, _t('webui.ssh_refused').format(err=err_msg)
+        return False, _t('webui.ssh_fail').format(err=err_msg)
 
 
 # ── 路由 ────────────────────────────────────────────────────
 @app.route('/')
 def index():
-    return render_template('index.html', version=__version__)
+    # 注入当前语言到前端（页面加载时就知道语言，无需额外请求）
+    try:
+        from i18n import get_lang, get_all_translations, get_language_display
+        lang = get_lang()
+        i18n_data = get_all_translations(lang)
+    except Exception:
+        lang = 'zh'
+        i18n_data = {}
+    return render_template('index.html', version=__version__, lang=lang, i18n_data=i18n_data)
+
+
+@app.route('/api/i18n')
+def api_i18n():
+    """返回当前语言的翻译数据"""
+    try:
+        from i18n import get_lang, get_all_translations, get_language_display
+        lang = get_lang()
+        return jsonify({
+            'ok': True,
+            'lang': lang,
+            'display': get_language_display(lang),
+            'data': get_all_translations(lang),
+        })
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/set_lang', methods=['POST'])
+def api_set_lang():
+    """设置语言并持久化到 dbc_config.json"""
+    data = request.json or {}
+    lang = data.get('lang', 'zh')
+    try:
+        from i18n import set_lang, get_language_display
+        set_lang(lang, persist=True)
+        return jsonify({'ok': True, 'lang': lang, 'display': get_language_display(lang)})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
 
 @app.route('/api/reports')
 def api_reports():
@@ -466,7 +504,7 @@ def api_history_instances():
                 'label': val.get('label', key),
                 'snapshot_count': len(snapshots),
                 'last_time': last.get('ts', ''),
-                'last_health': last.get('health_status', '未知'),
+                'last_health': last.get('health_status', _t('webui.health_unknown')),
                 'last_risk': last.get('risk_count', 0),
             })
         return jsonify({'ok': True, 'instances': instances})
@@ -480,7 +518,7 @@ def api_trend():
     host = request.args.get('host', '')
     port = request.args.get('port', '')
     if not host or not port:
-        return jsonify({'ok': False, 'error': '缺少 host 或 port'})
+        return jsonify({'ok': False, 'error': _t('webui.err_missing_host_port')})
     try:
         from analyzer import HistoryManager
         script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -506,7 +544,7 @@ def api_save_ai_config():
     cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_config.json')
     with open(cfg_path, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
-    return jsonify({'ok': True, 'msg': 'AI 配置已保存'})
+    return jsonify({'ok': True, 'msg': _t('webui.ai_config_saved')})
 
 @app.route('/api/test_db', methods=['POST'])
 def api_test_db():
@@ -522,7 +560,7 @@ def api_test_db():
     elif db_type == 'dm':
         ok, msg = test_dm_connection(data['host'], data['port'], data['user'], data['password'])
     else:
-        return jsonify({'ok': False, 'msg': '未知数据库类型'})
+        return jsonify({'ok': False, 'msg': _t('webui.err_unknown_db_type')})
 
     return jsonify({'ok': ok, 'msg': msg})
 
@@ -546,15 +584,15 @@ def api_test_ollama():
                 models = result.get('models', [])
                 model_names = [m.get('name', '') for m in models]
                 if model_names:
-                    return jsonify({'ok': True, 'msg': f'✅ Ollama 连接成功，可用模型: {", ".join(model_names)}'})
-                return jsonify({'ok': True, 'msg': '✅ Ollama 连接成功，但未检测到模型'})
+                    return jsonify({'ok': True, 'msg': _t('webui.ollama_models_found').format(models=', '.join(model_names))})
+                return jsonify({'ok': True, 'msg': _t('webui.ollama_no_models')})
             except _json.JSONDecodeError:
-                return jsonify({'ok': False, 'msg': f'返回数据格式异常: {body[:200]}'})
+                return jsonify({'ok': False, 'msg': _t('webui.err_data_format').format(body=body[:200])})
     except urllib.error.HTTPError as e:
         body = e.read().decode('utf-8', errors='replace')[:200]
         return jsonify({'ok': False, 'msg': f'HTTP {e.code}: {body}'})
     except Exception as e:
-        return jsonify({'ok': False, 'msg': f'连接失败: {e}'})
+        return jsonify({'ok': False, 'msg': _t('webui.err_conn_failed').format(e=e)})
 
 
 @app.route('/api/test_ssh', methods=['POST'])
@@ -627,7 +665,7 @@ def api_start_inspection():
 def api_task_status(task_id):
     task = tasks.get(task_id)
     if not task:
-        return jsonify({'ok': False, 'msg': '任务不存在'}), 404
+        return jsonify({'ok': False, 'msg': _t('webui.task_not_found')}), 404
     offset = int(request.args.get('offset', 0))
     log_list = task.get('log', [])
     return jsonify({
@@ -647,10 +685,10 @@ def on_connect():
 def on_join(data):
     task_id = data.get('task_id')
     if task_id:
-        socketio.emit('log', {'msg': f'[{_ts()}] 已连接，正在等待任务...'})
+        socketio.emit('log', {'msg': _t('webui.ws_connected_waiting').format(ts=_ts())})
 
 # ── 启动 ────────────────────────────────────────────────────
 if __name__ == '__main__':
     port = 5003
-    print(f"DBCheck Web UI 启动中: http://localhost:{port}")
+    print(_t('webui.startup_msg').format(port=port))
     socketio.run(app, host='0.0.0.0', port=port, debug=False, allow_unsafe_werkzeug=True)

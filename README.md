@@ -1,6 +1,6 @@
-# 数据库巡检工具 - DBCheck
+# DBCheck - Database Inspection Tool
 
->支持对 **MySQL**、**PostgreSQL**、**Oracle**和 **达梦 DM8** 四种主流关系型数据库进行自动化健康巡检，生成格式规范的 Microsoft Word 报告，帮助 DBA 和运维人员快速掌握数据库运行状况、发现潜在风险。
+>DBCheck is an automated database health inspection tool that supports **MySQL**, **PostgreSQL**, **Oracle**, and **Dameng DM8**. It generates standardized Microsoft Word inspection reports, helping DBAs and operations staff quickly assess database health status and identify potential risks.
 
 
 [![Version](https://img.shields.io/badge/version-2.3.3-blue.svg)]()
@@ -12,361 +12,385 @@
 
 > Language: [English](./README_en.md) | [中文](./README.md)
 
-## AI 辅助 · 问题发现即处理
+## 🌍 Multi-Language Support
 
-### 🤖 AI 智能诊断
+DBCheck supports **Chinese (default)** and **English**. All interface text updates automatically when you switch languages.
 
-调用本地 **Ollama**（完全离线），基于当次巡检的指标数据（连接数、缓存命中率、慢查询数、安全风险等），自动生成结构化的优化建议。报告独立成章，Markdown 格式内容自动渲染为 Word 样式（加粗、代码块、列表、标题序号），方便直接转发给团队或领导审阅。
+### CLI Language Switch
 
-| 后端 | 特点 | 适用场景 |
-|------|------|---------|
-| `ollama` | 本地运行，零成本，无网络依赖 | 内网环境、数据安全要求高 |
-| `disabled` | 不调用 AI（默认） | 离线环境 / 无需 AI |
+```bash
+python main.py                    # Default: Chinese
+python main.py --lang en         # Switch to English
+python main.py --lang zh         # Switch to Chinese (explicit)
+```
 
-> ⚠️ **安全说明**：AI 诊断功能仅支持本地 Ollama（localhost:11434），巡检数据不会发送到任何第三方服务。代码层已做硬性限制，即使配置文件被篡改为远程地址也会自动降级为禁用状态。
+> The Web UI also has a 🌐 toggle button in the top-right corner. Clicking it switches between Chinese and English. The setting is automatically saved and will be loaded on the next Web UI startup.
 
-### 🔍 风险与建议
+### Language Reference
 
-每条风险对应一张卡片，包含：**风险等级（高/中/低）→ 问题描述 → 修复 SQL（可直接复制执行）→ 优先级与负责人**。报告自动汇总，一眼看清全部待处理项。
+| Parameter | Language | Notes |
+|-----------|----------|-------|
+| `--lang zh` | Chinese | Default language |
+| `--lang en` | English | English interface |
+| (not specified) | Chinese | Uses the last saved language; falls back to Chinese if no record exists |
 
-| 维度 | MySQL | PostgreSQL | Oracle | DM8 |
-|------|:-----:|:----------:|:-----------:|:----:|
-| 连接资源 | ✅ | ✅ | ✅ | ✅ |
-| 缓存性能 | ✅ | ✅ | ✅ | ✅ |
-| 查询效率 | ✅ | ✅ | ✅ | ✅ |
-| 日志告警 | ✅ | ✅ | ✅ | ✅ |
-| 安全审计 | ✅ | ✅ | ✅ | ✅ |
-| 复制/DG | ✅ | ✅ | — | — |
-| 配置优化 | ✅ | ✅ | ✅ | ✅ |
-| 表空间 | — | — | ✅ | ✅ |
-| SGA/PGA 内存 | — | — | ✅ | ✅ |
-| Redo 日志 | — | — | ✅ | ✅ |
-| 备份与归档 | — | — | ✅ | ✅ |
-| RAC 集群 | — | — | ✅ | — |
-| ASM 磁盘组 | — | — | ✅ | — |
-| Undo 管理 | — | — | ✅ | ✅ |
+> **Note**: The `--lang` parameter only takes effect for the current session and does not overwrite any saved language setting. Switching language in the Web UI persists to `dbc_config.json` and loads automatically on the next startup.
+
+## AI-Assisted - Detect and Resolve Issues
+
+### AI-Powered Intelligent Diagnosis
+
+Leveraging a fully offline, local **Ollama** deployment, DBCheck analyzes inspection metrics (connection counts, cache hit ratios, slow queries, security risks, etc.) and automatically generates structured optimization recommendations. AI insights are rendered as a dedicated chapter in the report — Markdown content is automatically styled into Word format (bold, code blocks, lists, numbered headings), ready to share with your team or leadership.
+
+| Backend | Characteristics | Use Case |
+|---------|----------------|----------|
+| `ollama` | Local-only, zero cost, no network dependency | Air-gapped environments, high data-security requirements |
+| `disabled` | AI disabled (default) | Offline environments / AI not required |
+
+> **Security Notice**: AI diagnosis is strictly limited to local Ollama (localhost:11434). Inspection data is never sent to any third-party service. This is enforced at the code level — even if the configuration file is tampered with to use a remote address, the system will automatically fall back to the disabled state.
+
+### Risk Detection and Recommendations
+
+Each risk is presented as a card: **Risk Level (High/Medium/Low) → Issue Description → Remediation SQL (copy-paste ready) → Priority & Owner**. The report automatically aggregates all findings so you can see every pending item at a glance.
+
+| Dimension | MySQL | PostgreSQL | Oracle | DM8 |
+|-----------|:-----:|:----------:|:------:|:---:|
+| Connection Resources | ✅ | ✅ | ✅ | ✅ |
+| Cache Performance | ✅ | ✅ | ✅ | ✅ |
+| Query Efficiency | ✅ | ✅ | ✅ | ✅ |
+| Logs and Alerts | ✅ | ✅ | ✅ | ✅ |
+| Security Audit | ✅ | ✅ | ✅ | ✅ |
+| Replication / DG | ✅ | ✅ | — | — |
+| Configuration Tuning | ✅ | ✅ | ✅ | ✅ |
+| Tablespaces | — | — | ✅ | ✅ |
+| SGA / PGA Memory | — | — | ✅ | ✅ |
+| Redo Logs | — | — | ✅ | ✅ |
+| Backup and Archiving | — | — | ✅ | ✅ |
+| RAC Cluster | — | — | ✅ | — |
+| ASM Disk Groups | — | — | ✅ | — |
+| Undo Management | — | — | ✅ | ✅ |
 | Data Guard | — | — | ✅ | — |
-| DM8 特有视图 | — | — | — | ✅ |
+| DM8-Specific Views | — | — | — | ✅ |
 
 ---
 
-## 四大核心能力
+## Four Core Capabilities
 
-| 能力 | 说明 |
-|------|------|
-| 📊 历史趋势分析 | 同一数据库多次巡检数据自动汇聚，生成指标趋势折线图，与上次对比发现变化 |
-| 🤖 AI 智能诊断 | 基于巡检指标调用本地 Ollama，生成个性化优化建议 |
-| 🔍 80+ 条增强规则 | 覆盖四种数据库全维度风险检测（MySQL 18+条 / PG 16+条 / Oracle 20+条 / DM8 16+条） |
-| 🦞 OpenClaw Skill | AI 助手一句话完成巡检，零操作生成报告 |
-
----
-
-## 五种使用方式
-
-| 方式 | 说明 |
-|------|------|
-| 🖥️ 命令行 | `python main.py`，终端交互，适合熟悉命令行的用户 |
-| 🌐 Web UI | `python web_ui.py`，浏览器图形界面，支持趋势图和 AI 诊断配置 |
-| 🤖 OpenClaw Skill | 告诉 AI 助手"帮我巡检 XX 库"，零操作自动完成 |
-| 📦 打包部署 | PyInstaller 打包成分发版，给团队成员使用 |
+| Capability | Description |
+|-----------|-------------|
+| 📊 Historical Trend Analysis | Automatically aggregates data from multiple inspection runs on the same database, generates metric trend line charts, and compares against previous results to surface changes |
+| 🤖 AI-Powered Diagnosis | Calls local Ollama based on inspection metrics to generate personalized optimization recommendations |
+| 🔍 80+ Enhanced Rules | Full-dimensional risk detection across all four databases (MySQL 18+, PG 16+, Oracle 20+, DM8 16+) |
+| 🦞 OpenClaw Skill | Trigger a full inspection with one natural-language command — zero manual操作 required |
 
 ---
 
-## 功能特性
+## Five Ways to Use DBCheck
 
-### 数据库巡检
+| Method | Description |
+|--------|-------------|
+| 🖥️ Command-Line | `python main.py` — terminal interaction, ideal for CLI-familiar users |
+| 🌐 Web UI | `python web_ui.py` — browser-based GUI with trend charts and AI configuration |
+| 🤖 OpenClaw Skill | Tell your AI assistant "inspect the Oracle production库" — fully automated |
+| 📦 Packaged Distribution | PyInstaller bundles everything into a single executable for team distribution |
 
-| 维度 | MySQL | PostgreSQL | Oracle | DM8 |
-|------|:-----:|:----------:|:-----------:|:----:|
-| 基本信息（版本/实例/数据库） | ✅ | ✅ | ✅ | ✅ |
-| 会话与连接状态 | ✅ | ✅ | ✅ | ✅ |
-| 内存与缓存配置 | ✅ | ✅ | ✅ | ✅ |
-| 表空间使用情况 | — | — | ✅ | ✅ |
-| SGA / PGA 内存分析 | — | — | ✅ | ✅ |
-| Redo 日志与状态 | — | — | ✅ | ✅ |
-| 归档与备份检查 | — | — | ✅ | ✅ |
-| 关键参数配置 | ✅ | ✅ | ✅ | ✅ |
-| 无效对象检测 | ✅ | ✅ | ✅ | ✅ |
-| 用户安全审计 | ✅ | ✅ | ✅ | ✅ |
-| Top SQL / 慢查询 | ✅ | ✅ | ✅ | ✅ |
-| 主从复制 / Data Guard | ✅ | ✅ | — | — |
-| RAC 集群信息 | — | — | ✅ | — |
-| ASM 磁盘组 | — | — | ✅ | — |
-| Undo 表空间管理 | — | — | ✅ | ✅ |
-| 回收站 / 闪回恢复区 | — | — | ✅ | ✅ |
-| Profile 密码策略 | — | — | ✅ | — |
-| 等待事件 TOP | — | — | ✅ | ✅ |
-| 统计信息陈旧检测 | — | — | ✅ | ✅ |
-| 分区表信息 | — | — | ✅ | ✅ |
-| 数据文件状态 | — | — | ✅ | ✅ |
-| DM8 缓冲池详情 | — | — | — | ✅ |
+---
 
-### 系统资源监控
+## Features
 
-- **CPU**：使用率、核心数、频率
-- **内存**：总量、使用量、可用量、使用率
-- **磁盘**：各挂载点容量及使用率
-- **采集方式**：本地直采或 SSH 远程采集（支持密码/密钥认证，默认端口 22）；达梦 DM8 支持 SSH 采集（失败时自动降级为本地采集器）
+### Database Inspection
 
-### 智能风险分析
+| Dimension | MySQL | PostgreSQL | Oracle | DM8 |
+|-----------|:-----:|:----------:|:------:|:---:|
+| Basic Info (version / instance / database) | ✅ | ✅ | ✅ | ✅ |
+| Session and Connection Status | ✅ | ✅ | ✅ | ✅ |
+| Memory and Cache Configuration | ✅ | ✅ | ✅ | ✅ |
+| Tablespace Usage | — | — | ✅ | ✅ |
+| SGA / PGA Memory Analysis | — | — | ✅ | ✅ |
+| Redo Log Status | — | — | ✅ | ✅ |
+| Archiving and Backup Checks | — | — | ✅ | ✅ |
+| Key Parameter Configuration | ✅ | ✅ | ✅ | ✅ |
+| Invalid Object Detection | ✅ | ✅ | ✅ | ✅ |
+| User Security Audit | ✅ | ✅ | ✅ | ✅ |
+| Top SQL / Slow Queries | ✅ | ✅ | ✅ | ✅ |
+| Master-Slave Replication / Data Guard | ✅ | ✅ | — | — |
+| RAC Cluster Information | — | — | ✅ | — |
+| ASM Disk Groups | — | — | ✅ | — |
+| Undo Tablespace Management | — | — | ✅ | ✅ |
+| Recycle Bin / Flashback Recovery Area | — | — | ✅ | ✅ |
+| Profile Password Policy | — | — | ✅ | — |
+| Top Wait Events | — | — | ✅ | ✅ |
+| Stale Statistics Detection | — | — | ✅ | ✅ |
+| Partitioned Table Information | — | — | ✅ | ✅ |
+| Datafile Status | — | — | ✅ | ✅ |
+| DM8 Buffer Pool Details | — | — | — | ✅ |
 
-自动检测数据库潜在风险，**每条风险附可执行的修复 SQL**，可直接复制到数据库执行：
+### System Resource Monitoring
 
-#### MySQL（18+ 条规则）
+- **CPU**: utilization, core count, clock speed
+- **Memory**: total, used, available, utilization rate
+- **Disk**: capacity and utilization per mount point
+- **Collection**: local collection or SSH remote collection (password/key auth supported, default port 22); Dameng DM8 supports SSH collection with automatic fallback to local collector on failure
 
-| 维度 | 规则示例 |
-|------|---------|
-| 连接数 | 使用率 >90% 高危 / >80% 中危 |
-| 内存 | InnoDB 缓冲池偏小（<数据总量 60%）|
-| 磁盘 | 使用率 >85% 警告 / >95% 高危 |
-| 查询 | 长时间运行 SQL（>60s）、慢查询日志未开启 |
-| 锁 | 锁等待比例偏高 |
-| 安全 | 用户空密码、root@% 暴露、字符集非 UTF8 |
-| 复制 | 主从延迟 >30s、复制状态异常 |
-| 其他 | binlog 未开启、查询缓存残留、异常中止连接过多 |
+### Intelligent Risk Analysis
 
-#### PostgreSQL（16+ 条规则）
+Automatically detects potential database risks — **each risk includes an executable remediation SQL** ready to copy and run:
 
-| 维度 | 规则示例 |
-|------|---------|
-| 连接 | 连接数接近上限、超级用户过多 |
-| 缓存 | 缓存命中率偏低（<80%）、shared_buffers 偏小 |
-| 性能 | dead tuples 大量累积、长时间运行 SQL |
-| 安全 | 公开 schema 权限过宽 |
-| 归档 | 归档模式未开启 |
-| 其他 | 磁盘/内存/CPU 资源告警 |
+#### MySQL (18+ rules)
 
-#### Oracle（20+ 条规则）
+| Dimension | Example Rules |
+|-----------|--------------|
+| Connections | Usage >90% = critical / >80% = warning |
+| Memory | InnoDB buffer pool too small (< 60% of data size) |
+| Disk | Usage >85% = warning / >95% = critical |
+| Queries | Long-running SQL (>60s), slow query log disabled |
+| Locks | High lock wait ratio |
+| Security | Empty password users, root@% exposure, non-UTF8 charset |
+| Replication | Master-slave lag >30s, replication errors |
+| Other | binlog disabled, query cache remnants, excessive aborted connections |
 
-| 维度 | 规则示例 |
-|------|---------|
-| 表空间 | 使用率 >90%（含自动扩展计算）|
-| TEMP | 临时表空间使用率偏高 |
-| 会话 | 数接近上限 / 进程超限 / 锁阻塞 |
-| 内存 | SGA 占物理内存比例过高 |
-| Redo | Redo 日志组异常 / 切换频繁 |
-| 备份 | 归档模式未开启 / RMAN 备份缺失 |
-| DG | MRP 未运行 / 保护模式偏低 |
-| ASM | 磁盘组空间不足 / 离线磁盘 |
-| FRA | 闪回恢复区使用率偏高 |
-| 对象 | 无效对象过多 / 统计信息陈旧 |
-| 安全 | Profile 密码策略宽松 / 审计未开启 |
-| 其他 | open_cursors 偏小 / 回收站占用 / 数据文件脱机 |
+#### PostgreSQL (16+ rules)
 
-#### DM8（16+ 条规则）
+| Dimension | Example Rules |
+|-----------|--------------|
+| Connections | Near limit, too many superusers |
+| Cache | Low hit ratio (<80%), undersized shared_buffers |
+| Performance | Large accumulation of dead tuples, long-running SQL |
+| Security | Overly permissive public schema permissions |
+| Archiving | Archiving mode disabled |
+| Other | Disk / memory / CPU resource alerts |
 
-| 维度 | 规则示例 |
-|------|---------|
-| 表空间 | 使用率 >90%（含自动扩展计算）|
-| 内存 | 各缓冲池（KEEP/RECYCLE/FAST/NORMAL/ROLL）配置异常 |
-| 会话 | 连接数接近上限 / 长时间运行会话 |
-| 事务 | 阻塞事务检测 / 事务等待 |
-| 备份 | 备份集缺失 / 备份超时 |
-| 参数 | 关键参数（INSTANCE_MODE, COMPATIBLE_VERSION 等）配置检查 |
-| 安全 | 用户空密码 / 权限过宽 / 审计未开启 |
-| 对象 | 无效对象 / 统计信息陈旧 / 分区表信息 |
-| 归档 | 归档模式未开启 / 归档日志堆积 |
+#### Oracle (20+ rules)
 
-### 历史趋势分析 📊
+| Dimension | Example Rules |
+|-----------|--------------|
+| Tablespace | Usage >90% (including autoextend calculation) |
+| TEMP | Temp tablespace usage too high |
+| Sessions | Near limit / process overflow / lock blocking |
+| Memory | SGA too large relative to physical memory |
+| Redo | Redo log group issues / frequent switches |
+| Backup | Archiving disabled / missing RMAN backups |
+| DG | MRP not running / protection mode too low |
+| ASM | Disk group space insufficient / offline disks |
+| FRA | Flashback Recovery Area usage too high |
+| Objects | Too many invalid objects / stale statistics |
+| Security | Permissive Profile password policy / auditing disabled |
+| Other | open_cursors too small / recycle bin bloat / datafiles offline |
 
-> 多次巡检同一个数据库，自动汇聚指标数据，生成趋势图，发现悄然发生的变化。
+#### DM8 (16+ rules)
 
-- 每次巡检后，关键指标（内存使用率、连接数、QPS、CPU 等）自动写入本地 `history.json`
-- 同一数据库（IP + 端口 + 类型）多次巡检数据聚合保留，最多 30 条历史记录
-- Web UI 提供**趋势分析页面**，绘制指标折线图，带警戒线标注
-- 与上次巡检逐项对比：变化量带颜色箭头（↑ 变差 / ↓ 好转）
+| Dimension | Example Rules |
+|-----------|--------------|
+| Tablespace | Usage >90% (including autoextend calculation) |
+| Memory | Pool misconfigurations (KEEP/RECYCLE/FAST/NORMAL/ROLL) |
+| Sessions | Near connection limit / long-running sessions |
+| Transactions | Blocking transaction detection / waits |
+| Backup | Missing backup sets / backup timeouts |
+| Parameters | Key parameters (INSTANCE_MODE, COMPATIBLE_VERSION, etc.) |
+| Security | Empty passwords / overly broad permissions / auditing disabled |
+| Objects | Invalid objects / stale statistics / partitioned table info |
+| Archiving | Archiving disabled / log accumulation |
 
-### AI 智能诊断 🤖
+### Historical Trend Analysis
 
-> 基于巡检数据，调用本地 Ollama 大模型生成个性化优化建议，从"发现问题"升级到"解决问题"。
+> Run multiple inspections on the same database, and DBCheck automatically aggregates the data to generate trend charts — spotting gradual changes before they become incidents.
 
-AI 诊断与智能分析的关系：
+- After each inspection, key metrics (memory utilization, connections, QPS, CPU, etc.) are written to local `history.json`
+- Data is aggregated per database (IP + port + type), retaining up to 30 historical records
+- The Web UI provides a **trend analysis page** with line charts and threshold lines
+- Side-by-side comparison with the previous run: changes shown with colored arrows (↑ deteriorating / ↓ improving)
 
-| | 智能分析 | AI 诊断 |
+### AI-Powered Diagnosis
+
+> Leveraging inspection data, DBCheck calls a local Ollama LLM to generate personalized optimization recommendations — evolving from "problem detection" to "problem resolution".
+
+Comparison of Intelligent Analysis vs. AI Diagnosis:
+
+| | Intelligent Analysis | AI Diagnosis |
 |---|---|---|
-| 原理 | 固定规则，离线判断 | 本地大模型推理，个性化输出 |
-| 速度 | 毫秒级 | 取决于模型响应时间 |
-| 结果 | 确定性结论 + 修复 SQL | 自然语言优化建议，Markdown 自动渲染为 Word 格式 |
-| 调用 | 每次巡检自动执行 | 按需调用（可关闭） |
+| Principle | Fixed rules, deterministic offline judgment | Local LLM inference, personalized output |
+| Speed | Milliseconds | Depends on model response time |
+| Output | Deterministic conclusions + remediation SQL | Natural language recommendations, Markdown auto-rendered to Word |
+| Invocation | Runs automatically on every inspection | On-demand (can be disabled) |
 
-**AI 后端配置（Web UI 可视化设置）：**
+**AI Backend Configuration (Web UI Settings):**
 
-| 参数 | 说明 |
-|------|------|
-| 后端类型 | `ollama` 或 `disabled` |
-| API 地址 | 默认 `http://localhost:11434`（仅允许 localhost）|
-| 模型名称 | 如 `qwen3:30b`、`qwen3:8b`、`llama3` 等 |
-| 超时时间 | 默认 600 秒（大模型冷启动较慢）|
+| Parameter | Description |
+|-----------|-------------|
+| Backend Type | `ollama` or `disabled` |
+| API Address | Default `http://localhost:11434` (localhost only) |
+| Model Name | e.g. `qwen3:30b`, `qwen3:8b`, `llama3`, etc. |
+| Timeout | Default 600 seconds (LLM cold start can be slow) |
 
-> ⚠️ 出于安全考虑，非 localhost 的 API 地址会被代码自动拒绝，防止敏感数据外传。
+> For security reasons, any non-localhost API address is automatically rejected by the code to prevent data leakage.
 
 ---
 
-## 环境要求
+## Environment Requirements
 
-- **操作系统**：Linux / macOS / Windows
-- **Python**：3.6 及以上
-- **通用依赖**：pymysql、psycopg2-binary、python-docx、docxtpl、paramiko、psutil、openpyxl、pandas、flask、flask_socketio
-- **Oracle 依赖**：`oracledb`（推荐）或 `cx_Oracle`（需要 Oracle Instant Client）
-- **DM8 依赖**：`dmpython`（pip install dmpython）
-- **MySQL 权限**：查询 information_schema、performance_schema、mysql 库的只读权限
-- **PostgreSQL 权限**：查询 pg_stat_* 系列系统视图及 pg_roles 的只读权限
-- **Oracle 权限**：查询 v$* 视图 / dba_* 视图的只读权限；支持 SYSDBA 特权连接（Web UI 复选框一键启用）
-- **DM8 权限**：查询 V$* 系统视图 / DBA_* 管理视图的只读权限；默认端口 5236；连接用户即 Schema（无需 database 参数）
-- **SSH（可选）**：用于远程采集系统资源（MySQL / PostgreSQL / Oracle / DM8）；默认端口 22；DM8 SSH 采集失败时自动降级为本地采集器
+- **Operating System**: Linux / macOS / Windows
+- **Python**: 3.6+
+- **General Dependencies**: pymysql, psycopg2-binary, python-docx, docxtpl, paramiko, psutil, openpyxl, pandas, flask, flask_socketio
+- **Oracle Dependencies**: `oracledb` (recommended, pure Python, no Instant Client needed) or `cx_Oracle` (requires Oracle Instant Client)
+- **DM8 Dependencies**: `dmpython` (pip install dmpython)
+- **MySQL Privileges**: Read-only access to information_schema, performance_schema, and mysql databases
+- **PostgreSQL Privileges**: Read-only access to pg_stat_* series views and pg_roles
+- **Oracle Privileges**: Read-only access to v$* and dba_* views; SYSDBA privileged connections supported (Web UI checkbox for one-click enablement)
+- **DM8 Privileges**: Read-only access to V$* system views and DBA_* admin views; default port 5236; connecting user equals Schema (no `database` parameter needed)
+- **SSH (optional)**: Used for remote system resource collection (MySQL / PostgreSQL / Oracle / DM8); default port 22; DM8 SSH falls back to local collector on failure
 
-### 安装依赖
+### Installing Dependencies
 
 ```bash
 pip install pymysql psycopg2-binary paramiko=4.0.0 openpyxl docxtpl python-docx pandas psutil flask oracledb dmpython flask_socketio
-
-> 💡 DM8 驱动安装提示：
-> - `dmpython`：达梦官方提供的纯 Python 驱动（pip install dmpython），推荐使用
-> - 连接参数说明：主机 + 端口（默认 5236）+ 用户名（无 database 参数，用户即 Schema）
-> - DM8 的 V$ 视图列名与 Oracle 有较大差异，工具已做针对性适配
 ```
 
-> 💡 Oracle 驱动安装提示：
-> - `oracledb`：纯 Python 实现，无需 Instant Client，推荐使用
-> - `cx_Oracle`：需要额外下载 [Oracle Instant Client](https://www.oracle.com/database/technologies/instant-client.html) 并配置环境变量
+> DM8 Driver Notes:
+> - `dmpython`: Pure Python driver provided by Dameng (pip install dmpython), recommended
+> - Connection parameters: host + port (default 5236) + username (no `database` parameter — the user is the Schema)
+> - DM8's V$ view column names differ significantly from Oracle; the tool includes targeted adaptations for DM8
+
+> Oracle Driver Notes:
+> - `oracledb`: Pure Python implementation, no Instant Client required, recommended
+> - `cx_Oracle`: Requires downloading [Oracle Instant Client](https://www.oracle.com/database/technologies/instant-client.html) and configuring environment variables
 
 ---
 
-## 快速开始
+## Quick Start
 
 ```bash
 python main.py
 ```
 
-主入口菜单提供七个选项：
+The main menu offers seven options:
 
 ```
 ==================================================
-  🗄️  数据库自动化巡检工具  v2.3  统一入口
+  🗄️  Database Automation Inspector  v2.3  Main Menu
 ==================================================
-    🐬  1 │ MySQL           MySQL 数据库健康巡检与报告生成
-    🐘  2 │ PostgreSQL      PostgreSQL 数据库健康巡检与报告生成
-    🔴  3 │ Oracle          Oracle 数据库深度健康巡检（20+ 巡检项）
-    🟡  4 │ DM8             达梦 DM8 数据库健康巡检与报告生成
-    📋  5 │ 批量生成巡检模板  生成批量巡检 Excel 模板
-    🌐  6 │ 启动 Web UI     浏览器可视化操作界面
-        7 │ 退出
+    🐬  1 │ MySQL           MySQL Health Inspection & Report
+    🐘  2 │ PostgreSQL      PostgreSQL Health Inspection & Report
+    🔴  3 │ Oracle          Oracle Deep Health Inspection (20+ Checks)
+    🟡  4 │ DM8             Dameng DM8 Health Inspection & Report
+    📋  5 │ Batch Template  Generate Batch Inspection Excel Template
+    🌐  6 │ Launch Web UI   Browser-based GUI
+        7 │ Exit
 ==================================================
 ```
 
-1. 输入 **1~3**，进入对应数据库类型的巡检功能菜单
-2. 输入 **4**，选择要生成的模板类型（MySQL / PostgreSQL / Oracle / DM8）
-3. 输入 **5**，启动 Web UI 服务
-4. 输入 **6** 退出工具
+1. Enter **1–3** to enter the inspection menu for the corresponding database type
+2. Enter **4** to select a template type to generate (MySQL / PostgreSQL / Oracle / DM8)
+3. Enter **5** to launch the Web UI
+4. Enter **6** to exit
 
-#### 单机巡检流程（以 Oracle 全面巡检为例）
+#### Single Instance Inspection (Oracle as Example)
 
-1. 选择 **3** 进入 Oracle 巡检菜单
-2. 选择 **1** 进行单机巡检
-3. 根据提示填写：
-   - 巡检名称
-   - 数据库 IP / 端口（默认 1521）/ 服务名或 SID
-   - 用户名（支持 SYSDBA 身份，Web UI 提供复选框，CLI 支持 `sys as sysdba` 语法）/ 密码
-   - SSH 信息（可选，默认端口 22，用于采集系统资源）
-4. 工具自动执行 42 项 SQL 检查 → 采集系统信息 → 智能风险分析 → AI 诊断（可选）
-5. 生成 Word 巡检报告
+1. Select **3** to enter the Oracle inspection menu
+2. Select **1** for single-instance inspection
+3. Fill in as prompted:
+   - Inspection name
+   - Database IP / port (default 1521) / service name or SID
+   - Username (SYSDBA supported — Web UI checkbox, CLI accepts `sys as sysdba` syntax) / password
+   - SSH info (optional, default port 22, used for system resource collection)
+4. The tool runs 42 SQL checks → collects system info → runs intelligent risk analysis → AI diagnosis (optional)
+5. A Word inspection report is generated
 
-#### 批量巡检
+#### Batch Inspection
 
-1. 先通过选项 **4** 生成对应的 Excel 批量巡检模板
-2. 在模板中填写多个数据库实例的连接信息
-3. 选择 **2** 批量巡检，程序自动依次巡检所有实例
+1. Generate the corresponding Excel batch inspection template via option **4**
+2. Fill in connection information for multiple database instances in the template
+3. Select **2** for batch inspection — the program automatically runs through all instances
 
-### Web UI（可视化界面）
+### Web UI
 
-启动 Web 服务后，在浏览器访问 **http://localhost:5003** 即可通过图形界面完成所有巡检操作。
+Start the web service and visit **http://localhost:5003** in your browser to perform all inspections via the GUI.
 
 ```bash
 python web_ui.py
 ```
 
-**Web UI 操作步骤：**
+**Web UI Workflow:**
 
-| 步骤 | 功能 |
-|:---:|------|
-| 1 | 选择数据库类型（🐬 MySQL / 🐘 PostgreSQL / 🔴 Oracle / 🟡 DM8）|
-| 2 | 填写连接信息，Oracle 需额外填写服务名/SID，DM8 无需填写 database 名 |
-| 3 | 支持在线测试数据库连接（含 SYSDBA 特权验证，Web UI 复选框一键启用）|
-| 4 | 配置 SSH 采集系统资源（可选，默认端口 22；DM8 支持 SSH 采集，失败时自动降级）|
-| 5 | 填写巡检人员姓名（默认为 dbcheck）|
-| 6 | 确认信息后一键执行，实时查看日志进度（SSE 推送）|
-| 7 | 巡检完成，在线预览智能分析 + AI 诊断结果 |
-| 8 | 📊 历史趋势分析：查看同一数据库多次巡检的指标趋势 |
-| 9 | 🤖 AI 诊断设置：配置本地 Ollama 参数（地址/模型/超时）|
-| 10 | 下载 Word 报告，随时查阅历史报告 |
+| Step | Function |
+|:---:|---------|
+| 1 | Select database type (🐬 MySQL / 🐘 PostgreSQL / 🔴 Oracle / 🟡 DM8) |
+| 2 | Fill in connection info — Oracle requires service name/SID; DM8 does not need a database name |
+| 3 | Online connection testing (SYSDBA privileged verification via checkbox) |
+| 4 | Configure SSH for system resource collection (optional, default port 22; DM8 supports SSH with auto-fallback) |
+| 5 | Inspector name (default: dbcheck) |
+| 6 | Confirm and execute with one click — real-time log streaming (SSE) |
+| 7 | Upon completion, preview intelligent analysis + AI diagnosis results online |
+| 8 | 📊 Historical trend analysis: view metric trends across multiple inspection runs |
+| 9 | 🤖 AI diagnosis settings: configure local Ollama parameters (address / model / timeout) |
+| 10 | Download the Word report and browse historical reports |
 
-### OpenClaw Skill（AI 助手直连）
+### OpenClaw Skill
 
-本项目已发布为 [ClawHub](https://clawhub.ai/skills/dbcheck) 上的 OpenClaw Skill，接入 AI 助手后可通过自然语言直接触发巡检，无需手动操作命令行或 Web UI。
+DBCheck is published as an OpenClaw Skill on [ClawHub](https://clawhub.ai/skills/dbcheck). Once installed in your AI assistant, you can trigger inspections via natural language — no CLI or Web UI needed.
 
-#### 安装方式
+#### Installation
 
-在 OpenClaw 客户端执行：
+Run in your OpenClaw client:
 
 ```bash
 clawhub install dbcheck
 ```
 
-#### 使用方式
+#### Usage
 
-安装后，直接告诉 AI 助手你想做的事，例如：
+After installation, simply tell your AI assistant what you need, for example:
 
-> "帮我巡检一下 Oracle 生产库，IP 是 192.168.1.10，用户名 sys as sysdba"
+> "Inspect the Oracle production库 at IP localhost, username sys as sysdba"
 
-AI 助手会自动加载 Skill，按步骤询问缺少的信息（端口、服务名、巡检人员姓名等），然后调用巡检脚本生成 Word 报告。
+The AI assistant will load the Skill, ask for missing information step by step (port, service name, inspector name, etc.), then invoke the inspection script to generate a Word report.
 
-#### 支持的指令
+#### Supported Commands
 
-| 指令示例 | 说明 |
-|---------|------|
-| 帮我巡检一下 MySQL 库 | 单机 MySQL 巡检 |
-| 帮我巡检一下 PostgreSQL 库 | 单机 PG 巡检 |
-| 帮我巡检一下 Oracle 库 | 单机 Oracle 巡检 |
-| 巡检 192.168.1.10 的 Oracle | 指定 IP 的快速巡检 |
-| 生成一份数据库巡检报告 | 触发完整巡检流程 |
+| Example Command | Description |
+|---------------|-------------|
+| Help me inspect a MySQL库 | Single-instance MySQL inspection |
+| Help me inspect a PostgreSQL库 | Single-instance PG inspection |
+| Help me inspect an Oracle库 | Single-instance Oracle inspection |
+| Inspect Oracle at localhost | Quick inspection targeting a specific IP |
+| Generate a database inspection report | Trigger the full inspection workflow |
 
-#### Skill 文件结构
+#### Skill File Structure
 
 ```
 dbcheck/skill/dbcheck/
-├── SKILL.md           # Skill 说明
-├── security.md        # 安全说明
+├── SKILL.md               # Skill documentation
+├── security.md            # Security notes
 └── scripts/
-    ├── run_inspection.py   # 非交互式入口
-    ├── main_mysql.py       # MySQL 巡检逻辑
-    ├── main_pg.py         # PostgreSQL 巡检逻辑
-    ├── main_oracle_full.py # Oracle 巡检逻辑（20+ 巡检项）
-    ├── main_dm.py         # 达梦 DM8 巡检逻辑
-    ├── analyzer.py        # 智能风险分析引擎
-    └── main.py             # 统一菜单入口
+    ├── run_inspection.py       # Non-interactive entry point
+    ├── main_mysql.py           # MySQL inspection logic
+    ├── main_pg.py              # PostgreSQL inspection logic
+    ├── main_oracle_full.py     # Oracle inspection logic (20+ checks)
+    ├── main_dm.py              # Dameng DM8 inspection logic
+    ├── analyzer.py             # Intelligent risk analysis engine
+    └── main.py                 # Unified menu entry
 ```
 
-> ⚠️ **安全提示**：Skill 凭据仅用于建立本地连接，不会发送到任何第三方。AI 诊断仅使用本地 Ollama。
+> **Security Notice**: Skill credentials are used only to establish local connections and are never sent to any third party. AI diagnosis uses local Ollama exclusively.
 
 ---
 
-## 打包部署
+## Packaging and Distribution
 
-使用 PyInstaller 配置文件 `dbcheck.spec` 进行打包，将所有依赖、模板文件、项目模块全部打入单个 exe 文件：
+Use the PyInstaller configuration file `dbcheck.spec` to bundle everything into a single executable containing all dependencies, templates, and project modules:
 
 ```bash
 cd D:\DBCheck
 
-# 清理旧构建（Windows）
+# Clean old build (Windows)
 rd /s /q build dist __pycache__ 2>nul
 
-# 打包
+# Package
 pyinstaller dbcheck.spec
 ```
 
-> Linux/macOS 上请使用 `rm -rf build dist __pycache__` 清理。
+> On Linux/macOS, use `rm -rf build dist __pycache__` to clean.
 
-打包后执行：
+Run the packaged version:
 
 ```bash
 cd dist
@@ -374,157 +398,160 @@ dbcheck.exe         # Windows
 ./dbcheck           # Linux/macOS
 ```
 
-双击即可运行完整版程序，包含所有数据库驱动、Word 模板、Web UI 页面模板，无需安装 Python 环境。
+Double-click to run the full-featured program with all database drivers, Word templates, and Web UI templates included — no Python environment installation required.
 
 ---
 
-## 报告结构
+## Report Structure
 
-生成的 Word 报告包含以下章节（Oracle 巡检报告示例）：
+The generated Word report contains the following chapters (Oracle inspection report example):
 
-| 章节 | 内容（Oracle 巡检）|
-|------|------|
-| 封面 | 数据库名称、服务器地址、版本、主机名、启动时间、巡检人员、平台、报告时间 |
-| 第1章 | OS 主机信息（CPU/内存/磁盘）|
-| 第2章 | 数据库基本信息（版本/实例名/数据库名）|
-| 第3章 | 表空间（永久 + 临时，含自动扩展）|
-| 第4章 | SGA / PGA 内存分析 |
-| 第5章 | 关键参数配置 |
-| 第6章 | Undo 表空间管理 |
-| 第7章 | 重做日志（Redo）|
-| 第8章 | 归档与备份 |
-| 第9章 | Data Guard 状态 |
-| 第10章 | RAC 集群信息 |
-| 第11章 | ASM 磁盘组 |
-| 第12章 | 会话与连接（含等待事件 TOP5）|
-| 第13章 | 性能指标（含 AWR 快照分析）|
-| 第14章 | Alert 日志分析 |
-| 第15章 | 用户与安全 |
-| 第16章 | 无效对象与统计信息 |
-| 第17章 | 分区表信息 |
-| 第18章 | FRA 闪回恢复区 |
-| 第19章 | 回收站 |
-| 第20章 | 风险与建议（智能分析问题明细 + 修复 SQL 速查表）|
-| 第21章 | AI 诊断建议（Markdown 自动渲染为 Word 格式，含序号标题、代码块、列表）|
-| 第22章 | 报告说明 |
+| Chapter | Content (Oracle Inspection) |
+|---------|----------------------------|
+| Cover | Database name, server address, version, hostname, uptime, inspector, platform, report timestamp |
+| Chapter 1 | OS Host Information (CPU / Memory / Disk) |
+| Chapter 2 | Database Basic Information (version / instance name / database name) |
+| Chapter 3 | Tablespaces (permanent + temporary, including autoextend) |
+| Chapter 4 | SGA / PGA Memory Analysis |
+| Chapter 5 | Key Parameter Configuration |
+| Chapter 6 | Undo Tablespace Management |
+| Chapter 7 | Redo Logs |
+| Chapter 8 | Archiving and Backup |
+| Chapter 9 | Data Guard Status |
+| Chapter 10 | RAC Cluster Information |
+| Chapter 11 | ASM Disk Groups |
+| Chapter 12 | Sessions and Connections (including Top 5 Wait Events) |
+| Chapter 13 | Performance Metrics (including AWR snapshot analysis) |
+| Chapter 14 | Alert Log Analysis |
+| Chapter 15 | Users and Security |
+| Chapter 16 | Invalid Objects and Statistics |
+| Chapter 17 | Partitioned Table Information |
+| Chapter 18 | FRA Flashback Recovery Area |
+| Chapter 19 | Recycle Bin |
+| Chapter 20 | Risks and Recommendations (intelligent analysis details + remediation SQL quick reference) |
+| Chapter 21 | AI Diagnosis Recommendations (Markdown auto-rendered to Word with numbered headings, code blocks, lists) |
+| Chapter 22 | Report Notes |
 
-> 不同数据库类型的报告结构略有差异，但均包含封面、基本信息、性能分析、风险建议、AI 诊断、报告说明六大模块。
-
----
-
-## 常见问题
-
-### 通用问题
-
-1. **部分内容为空或缺失**
-   模板渲染出现兼容性问题时，程序会自动切换至备用渲染模式，仍可生成包含所有关键数据的完整报告，不影响使用。
-
-2. **连接失败**
-   检查数据库是否允许远程访问、用户权限是否充足、防火墙是否放行对应端口。
-
-3. **SSH 采集失败**
-   确认 SSH 服务正常运行（默认端口 22）、认证信息正确。部分精简版 Linux 可能缺少 `lscpu` 等命令，导致部分 CPU 信息显示为"未获取"，属正常现象。
-
-4. **AI 诊断不生效**
-   - 确认已在 Web UI「AI 诊断设置」中保存了有效配置
-   - 确保 Ollama 已启动：`ollama serve`
-   - 确保模型已下载：`ollama pull qwen3:30b`（建议大模型，冷启动慢）
-
-5. **风险建议仅供参考**
-   内置阈值基于通用最佳实践，实际场景中请结合业务负载综合评估。
-
-### Oracle 专项
-
-6. **ORA-01017 用户名/口令无效**
-   - 如果使用 SYSDBA 身份，Web UI 请勾选「SYSDBA」复选框；CLI 请输入 `sys as sysdba`（完整格式），工具会自动解析并使用正确的特权模式连接
-   - 确认密码正确（注意大小写）
-
-7. **ORA-00904 / ORA-00942 标识符无效**
-   部分高级视图/列在不同 Oracle 版本中可能不存在（如 11g vs 19c）。工具已做兼容处理，少数不兼容的项目会标记为⚠跳过，不影响整体巡检。
-
-8. **需要安装 Oracle 客户端吗？**
-   - 使用 `oracledb` 驱动（推荐）：不需要，纯 Python 实现
-   - 使用 `cx_Oracle` 驱动：需要下载 [Oracle Instant Client](https://www.oracle.com/database/technologies/instant-client.html)
-
-9. **Oracle 版本支持**
-   支持 **11g R2、12c、19c、21c** 及以上版本。SQL 模板已做跨版本兼容处理。
-
-### DM8 专项
-
-10. **连接失败（returned a result with an exception set）**
-    - dmPython 为惰性连接，连接对象创建成功不代表真正连通，需通过游标执行探测 SQL 才能确认
-    - 工具已内置自动探测逻辑，如仍失败请检查：端口是否正确（默认 5236）、用户密码是否正确、服务器是否允许该 IP 访问
-
-11. **提示"无效的列名"**
-    - DM8 的 V$ 视图列名与 Oracle 有较大差异，工具已针对 DM8 实测列名做过适配，如仍有报错请截图发给我们补充
-
-12. **SSH 采集功能不可用**
-    - 受限于达梦服务器 OpenSSH 版本（端口 2022），SSH 采集暂时禁用。系统资源信息将使用本地采集器，本地与达梦服务器信息不一致属正常现象。
-
-13. **报告中的"服务器主机名/平台"是本机信息**
-    - SSH 采集禁用后的已知限制，达梦服务器系统信息采集依赖 SSH 通道，后续版本将尝试修复
+> Report structure varies slightly by database type, but all include the six core modules: cover, basic information, performance analysis, risk recommendations, AI diagnosis, and report notes.
 
 ---
 
-## 界面截图
+## FAQ
 
-![首页](snapshot/webui0.png)
+### General
 
-![步骤一：选择数据库类型](snapshot/webui1.png)
-*图 1：选择数据库类型（MySQL 🐬 / PostgreSQL 🐘 / Oracle 🔴 / DM8 🟡）*
+1. **Some content is empty or missing**
+   When template rendering encounters compatibility issues, the program automatically switches to a fallback rendering mode and still produces a complete report with all key data — usage is unaffected.
 
-![步骤二：填写连接信息](snapshot/webui2.png)
-*图 2：填写数据库连接信息*
+2. **Connection failure**
+   Verify that the database allows remote access, the user has sufficient privileges, and the firewall permits the relevant port.
 
-![步骤三：在线连接测试数据库连接](snapshot/webui3.png)
-*图 3：在线连接测试数据库连接*
+3. **SSH collection failure**
+   Confirm the SSH service is running (default port 22) and authentication credentials are correct. Some stripped-down Linux distributions lack commands like `lscpu`, causing CPU information to show "not obtained" — this is normal.
 
-![步骤四：SSH 连接配置](snapshot/webui5.png)
-*图 4：SSH 连接配置（可选，默认端口 22）*
+4. **AI diagnosis not working**
+   - Confirm a valid configuration is saved in Web UI → AI Diagnosis Settings
+   - Ensure Ollama is running: `ollama serve`
+   - Ensure the model is downloaded: `ollama pull qwen3:30b` (larger models recommended; cold start is slow)
 
-![步骤五：巡检人员](snapshot/webui6.png)
-*图 5：巡检人员配置（默认为 dbcheck）*
+5. **Risk recommendations are for reference only**
+   Built-in thresholds are based on general best practices. Evaluate them in the context of your actual workload.
 
-![步骤六：确认巡检信息](snapshot/webui7.png)
-*图 6：确认巡检信息*
+### Oracle-Specific
 
-![步骤七：执行巡检](snapshot/webui8.png)
-*图 7：一键巡检，实时预览巡检进度*
+6. **ORA-01017 invalid username/password**
+   - For SYSDBA access: check the "SYSDBA" box in Web UI; in CLI, enter `sys as sysdba` (full format) — the tool automatically parses and uses the correct privileged mode
+   - Verify the password is correct (case-sensitive)
 
-![报告下载](snapshot/webui9.png)
-*图 8：巡检完成后直接下载 Word 报告*
+7. **ORA-00904 / ORA-00942 invalid identifier**
+   Some advanced views/columns may not exist in certain Oracle versions (e.g., 11g vs 19c). The tool handles compatibility gracefully; incompatible items are marked with ⚠️ and skipped without affecting the overall inspection.
 
-![历史报告](snapshot/webui10.png)
-*图 9：历史报告列表页，支持按名称、大小、时间浏览*
+8. **Do I need to install an Oracle client?**
+   - Using `oracledb` driver (recommended): No — pure Python implementation
+   - Using `cx_Oracle` driver: Yes — download [Oracle Instant Client](https://www.oracle.com/database/technologies/instant-client.html)
 
-![历史趋势分析](snapshot/webui12.png)
-*图 10：历史趋势分析*
+9. **Oracle version support**
+   Supports **11g R2, 12c, 19c, 21c** and above. SQL templates are cross-version compatible.
 
-![AI 诊断配置](snapshot/webui13.png)
-*图 11：AI 诊断配置，可完全本地运行，无需 API Key，数据不出本机。*
+### DM8-Specific
 
-![Clawhub dbcheck skill](snapshot/skill0.png)
-*图 12：dbcheck 已发布到 Clawhub*
+10. **Connection failure (returned a result with an exception set)**
+    - dmPython uses lazy connections — a successful connection object creation does not mean the connection is actually established; a probe SQL must be executed via cursor to confirm
+    - The tool includes built-in auto-probe logic. If it still fails, check: correct port (default 5236), correct user password, and whether the server allows access from your IP
+
+11. **"Invalid column name" error**
+    - DM8's V$ view column names differ significantly from Oracle; the tool has been adapted for DM8实测 column names. If errors persist, please send a screenshot so we can add support.
+
+12. **SSH collection not available**
+    - Limited by the Dameng server's OpenSSH version (port 2022), SSH collection is temporarily disabled. System resource information will use the local collector. Local and Dameng server information being inconsistent is expected.
+
+13. **"Server hostname/platform" in the report shows local machine info**
+    - A known limitation when SSH collection is disabled; Dameng server system info collection depends on the SSH channel and will be addressed in a future version.
+
+---
+
+## Screenshots
+
+![Home](snapshot/webui0.png)
+
+![Step 1: Select Database Type](snapshot/webui1.png)
+*Fig. 1: Select database type (MySQL 🐬 / PostgreSQL 🐘 / Oracle 🔴 / DM8 🟡)*
+
+![Step 2: Fill in Connection Info](snapshot/webui2.png)
+*Fig. 2: Fill in database connection information*
+
+![Step 3: Test Connection Online](snapshot/webui3.png)
+*Fig. 3: Online connection testing*
+
+![Step 4: SSH Configuration](snapshot/webui5.png)
+*Fig. 4: SSH configuration (optional, default port 22)*
+
+![Step 5: Inspector Name](snapshot/webui6.png)
+*Fig. 5: Inspector name configuration (default: dbcheck)*
+
+![Step 6: Confirm Inspection Info](snapshot/webui7.png)
+*Fig. 6: Confirm inspection information*
+
+![Step 7: Run Inspection](snapshot/webui8.png)
+*Fig. 7: One-click inspection with real-time log streaming*
+
+![Report Download](snapshot/webui9.png)
+*Fig. 8: Download Word report directly after inspection*
+
+![Historical Reports](snapshot/webui10.png)
+*Fig. 9: Historical report list, browsable by name, size, and time*
+
+![Historical Trend Analysis](snapshot/webui12.png)
+*Fig. 10: Historical trend analysis*
+
+![AI Diagnosis Configuration](snapshot/webui13.png)
+*Fig. 11: AI diagnosis configuration — fully local, no API key needed, data never leaves your machine*
+
+![ClawHub dbcheck Skill](snapshot/skill0.png)
+*Fig. 12: dbcheck published on ClawHub*
 
 ![QClaw](snapshot/skill1.png)
-*图 13：在 QClaw 等支持 OpenClaw Skills 的软件中使用 dbcheck。*
+*Fig. 13: Using dbcheck in QClaw and other OpenClaw-compatible applications*
 
 ![Reports](snapshot/report.png)
-*图 14：AI 诊断报告（Markdown 自动渲染为 Word 格式）。*
----
-## 鸣谢
-
-感谢 [Zhh9126/MySQLDBCHECK](https://github.com/Zhh9126/MySQLDBCHECK.git) 作者的贡献！
-> 本项目由 [Zhh9126/MySQLDBCHECK](https://github.com/Zhh9126/MySQLDBCHECK.git) 改进而来，在原 MySQL 支持的基础上新增了 PostgreSQL、Oracle、DM8 支持。
-
-目前部分功能仍在持续完善中，欢迎共同参与功能开发以及反馈问题与建议。
+*Fig. 14: AI diagnosis report (Markdown auto-rendered to Word format)*
 
 ---
 
-## 捐赠支持
+## Acknowledgments
 
-DBCheck 从初版到功能完善，历经了大量版本迭代和实测打磨。如果这个工具对你的工作有帮助，欢迎通过以下方式支持项目持续迭代：
+Special thanks to [Zhh9126/MySQLDBCHECK](https://github.com/Zhh9126/MySQLDBCHECK.git) for their foundational work!
 
-<img src="snapshot/pay.png" alt="PayPal 捐赠二维码" width="500" />
+> DBCheck is an improvement on [Zhh9126/MySQLDBCHECK](https://github.com/Zhh9126/MySQLDBCHECK.git), adding PostgreSQL, Oracle, and DM8 support on top of the original MySQL functionality.
 
-> 捐赠时备注你的名字或昵称，让我们知道谁在支持这个项目 ❤️
+Some features are still being actively developed and improved. Contributions and feedback are welcome!
+
+---
+
+## Support the Project
+
+DBCheck has undergone extensive iteration and real-world testing to reach its current state. If this tool has been helpful to you, consider supporting the project's continued development:
+
+<img src="snapshot/pay.png" alt="PayPal donation QR code" width="500" />
+
+> When donating, please include your name or nickname so we know who supports us ❤️

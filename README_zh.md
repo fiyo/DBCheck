@@ -1,12 +1,46 @@
 # 数据库巡检工具 - DBCheck
 
-支持对 **MySQL**、**PostgreSQL**、**Oracle** 和 **达梦 DM8** 四种主流关系型数据库进行自动化健康巡检，生成格式规范的 Microsoft Word 报告，帮助 DBA 和运维人员快速掌握数据库运行状况、发现潜在风险。
+>支持对 **MySQL**、**PostgreSQL**、**Oracle**和 **达梦 DM8** 四种主流关系型数据库进行自动化健康巡检，生成格式规范的 Microsoft Word 报告，帮助 DBA 和运维人员快速掌握数据库运行状况、发现潜在风险。
+
+
+[![Version](https://img.shields.io/badge/version-2.3.3-blue.svg)]()
+[![MySQL](https://img.shields.io/badge/database-MySQL-blue.svg)]()
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-gray.svg)]()
+[![Oracle](https://img.shields.io/badge/Oracle-red.svg)]()
+[![DM](https://img.shields.io/badge/DM-yellow.svg)]()
+[![License](https://img.shields.io/badge/license-MIT-green.svg)]()
+
+> Language: [English](./README_en.md) | [中文](./README.md)
+
+## 🌍 多语言支持
+
+DBCheck 支持**中文（默认）**和**英文**两种语言，界面文本随语言切换自动更新。
+
+### 命令行语言切换
+
+```bash
+python main.py                    # 默认中文
+python main.py --lang en         # 切换为英文
+python main.py --lang zh         # 切换为中文（显式指定）
+```
+
+> Web UI 右上角也有 🌐 切换按钮，点击即可中英文切换，切换结果自动保存。
+
+### 语言说明
+
+| 参数 | 语言 | 说明 |
+|------|------|------|
+| `--lang zh` | 中文 | 默认语言 |
+| `--lang en` | English | 英文界面 |
+| 不指定 | 中文 | 默认使用上一次保存的语言，无保存记录时默认为中文 |
+
+> **注意**：`--lang` 参数仅在当前会话临时生效，不会覆盖已保存的语言设置。Web UI 中切换语言会持久化到 `dbc_config.json`，下次启动 Web UI 时自动加载。
 
 ## AI 辅助 · 问题发现即处理
 
 ### 🤖 AI 智能诊断
 
-调用本地 **Ollama**（完全离线），基于当次巡检的指标数据（连接数、缓存命中率、慢查询数、安全风险等），自动生成结构化的优化建议。报告独立成章，方便直接转发给团队或领导审阅。
+调用本地 **Ollama**（完全离线），基于当次巡检的指标数据（连接数、缓存命中率、慢查询数、安全风险等），自动生成结构化的优化建议。报告独立成章，Markdown 格式内容自动渲染为 Word 样式（加粗、代码块、列表、标题序号），方便直接转发给团队或领导审阅。
 
 | 后端 | 特点 | 适用场景 |
 |------|------|---------|
@@ -20,13 +54,13 @@
 每条风险对应一张卡片，包含：**风险等级（高/中/低）→ 问题描述 → 修复 SQL（可直接复制执行）→ 优先级与负责人**。报告自动汇总，一眼看清全部待处理项。
 
 | 维度 | MySQL | PostgreSQL | Oracle | DM8 |
-|------|:-----:|:----------:|:------:|:----:|
+|------|:-----:|:----------:|:-----------:|:----:|
 | 连接资源 | ✅ | ✅ | ✅ | ✅ |
 | 缓存性能 | ✅ | ✅ | ✅ | ✅ |
 | 查询效率 | ✅ | ✅ | ✅ | ✅ |
 | 日志告警 | ✅ | ✅ | ✅ | ✅ |
 | 安全审计 | ✅ | ✅ | ✅ | ✅ |
-| 复制/DG | ✅ | ✅ | ✅ | — |
+| 复制/DG | ✅ | ✅ | — | — |
 | 配置优化 | ✅ | ✅ | ✅ | ✅ |
 | 表空间 | — | — | ✅ | ✅ |
 | SGA/PGA 内存 | — | — | ✅ | ✅ |
@@ -46,7 +80,7 @@
 |------|------|
 | 📊 历史趋势分析 | 同一数据库多次巡检数据自动汇聚，生成指标趋势折线图，与上次对比发现变化 |
 | 🤖 AI 智能诊断 | 基于巡检指标调用本地 Ollama，生成个性化优化建议 |
-| 🔍 80+ 条增强规则 | 覆盖四种数据库全维度风险检测（MySQL 18+ / PG 16+ / Oracle 20+ / DM8 16+） |
+| 🔍 80+ 条增强规则 | 覆盖四种数据库全维度风险检测（MySQL 18+条 / PG 16+条 / Oracle 20+条 / DM8 16+条） |
 | 🦞 OpenClaw Skill | AI 助手一句话完成巡检，零操作生成报告 |
 
 ---
@@ -67,7 +101,7 @@
 ### 数据库巡检
 
 | 维度 | MySQL | PostgreSQL | Oracle | DM8 |
-|------|:-----:|:----------:|:------:|:----:|
+|------|:-----:|:----------:|:-----------:|:----:|
 | 基本信息（版本/实例/数据库） | ✅ | ✅ | ✅ | ✅ |
 | 会话与连接状态 | ✅ | ✅ | ✅ | ✅ |
 | 内存与缓存配置 | ✅ | ✅ | ✅ | ✅ |
@@ -79,7 +113,7 @@
 | 无效对象检测 | ✅ | ✅ | ✅ | ✅ |
 | 用户安全审计 | ✅ | ✅ | ✅ | ✅ |
 | Top SQL / 慢查询 | ✅ | ✅ | ✅ | ✅ |
-| 主从复制 / Data Guard | ✅ | ✅ | ✅ | — |
+| 主从复制 / Data Guard | ✅ | ✅ | — | — |
 | RAC 集群信息 | — | — | ✅ | — |
 | ASM 磁盘组 | — | — | ✅ | — |
 | Undo 表空间管理 | — | — | ✅ | ✅ |
@@ -96,7 +130,7 @@
 - **CPU**：使用率、核心数、频率
 - **内存**：总量、使用量、可用量、使用率
 - **磁盘**：各挂载点容量及使用率
-- **采集方式**：本地直采或 SSH 远程采集（支持密码/密钥认证）；达梦 DM8 支持 SSH 采集（失败时自动降级为本地采集器）
+- **采集方式**：本地直采或 SSH 远程采集（支持密码/密钥认证，默认端口 22）；达梦 DM8 支持 SSH 采集（失败时自动降级为本地采集器）
 
 ### 智能风险分析
 
@@ -176,7 +210,7 @@ AI 诊断与智能分析的关系：
 |---|---|---|
 | 原理 | 固定规则，离线判断 | 本地大模型推理，个性化输出 |
 | 速度 | 毫秒级 | 取决于模型响应时间 |
-| 结果 | 确定性结论 + 修复 SQL | 自然语言优化建议 |
+| 结果 | 确定性结论 + 修复 SQL | 自然语言优化建议，Markdown 自动渲染为 Word 格式 |
 | 调用 | 每次巡检自动执行 | 按需调用（可关闭） |
 
 **AI 后端配置（Web UI 可视化设置）：**
@@ -185,7 +219,8 @@ AI 诊断与智能分析的关系：
 |------|------|
 | 后端类型 | `ollama` 或 `disabled` |
 | API 地址 | 默认 `http://localhost:11434`（仅允许 localhost）|
-| 模型名称 | 如 `qwen3:8b`、`llama3` 等 |
+| 模型名称 | 如 `qwen3:30b`、`qwen3:8b`、`llama3` 等 |
+| 超时时间 | 默认 600 秒（大模型冷启动较慢）|
 
 > ⚠️ 出于安全考虑，非 localhost 的 API 地址会被代码自动拒绝，防止敏感数据外传。
 
@@ -200,9 +235,9 @@ AI 诊断与智能分析的关系：
 - **DM8 依赖**：`dmpython`（pip install dmpython）
 - **MySQL 权限**：查询 information_schema、performance_schema、mysql 库的只读权限
 - **PostgreSQL 权限**：查询 pg_stat_* 系列系统视图及 pg_roles 的只读权限
-- **Oracle 权限**：查询 v$* 视图 / dba_* 视图的只读权限；支持 SYSDBA 特权连接
+- **Oracle 权限**：查询 v$* 视图 / dba_* 视图的只读权限；支持 SYSDBA 特权连接（Web UI 复选框一键启用）
 - **DM8 权限**：查询 V$* 系统视图 / DBA_* 管理视图的只读权限；默认端口 5236；连接用户即 Schema（无需 database 参数）
-- **SSH（可选）**：用于远程采集系统资源（MySQL / PostgreSQL / Oracle / DM8）；DM8 SSH 采集失败时自动降级为本地采集器
+- **SSH（可选）**：用于远程采集系统资源（MySQL / PostgreSQL / Oracle / DM8）；默认端口 22；DM8 SSH 采集失败时自动降级为本地采集器
 
 ### 安装依赖
 
@@ -227,36 +262,36 @@ pip install pymysql psycopg2-binary paramiko=4.0.0 openpyxl docxtpl python-docx 
 python main.py
 ```
 
-主入口菜单提供六个选项：
+主入口菜单提供七个选项：
 
 ```
 ==================================================
   🗄️  数据库自动化巡检工具  v2.3  统一入口
 ==================================================
-    🐬  1 │ MySQL      MySQL 数据库健康巡检与报告生成
-    🐘  2 │ PostgreSQL PostgreSQL 数据库健康巡检与报告生成
-    🔴  3 │ Oracle     Oracle 数据库健康巡检与报告生成
-    🟡  4 │ DM8        达梦 DM8 数据库健康巡检与报告生成
-    📋  5 │ 生成批量巡检模板   生成 MySQL / PostgreSQL / Oracle / DM8 批量巡检 Excel 模板
+    🐬  1 │ MySQL           MySQL 数据库健康巡检与报告生成
+    🐘  2 │ PostgreSQL      PostgreSQL 数据库健康巡检与报告生成
+    🔴  3 │ Oracle          Oracle 数据库深度健康巡检（20+ 巡检项）
+    🟡  4 │ DM8             达梦 DM8 数据库健康巡检与报告生成
+    📋  5 │ 批量生成巡检模板  生成批量巡检 Excel 模板
     🌐  6 │ 启动 Web UI     浏览器可视化操作界面
         7 │ 退出
 ==================================================
 ```
 
 1. 输入 **1~3**，进入对应数据库类型的巡检功能菜单
-2. 输入 **4**，选择要生成的模板类型（MySQL / PostgreSQL / Oracle）
+2. 输入 **4**，选择要生成的模板类型（MySQL / PostgreSQL / Oracle / DM8）
 3. 输入 **5**，启动 Web UI 服务
 4. 输入 **6** 退出工具
 
-#### 单机巡检流程（以 Oracle 为例）
+#### 单机巡检流程（以 Oracle 全面巡检为例）
 
 1. 选择 **3** 进入 Oracle 巡检菜单
 2. 选择 **1** 进行单机巡检
 3. 根据提示填写：
    - 巡检名称
    - 数据库 IP / 端口（默认 1521）/ 服务名或 SID
-   - 用户名（支持 `sys as sysdba` 等特权身份）/ 密码
-   - SSH 信息（可选，用于采集系统资源）
+   - 用户名（支持 SYSDBA 身份，Web UI 提供复选框，CLI 支持 `sys as sysdba` 语法）/ 密码
+   - SSH 信息（可选，默认端口 22，用于采集系统资源）
 4. 工具自动执行 42 项 SQL 检查 → 采集系统信息 → 智能风险分析 → AI 诊断（可选）
 5. 生成 Word 巡检报告
 
@@ -268,7 +303,7 @@ python main.py
 
 ### Web UI（可视化界面）
 
-启动 Web 服务后，在浏览器访问 **http://localhost:5000** 即可通过图形界面完成所有巡检操作。
+启动 Web 服务后，在浏览器访问 **http://localhost:5003** 即可通过图形界面完成所有巡检操作。
 
 ```bash
 python web_ui.py
@@ -280,13 +315,13 @@ python web_ui.py
 |:---:|------|
 | 1 | 选择数据库类型（🐬 MySQL / 🐘 PostgreSQL / 🔴 Oracle / 🟡 DM8）|
 | 2 | 填写连接信息，Oracle 需额外填写服务名/SID，DM8 无需填写 database 名 |
-| 3 | 支持在线测试数据库连接（含 SYSDBA 特权验证）|
-| 4 | 配置 SSH 采集系统资源（可选，DM8 支持 SSH 采集，失败时自动降级）|
-| 5 | 填写巡检人员姓名 |
+| 3 | 支持在线测试数据库连接（含 SYSDBA 特权验证，Web UI 复选框一键启用）|
+| 4 | 配置 SSH 采集系统资源（可选，默认端口 22；DM8 支持 SSH 采集，失败时自动降级）|
+| 5 | 填写巡检人员姓名（默认为 dbcheck）|
 | 6 | 确认信息后一键执行，实时查看日志进度（SSE 推送）|
 | 7 | 巡检完成，在线预览智能分析 + AI 诊断结果 |
 | 8 | 📊 历史趋势分析：查看同一数据库多次巡检的指标趋势 |
-| 9 | 🤖 AI 诊断设置：配置本地 Ollama 参数 |
+| 9 | 🤖 AI 诊断设置：配置本地 Ollama 参数（地址/模型/超时）|
 | 10 | 下载 Word 报告，随时查阅历史报告 |
 
 ### OpenClaw Skill（AI 助手直连）
@@ -329,7 +364,7 @@ dbcheck/skill/dbcheck/
     ├── run_inspection.py   # 非交互式入口
     ├── main_mysql.py       # MySQL 巡检逻辑
     ├── main_pg.py         # PostgreSQL 巡检逻辑
-    ├── main_oracle.py     # Oracle 巡检逻辑
+    ├── main_oracle_full.py # Oracle 巡检逻辑（20+ 巡检项）
     ├── main_dm.py         # 达梦 DM8 巡检逻辑
     ├── analyzer.py        # 智能风险分析引擎
     └── main.py             # 统一菜单入口
@@ -369,22 +404,33 @@ dbcheck.exe         # Windows
 
 ## 报告结构
 
-生成的 Word 报告包含以下章节（DM8 报告结构示例）：
+生成的 Word 报告包含以下章节（Oracle 巡检报告示例）：
 
-| 章节 | 内容（DM8）|
+| 章节 | 内容（Oracle 巡检）|
 |------|------|
 | 封面 | 数据库名称、服务器地址、版本、主机名、启动时间、巡检人员、平台、报告时间 |
-| 第1章 | 数据库基本信息（版本/实例名/服务器版本等）|
-| 第2章 | 巡检执行摘要（执行时间、耗时、异常项统计）|
-| 第3章 | 表空间使用情况（含各数据文件使用率）|
-| 第4章 | 会话与事务（活动会话列表 + 阻塞事务）|
-| 第5章 | 内存分析（SGA 缓冲池 + DM8 各缓冲池详情）|
-| 第6章 | 重做日志与归档（Redo 状态 + 归档日志）|
-| 第7章 | 系统资源监控（CPU/内存/磁盘，本地采集）|
-| 第8章 | 对象与用户安全（无效对象/用户列表）|
-| 第9章 | 备份与归档（备份集 + 备份设备）|
-| 第10章 | 风险与建议（智能分析出的潜在问题及修复 SQL）|
-| 第11章 | 报告说明（标准免责声明与建议）|
+| 第1章 | OS 主机信息（CPU/内存/磁盘）|
+| 第2章 | 数据库基本信息（版本/实例名/数据库名）|
+| 第3章 | 表空间（永久 + 临时，含自动扩展）|
+| 第4章 | SGA / PGA 内存分析 |
+| 第5章 | 关键参数配置 |
+| 第6章 | Undo 表空间管理 |
+| 第7章 | 重做日志（Redo）|
+| 第8章 | 归档与备份 |
+| 第9章 | Data Guard 状态 |
+| 第10章 | RAC 集群信息 |
+| 第11章 | ASM 磁盘组 |
+| 第12章 | 会话与连接（含等待事件 TOP5）|
+| 第13章 | 性能指标（含 AWR 快照分析）|
+| 第14章 | Alert 日志分析 |
+| 第15章 | 用户与安全 |
+| 第16章 | 无效对象与统计信息 |
+| 第17章 | 分区表信息 |
+| 第18章 | FRA 闪回恢复区 |
+| 第19章 | 回收站 |
+| 第20章 | 风险与建议（智能分析问题明细 + 修复 SQL 速查表）|
+| 第21章 | AI 诊断建议（Markdown 自动渲染为 Word 格式，含序号标题、代码块、列表）|
+| 第22章 | 报告说明 |
 
 > 不同数据库类型的报告结构略有差异，但均包含封面、基本信息、性能分析、风险建议、AI 诊断、报告说明六大模块。
 
@@ -401,15 +447,31 @@ dbcheck.exe         # Windows
    检查数据库是否允许远程访问、用户权限是否充足、防火墙是否放行对应端口。
 
 3. **SSH 采集失败**
-   确认 SSH 服务正常运行、认证信息正确。部分精简版 Linux 可能缺少 `lscpu` 等命令，导致部分 CPU 信息显示为"未获取"，属正常现象。
+   确认 SSH 服务正常运行（默认端口 22）、认证信息正确。部分精简版 Linux 可能缺少 `lscpu` 等命令，导致部分 CPU 信息显示为"未获取"，属正常现象。
 
 4. **AI 诊断不生效**
    - 确认已在 Web UI「AI 诊断设置」中保存了有效配置
    - 确保 Ollama 已启动：`ollama serve`
-   - 确保模型已下载：`ollama pull qwen3:8b`
+   - 确保模型已下载：`ollama pull qwen3:30b`（建议大模型，冷启动慢）
 
 5. **风险建议仅供参考**
    内置阈值基于通用最佳实践，实际场景中请结合业务负载综合评估。
+
+### Oracle 专项
+
+6. **ORA-01017 用户名/口令无效**
+   - 如果使用 SYSDBA 身份，Web UI 请勾选「SYSDBA」复选框；CLI 请输入 `sys as sysdba`（完整格式），工具会自动解析并使用正确的特权模式连接
+   - 确认密码正确（注意大小写）
+
+7. **ORA-00904 / ORA-00942 标识符无效**
+   部分高级视图/列在不同 Oracle 版本中可能不存在（如 11g vs 19c）。工具已做兼容处理，少数不兼容的项目会标记为⚠跳过，不影响整体巡检。
+
+8. **需要安装 Oracle 客户端吗？**
+   - 使用 `oracledb` 驱动（推荐）：不需要，纯 Python 实现
+   - 使用 `cx_Oracle` 驱动：需要下载 [Oracle Instant Client](https://www.oracle.com/database/technologies/instant-client.html)
+
+9. **Oracle 版本支持**
+   支持 **11g R2、12c、19c、21c** 及以上版本。SQL 模板已做跨版本兼容处理。
 
 ### DM8 专项
 
@@ -428,25 +490,9 @@ dbcheck.exe         # Windows
 
 ---
 
-### Oracle 专项
-
-6. **ORA-01017 用户名/口令无效**
-   - 如果使用 SYSDBA 身份，用户名应输入 `sys as sysdba`（完整格式），工具会自动解析并使用正确的特权模式连接
-   - 确认密码正确（注意大小写）
-
-7. **ORA-00904 / ORA-00942 标识符无效**
-   部分高级视图/列在不同 Oracle 版本中可能不存在（如 11g vs 19c）。工具已做兼容处理，少数不兼容的项目会标记为⚠跳过，不影响整体巡检。
-
-8. **需要安装 Oracle 客户端吗？**
-   - 使用 `oracledb` 驱动（推荐）：不需要，纯 Python 实现
-   - 使用 `cx_Oracle` 驱动：需要下载 [Oracle Instant Client](https://www.oracle.com/database/technologies/instant-client.html)
-
-9. **Oracle 版本支持**
-   支持 **11g R2、12c、19c、21c** 及以上版本。SQL 模板已做跨版本兼容处理。
-
----
-
 ## 界面截图
+
+![首页](snapshot/webui0.png)
 
 ![步骤一：选择数据库类型](snapshot/webui1.png)
 *图 1：选择数据库类型（MySQL 🐬 / PostgreSQL 🐘 / Oracle 🔴 / DM8 🟡）*
@@ -457,45 +503,52 @@ dbcheck.exe         # Windows
 ![步骤三：在线连接测试数据库连接](snapshot/webui3.png)
 *图 3：在线连接测试数据库连接*
 
-![步骤四：SSH 配置](snapshot/webui4.png)
-*图 4：SSH 连接配置（可选）*
+![步骤四：SSH 连接配置](snapshot/webui5.png)
+*图 4：SSH 连接配置（可选，默认端口 22）*
 
-![步骤五：测试 SSH 连接](snapshot/webui5.png)
-*图 5：测试 SSH 连接*
+![步骤五：巡检人员](snapshot/webui6.png)
+*图 5：巡检人员配置（默认为 dbcheck）*
 
-![步骤六：巡检人员](snapshot/webui6.png)
-*图 6：巡检人员配置*
+![步骤六：确认巡检信息](snapshot/webui7.png)
+*图 6：确认巡检信息*
 
-![步骤七：确认巡检信息](snapshot/webui7.png)
-*图 7：确认巡检信息*
+![步骤七：执行巡检](snapshot/webui8.png)
+*图 7：一键巡检，实时预览巡检进度*
 
-![步骤八：执行巡检](snapshot/webui8.png)
-*图 8：一键巡检，实时预览巡检进度*
-
-![步骤九：报告下载](snapshot/webui9.png)
-*图 9：巡检完成后直接下载 Word 报告*
+![报告下载](snapshot/webui9.png)
+*图 8：巡检完成后直接下载 Word 报告*
 
 ![历史报告](snapshot/webui10.png)
-*图 10：历史报告列表页，支持按名称、大小、时间浏览*
+*图 9：历史报告列表页，支持按名称、大小、时间浏览*
 
 ![历史趋势分析](snapshot/webui12.png)
-*图 11：历史趋势分析*
+*图 10：历史趋势分析*
 
 ![AI 诊断配置](snapshot/webui13.png)
-*图 12：AI 诊断配置，可完全本地运行，无需 API Key，数据不出本机。*
+*图 11：AI 诊断配置，可完全本地运行，无需 API Key，数据不出本机。*
 
 ![Clawhub dbcheck skill](snapshot/skill0.png)
-*图 13：dbcheck 已发布到 Clawhub*
+*图 12：dbcheck 已发布到 Clawhub*
 
 ![QClaw](snapshot/skill1.png)
-*图 14：在 QClaw 等支持 OpenClaw Skills 的软件中使用 dbcheck。*
+*图 13：在 QClaw 等支持 OpenClaw Skills 的软件中使用 dbcheck。*
 
+![Reports](snapshot/report.png)
+*图 14：AI 诊断报告（Markdown 自动渲染为 Word 格式）。*
 ---
-
 ## 鸣谢
 
 感谢 [Zhh9126/MySQLDBCHECK](https://github.com/Zhh9126/MySQLDBCHECK.git) 作者的贡献！
 > 本项目由 [Zhh9126/MySQLDBCHECK](https://github.com/Zhh9126/MySQLDBCHECK.git) 改进而来，在原 MySQL 支持的基础上新增了 PostgreSQL、Oracle、DM8 支持。
 
-
 目前部分功能仍在持续完善中，欢迎共同参与功能开发以及反馈问题与建议。
+
+---
+
+## 捐赠支持
+
+DBCheck 从初版到功能完善，历经了大量版本迭代和实测打磨。如果这个工具对你的工作有帮助，欢迎通过以下方式支持项目持续迭代：
+
+<img src="snapshot/pay.png" alt="PayPal 捐赠二维码" width="500" />
+
+> 捐赠时备注你的名字或昵称，让我们知道谁在支持这个项目 ❤️

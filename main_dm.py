@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
 from version import __version__ as VER
+from i18n import get_lang, t as _t
 
 """
 达梦 DM8 数据库自动化健康巡检工具 {VER}
@@ -54,9 +55,9 @@ try:
     import dmPython as dm_driver
     DM_DRIVER = 'dmPython'
 except ImportError:
-    print("缺少达梦数据库驱动库，请执行以下命令安装：")
+    print(_t("dm8_driver_missing"))
     print("  pip install dmpython")
-    print("  并确保 dpi 动态库（随达梦数据库安装）在系统 PATH 中")
+    print("  " + _t("dm8_driver_path_note"))
     sys.exit(1)
 
 importlib.reload(sys)
@@ -170,7 +171,7 @@ class RemoteSystemInfoCollector:
             )
             return True
         except Exception as e:
-            print(f"SSH连接失败 {self.host}:{self.port}: {e}")
+            print(f"SSH {_t('dm8_ssh_conn_fail').format(host=self.host, port=self.port)}: {e}")
             return False
 
     def disconnect(self):
@@ -371,14 +372,14 @@ def execute_query_safe(cursor, sql, item_name=""):
         err_code = str(e.args[0]) if e.args else "0"
         hint = _DM_ERROR_HINTS.get(err_code)
         if hint:
-            print(f"[WARN]  [{item_name}] {hint[0]}\n    💡 建议: {hint[1]}")
+            print(_t("dm8_warn_hint").format(item=item_name, hint0=hint[0], hint1=hint[1]))
         else:
-            print(f"[WARN]  [{item_name}] 数据库错误 ({err_code}): {str(e)[:120]}")
+            print(_t("dm8_warn_db_err").format(item=item_name, code=err_code, e=str(e)[:120]))
         return {"columns": [], "data": []}
 
     except Exception as e:
         err_type = type(e).__name__
-        print(f"[WARN]  [{item_name}] {err_type}: {str(e)[:100]}")
+        print(_t("dm8_warn_exc").format(item=item_name, type=err_type, e=str(e)[:100]))
         return {"columns": [], "data": []}
 
 
@@ -694,7 +695,7 @@ class getData(object):
 
             if probe_ok:
                 self.conn_db = conn
-                print(f"[OK] DM8 连接成功: {self.user}@{self.H}:{self.P}")
+                print(_t("dm8_conn_ok").format(user=self.user, H=self.H, P=self.P))
             else:
                 err_str = str(probe_error) if probe_error else ''
                 code = get_dm_code(err_str)
@@ -703,7 +704,7 @@ class getData(object):
                 if code == '-2111':
                     for retry_i in range(2):
                         time.sleep(3)
-                        print(f"  [RETRY] 第{retry_i+2}次连接重试 ({self.H}:{self.P})...")
+                        print(_t("dm8_conn_retry").format(n=retry_i+2, H=self.H, P=self.P))
                         try:
                             conn2 = dm_driver.connect(user=self.user, password=self.password,
                                                       server=self.H, port=self.P)
@@ -714,18 +715,18 @@ class getData(object):
                             self.conn_db = conn2
                             try: conn.close()
                             except: pass
-                            print(f"[OK] DM8 连接成功（第{retry_i+2}次重试）: {self.user}@{self.H}:{self.P}")
+                            print(_t("dm8_conn_retry_ok").format(n=retry_i+2, user=self.user, H=self.H, P=self.P))
                             probe_ok = True
                             break
                         except Exception as retry_err:
                             err_r = str(retry_err)
                             code_r = get_dm_code(err_r)
-                            print(f"  重试失败 CODE:{code_r}: {err_r[:80]}")
+                            print(_t("dm8_conn_retry_fail").format(code=code_r, err=err_r[:80]))
                             try: conn2.close()
                             except: pass
                             continue
                 if not probe_ok:
-                    print(f"[FAIL] DM8 连接失败[CODE:{code}]: {hint}")
+                    print(_t("dm8_conn_fail_code").format(code=code, hint=hint))
                     try: conn.close()
                     except: pass
                     self.conn_db = None
@@ -734,7 +735,7 @@ class getData(object):
             err_str = str(e)
             code = get_dm_code(err_str)
             hint = friendly_hint(code, self.H, self.P, self.user)
-            print(f"[FAIL] DM8 连接失败[CODE:{code}]: {hint}")
+            print(_t("dm8_conn_fail_code").format(code=code, hint=hint))
             self.conn_db = None
 
     def print_progress_bar(self, iteration, total, prefix='', suffix='', decimals=1, length=50, fill='█'):
@@ -746,7 +747,7 @@ class getData(object):
             print()
 
     def checkdb(self, sqlfile=''):
-        print("\n开始 DM8 巡检...")
+        print("\n" + _t("dm8_starting"))
         total_steps = 22
         current_step = 0
         cfg = configparser.RawConfigParser()
@@ -756,7 +757,7 @@ class getData(object):
             else:
                 cfg.read(sqlfile, encoding='utf-8')
         except Exception as e:
-            print(f"[FAIL] 读取SQL模板失败: {e}")
+            print(_t("dm8_sql_template_fail").format(e=e))
             return self.context
 
         init_keys = [
@@ -795,7 +796,7 @@ class getData(object):
             self.context.update({"health_summary": [{'health_summary': '运行良好'}]})
             self.context.update({"co_name": [{'DB_NAME': self.db_name}]})
         except Exception as e:
-            print(f"[FAIL] 获取版本失败: {e}")
+            print(_t("dm8_version_fail").format(e=e))
             self.context.update({"dm_version": [{'BANNER': 'Unknown'}]})
 
         # ── 步骤2-21: 执行所有 SQL（容错执行器，单个失败不中断） ─
@@ -804,31 +805,31 @@ class getData(object):
             variables_items = list(cfg.items("variables"))
             for i, (name, stmt) in enumerate(variables_items):
                 current_step = int((i + 1) / len(variables_items) * (total_steps - 6)) + 1
-                self.print_progress_bar(current_step, total_steps, prefix='DM8巡检:', suffix=f'{name} ({i+1}/{len(variables_items)})')
+                self.print_progress_bar(current_step, total_steps, prefix=_t('dm8_progress_prefix'), suffix=f'{name} ({i+1}/{len(variables_items)})')
                 clean_sql = stmt.replace('\n', ' ').replace('\r', ' ').rstrip().rstrip(';').strip()
                 result = execute_query_safe(cursor, clean_sql, item_name=name)
                 self.context[name] = result.get('data', [])
                 time.sleep(0.03)
             cursor.close()
         except Exception as e:
-            print(f'\n[FAIL] 数据库查询循环异常: {e}')
+            print(_t("dm8_query_loop_fail").format(e=e))
 
         # 容错执行结果存入 context
         self.context['_safe_errors'] = getattr(execute_query_safe, '_errors', [])
 
         # ── 步骤: 收集系统信息 ─────────────────────
         current_step = total_steps - 4
-        self.print_progress_bar(current_step, total_steps, prefix='DM8巡检:', suffix='收集系统信息')
+        self.print_progress_bar(current_step, total_steps, prefix=_t('dm8_progress_prefix'), suffix=_t('dm8_progress_sysinfo'))
         try:
             if self.ssh_info and self.ssh_info.get('ssh_host'):
-                print(f"[INFO] 通过SSH收集系统信息: {self.ssh_info['ssh_host']}")
+                print(_t("dm8_ssh_collecting").format(host=self.ssh_info['ssh_host']))
                 collector = RemoteSystemInfoCollector(
                     host=self.ssh_info['ssh_host'], port=self.ssh_info.get('ssh_port', 22),
                     username=self.ssh_info.get('ssh_user', 'root'),
                     password=self.ssh_info.get('ssh_password'), key_file=self.ssh_info.get('ssh_key_file')
                 )
                 if not collector.connect():
-                    print("[WARN] SSH 连接失败，跳过远程系统信息采集")
+                    print(_t("dm8_ssh_conn_fail_skip"))
                     collector = LocalSystemInfoCollector()
             else:
                 collector = LocalSystemInfoCollector()
@@ -839,7 +840,7 @@ class getData(object):
             system_info['disk_list'] = disk_list
             self.context.update({"system_info": system_info})
         except Exception as e:
-            print(f"\n[FAIL] 收集系统信息失败: {e}")
+            print(_t("dm8_sysinfo_fail").format(e=e))
             self.context.update({"system_info": {
                 'hostname': '未知', 'platform': '未知', 'boot_time': '未知',
                 'cpu': {}, 'memory': {},
@@ -849,7 +850,7 @@ class getData(object):
 
         # ── 步骤: 风险分析 ─────────────────────────
         current_step = total_steps - 3
-        self.print_progress_bar(current_step, total_steps, prefix='DM8巡检:', suffix='智能健康评估')
+        self.print_progress_bar(current_step, total_steps, prefix=_t('dm8_progress_prefix'), suffix=_t('dm8_progress_health'))
         self.context.update({"auto_analyze": []})
         self._basic_risk_check()
 
@@ -888,7 +889,7 @@ class getData(object):
 
         # ── 步骤: AI 诊断 ─────────────────────────
         current_step = total_steps - 2
-        self.print_progress_bar(current_step, total_steps, prefix='DM8巡检:', suffix='AI诊断')
+        self.print_progress_bar(current_step, total_steps, prefix=_t('dm8_progress_prefix'), suffix=_t('dm8_progress_ai'))
         self.context['ai_advice'] = ''
         try:
             from analyzer import AIAdvisor
@@ -906,13 +907,13 @@ class getData(object):
             )
             if advisor.enabled:
                 label = self.context.get('co_name', [{}])[0].get('DB_NAME', 'DM8')
-                print(f"\n🤖 正在调用 AI 诊断（{advisor.backend} / {advisor.model}）...")
+                print(_t("dm8_ai_calling").format(backend=advisor.backend, model=advisor.model))
                 ai_advice = advisor.diagnose('dm8', label, self.context, self.context.get('auto_analyze', []))
                 self.context['ai_advice'] = ai_advice
         except Exception:
             self.context['ai_advice'] = ''
 
-        self.print_progress_bar(total_steps, total_steps, prefix='DM8巡检:', suffix='完成 [OK]')
+        self.print_progress_bar(total_steps, total_steps, prefix=_t('dm8_progress_prefix'), suffix=_t('dm8_progress_done'))
         return self.context
 
     def _basic_risk_check(self):
@@ -1004,17 +1005,30 @@ class saveDoc(object):
         self.H = H
         self.P = P
         self._dt = _dt
+        # 读取语言设置
+        try:
+            from i18n import get_lang
+            self._lang = get_lang()
+        except Exception:
+            self._lang = 'zh'
+
+    def _t(self, key):
+        try:
+            from i18n import t
+            return t(key, self._lang)
+        except Exception:
+            return key
 
     def contextsave(self):
         try:
             required_keys = ['health_summary', 'auto_analyze', 'dm_version', 'co_name', 'system_info']
             for key in required_keys:
                 if key not in self.context:
-                    if key == 'health_summary':   self.context[key] = [{'health_summary': '运行良好'}]
+                    if key == 'health_summary':   self.context[key] = [{'health_summary': self._t("report.running_ok")}]
                     elif key == 'auto_analyze':    self.context[key] = []
                     elif key == 'dm_version':       self.context[key] = [{'BANNER': 'Unknown'}]
                     elif key == 'system_info':     self.context[key] = {}
-                    else:                          self.context[key] = [{'placeholder': '数据缺失'}]
+                    else:                          self.context[key] = [{'placeholder': self._t("report.data_missing")}]
 
             if 'disk_list' not in self.context['system_info'] or not self.context['system_info']['disk_list']:
                 self.context['system_info']['disk_list'] = [{
@@ -1052,10 +1066,10 @@ class saveDoc(object):
             problem_count = len(self.context.get("auto_analyze", []))
             self.context.update({"problem_count": problem_count})
 
-            if problem_count == 0: health_status = "优秀"
-            elif problem_count <= 3: health_status = "良好"
-            elif problem_count <= 6: health_status = "一般"
-            else: health_status = "需关注"
+            if problem_count == 0: health_status = self._t("report.health_excellent")
+            elif problem_count <= 3: health_status = self._t("report.health_good")
+            elif problem_count <= 6: health_status = self._t("report.health_fair")
+            else: health_status = self._t("report.health_attention")
             self.context.update({"health_status": health_status})
 
             # ── 预格式化基本变量 ──
@@ -1234,7 +1248,7 @@ class saveDoc(object):
             return t
 
         # 第10章 风险与建议
-        _add_heading("第10章 风险与建议")
+        _add_heading(f"第10章 {self._t('report.ch20')}")
         issues = self.context.get("auto_analyze", [])
         if issues:
             _add_heading("10.1 问题明细", 2)
@@ -1440,7 +1454,7 @@ class saveDoc(object):
             doc.save(self.ofile)
             return True
         except Exception as e:
-            print(f"备用渲染也失败了: {e}")
+            print(_t("dm8_alt_render_fail").format(e=e))
             import traceback; traceback.print_exc()
             return False
 
@@ -1450,24 +1464,24 @@ class saveDoc(object):
 # ============================================================
 def main():
     print("=" * 60)
-    print("  DBCheck - DM8 巡检工具 " + VER)
+    print("  " + _t("dm8_banner_title") + " " + VER)
     print("=" * 60)
 
     # 交互式收集参数
     db_info = {}
-    db_info['host'] = input("主机地址: ").strip()
-    db_info['port'] = input("端口 [5236]: ").strip() or "5236"
-    db_info['user'] = input("用户名 [SYSDBA]: ").strip() or "SYSDBA"
-    db_info['password'] = input("密码: ").strip()
-    db_info['db_name'] = input("数据库名 [DAMENG]: ").strip() or "DAMENG"
-    inspector_name = input("巡检人员 [Jack]: ").strip() or "Jack"
+    db_info['host'] = input(_t("dm8_host_prompt")).strip()
+    db_info['port'] = input(_t("dm8_port_prompt")).strip() or "5236"
+    db_info['user'] = input(_t("dm8_user_prompt")).strip() or "SYSDBA"
+    db_info['password'] = input(_t("dm8_password_prompt")).strip()
+    db_info['db_name'] = input(_t("dm8_dbname_prompt")).strip() or "DAMENG"
+    inspector_name = input(_t("dm8_inspector_prompt")).strip() or "Jack"
 
-    use_ssh = input("是否配置 SSH 收集系统信息? [y/N]: ").strip().lower()
+    use_ssh = input(_t("dm8_ssh_enable_prompt")).strip().lower()
     if use_ssh == 'y':
-        db_info['ssh_host'] = input("  SSH 主机 [同数据库主机]: ").strip() or db_info['host']
-        db_info['ssh_port'] = int(input("  SSH 端口 [22]: ").strip() or "22")
-        db_info['ssh_user'] = input("  SSH 用户 [root]: ").strip() or "root"
-        db_info['ssh_password'] = input("  SSH 密码 (留空则跳过): ").strip()
+        db_info['ssh_host'] = input(_t("dm8_ssh_host_prompt").format(host=db_info['host'])).strip() or db_info['host']
+        db_info['ssh_port'] = int(input(_t("dm8_ssh_port_prompt")).strip() or "22")
+        db_info['ssh_user'] = input(_t("dm8_ssh_user_prompt")).strip() or "root"
+        db_info['ssh_password'] = input(_t("dm8_ssh_password_prompt")).strip()
     else:
         db_info['ssh_host'] = ''
         db_info['ssh_port'] = 22
@@ -1477,7 +1491,7 @@ def main():
     dir_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "reports")
     os.makedirs(dir_path, exist_ok=True)
     ofile = os.path.join(dir_path, f"DM8_Report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx")
-    print(f"报告输出目录: {dir_path}/")
+    print(_t("dm8_report_dir") + f" {dir_path}/")
     ifile = create_word_template(inspector_name)
 
     ssh_info = {}
@@ -1494,8 +1508,8 @@ def main():
                         db_info.get('db_name'), ssh_info)
 
     if inspector.conn_db is None:
-        print("\n[FAIL] 数据库连接失败，请检查参数后重试")
-        input("\n按回车键返回...")
+        print("\n" + _t("dm8_db_conn_fail"))
+        input("\n" + _t("dm8_press_enter_return"))
         return
 
     context = inspector.checkdb()
@@ -1503,13 +1517,13 @@ def main():
         saver = saveDoc(context, ofile, ifile, inspector_name,
                         H=inspector.H, P=inspector.P)
         if saver.contextsave():
-            print(f"\n[OK] 报告已生成: {ofile}")
+            print(f"\n{_t('dm8_report_ok').format(ofile=ofile)}")
         else:
-            print(f"\n[FAIL] 报告生成失败")
+            print(f"\n{_t('dm8_report_fail')}")
     else:
-        print("\n[FAIL] 巡检执行失败")
+        print("\n" + _t("dm8_inspection_fail"))
 
-    cont = input("\n是否返回主菜单? [y/N]: ").strip().lower()
+    cont = input("\n" + _t("dm8_back_menu_prompt")).strip().lower()
     if cont == 'y':
         return
 
@@ -1523,7 +1537,7 @@ if __name__ == '__main__':
         main()
     else:
         # 有参数 → argparse 批处理模式
-        parser = argparse.ArgumentParser(description='DBCheck - DM8 巡检工具 ' + VER)
+        parser = argparse.ArgumentParser(description=_t('dm8_cli_banner_tool') + ' ' + VER)
         parser.add_argument('--host', default='127.0.0.1', help='数据库主机IP')
         parser.add_argument('--port', type=int, default=5236, help='数据库端口（默认5236）')
         parser.add_argument('--user', default='SYSDBA', help='用户名（默认SYSDBA）')
@@ -1539,12 +1553,12 @@ if __name__ == '__main__':
         args = parser.parse_args()
 
         print("=" * 60)
-        print("  DBCheck - DM8 巡检工具 " + VER)
+        print("  " + _t("dm8_banner_title") + " " + VER)
         print("=" * 60)
 
         if args.template:
             tpl = create_word_template(args.inspector)
-            print(f"[OK] DM8 报告模板已生成: {tpl}")
+            print(_t("dm8_template_ok").format(tpl=tpl))
             sys.exit(0)
 
         ofile = args.output or os.path.join(
@@ -1565,7 +1579,7 @@ if __name__ == '__main__':
         inspector = getData(args.host, args.port, args.user, args.password, args.db_name, ssh_info)
 
         if inspector.conn_db is None:
-            print("[FAIL] 数据库连接失败，请检查参数后重试")
+            print(_t("dm8_db_conn_fail"))
             sys.exit(1)
 
         context = inspector.checkdb()
@@ -1573,8 +1587,8 @@ if __name__ == '__main__':
             saver = saveDoc(context, ofile, ifile, args.inspector,
                             H=inspector.H, P=inspector.P)
             if saver.contextsave():
-                print(f"\n[OK] 报告已生成: {ofile}")
+                print(f"\n{_t('dm8_report_ok').format(ofile=ofile)}")
             else:
-                print(f"\n[FAIL] 报告生成失败")
+                print(f"\n{_t('dm8_report_fail')}")
         else:
-            print("\n[FAIL] 巡检执行失败")
+            print("\n" + _t("dm8_inspection_fail"))
