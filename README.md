@@ -10,7 +10,7 @@
 [![DM](https://img.shields.io/badge/DM-yellow.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg)]()
 
-> Language: [English](./README_en.md) | [中文](./README.md)
+> Language: [English](./README.md) | [中文](./README_zh.md)
 
 ## 🌍 Multi-Language Support
 
