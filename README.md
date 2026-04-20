@@ -91,7 +91,7 @@ Each risk is presented as a card: **Risk Level (High/Medium/Low) → Issue Descr
 |--------|-------------|
 | 🖥️ Command-Line | `python main.py` — terminal interaction, ideal for CLI-familiar users |
 | 🌐 Web UI | `python web_ui.py` — browser-based GUI with trend charts and AI configuration |
-| 🤖 OpenClaw Skill | Tell your AI assistant "inspect the Oracle production库" — fully automated |
+| 🤖 OpenClaw Skill | Tell your AI assistant "inspect the Oracle Database" — fully automated |
 | 📦 Packaged Distribution | PyInstaller bundles everything into a single executable for team distribution |
 
 ---
@@ -340,7 +340,7 @@ clawhub install dbcheck
 
 After installation, simply tell your AI assistant what you need, for example:
 
-> "Inspect the Oracle production库 at IP localhost, username sys as sysdba"
+> "Inspect the Oracle Database at IP localhost, username sys as sysdba"
 
 The AI assistant will load the Skill, ask for missing information step by step (port, service name, inspector name, etc.), then invoke the inspection script to generate a Word report.
 
@@ -348,9 +348,9 @@ The AI assistant will load the Skill, ask for missing information step by step (
 
 | Example Command | Description |
 |---------------|-------------|
-| Help me inspect a MySQL库 | Single-instance MySQL inspection |
-| Help me inspect a PostgreSQL库 | Single-instance PG inspection |
-| Help me inspect an Oracle库 | Single-instance Oracle inspection |
+| Help me inspect a MySQL Database | Single-instance MySQL inspection |
+| Help me inspect a PostgreSQL Database | Single-instance PG inspection |
+| Help me inspect an Oracle Database | Single-instance Oracle inspection |
 | Inspect Oracle at localhost | Quick inspection targeting a specific IP |
 | Generate a database inspection report | Trigger the full inspection workflow |
 
