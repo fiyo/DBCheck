@@ -36,6 +36,19 @@ python main.py --lang zh         # Switch to Chinese (explicit)
 
 > **Note**: The `--lang` parameter only takes effect for the current session and does not overwrite any saved language setting. Switching language in the Web UI persists to `dbc_config.json` and loads automatically on the next startup.
 
+### Manually Modify Default Language
+
+To change the default language without using CLI flags or Web UI, edit the configuration file directly:
+
+```json
+// dbc_config.json
+{
+    "language": "zh"   // "zh" = Chinese, "en" = English
+}
+```
+
+The config file is located in the same directory as `main.py`.
+
 ## AI-Assisted - Detect and Resolve Issues
 
 ### AI-Powered Intelligent Diagnosis

@@ -36,6 +36,19 @@ python main.py --lang zh         # 切换为中文（显式指定）
 
 > **注意**：`--lang` 参数仅在当前会话临时生效，不会覆盖已保存的语言设置。Web UI 中切换语言会持久化到 `dbc_config.json`，下次启动 Web UI 时自动加载。
 
+### 手动修改默认语言
+
+如需在不启动程序的情况下修改默认语言，可直接编辑配置文件：
+
+```json
+// dbc_config.json
+{
+    "language": "zh"   // "zh" = 中文, "en" = English
+}
+```
+
+配置文件位于 `main.py` 同级目录下。
+
 ## AI 辅助 · 问题发现即处理
 
 ### 🤖 AI 智能诊断
