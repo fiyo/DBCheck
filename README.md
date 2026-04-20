@@ -98,7 +98,7 @@ Each risk is presented as a card: **Risk Level (High/Medium/Low) → Issue Descr
 
 ---
 
-## Five Ways to Use DBCheck
+## Four Ways to Use DBCheck
 
 | Method | Description |
 |--------|-------------|
