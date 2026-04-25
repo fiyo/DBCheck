@@ -182,6 +182,11 @@ ZI = {
     "webui.trend_curr": "本次",
     "webui.trend_change": "变化",
     "webui.trend_no_compare": "暂无可对比指标",
+    "webui.db_type_mysql": "MySQL",
+    "webui.db_type_pg": "PostgreSQL",
+    "webui.db_type_oracle": "Oracle",
+    "webui.db_type_dm": "达梦",
+    "webui.db_type_sqlserver": "SQL Server",
     "webui.ai_title": "AI 诊断设置",
     "webui.ai_enable_desc": "开启 AI 诊断后，每次巡检完成后将自动把关键指标发给大语言模型，生成个性化优化建议，附加在报告中。",
     "webui.ai_warn": "注意：AI 诊断仅发送指标数值，不发送密码等敏感信息。",
@@ -1421,6 +1426,10 @@ ZI = {
     "webui.err_report_generate": "生成报告文件失败",
     "webui.log_report_ok": "报告已生成: {fname}",
     "webui.mysql_report_filename": "MySQL巡检报告_{name}_{ts}",
+    "webui.pg_report_filename": "PostgreSQL巡检报告_{name}_{ts}",
+    "webui.oracle_report_filename": "Oracle巡检报告_{name}_{ts}",
+    "webui.dm_report_filename": "DM巡检报告_{name}_{ts}",
+    "webui.sqlserver_report_filename": "SQLServer巡检报告_{name}_{ts}",
 
     # SQL Server CLI i18n
     "sqlserver.report_title": "SQL Server 数据库健康巡检报告",

@@ -164,6 +164,7 @@ ZI = {
     "webui.ssh_test_fail": "SSH 连接失败",
     "webui.inspector_info": "巡检人员信息",
     "webui.inspector_name_placeholder": "巡检人员姓名（将显示在报告封面）",
+    "webui.run_inspection": "开始巡检",
     "webui.run_inspection_btn": "🚀 开始巡检",
     "webui.confirm_info_title": "信息确认",
     "webui.inspector_label": "巡检人员",
@@ -308,6 +309,12 @@ ZI = {
     "webui.fi_web": "Web 可视化操作",
     "webui.fi_web_desc": "全程界面化，告别命令行，支持实时日志追踪。",
 
+
+    "webui.db_type_mysql": "MySQL",
+    "webui.db_type_pg": "PostgreSQL",
+    "webui.db_type_oracle": "Oracle",
+    "webui.db_type_dm": "达梦",
+    "webui.db_type_sqlserver": "SQL Server",
     "webui.ai_collapse": "收起",
     "webui.ai_error_hint": "请检查 Ollama 服务状态，或在 AI 配置中增加超时时间",
     "webui.ai_error_title": "AI 诊断暂时无法完成",
@@ -316,6 +323,8 @@ ZI = {
     "webui.ai_openai_tip": "DeepSeek 用法：API URL 填 https://api.deepseek.com/v1，模型填 deepseek-chat，API Key 填 DeepSeek 的 key。",
     "webui.ai_warn_note": "注意：AI 诊断仅发送指标数值，不发送密码等敏感信息。",
     "webui.btn_download_report": "⬇ 下载报告",
+    "webui.desensitize_label": "🔒 脱敏导出报告",
+    "webui.desensitize_desc": "导出时 IP / 端口 / 用户名 / 服务名将显示为掩码格式",
     "webui.btn_new_inspection": "🔄 新建巡检",
     "webui.btn_retry": "↺ 重试",
     "webui.btn_view_trend": "查看趋势",
@@ -1426,6 +1435,10 @@ ZI = {
     "webui.err_report_generate": "生成报告文件失败",
     "webui.log_report_ok": "报告已生成: {fname}",
     "webui.mysql_report_filename": "MySQL巡检报告_{name}_{ts}",
+    "webui.pg_report_filename": "PostgreSQL巡检报告_{name}_{ts}",
+    "webui.oracle_report_filename": "Oracle巡检报告_{name}_{ts}",
+    "webui.dm_report_filename": "DM巡检报告_{name}_{ts}",
+    "webui.sqlserver_report_filename": "SQLServer巡检报告_{name}_{ts}",
 
     # SQL Server CLI i18n
     "sqlserver.report_title": "SQL Server 数据库健康巡检报告",

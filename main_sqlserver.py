@@ -1332,7 +1332,7 @@ class DBCheckSQLServer:
 
     def __init__(self, host, port, user, password, database=None, label=None,
                  inspector=None, ssh_host=None, ssh_user=None, ssh_password=None,
-                 ssh_key_file=None):
+                 ssh_key_file=None, desensitize=False):
         self.host = host
         self.port = port or 1433
         self.user = user
@@ -1345,6 +1345,7 @@ class DBCheckSQLServer:
         self.ssh_password = ssh_password
         self.ssh_key_file = ssh_key_file
         self.ssh_port = 22  # 默认 SSH 端口
+        self.desensitize = desensitize
 
         self.conn = None
         self.cursor = None
@@ -1715,7 +1716,16 @@ class DBCheckSQLServer:
         filename = f"SQLServer_{safe_label}_{timestamp}.docx"
         self.report_path = os.path.join(reports_dir, filename)
 
-        generator = WordTemplateGeneratorSQLServer(self.data)
+        # ── 脱敏处理（如开启了脱敏导出）───────────────────────
+        report_data = self.data
+        if self.desensitize:
+            try:
+                from desensitize import apply_desensitization
+                report_data = apply_desensitization(dict(self.data))
+            except Exception:
+                pass
+
+        generator = WordTemplateGeneratorSQLServer(report_data)
         generator.generate(self.report_path)
 
 

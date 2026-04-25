@@ -1007,6 +1007,29 @@ class HistoryManager:
                 m['max_tablespace_pct'] = max_ts_used
             m['version'] = context.get('dm_version', [{}])[0].get('BANNER', '') if context.get('dm_version') else ''
 
+        elif db_type == 'sqlserver':
+            # SQL Server 指标
+            ss_conn = context.get('connections', [])
+            m['connections'] = ss_conn[0].get('connection_count', 0) if ss_conn else 0
+            m['max_connections'] = ss_conn[0].get('max_connections', 0) if ss_conn else 0
+            m['connection_usage_pct'] = ss_conn[0].get('connection_usage_pct', 0) if ss_conn else 0
+            
+            # 内存使用
+            host_info = context.get('host', {})
+            m['mem_usage'] = host_info.get('memory_percent', 0) if host_info else 0
+            
+            # 数据库状态
+            dbs = context.get('databases', [])
+            m['database_count'] = len(dbs)
+            
+            m['version'] = ''
+            ver_rows = context.get('version', [])
+            if ver_rows and len(ver_rows) > 0:
+                for row in ver_rows:
+                    if len(row) >= 2:
+                        m['version'] = str(row[1])
+                        break
+
         return m
 
     def get_trend(self, db_type: str, host: str, port) -> dict:

@@ -1,3 +1,40 @@
 {
-
+  "71d729db59ff_192.168.42.219_25432": {
+    "db_type": "pg",
+    "host": "192.168.42.219",
+    "port": "25432",
+    "label": "test-pg",
+    "snapshots": [
+      {
+        "cpu_usage": 0.4,
+        "mem_usage": 9.85,
+        "disk_usage_max": 23.0,
+        "ts": "2026-04-25 21:31:50",
+        "report_time": "2026-04-25 21:31:50",
+        "risk_count": 2,
+        "health_status": "良好"
+      }
+    ]
+  },
+  "74864c6dd0ec_192.168.42.220_1521": {
+    "db_type": "oracle_full",
+    "host": "192.168.42.220",
+    "port": "1521",
+    "label": "ORACLE19",
+    "snapshots": [
+      {
+        "cpu_usage": 11.0,
+        "mem_usage": "4.66051",
+        "disk_usage_max": 100,
+        "connections": 198,
+        "max_connections": 1952,
+        "sga_total_mb": 1199.998191833496,
+        "version": "19.0.0.0.0",
+        "ts": "2026-04-25 21:48:42",
+        "report_time": "2026-04-25 21:48:42",
+        "risk_count": 0,
+        "health_status": "良好"
+      }
+    ]
+  }
 }

@@ -968,6 +968,15 @@ var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
             <label data-i18n="webui.inspector_name_placeholder">巡检人员姓名（将显示在报告封面）</label>
             <input type="text" id="f-inspector" placeholder="Jack" />
           </div>
+          <div style="margin-top:20px;padding:14px 16px;background:rgba(255,200,0,0.08);border:1px solid rgba(255,200,0,0.25);border-radius:10px;display:flex;align-items:center;gap:10px">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none">
+              <input type="checkbox" id="f-desensitize" style="width:16px;height:16px;accent-color:#ffc800" />
+              <span style="font-size:13px;color:var(--text)">
+                <span data-i18n="webui.desensitize_label" style="font-weight:600;color:#ffc800">🔒 脱敏导出报告</span>
+                <span style="color:var(--text-muted);font-size:12px;margin-left:4px" data-i18n="webui.desensitize_desc">IP / 端口 / 用户名 / 服务名将被替换为掩码</span>
+              </span>
+            </label>
+          </div>
           <div class="btn-row">
             <button class="btn btn-ghost" onclick="gotoStep(3)" data-i18n="webui.btn_prev">← 上一步</button>
             <button class="btn btn-primary" onclick="gotoStep(5)" data-i18n="webui.btn_confirm">✅ 确认</button>
@@ -1234,15 +1243,16 @@ function showPage(name) {
 }
 
 function startWizard() {
-  dbType = 'mysql';
-  sshEnabled = false;
   currentTaskId = null;
   logOffset = 0;
 
-  // 1. 先切换到 oracle_full 类型（更新 UI 显示，隐藏 Oracle 特有字段）
-  selectDbType('oracle_full');
+  // 1. 重置数据库类型为 MySQL
+  dbType = 'mysql';
+  sshEnabled = false;
+  selectDbType('mysql');
+
   // 2. 清除所有表单字段（port/user/ssh-port 由默认值覆盖，需保留）
-  const fids = ['f-host','f-password','f-database',
+  const fids = ['f-name','f-host','f-password','f-database',
                 'f-service-name','f-inspector','f-ssh-host',
                 'f-ssh-user','f-ssh-password','f-ssh-key'];
   fids.forEach(id => {
@@ -1250,6 +1260,21 @@ function startWizard() {
     if (el) el.value = '';
   });
   document.getElementById('f-sysdba').checked = false;
+  document.getElementById('f-desensitize').checked = false;
+
+  // 3. 重置 SSH 开关 UI
+  document.getElementById('ssh-toggle').className = 'toggle';
+  document.getElementById('ssh-toggle-sub').textContent = i18n('webui.ssh_enable_state_off');
+  document.getElementById('ssh-fields').className = 'ssh-fields form-grid';
+  document.getElementById('btn-test-ssh').style.display = 'none';
+  document.getElementById('f-ssh-auth').value = 'password';
+  document.getElementById('f-ssh-password-wrap').style.display = '';
+  document.getElementById('f-ssh-key-wrap').style.display = 'none';
+
+  // 4. 清空测试状态提示
+  document.getElementById('db-test-status').innerHTML = '';
+  document.getElementById('ssh-test-status').innerHTML = '';
+
   gotoStep(1);
   showPage('wizard');
   // reset run panel
@@ -1374,8 +1399,8 @@ async function testSsh() {
     });
     const data = await res.json();
     el.innerHTML = data.ok
-      ? `<div class="status-banner ok">${i18n('webui.ssh_test_ok')} ${escHtml(data.msg)}</div>`
-      : `<div class="status-banner err">${i18n('webui.ssh_test_fail')} ${escHtml(data.msg)}</div>`;
+      ? `<div class="status-banner ok">${escHtml(data.msg)}</div>`
+      : `<div class="status-banner err">${i18n('webui.ssh_test_fail')}: ${escHtml(data.msg)}</div>`;
   } catch(e) {
     el.innerHTML = `<div class="status-banner err">${i18n('webui.ssh_test_fail')} ${escHtml(e.message)}</div>`;
   }
@@ -1422,7 +1447,7 @@ async function startInspection() {
   const svcName = document.getElementById('f-service-name') ? document.getElementById('f-service-name').value.trim() : null;
   const inspector = document.getElementById('f-inspector').value.trim() || 'Jack';
 
-  const payload = { db_type: dbType, name, host, port, user, password, database, service_name: svcName, inspector_name: inspector, sysdba: document.getElementById('f-sysdba').checked };
+  const payload = { db_type: dbType, name, host, port, user, password, database, service_name: svcName, inspector_name: inspector, sysdba: document.getElementById('f-sysdba').checked, desensitize: document.getElementById('f-desensitize').checked };
   if (sshEnabled) {
     payload.ssh_host     = document.getElementById('f-ssh-host').value.trim() || host;
     payload.ssh_port     = parseInt(document.getElementById('f-ssh-port').value) || 22;
@@ -1632,7 +1657,7 @@ async function loadReports() {
             <div class="ri-meta">${dt} · ${size}</div>
           </div>
           <a class="btn btn-ghost" style="font-size:12px;padding:7px 14px"
-             href="/api/download_file?name=${encodeURIComponent(f.name)}" download>⬇ ${i18n('webui.download_report')}</a>
+             href="/api/download_file?name=${encodeURIComponent(f.name)}" download>${i18n('webui.btn_download_report')}</a>
         </div>`;
     }).join('');
   } catch(e) {

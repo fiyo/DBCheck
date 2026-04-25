@@ -1699,7 +1699,7 @@ def _docx_table(doc, headers, rows, header_bg='336699'):
     return tbl
 
 
-def build_word_report(db_info, os_data, check_results, db_version, ai_advice='', inspector='', lang='zh'):
+def build_word_report(db_info, os_data, check_results, db_version, ai_advice='', inspector='', lang='zh', desensitize=False):
     """构建完整 Word 巡检报告（纯 python-docx，无模板依赖）"""
     if not _HAS_DOCX:
         return None
@@ -1710,6 +1710,16 @@ def build_word_report(db_info, os_data, check_results, db_version, ai_advice='',
             return t(key, lang)
         except Exception:
             return key
+
+    # ── 脱敏处理（IP / 端口 / 用户名 / 服务名 / 主机名）───────────
+    if desensitize:
+        try:
+            from desensitize import apply_desensitization
+            _ds = apply_desensitization
+            db_info = _ds({'db_info': db_info})['db_info']
+            os_data  = _ds({'system_info': os_data})['system_info']
+        except Exception:
+            pass
 
     doc = Document()
 
@@ -2643,7 +2653,8 @@ def single_inspection(args):
         db_info['STATUS']         = inst_rows[0][5]
 
     docx = build_word_report(db_info, os_data, check_results, version_str, ai_advice,
-                              inspector=args.inspector or 'dbcheck', lang=_lang)
+                              inspector=args.inspector or 'dbcheck', lang=_lang,
+                              desensitize=bool(getattr(args, 'desensitize', False)))
 
     # ── 6. 保存报告 ────────────────────────────────────────────────────────
     print(f"\n[{GREEN}6/6{RESET}] {_t('oracle_log_save_report')}")
@@ -2656,7 +2667,8 @@ def single_inspection(args):
 
     # Word
     if docx:
-        docx_fname = f"oracle_fullcheck_{db_name}_{ver_tag}_{ts}.docx"
+        fname_template = _t('webui.oracle_report_filename')
+        docx_fname = fname_template.format(name=db_name, ts=ts)
         docx_path  = os.path.join(output_dir, docx_fname)
         try:
             docx.save(docx_path)

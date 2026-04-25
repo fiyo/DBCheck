@@ -151,6 +151,11 @@ def run_mysql_task(task_id, db_info, inspector_name):
         file_name = ext_name + '.docx'
         ofile = os.path.join(reports_dir, file_name)
 
+        # ── 脱敏处理（如用户开启了脱敏导出）───────────────────
+        if db_info.get('desensitize'):
+            from desensitize import apply_desensitization
+            ret = apply_desensitization(ret)
+
         savedoc = mod.saveDoc(context=ret, ofile=ofile, ifile=ifile, inspector_name=inspector_name)
         if not savedoc.contextsave():
             raise RuntimeError(_t('webui.err_report_generate'))
@@ -160,6 +165,21 @@ def run_mysql_task(task_id, db_info, inspector_name):
             task['status'] = 'done'
             task['report_file'] = ofile
             task['report_name'] = file_name
+
+        # ── 保存历史记录用于趋势分析 ──────────────────────────
+        try:
+            from analyzer import HistoryManager
+            hm = HistoryManager(os.path.dirname(os.path.abspath(__file__)))
+            hm.save_snapshot(
+                db_type='mysql',
+                host=db_info['ip'],
+                port=db_info['port'],
+                label=db_info.get('name', db_info['ip']),
+                context=ret
+            )
+        except Exception as e:
+            _emit('log', {'msg': f"[警告] 历史记录保存失败: {e}"})
+
         _emit('done', {'msg': _t('webui.log_inspection_done').format(ver=ver), 'task_id': task_id})
     except Exception as e:
         _emit('error', {'msg': _t('webui.err_inspection').format(task='MySQL', e=e)})
@@ -217,8 +237,56 @@ def run_pg_task(task_id, db_info, inspector_name):
 
         if not ret:
             raise RuntimeError(_t('webui.err_checkdb_false'))
+
+        # ── 生成 Word 报告 ───────────────────────────────────
+        _emit('log', {'msg': _t('webui.log_generating_report').format(ts=_ts())})
+        label_name = db_info.get('name', db_info.get('ip', 'unknown'))
+        ret.update({"co_name": [{'CO_NAME': label_name}]})
+        ret.update({"port": [{'PORT': db_info['port']}]})
+        ret.update({"ip": [{'IP': db_info['ip']}]})
+
+        inspector_name = db_info.get('inspector_name') or 'Jack'
+        ifile = mod.create_word_template(inspector_name)
+        if not ifile:
+            raise RuntimeError(_t('webui.err_template_create'))
+
+        reports_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reports')
+        if not os.path.exists(reports_dir):
+            os.makedirs(reports_dir)
+        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        ext_name = _t('webui.pg_report_filename').format(name=label_name, ts=timestamp)
+        file_name = ext_name + '.docx'
+        ofile = os.path.join(reports_dir, file_name)
+
+        # ── 脱敏处理（如用户开启了脱敏导出）───────────────────
+        if db_info.get('desensitize'):
+            from desensitize import apply_desensitization
+            ret = apply_desensitization(ret)
+
+        savedoc = mod.saveDoc(context=ret, ofile=ofile, ifile=ifile, inspector_name=inspector_name)
+        if not savedoc.contextsave():
+            raise RuntimeError(_t('webui.err_report_generate'))
+        _emit('log', {'msg': _t('webui.log_report_ok').format(fname=file_name)})
+
         if task:
             task['status'] = 'done'
+            task['report_file'] = ofile
+            task['report_name'] = file_name
+
+        # ── 保存历史记录用于趋势分析 ──────────────────────────
+        try:
+            from analyzer import HistoryManager
+            hm = HistoryManager(os.path.dirname(os.path.abspath(__file__)))
+            hm.save_snapshot(
+                db_type='pg',
+                host=db_info['ip'],
+                port=db_info['port'],
+                label=db_info.get('name', db_info['ip']),
+                context=ret
+            )
+        except Exception as e:
+            _emit('log', {'msg': f"[警告] 历史记录保存失败: {e}"})
+
         _emit('done', {'msg': _t('webui.log_inspection_done').format(ver=ver), 'task_id': task_id})
     except Exception as e:
         _emit('error', {'msg': _t('webui.err_inspection').format(task='PostgreSQL', e=e)})
@@ -275,6 +343,8 @@ def run_oracle_full_task(task_id, db_info, inspector_name):
         args.zip        = bool(db_info.get('zip', False))
         # 巡检人
         args.inspector  = inspector_name or ''
+        # 脱敏导出
+        args.desensitize = bool(db_info.get('desensitize', False))
 
         service_desc = args.servicename or f"SID={args.sid}"
         _emit('log', {'msg': f"[{_ts()}] 连接 Oracle {args.host}:{args.port}/{service_desc}..."})
@@ -385,8 +455,14 @@ def run_dm_task(task_id, db_info, inspector_name):
         reports_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reports')
         os.makedirs(reports_dir, exist_ok=True)
         _dt = __import__('datetime').datetime
-        ofile = os.path.join(reports_dir, f"DM8_Report_{_dt.now().strftime('%Y%m%d_%H%M%S')}.docx")
+        label_name = db_info.get('name', 'DM8')
+        ofile = os.path.join(reports_dir, _t('webui.dm_report_filename').format(name=label_name, ts=_dt.now().strftime('%Y%m%d_%H%M%S')) + '.docx')
         ifile = mod.create_word_template(inspector_name)
+        # ── 脱敏处理（如用户开启了脱敏导出）───────────────────
+        if db_info.get('desensitize'):
+            from desensitize import apply_desensitization
+            context = apply_desensitization(context)
+
         saver = mod.saveDoc(context, ofile, ifile, inspector_name, H=data.H, P=data.P)
         if not saver.contextsave():
             raise RuntimeError(_t('webui.err_report_failed'))
@@ -396,6 +472,21 @@ def run_dm_task(task_id, db_info, inspector_name):
             task['status'] = 'done'
             task['report_name'] = os.path.basename(ofile)
             task['report_file'] = ofile
+
+        # ── 保存历史记录用于趋势分析 ──────────────────────────
+        try:
+            from analyzer import HistoryManager
+            hm = HistoryManager(os.path.dirname(os.path.abspath(__file__)))
+            hm.save_snapshot(
+                db_type='dm',
+                host=db_info['ip'],
+                port=db_info['port'],
+                label=db_info.get('name', db_info['ip']),
+                context=context
+            )
+        except Exception as e:
+            _emit('log', {'msg': f"[警告] 历史记录保存失败: {e}"})
+
         _emit('done', {'msg': _t('webui.log_inspection_done').format(ver=ver), 'task_id': task_id,
                        'ai_advice': context.get('ai_advice', '')})
     except Exception as e:
@@ -486,7 +577,8 @@ def run_sqlserver_task(task_id, db_info, inspector_name):
         reports_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reports')
         os.makedirs(reports_dir, exist_ok=True)
         _dt = __import__('datetime').datetime
-        ofile = os.path.join(reports_dir, f"SQLServer_Report_{_dt.now().strftime('%Y%m%d_%H%M%S')}.docx")
+        label_name = db_info.get('name', 'SQLServer')
+        ofile = os.path.join(reports_dir, _t('webui.sqlserver_report_filename').format(name=label_name, ts=_dt.now().strftime('%Y%m%d_%H%M%S')) + '.docx')
 
         if inspector.report_path and os.path.exists(inspector.report_path):
             # checkdb 已生成报告，直接使用
@@ -502,6 +594,21 @@ def run_sqlserver_task(task_id, db_info, inspector_name):
             task['status'] = 'done'
             task['report_name'] = os.path.basename(ofile)
             task['report_file'] = ofile
+
+        # ── 保存历史记录用于趋势分析 ──────────────────────────
+        try:
+            from analyzer import HistoryManager
+            hm = HistoryManager(os.path.dirname(os.path.abspath(__file__)))
+            hm.save_snapshot(
+                db_type='sqlserver',
+                host=db_info['ip'],
+                port=db_info['port'],
+                label=db_info.get('name', db_info['ip']),
+                context=inspector.data
+            )
+        except Exception as e:
+            _emit('log', {'msg': f"[警告] 历史记录保存失败: {e}"})
+
         _emit('done', {'msg': _t('webui.log_inspection_done').format(ver=ver), 'task_id': task_id,
                        'ai_advice': inspector.data.get('ai_advice', '')})
     except Exception as e:
@@ -537,7 +644,12 @@ def test_pg_connection(host, port, user, password, database='postgres'):
         import psycopg2
         conn = psycopg2.connect(host=host, port=int(port), user=user, password=password,
                                 database=database, connect_timeout=10)
-        ver = psycopg2.extensions.parse_version_only(conn.server_version)
+        # psycopg2 的 server_version 是整数 (如 140002 表示 14.0.2)
+        # 用 SQL 查询获取可读版本字符串
+        cur = conn.cursor()
+        cur.execute('SHOW server_version')
+        ver = cur.fetchone()[0]
+        cur.close()
         conn.close()
         return True, f"PostgreSQL {ver}"
     except Exception as e:
@@ -846,6 +958,7 @@ def api_start_inspection():
             'output_dir': data.get('output_dir', None),
             'zip':       data.get('zip', False),
             'name':      data.get('name', ''),
+            'desensitize': bool(data.get('desensitize', False)),
         }
 
         if data.get('ssh_host'):

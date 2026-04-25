@@ -163,6 +163,7 @@ ZI = {
     "webui.ssh_test_fail": "SSH 连接失败",
     "webui.inspector_info": "巡检人员信息",
     "webui.inspector_name_placeholder": "巡检人员姓名（将显示在报告封面）",
+    "webui.run_inspection": "开始巡检",
     "webui.run_inspection_btn": "🚀 开始巡检",
     "webui.confirm_info_title": "信息确认",
     "webui.inspector_label": "巡检人员",
@@ -1424,6 +1425,10 @@ ZI = {
     "webui.err_report_generate": "生成报告文件失败",
     "webui.log_report_ok": "报告已生成: {fname}",
     "webui.mysql_report_filename": "MySQL巡检报告_{name}_{ts}",
+    "webui.pg_report_filename": "PostgreSQL巡检报告_{name}_{ts}",
+    "webui.oracle_report_filename": "Oracle巡检报告_{name}_{ts}",
+    "webui.dm_report_filename": "DM巡检报告_{name}_{ts}",
+    "webui.sqlserver_report_filename": "SQLServer巡检报告_{name}_{ts}",
 
     # SQL Server CLI i18n
     "sqlserver.report_title": "SQL Server 数据库健康巡检报告",

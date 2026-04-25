@@ -166,6 +166,7 @@ EN = {
     "webui.ssh_test_fail": "SSH connection failed",
     "webui.inspector_info": "Inspector Information",
     "webui.inspector_name_placeholder": "Inspector name (shown on report cover)",
+    "webui.run_inspection": "Start Inspection",
     "webui.run_inspection_btn": "🚀 Start Inspection",
     "webui.confirm_info_title": "Confirm Information",
     "webui.inspector_label": "Inspector",
@@ -318,6 +319,8 @@ EN = {
     "webui.ai_openai_tip": "DeepSeek: Set API URL to https://api.deepseek.com/v1, model to deepseek-chat, and enter your DeepSeek API key.",
     "webui.ai_warn_note": "Note: AI diagnosis only sends metric values, not passwords or sensitive information.",
     "webui.btn_download_report": "⬇ Download Report",
+    "webui.desensitize_label": "🔒 Desensitize Report",
+    "webui.desensitize_desc": "Mask IP / port / username / service name in exported report",
     "webui.btn_new_inspection": "🔄 New Inspection",
     
     "webui.btn_retry": "↺ Retry",
@@ -1417,6 +1420,10 @@ EN = {
     "webui.err_report_generate": "Failed to generate report file",
     "webui.log_report_ok": "Report generated: {fname}",
     "webui.mysql_report_filename": "MySQLInspection_{name}_{ts}",
+    "webui.pg_report_filename": "PostgreSQLInspection_{name}_{ts}",
+    "webui.oracle_report_filename": "OracleInspection_{name}_{ts}",
+    "webui.dm_report_filename": "DMInspection_{name}_{ts}",
+    "webui.sqlserver_report_filename": "SQLServerInspection_{name}_{ts}",
 
     # SQL Server CLI i18n
     "sqlserver.report_title": "SQL Server Database Health Inspection Report",

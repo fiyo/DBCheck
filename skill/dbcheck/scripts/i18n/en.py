@@ -166,6 +166,7 @@ EN = {
     "webui.ssh_test_fail": "SSH connection failed",
     "webui.inspector_info": "Inspector Information",
     "webui.inspector_name_placeholder": "Inspector name (shown on report cover)",
+    "webui.run_inspection": "Start Inspection",
     "webui.run_inspection_btn": "🚀 Start Inspection",
     "webui.confirm_info_title": "Confirm Information",
     "webui.inspector_label": "Inspector",
@@ -1416,6 +1417,10 @@ EN = {
     "webui.err_report_generate": "Failed to generate report file",
     "webui.log_report_ok": "Report generated: {fname}",
     "webui.mysql_report_filename": "MySQLInspection_{name}_{ts}",
+    "webui.pg_report_filename": "PostgreSQLInspection_{name}_{ts}",
+    "webui.oracle_report_filename": "OracleInspection_{name}_{ts}",
+    "webui.dm_report_filename": "DMInspection_{name}_{ts}",
+    "webui.sqlserver_report_filename": "SQLServerInspection_{name}_{ts}",
 
     # SQL Server CLI i18n
     "sqlserver.report_title": "SQL Server Database Health Inspection Report",

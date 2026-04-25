@@ -1770,7 +1770,7 @@ class getData(object):
         :param label: 巡检标签名（可选）；CLI模式通过 infos.label 传入，
                       直接调用时通过此参数传入
         """
-        self.label = str(label if label is not None else infos.label) if 'infos' in dir() else str(label or db_info.get('name', 'pg_inspection'))
+        self.label = str(label if label is not None else infos.label) if 'infos' in dir() else str(label or 'pg_inspection')
         self.H = ip
         self.P = int(port)
         self.user = user
