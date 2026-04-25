@@ -1,12 +1,13 @@
 # DBCheck - Database Inspection Tool
 
->DBCheck is an automated database health inspection tool that supports **MySQL**, **PostgreSQL**, **Oracle**, and **Dameng DM8**. It generates standardized Microsoft Word inspection reports, helping DBAs and operations staff quickly assess database health status and identify potential risks.
+>DBCheck is an automated database health inspection tool that supports **MySQL**, **PostgreSQL**, **Oracle**, **SQL Server**, and **Dameng DM8**. It generates standardized Microsoft Word inspection reports, helping DBAs and operations staff quickly assess database health status and identify potential risks.
 
 
 [![Version](https://img.shields.io/badge/version-2.3.3-blue.svg)]()
 [![MySQL](https://img.shields.io/badge/database-MySQL-blue.svg)]()
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-gray.svg)]()
 [![Oracle](https://img.shields.io/badge/Oracle-red.svg)]()
+[![SQL Server](https://img.shields.io/badge/SQL%20Server-orange.svg)]()
 [![DM](https://img.shields.io/badge/DM-yellow.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg)]()
 
@@ -66,24 +67,26 @@ Leveraging a fully offline, local **Ollama** deployment, DBCheck analyzes inspec
 
 Each risk is presented as a card: **Risk Level (High/Medium/Low) → Issue Description → Remediation SQL (copy-paste ready) → Priority & Owner**. The report automatically aggregates all findings so you can see every pending item at a glance.
 
-| Dimension | MySQL | PostgreSQL | Oracle | DM8 |
-|-----------|:-----:|:----------:|:------:|:---:|
-| Connection Resources | ✅ | ✅ | ✅ | ✅ |
-| Cache Performance | ✅ | ✅ | ✅ | ✅ |
-| Query Efficiency | ✅ | ✅ | ✅ | ✅ |
-| Logs and Alerts | ✅ | ✅ | ✅ | ✅ |
-| Security Audit | ✅ | ✅ | ✅ | ✅ |
-| Replication / DG | ✅ | ✅ | — | — |
-| Configuration Tuning | ✅ | ✅ | ✅ | ✅ |
-| Tablespaces | — | — | ✅ | ✅ |
-| SGA / PGA Memory | — | — | ✅ | ✅ |
-| Redo Logs | — | — | ✅ | ✅ |
-| Backup and Archiving | — | — | ✅ | ✅ |
-| RAC Cluster | — | — | ✅ | — |
-| ASM Disk Groups | — | — | ✅ | — |
-| Undo Management | — | — | ✅ | ✅ |
-| Data Guard | — | — | ✅ | — |
-| DM8-Specific Views | — | — | — | ✅ |
+| Dimension | MySQL | PostgreSQL | Oracle | SQL Server | DM8 |
+|-----------|:-----:|:----------:|:------:|:-----------:|:---:|
+| Connection Resources | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Cache Performance | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Query Efficiency | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Logs and Alerts | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Security Audit | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Replication / DG | ✅ | ✅ | — | — | — |
+| Configuration Tuning | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Tablespaces | — | — | ✅ | ✅ | ✅ |
+| SGA / PGA Memory | — | — | ✅ | — | ✅ |
+| Redo Logs | — | — | ✅ | — | ✅ |
+| Backup and Archiving | — | — | ✅ | ✅ | ✅ |
+| RAC Cluster | — | — | ✅ | — | — |
+| ASM Disk Groups | — | — | ✅ | — | — |
+| Undo Management | — | — | ✅ | — | ✅ |
+| Data Guard | — | — | ✅ | — | — |
+| Wait Events | — | — | ✅ | ✅ | ✅ |
+| Locks and Blocking | — | — | — | ✅ | — |
+| DM8-Specific Views | — | — | — | — | ✅ |
 
 ---
 
@@ -93,7 +96,7 @@ Each risk is presented as a card: **Risk Level (High/Medium/Low) → Issue Descr
 |-----------|-------------|
 | 📊 Historical Trend Analysis | Automatically aggregates data from multiple inspection runs on the same database, generates metric trend line charts, and compares against previous results to surface changes |
 | 🤖 AI-Powered Diagnosis | Calls local Ollama based on inspection metrics to generate personalized optimization recommendations |
-| 🔍 80+ Enhanced Rules | Full-dimensional risk detection across all four databases (MySQL 18+, PG 16+, Oracle 20+, DM8 16+) |
+| 🔍 100+ Enhanced Rules | Full-dimensional risk detection across all five databases (MySQL 18+, PG 16+, Oracle 20+, SQL Server 15+, DM8 16+) |
 | 🦞 OpenClaw Skill | Trigger a full inspection with one natural-language command — zero manual operations required |
 
 ---
@@ -113,30 +116,31 @@ Each risk is presented as a card: **Risk Level (High/Medium/Low) → Issue Descr
 
 ### Database Inspection
 
-| Dimension | MySQL | PostgreSQL | Oracle | DM8 |
-|-----------|:-----:|:----------:|:------:|:---:|
-| Basic Info (version / instance / database) | ✅ | ✅ | ✅ | ✅ |
-| Session and Connection Status | ✅ | ✅ | ✅ | ✅ |
-| Memory and Cache Configuration | ✅ | ✅ | ✅ | ✅ |
-| Tablespace Usage | — | — | ✅ | ✅ |
-| SGA / PGA Memory Analysis | — | — | ✅ | ✅ |
-| Redo Log Status | — | — | ✅ | ✅ |
-| Archiving and Backup Checks | — | — | ✅ | ✅ |
-| Key Parameter Configuration | ✅ | ✅ | ✅ | ✅ |
-| Invalid Object Detection | ✅ | ✅ | ✅ | ✅ |
-| User Security Audit | ✅ | ✅ | ✅ | ✅ |
-| Top SQL / Slow Queries | ✅ | ✅ | ✅ | ✅ |
-| Master-Slave Replication / Data Guard | ✅ | ✅ | — | — |
-| RAC Cluster Information | — | — | ✅ | — |
-| ASM Disk Groups | — | — | ✅ | — |
-| Undo Tablespace Management | — | — | ✅ | ✅ |
-| Recycle Bin / Flashback Recovery Area | — | — | ✅ | ✅ |
-| Profile Password Policy | — | — | ✅ | — |
-| Top Wait Events | — | — | ✅ | ✅ |
-| Stale Statistics Detection | — | — | ✅ | ✅ |
-| Partitioned Table Information | — | — | ✅ | ✅ |
-| Datafile Status | — | — | ✅ | ✅ |
-| DM8 Buffer Pool Details | — | — | — | ✅ |
+| Dimension | MySQL | PostgreSQL | Oracle | SQL Server | DM8 |
+|-----------|:-----:|:----------:|:------:|:-----------:|:---:|
+| Basic Info (version / instance / database) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Session and Connection Status | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Memory and Cache Configuration | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Tablespace Usage | — | — | ✅ | ✅ | ✅ |
+| SGA / PGA Memory Analysis | — | — | ✅ | — | ✅ |
+| Redo Log Status | — | — | ✅ | — | ✅ |
+| Archiving and Backup Checks | — | — | ✅ | ✅ | ✅ |
+| Key Parameter Configuration | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Invalid Object Detection | ✅ | ✅ | ✅ | ✅ | ✅ |
+| User Security Audit | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Top SQL / Slow Queries | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Master-Slave Replication / Data Guard | ✅ | ✅ | — | — | — |
+| RAC Cluster Information | — | — | ✅ | — | — |
+| ASM Disk Groups | — | — | ✅ | — | — |
+| Undo Tablespace Management | — | — | ✅ | — | ✅ |
+| Recycle Bin / Flashback Recovery Area | — | — | ✅ | — | ✅ |
+| Profile Password Policy | — | — | ✅ | — | — |
+| Top Wait Events | — | — | ✅ | ✅ | ✅ |
+| Locks and Blocking Detection | — | — | — | ✅ | — |
+| Stale Statistics Detection | — | — | ✅ | ✅ | ✅ |
+| Partitioned Table Information | — | — | ✅ | ✅ | ✅ |
+| Datafile Status | — | — | ✅ | ✅ | ✅ |
+| DM8 Buffer Pool Details | — | — | — | — | ✅ |
 
 ### System Resource Monitoring
 
@@ -204,6 +208,20 @@ Automatically detects potential database risks — **each risk includes an execu
 | Objects | Invalid objects / stale statistics / partitioned table info |
 | Archiving | Archiving disabled / log accumulation |
 
+#### SQL Server (15+ rules)
+
+| Dimension | Example Rules |
+|-----------|--------------|
+| Connections | Current connections near maximum limit |
+| Sessions | Active sessions anomalies / long-running sessions |
+| Waits | Wait statistics TOP10 / wait type analysis |
+| Locks | Current lock info / lock waits and blocking chains |
+| Deadlocks | Deadlock history detection / blocking process analysis |
+| Backups | Recent backup missing / backup type check |
+| Database | Database status / recovery model / file sizes |
+| Memory | Memory clerk usage / buffer pool hit ratio |
+| Performance | Top SQL sorted by CPU / IO / execution time |
+
 ### Historical Trend Analysis
 
 > Run multiple inspections on the same database, and DBCheck automatically aggregates the data to generate trend charts — spotting gradual changes before they become incidents.
@@ -246,16 +264,18 @@ Comparison of Intelligent Analysis vs. AI Diagnosis:
 - **General Dependencies**: pymysql, psycopg2-binary, python-docx, docxtpl, paramiko, psutil, openpyxl, pandas, flask, flask_socketio
 - **Oracle Dependencies**: `oracledb` (recommended, pure Python, no Instant Client needed) or `cx_Oracle` (requires Oracle Instant Client)
 - **DM8 Dependencies**: `dmpython` (pip install dmpython)
+- **SQL Server Dependencies**: `pyodbc` + ODBC Driver 17 (supported on Windows and Linux)
 - **MySQL Privileges**: Read-only access to information_schema, performance_schema, and mysql databases
 - **PostgreSQL Privileges**: Read-only access to pg_stat_* series views and pg_roles
 - **Oracle Privileges**: Read-only access to v$* and dba_* views; SYSDBA privileged connections supported (Web UI checkbox for one-click enablement)
+- **SQL Server Privileges**: Read-only access to sys.databases, sys.master_files, and sys.dm_* dynamic management views
 - **DM8 Privileges**: Read-only access to V$* system views and DBA_* admin views; default port 5236; connecting user equals Schema (no `database` parameter needed)
 - **SSH (optional)**: Used for remote system resource collection (MySQL / PostgreSQL / Oracle / DM8); default port 22; DM8 SSH falls back to local collector on failure
 
 ### Installing Dependencies
 
 ```bash
-pip install pymysql psycopg2-binary paramiko=4.0.0 openpyxl docxtpl python-docx pandas psutil flask oracledb dmpython flask_socketio
+pip install pymysql psycopg2-binary paramiko=4.0.0 openpyxl docxtpl python-docx pandas psutil flask oracledb dmpython pyodbc flask_socketio
 ```
 
 > DM8 Driver Notes:
@@ -275,7 +295,7 @@ pip install pymysql psycopg2-binary paramiko=4.0.0 openpyxl docxtpl python-docx 
 python main.py
 ```
 
-The main menu offers seven options:
+The main menu offers eight options:
 
 ```
 ==================================================
@@ -285,16 +305,18 @@ The main menu offers seven options:
     🐘  2 │ PostgreSQL      PostgreSQL Health Inspection & Report
     🔴  3 │ Oracle          Oracle Deep Health Inspection (20+ Checks)
     🟡  4 │ DM8             Dameng DM8 Health Inspection & Report
-    📋  5 │ Batch Template  Generate Batch Inspection Excel Template
-    🌐  6 │ Launch Web UI   Browser-based GUI
-        7 │ Exit
+    🟠  5 │ SQL Server      SQL Server Health Inspection & Report
+    📋  6 │ Batch Template  Generate Batch Inspection Excel Template
+    🌐  7 │ Launch Web UI   Browser-based GUI
+        8 │ Exit
 ==================================================
 ```
 
-1. Enter **1–3** to enter the inspection menu for the corresponding database type
-2. Enter **4** to select a template type to generate (MySQL / PostgreSQL / Oracle / DM8)
-3. Enter **5** to launch the Web UI
-4. Enter **6** to exit
+1. Enter **1–4** to enter the inspection menu for the corresponding database type
+2. Enter **5** to enter the SQL Server inspection menu
+3. Enter **6** to select a template type to generate (MySQL / PostgreSQL / Oracle / SQL Server / DM8)
+4. Enter **7** to launch the Web UI
+5. Enter **8** to exit
 
 #### Single Instance Inspection (Oracle as Example)
 
@@ -326,7 +348,7 @@ python web_ui.py
 
 | Step | Function |
 |:---:|---------|
-| 1 | Select database type (🐬 MySQL / 🐘 PostgreSQL / 🔴 Oracle / 🟡 DM8) |
+| 1 | Select database type (🐬 MySQL / 🐘 PostgreSQL / 🔴 Oracle / 🟠 SQL Server / 🟡 DM8) |
 | 2 | Fill in connection info — Oracle requires service name/SID; DM8 does not need a database name |
 | 3 | Online connection testing (SYSDBA privileged verification via checkbox) |
 | 4 | Configure SSH for system resource collection (optional, default port 22; DM8 supports SSH with auto-fallback) |
@@ -378,6 +400,7 @@ dbcheck/skill/dbcheck/
     ├── main_mysql.py           # MySQL inspection logic
     ├── main_pg.py              # PostgreSQL inspection logic
     ├── main_oracle_full.py     # Oracle inspection logic (20+ checks)
+    ├── main_sqlserver.py       # SQL Server inspection logic
     ├── main_dm.py              # Dameng DM8 inspection logic
     ├── analyzer.py             # Intelligent risk analysis engine
     └── main.py                 # Unified menu entry
@@ -500,6 +523,20 @@ The generated Word report contains the following chapters (Oracle inspection rep
 
 13. **"Server hostname/platform" in the report shows local machine info**
     - A known limitation when SSH collection is disabled; Dameng server system info collection depends on the SSH channel and will be addressed in a future version.
+
+### SQL Server-Specific
+
+14. **Connection failure**
+    - Confirm SQL Server allows remote connections (SQL Server Configuration Manager → Network Configuration → TCP/IP enabled)
+    - Confirm firewall allows port 1433 (or custom port)
+    - Confirm correct authentication mode (Windows Authentication or Mixed Mode)
+
+15. **pyodbc installed but connection fails**
+    - ODBC Driver 17 required: install via `curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add -` then install mssql-server
+    - On Linux: `curl https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list | tee /etc/apt/sources.list.d/mssql-release.list`
+
+16. **SQL Server version support**
+    - Supports **SQL Server 2012, 2014, 2016, 2017, 2019, 2022** and above
 
 ---
 

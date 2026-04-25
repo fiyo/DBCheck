@@ -1,12 +1,13 @@
 # 数据库巡检工具 - DBCheck
 
->支持对 **MySQL**、**PostgreSQL**、**Oracle**和 **达梦 DM8** 四种主流关系型数据库进行自动化健康巡检，生成格式规范的 Microsoft Word 报告，帮助 DBA 和运维人员快速掌握数据库运行状况、发现潜在风险。
+>支持对 **MySQL**、**PostgreSQL**、**Oracle**、**SQL Server** 和 **达梦 DM8** 五种主流关系型数据库进行自动化健康巡检，生成格式规范的 Microsoft Word 报告，帮助 DBA 和运维人员快速掌握数据库运行状况、发现潜在风险。
 
 
 [![Version](https://img.shields.io/badge/version-2.3.3-blue.svg)]()
 [![MySQL](https://img.shields.io/badge/database-MySQL-blue.svg)]()
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-gray.svg)]()
 [![Oracle](https://img.shields.io/badge/Oracle-red.svg)]()
+[![SQL Server](https://img.shields.io/badge/SQL%20Server-orange.svg)]()
 [![DM](https://img.shields.io/badge/DM-yellow.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg)]()
 
@@ -66,24 +67,26 @@ python main.py --lang zh         # 切换为中文（显式指定）
 
 每条风险对应一张卡片，包含：**风险等级（高/中/低）→ 问题描述 → 修复 SQL（可直接复制执行）→ 优先级与负责人**。报告自动汇总，一眼看清全部待处理项。
 
-| 维度 | MySQL | PostgreSQL | Oracle | DM8 |
-|------|:-----:|:----------:|:-----------:|:----:|
-| 连接资源 | ✅ | ✅ | ✅ | ✅ |
-| 缓存性能 | ✅ | ✅ | ✅ | ✅ |
-| 查询效率 | ✅ | ✅ | ✅ | ✅ |
-| 日志告警 | ✅ | ✅ | ✅ | ✅ |
-| 安全审计 | ✅ | ✅ | ✅ | ✅ |
-| 复制/DG | ✅ | ✅ | — | — |
-| 配置优化 | ✅ | ✅ | ✅ | ✅ |
-| 表空间 | — | — | ✅ | ✅ |
-| SGA/PGA 内存 | — | — | ✅ | ✅ |
-| Redo 日志 | — | — | ✅ | ✅ |
-| 备份与归档 | — | — | ✅ | ✅ |
-| RAC 集群 | — | — | ✅ | — |
-| ASM 磁盘组 | — | — | ✅ | — |
-| Undo 管理 | — | — | ✅ | ✅ |
-| Data Guard | — | — | ✅ | — |
-| DM8 特有视图 | — | — | — | ✅ |
+| 维度 | MySQL | PostgreSQL | Oracle | SQL Server | DM8 |
+|------|:-----:|:----------:|:-----------:|:-----------:|:----:|
+| 连接资源 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 缓存性能 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 查询效率 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 日志告警 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 安全审计 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 复制/DG | ✅ | ✅ | — | — | — |
+| 配置优化 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 表空间 | — | — | ✅ | ✅ | ✅ |
+| SGA/PGA 内存 | — | — | ✅ | — | ✅ |
+| Redo 日志 | — | — | ✅ | — | ✅ |
+| 备份与归档 | — | — | ✅ | ✅ | ✅ |
+| RAC 集群 | — | — | ✅ | — | — |
+| ASM 磁盘组 | — | — | ✅ | — | — |
+| Undo 管理 | — | — | ✅ | — | ✅ |
+| Data Guard | — | — | ✅ | — | — |
+| 等待事件 | — | — | ✅ | ✅ | ✅ |
+| 锁与阻塞 | — | — | — | ✅ | — |
+| DM8 特有视图 | — | — | — | — | ✅ |
 
 ---
 
@@ -93,7 +96,7 @@ python main.py --lang zh         # 切换为中文（显式指定）
 |------|------|
 | 📊 历史趋势分析 | 同一数据库多次巡检数据自动汇聚，生成指标趋势折线图，与上次对比发现变化 |
 | 🤖 AI 智能诊断 | 基于巡检指标调用本地 Ollama，生成个性化优化建议 |
-| 🔍 80+ 条增强规则 | 覆盖四种数据库全维度风险检测（MySQL 18+条 / PG 16+条 / Oracle 20+条 / DM8 16+条） |
+| 🔍 100+ 条增强规则 | 覆盖五种数据库全维度风险检测（MySQL 18+条 / PG 16+条 / Oracle 20+条 / SQL Server 15+条 / DM8 16+条） |
 | 🦞 OpenClaw Skill | AI 助手一句话完成巡检，零操作生成报告 |
 
 ---
@@ -113,30 +116,31 @@ python main.py --lang zh         # 切换为中文（显式指定）
 
 ### 数据库巡检
 
-| 维度 | MySQL | PostgreSQL | Oracle | DM8 |
-|------|:-----:|:----------:|:-----------:|:----:|
-| 基本信息（版本/实例/数据库） | ✅ | ✅ | ✅ | ✅ |
-| 会话与连接状态 | ✅ | ✅ | ✅ | ✅ |
-| 内存与缓存配置 | ✅ | ✅ | ✅ | ✅ |
-| 表空间使用情况 | — | — | ✅ | ✅ |
-| SGA / PGA 内存分析 | — | — | ✅ | ✅ |
-| Redo 日志与状态 | — | — | ✅ | ✅ |
-| 归档与备份检查 | — | — | ✅ | ✅ |
-| 关键参数配置 | ✅ | ✅ | ✅ | ✅ |
-| 无效对象检测 | ✅ | ✅ | ✅ | ✅ |
-| 用户安全审计 | ✅ | ✅ | ✅ | ✅ |
-| Top SQL / 慢查询 | ✅ | ✅ | ✅ | ✅ |
-| 主从复制 / Data Guard | ✅ | ✅ | — | — |
-| RAC 集群信息 | — | — | ✅ | — |
-| ASM 磁盘组 | — | — | ✅ | — |
-| Undo 表空间管理 | — | — | ✅ | ✅ |
-| 回收站 / 闪回恢复区 | — | — | ✅ | ✅ |
-| Profile 密码策略 | — | — | ✅ | — |
-| 等待事件 TOP | — | — | ✅ | ✅ |
-| 统计信息陈旧检测 | — | — | ✅ | ✅ |
-| 分区表信息 | — | — | ✅ | ✅ |
-| 数据文件状态 | — | — | ✅ | ✅ |
-| DM8 缓冲池详情 | — | — | — | ✅ |
+| 维度 | MySQL | PostgreSQL | Oracle | SQL Server | DM8 |
+|------|:-----:|:----------:|:-----------:|:-----------:|:----:|
+| 基本信息（版本/实例/数据库） | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 会话与连接状态 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 内存与缓存配置 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 表空间使用情况 | — | — | ✅ | ✅ | ✅ |
+| SGA / PGA 内存分析 | — | — | ✅ | — | ✅ |
+| Redo 日志与状态 | — | — | ✅ | — | ✅ |
+| 归档与备份检查 | — | — | ✅ | ✅ | ✅ |
+| 关键参数配置 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 无效对象检测 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 用户安全审计 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Top SQL / 慢查询 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 主从复制 / Data Guard | ✅ | ✅ | — | — | — |
+| RAC 集群信息 | — | — | ✅ | — | — |
+| ASM 磁盘组 | — | — | ✅ | — | — |
+| Undo 表空间管理 | — | — | ✅ | — | ✅ |
+| 回收站 / 闪回恢复区 | — | — | ✅ | — | ✅ |
+| Profile 密码策略 | — | — | ✅ | — | — |
+| 等待事件 TOP | — | — | ✅ | ✅ | ✅ |
+| 锁与阻塞检测 | — | — | — | ✅ | — |
+| 统计信息陈旧检测 | — | — | ✅ | ✅ | ✅ |
+| 分区表信息 | — | — | ✅ | ✅ | ✅ |
+| 数据文件状态 | — | — | ✅ | ✅ | ✅ |
+| DM8 缓冲池详情 | — | — | — | — | ✅ |
 
 ### 系统资源监控
 
@@ -204,6 +208,20 @@ python main.py --lang zh         # 切换为中文（显式指定）
 | 对象 | 无效对象 / 统计信息陈旧 / 分区表信息 |
 | 归档 | 归档模式未开启 / 归档日志堆积 |
 
+#### SQL Server（15+ 条规则）
+
+| 维度 | 规则示例 |
+|------|---------|
+| 连接数 | 当前连接数接近最大连接数上限 |
+| 会话 | 活动会话数异常 / 长时间运行会话 |
+| 等待 | 等待统计 TOP10 / 等待类型分析 |
+| 锁 | 当前锁信息 / 锁等待与阻塞链 |
+| 死锁 | 死锁历史检测 / 阻塞进程分析 |
+| 备份 | 最近备份缺失 / 备份类型检查 |
+| 数据库 | 数据库状态 / 恢复模式 / 文件大小 |
+| 内存 | 内存 clerk 使用 / 缓冲池命中率 |
+| 性能 | Top SQL 按 CPU/IO/执行时间排序 |
+
 ### 历史趋势分析 📊
 
 > 多次巡检同一个数据库，自动汇聚指标数据，生成趋势图，发现悄然发生的变化。
@@ -246,16 +264,18 @@ AI 诊断与智能分析的关系：
 - **通用依赖**：pymysql、psycopg2-binary、python-docx、docxtpl、paramiko、psutil、openpyxl、pandas、flask、flask_socketio
 - **Oracle 依赖**：`oracledb`（推荐）或 `cx_Oracle`（需要 Oracle Instant Client）
 - **DM8 依赖**：`dmpython`（pip install dmpython）
+- **SQL Server 依赖**：`pyodbc` + ODBC Driver 17（Windows/Linux 均支持）
 - **MySQL 权限**：查询 information_schema、performance_schema、mysql 库的只读权限
 - **PostgreSQL 权限**：查询 pg_stat_* 系列系统视图及 pg_roles 的只读权限
 - **Oracle 权限**：查询 v$* 视图 / dba_* 视图的只读权限；支持 SYSDBA 特权连接（Web UI 复选框一键启用）
+- **SQL Server 权限**：查询 sys.databases、sys.master_files、sys.dm_* 系列动态管理视图的只读权限
 - **DM8 权限**：查询 V$* 系统视图 / DBA_* 管理视图的只读权限；默认端口 5236；连接用户即 Schema（无需 database 参数）
 - **SSH（可选）**：用于远程采集系统资源（MySQL / PostgreSQL / Oracle / DM8）；默认端口 22；DM8 SSH 采集失败时自动降级为本地采集器
 
 ### 安装依赖
 
 ```bash
-pip install pymysql psycopg2-binary paramiko=4.0.0 openpyxl docxtpl python-docx pandas psutil flask oracledb dmpython flask_socketio
+pip install pymysql psycopg2-binary paramiko=4.0.0 openpyxl docxtpl python-docx pandas psutil flask oracledb dmpython pyodbc flask_socketio
 
 > 💡 DM8 驱动安装提示：
 > - `dmpython`：达梦官方提供的纯 Python 驱动（pip install dmpython），推荐使用
@@ -275,7 +295,7 @@ pip install pymysql psycopg2-binary paramiko=4.0.0 openpyxl docxtpl python-docx 
 python main.py
 ```
 
-主入口菜单提供七个选项：
+主入口菜单提供八个选项：
 
 ```
 ==================================================
@@ -285,16 +305,18 @@ python main.py
     🐘  2 │ PostgreSQL      PostgreSQL 数据库健康巡检与报告生成
     🔴  3 │ Oracle          Oracle 数据库深度健康巡检（20+ 巡检项）
     🟡  4 │ DM8             达梦 DM8 数据库健康巡检与报告生成
-    📋  5 │ 批量生成巡检模板  生成批量巡检 Excel 模板
-    🌐  6 │ 启动 Web UI     浏览器可视化操作界面
-        7 │ 退出
+    🟠  5 │ SQL Server      SQL Server 数据库健康巡检与报告生成
+    📋  6 │ 批量生成巡检模板  生成批量巡检 Excel 模板
+    🌐  7 │ 启动 Web UI     浏览器可视化操作界面
+        8 │ 退出
 ==================================================
 ```
 
-1. 输入 **1~3**，进入对应数据库类型的巡检功能菜单
-2. 输入 **4**，选择要生成的模板类型（MySQL / PostgreSQL / Oracle / DM8）
-3. 输入 **5**，启动 Web UI 服务
-4. 输入 **6** 退出工具
+1. 输入 **1~4**，进入对应数据库类型的巡检功能菜单
+2. 输入 **5**，进入 SQL Server 巡检功能菜单
+3. 输入 **6**，选择要生成的模板类型（MySQL / PostgreSQL / Oracle / SQL Server / DM8）
+4. 输入 **7**，启动 Web UI 服务
+5. 输入 **8** 退出工具
 
 #### 单机巡检流程（以 Oracle 全面巡检为例）
 
@@ -326,7 +348,7 @@ python web_ui.py
 
 | 步骤 | 功能 |
 |:---:|------|
-| 1 | 选择数据库类型（🐬 MySQL / 🐘 PostgreSQL / 🔴 Oracle / 🟡 DM8）|
+| 1 | 选择数据库类型（🐬 MySQL / 🐘 PostgreSQL / 🔴 Oracle / 🟠 SQL Server / 🟡 DM8）|
 | 2 | 填写连接信息，Oracle 需额外填写服务名/SID，DM8 无需填写 database 名 |
 | 3 | 支持在线测试数据库连接（含 SYSDBA 特权验证，Web UI 复选框一键启用）|
 | 4 | 配置 SSH 采集系统资源（可选，默认端口 22；DM8 支持 SSH 采集，失败时自动降级）|
@@ -378,6 +400,7 @@ dbcheck/skill/dbcheck/
     ├── main_mysql.py       # MySQL 巡检逻辑
     ├── main_pg.py         # PostgreSQL 巡检逻辑
     ├── main_oracle_full.py # Oracle 巡检逻辑（20+ 巡检项）
+    ├── main_sqlserver.py   # SQL Server 巡检逻辑
     ├── main_dm.py         # 达梦 DM8 巡检逻辑
     ├── analyzer.py        # 智能风险分析引擎
     └── main.py             # 统一菜单入口
@@ -501,6 +524,20 @@ dbcheck.exe         # Windows
 13. **报告中的"服务器主机名/平台"是本机信息**
     - SSH 采集禁用后的已知限制，达梦服务器系统信息采集依赖 SSH 通道，后续版本将尝试修复
 
+### SQL Server 专项
+
+14. **连接失败**
+    - 确认 SQL Server 服务允许远程连接（SQL Server Configuration Manager → Network Configuration → TCP/IP 已启用）
+    - 确认防火墙已放行 1433 端口（或自定义端口）
+    - 确认使用了正确的认证方式（Windows 认证或 SQL Server 混合认证）
+
+15. **pyodbc 安装成功但连接失败**
+    - 需要安装 ODBC Driver 17：`curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add -` 后安装对应版本的 mssql-server
+    - Linux 上可能需要：`curl https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list | tee /etc/apt/sources.list.d/mssql-release.list`
+
+16. **SQL Server 版本支持**
+    - 支持 **SQL Server 2012、2014、2016、2017、2019、2022** 及以上版本
+
 ---
 
 ## 界面截图
@@ -508,7 +545,7 @@ dbcheck.exe         # Windows
 ![首页](snapshot/webui0.png)
 
 ![步骤一：选择数据库类型](snapshot/webui1.png)
-*图 1：选择数据库类型（MySQL 🐬 / PostgreSQL 🐘 / Oracle 🔴 / DM8 🟡）*
+*图 1：选择数据库类型（MySQL 🐬 / PostgreSQL 🐘 / Oracle 🔴 / SQL Server 🟠 / DM8 🟡）*
 
 ![步骤二：填写连接信息](snapshot/webui2.png)
 *图 2：填写数据库连接信息*
