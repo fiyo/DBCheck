@@ -25,11 +25,11 @@ socketio = SocketIO(cors_allowed_origins='*', async_mode='threading')
 
 # ── 本地模块 ──────────────────────────────────────────────
 try:
-    import main_mysql, main_pg, main_dm, main_oracle_full
+    import main_mysql, main_pg, main_dm, main_oracle_full, main_sqlserver
 except ImportError:
-    main_mysql = main_pg = main_dm = main_oracle_full = None
+    main_mysql = main_pg = main_dm = main_oracle_full = main_sqlserver = None
 
-app = Flask(__name__, template_folder='web_templates', static_folder='web_templates')
+app = Flask(__name__, template_folder='web_templates', static_folder='web_templates', static_url_path='/')
 app.config['SECRET_KEY'] = os.urandom(24)
 socketio.init_app(app)
 
@@ -405,6 +405,113 @@ def run_dm_task(task_id, db_info, inspector_name):
         if task:
             task['status'] = 'error'
 
+
+def run_sqlserver_task(task_id, db_info, inspector_name):
+    """SQL Server Web UI 巡检任务"""
+    emit = socketio.emit
+    task = tasks.get(task_id)
+    def _emit(event, data):
+        msg = data.get('msg', '')
+        if msg and task is not None:
+            task.setdefault('log', []).append(msg)
+        emit(event, data, room=task_id)
+
+    _emit('log', {'msg': _t('webui.log_sqlserver_start').format(ts=_ts())})
+
+    if not main_sqlserver:
+        _emit('error', {'msg': _t('webui.err_sqlserver_module')})
+        return
+
+    try:
+        import main_sqlserver as mod
+        _emit('log', {'msg': _t('webui.log_connecting').format(ts=_ts(), host=db_info['ip'], port=db_info['port'])})
+        ok, ver = test_sqlserver_connection(
+            db_info['ip'],
+            db_info['port'],
+            db_info['user'],
+            db_info['password'],
+            db_info.get('database', 'master')
+        )
+        if not ok:
+            raise RuntimeError(_t('webui.err_db_connect').format(ver=ver))
+        _emit('log', {'msg': _t('webui.log_connected').format(ts=_ts(), ver=ver)})
+
+        ssh_info = {}
+        if db_info.get('ssh_host'):
+            ssh_info = {k: db_info[k] for k in ('ssh_host', 'ssh_port', 'ssh_user', 'ssh_password', 'ssh_key_file') if k in db_info}
+
+        _emit('log', {'msg': _t('webui.log_executing_sql').format(ts=_ts())})
+        # 创建 DBCheckSQLServer 实例
+        inspector = mod.DBCheckSQLServer(
+            host=db_info['ip'],
+            port=int(db_info['port']),
+            user=db_info['user'],
+            password=db_info['password'],
+            database=db_info.get('database'),
+            label=db_info.get('name') or db_info.get('ip', 'SQLServer'),
+            inspector=inspector_name,
+            ssh_host=db_info.get('ssh_host'),
+            ssh_user=db_info.get('ssh_user'),
+            ssh_password=db_info.get('ssh_password'),
+            ssh_key_file=db_info.get('ssh_key_file')
+        )
+
+        # ── stdout 重定向：捕获 checkdb() 内部的 AI 诊断等 print 输出 ───
+        import builtins as _bi
+        _orig_sqlserver_print = _bi.print
+        def _web_sqlserver_print(*_a, **_kw):
+            _sep = _kw.get('sep', ' ')
+            _msg = _sep.join(str(x) for x in _a)
+            _msg_clean = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', _msg)
+            if _msg_clean.strip():
+                _emit('log', {'msg': _msg_clean})
+            _orig_sqlserver_print(*_a, **_kw)
+        _bi.print = _web_sqlserver_print
+        try:
+            ret = inspector.checkdb()
+        finally:
+            _bi.print = _orig_sqlserver_print
+
+        if not ret:
+            raise RuntimeError(_t('webui.err_checkdb_false'))
+
+        # AI 诊断结果
+        if inspector.data.get('ai_advice'):
+            _emit('log', {'msg': _t('webui.log_ai_done').format(ts=_ts())})
+        if task:
+            task['ai_advice'] = inspector.data.get('ai_advice', '')
+
+        # 生成报告文件
+        _emit('log', {'msg': _t('webui.log_generating_report').format(ts=_ts())})
+        reports_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reports')
+        os.makedirs(reports_dir, exist_ok=True)
+        _dt = __import__('datetime').datetime
+        ofile = os.path.join(reports_dir, f"SQLServer_Report_{_dt.now().strftime('%Y%m%d_%H%M%S')}.docx")
+
+        if inspector.report_path and os.path.exists(inspector.report_path):
+            # checkdb 已生成报告，直接使用
+            ofile = inspector.report_path
+        else:
+            # 手动生成报告
+            generator = mod.WordTemplateGeneratorSQLServer(inspector.data)
+            generator.generate(ofile)
+
+        _emit('log', {'msg': _t('webui.log_report_done').format(ts=_ts(), fname=os.path.basename(ofile))})
+
+        if task:
+            task['status'] = 'done'
+            task['report_name'] = os.path.basename(ofile)
+            task['report_file'] = ofile
+        _emit('done', {'msg': _t('webui.log_inspection_done').format(ver=ver), 'task_id': task_id,
+                       'ai_advice': inspector.data.get('ai_advice', '')})
+    except Exception as e:
+        import traceback
+        traceback.print_exc(file=sys.stdout)
+        _emit('error', {'msg': _t('webui.err_inspection').format(task='SQL Server', e=f"{e}\n{traceback.format_exc()}")})
+        if task:
+            task['status'] = 'error'
+
+
 # ── 连接测试函数 ────────────────────────────────────────────
 def test_mysql_connection(host, port, user, password, database=None):
     try:
@@ -463,6 +570,32 @@ def test_dm_connection(host, port, user, password):
         cur = conn.cursor()
         cur.execute("SELECT STATUS$ FROM V$INSTANCE")
         ver = cur.fetchone()[0]
+        cur.close()
+        conn.close()
+        return True, ver
+    except Exception as e:
+        return False, str(e)
+
+
+def test_sqlserver_connection(host, port, user, password, database='master'):
+    """测试 SQL Server 连接"""
+    try:
+        import pyodbc
+        conn_str = (
+            f"DRIVER={{ODBC Driver 17 for SQL Server}};"
+            f"SERVER={host},{port};"
+            f"UID={user};"
+            f"PWD={password};"
+            f"TrustServerCertificate=yes;"
+            f"Encrypt=yes;"
+        )
+        if database:
+            conn_str += f"Database={database};"
+        conn = pyodbc.connect(conn_str, timeout=10)
+        cur = conn.cursor()
+        cur.execute("SELECT @@VERSION")
+        ver = cur.fetchone()[0]
+        ver = ver.split('\n')[0] if ver else 'Unknown'
         cur.close()
         conn.close()
         return True, ver
@@ -643,6 +776,8 @@ def api_test_db():
         ok, msg = test_oracle_connection(data['host'], data['port'], data['user'], data['password'], data.get('service_name', 'ORCL'), bool(data.get('sysdba')))
     elif db_type == 'dm':
         ok, msg = test_dm_connection(data['host'], data['port'], data['user'], data['password'])
+    elif db_type == 'sqlserver':
+        ok, msg = test_sqlserver_connection(data['host'], data['port'], data['user'], data['password'], data.get('database', 'master'))
     else:
         return jsonify({'ok': False, 'msg': _t('webui.err_unknown_db_type')})
 
@@ -705,11 +840,12 @@ def api_start_inspection():
             'port':      int(data.get('port', 0) or 0),
             'user':      data.get('user', ''),
             'password':  data.get('password', ''),
-            'database':  'DAMENG' if db_type == 'dm' else (data.get('database') or 'postgres'),
+            'database':  'master' if db_type == 'sqlserver' else ('DAMENG' if db_type == 'dm' else (data.get('database') or 'postgres')),
             'service_name': data.get('service_name', None),
             'sid':       data.get('sid', None),
             'output_dir': data.get('output_dir', None),
             'zip':       data.get('zip', False),
+            'name':      data.get('name', ''),
         }
 
         if data.get('ssh_host'):
@@ -735,6 +871,7 @@ def api_start_inspection():
             'pg':    run_pg_task,
             'oracle_full':run_oracle_full_task,
             'dm':    run_dm_task,
+            'sqlserver': run_sqlserver_task,
         }.get(db_type, run_mysql_task), args=(task_id, db_info, inspector_name))
         t.daemon = True
         t.start()

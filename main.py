@@ -65,6 +65,8 @@ BOLD    = "\033[1m"
 DIM     = "\033[2m"
 RESET   = "\033[0m"
 RED     = "\033[91m"
+WHITE   = "\033[97m"
+ORANGE  = "\033[38;2;255;140;0m"  # 真橙色 RGB
 
 
 def _parse_args():
@@ -84,16 +86,17 @@ def print_banner():
   ██║  ██║██╔══██╗██║     ██╔══██║██╔══╝  ██║     ██╔═██╗
   ██████╔╝██████╔╝╚██████╗██║  ██║███████╗╚██████╗██║  ██╗
   ╚═════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝ ╚═════╝╚═╝  ╚═╝{RESET}
-{BOLD}          🗄️  {title}  {VER}  Main Menu{RESET}
+{BOLD}          🗄️  {title}  {VER}  {t("cli.main_menu_title")}{RESET}
 {DIM}  ──────────────────────────────────────────────────────────{RESET}
-{GREEN}{BOLD}    {t("cli.main_menu_line1")}{RESET}
-{CYAN}{BOLD}    {t("cli.main_menu_line2")}{RESET}
+{CYAN}{BOLD}    {t("cli.main_menu_line1")}{RESET}
+{WHITE}{BOLD}    {t("cli.main_menu_line2")}{RESET}
 {RED}{BOLD}    {t("cli.main_menu_line3")}{RESET}
-{GREEN}{BOLD}    {t("cli.main_menu_line4")}{RESET}
+{YELLOW}{BOLD}    {t("cli.main_menu_line4")}{RESET}
+{ORANGE}{BOLD}    {t("cli.main_menu_line5")}{RESET}
 {DIM}  ──────────────────────────────────────────────────────────{RESET}
-{YELLOW}    {t("cli.main_menu_line5")}{RESET}
-{MAGENTA}    {t("cli.main_menu_line6")}{RESET}
-{DIM}        {t("cli.main_menu_line7")}{RESET}
+{GREEN}{BOLD}    {t("cli.main_menu_line6")}{RESET}
+{MAGENTA}{BOLD}    {t("cli.main_menu_line7")}{RESET}
+{DIM}        {t("cli.main_menu_line8")}{RESET}
 {DIM}  ──────────────────────────────────────────────────────────{RESET}
 """
     print(art)
@@ -114,6 +117,11 @@ def _run_pg():
 def _run_dm():
     import main_dm
     main_dm.main()
+
+
+def _run_sqlserver():
+    import main_sqlserver
+    main_sqlserver.main()
 
 
 def _run_oracle_full():
@@ -198,10 +206,13 @@ def main():
             print(f"\n{t('cli.main_menu_dm_starting')}\n")
             _run_dm()
         elif choice == '5':
-            _run_template_menu()
+            print(f"\n{t('cli.main_menu_sqlserver_starting')}\n")
+            _run_sqlserver()
         elif choice == '6':
-            _run_web_ui()
+            _run_template_menu()
         elif choice == '7':
+            _run_web_ui()
+        elif choice == '8':
             print(f"\n{t('cli.main_menu_exiting')}")
             break
         else:

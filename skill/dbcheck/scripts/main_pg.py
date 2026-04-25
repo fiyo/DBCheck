@@ -719,52 +719,109 @@ class WordTemplateGenerator:
 
     def _add_title_page(self):
         """
-        生成报告封面页。
+        生成专业报告封面页。
 
-        包含标题（PostgreSQL数据库健康巡检报告）和一个 8 行 2 列的信息表，
-        表格中使用 Jinja2 模板变量填充：数据库名称、服务器地址、PostgreSQL版本、
-        服务器主机名、实例启动时间、巡检人员、服务器平台、报告生成时间。
+        布局：顶部 Logo + 标题区 → 装饰线 → 信息表格 → 底部页脚
+        表格中使用 Jinja2 模板变量填充。
         封面末尾插入分页符。
         """
-        title = self.doc.add_heading(self._l['pg_title'], 0)
+        # ── Logo 图片 ──────────────────────────────────────────────
+        logo_path = os.path.join(os.path.dirname(__file__), 'dbcheck_logo.png')
+        if os.path.exists(logo_path):
+            logo_para = self.doc.add_paragraph()
+            logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            logo_run = logo_para.add_run()
+            logo_run.add_picture(logo_path, width=Cm(3.5))
+
+        # ── 报告标题 ────────────────────────────────────────────────
+        title = self.doc.add_paragraph()
         title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        title_run = title.runs[0]
-        title_run.font.size = Pt(20)
+        title_run = title.add_run('PostgreSQL ' + self._l['pg_title'].replace('PostgreSQL ', ''))
+        title_run.font.size = Pt(28)
         title_run.font.bold = True
+        title_run.font.color.rgb = RGBColor(15, 75, 135)  # 深蓝色
+
+        # 副标题
+        subtitle = self.doc.add_paragraph()
+        subtitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        sub_run = subtitle.add_run('Database Health Inspection Report')
+        sub_run.font.size = Pt(14)
+        sub_run.font.color.rgb = RGBColor(100, 100, 100)
+        sub_run.font.italic = True
+
         self.doc.add_paragraph()
+
+        # ── 装饰分隔线 ─────────────────────────────────────────────
+        line_para = self.doc.add_paragraph()
+        line_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        line_run = line_para.add_run('━' * 50)
+        line_run.font.color.rgb = RGBColor(15, 75, 135)
+        line_run.font.size = Pt(8)
+
+        self.doc.add_paragraph()
+
+        # ── 信息表格 ────────────────────────────────────────────────
         table = self.doc.add_table(rows=8, cols=2)
         table.style = 'Table Grid'
+        table.alignment = WD_TABLE_ALIGNMENT.CENTER
         table.autofit = False
-        table.columns[0].width = Cm(4)
-        table.columns[1].width = Cm(10)
-        cells = table.rows[0].cells
-        cells[0].text = self._l['db_name']
-        cells[1].text = "{{ co_name[0]['CO_NAME'] }}"
-        cells = table.rows[1].cells
-        cells[0].text = self._l['server_addr']
-        cells[1].text = "{{ ip[0]['IP'] }}:{{ port[0]['PORT'] }}"
-        cells = table.rows[2].cells
-        cells[0].text = self._l['pg_version']
-        cells[1].text = "{{ myversion[0]['version'] }}"
-        cells = table.rows[3].cells
-        cells[0].text = self._l['hostname']
-        cells[1].text = "{{ system_info.hostname }}"
-        cells = table.rows[4].cells
-        cells[0].text = self._l['instance_time']
-        cells[1].text = "{% if instancetime %}{{ instancetime[0]['started_at'] }}{% else %}N/A{% endif %}"
-        cells = table.rows[5].cells
-        cells[0].text = self._l['inspector']
-        cells[1].text = "{{ inspector_name }}"
-        cells = table.rows[6].cells
-        cells[0].text = self._l['platform']
-        cells[1].text = "{% if platform_info and platform_info|length > 0 %}{% for item in platform_info %}{% if item.variable_name == 'version_compile_os' %}{{ item.variable_value }}{% endif %}{% endfor %}{% else %}N/A{% endif %}"
-        cells = table.rows[7].cells
-        cells[0].text = self._l['report_time']
-        cells[1].text = "{{ report_time }}"
-        for row in table.rows:
-            for cell in row.cells:
-                cell.paragraphs[0].runs[0].font.size = Pt(11)
-                cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.LEFT
+        table.columns[0].width = Cm(4.5)
+        table.columns[1].width = Cm(11)
+
+        # 表头样式
+        header_color = RGBColor(15, 75, 135)  # 深蓝色
+
+        info_data = [
+            (self._l['db_name'], "{{ co_name[0]['CO_NAME'] }}"),
+            (self._l['server_addr'], "{{ ip[0]['IP'] }}:{{ port[0]['PORT'] }}"),
+            (self._l['pg_version'], "{{ myversion[0]['version'] }}"),
+            (self._l['hostname'], "{{ system_info.hostname }}"),
+            (self._l['instance_time'], "{% if instancetime %}{{ instancetime[0]['started_at'] }}{% else %}N/A{% endif %}"),
+            (self._l['inspector'], "{{ inspector_name }}"),
+            (self._l['platform'], "{% if platform_info and platform_info|length > 0 %}{% for item in platform_info %}{% if item.variable_name == 'version_compile_os' %}{{ item.variable_value }}{% endif %}{% endfor %}{% else %}N/A{% endif %}"),
+            (self._l['report_time'], "{{ report_time }}"),
+        ]
+
+        for i, (label, value) in enumerate(info_data):
+            cells = table.rows[i].cells
+            cells[0].text = label
+            cells[1].text = value
+            # 标签列样式
+            para0 = cells[0].paragraphs[0]
+            para0.runs[0].font.size = Pt(11)
+            para0.runs[0].font.bold = True
+            para0.runs[0].font.color.rgb = header_color
+            para0.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+            # 值列样式
+            para1 = cells[1].paragraphs[0]
+            para1.runs[0].font.size = Pt(11)
+            para1.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            # 交替背景色
+            if i % 2 == 0:
+                for cell in cells:
+                    cell._tc.get_or_add_tcPr()
+                    shading = docx.oxml.ns.qn('w:shd')
+                    cell._tc.tcPr.set(shading, 'clear')
+                    from docx.oxml import OxmlElement
+                    shd = OxmlElement('w:shd')
+                    shd.set(qn('w:fill'), 'F0F5FA')
+                    cell._tc.tcPr.append(shd)
+
+        self.doc.add_paragraph()
+
+        # ── 底部页脚 ────────────────────────────────────────────────
+        footer_para = self.doc.add_paragraph()
+        footer_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        footer_run = footer_para.add_run('━' * 50)
+        footer_run.font.color.rgb = RGBColor(15, 75, 135)
+        footer_run.font.size = Pt(8)
+
+        footer_info = self.doc.add_paragraph()
+        footer_info.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        footer_info_run = footer_info.add_run('DBCheck Database Inspector  |  Powered by Intelligent Analysis')
+        footer_info_run.font.size = Pt(9)
+        footer_info_run.font.color.rgb = RGBColor(120, 120, 120)
+
         self.doc.add_page_break()
 
     def _add_summary_section(self):
@@ -1338,233 +1395,6 @@ class WordTemplateGenerator:
             p.add_run(note)
             p.runs[0].font.size = Pt(10)
 
-class SimpleCrypto:
-    """简单加密解密工具类 - 基于 XOR + SHA256 密钥 + Base64 编码实现对称加密"""
-
-    def __init__(self, secret="ODB_SECRET_2024"):
-        """
-        初始化加密工具。
-
-        :param secret: 加密用的原始密钥字符串，默认为 "ODB_SECRET_2024"，
-                       会被编码为 bytes 并通过 SHA256 派生实际加密密钥
-        """
-        self.secret = secret.encode('utf-8')
-
-    def _xor_encrypt_decrypt(self, data, key):
-        """
-        使用 XOR 对数据进行加密或解密（XOR 可逆，加解密使用同一方法）。
-
-        :param data: 需要处理的字节数据（bytes）
-        :param key: 加密/解密使用的密钥字节（bytes），循环重复使用
-        :return: 经过 XOR 处理后的字节数据（bytes）
-        """
-        key_len = len(key)
-        result = bytearray()
-        for i, byte in enumerate(data):
-            result.append(byte ^ key[i % key_len])
-        return bytes(result)
-
-    def encrypt(self, text):
-        """
-        加密文本字符串。
-
-        流程：UTF-8 编码 → SHA256 派生 32 字节密钥 → XOR 加密 → Base64 编码。
-
-        :param text: 需要加密的明文字符串
-        :return: Base64 编码后的密文字符串
-        """
-        data = text.encode('utf-8')
-        key = hashlib.sha256(self.secret).digest()[:32]
-        encrypted = self._xor_encrypt_decrypt(data, key)
-        return base64.b64encode(encrypted).decode('utf-8')
-
-    def decrypt(self, token):
-        """
-        解密 Base64 编码的密文字符串。
-
-        流程：Base64 解码 → SHA256 派生 32 字节密钥 → XOR 解密 → UTF-8 解码。
-
-        :param token: Base64 编码的密文字符串
-        :return: 解密后的明文字符串
-        :raises ValueError: 解密过程中发生异常时抛出，包含具体错误信息
-        """
-        try:
-            encrypted = base64.b64decode(token.encode('utf-8'))
-            key = hashlib.sha256(self.secret).digest()[:32]
-            decrypted = self._xor_encrypt_decrypt(encrypted, key)
-            return decrypted.decode('utf-8')
-        except Exception as e:
-            raise ValueError(f"解密失败: {e}")
-
-class LicenseValidator:
-    """许可证验证类 - 负责许可证文件的创建、读取、解密和有效性验证"""
-
-    def __init__(self):
-        """
-        初始化许可证验证器。
-
-        设置许可证文件路径（pg_inspector.lic）、试用期天数（36500 天，约 100 年），
-        创建 SimpleCrypto 加密实例，并调用 _init_license_system() 确保许可证文件存在。
-        """
-        self.license_file = "pg_inspector.lic"
-        self.trial_days = 36500
-        self.crypto = SimpleCrypto()
-        self._init_license_system()
-
-    def _parse_datetime(self, date_string):
-        """
-        解析日期时间字符串，兼容 Python 3.6 及以上版本。
-
-        优先使用 Python 3.7+ 的 datetime.fromisoformat()，
-        若不支持则手动解析 ISO 格式（含 'T' 分隔符）或空格分隔格式。
-
-        :param date_string: ISO 格式的日期时间字符串，如 "2026-01-01T00:00:00"
-        :return: datetime 对象；解析失败时返回当前时间
-        """
-        try:
-            return datetime.fromisoformat(date_string)
-        except AttributeError:
-            try:
-                if 'T' in date_string:
-                    date_part, time_part = date_string.split('T')
-                    year, month, day = map(int, date_part.split('-'))
-                    time_parts = time_part.split(':')
-                    hour, minute = int(time_parts[0]), int(time_parts[1])
-                    second = int(time_parts[2].split('.')[0]) if len(time_parts) > 2 else 0
-                    return datetime(year, month, day, hour, minute, second)
-                else:
-                    date_part, time_part = date_string.split(' ')
-                    year, month, day = map(int, date_part.split('-'))
-                    hour, minute, second = map(int, time_part.split(':'))
-                    return datetime(year, month, day, hour, minute, second)
-            except Exception as e:
-                print(f"日期解析错误: {e}")
-                return datetime.now()
-
-    def _format_datetime(self, dt):
-        """
-        将 datetime 对象格式化为 ISO 格式字符串（兼容 Python 3.6）。
-
-        :param dt: datetime 对象
-        :return: 格式为 "YYYY-MM-DDTHH:MM:SS" 的字符串
-        """
-        return dt.strftime('%Y-%m-%dT%H:%M:%S')
-
-    def _init_license_system(self):
-        """
-        初始化许可证系统。
-
-        检查许可证文件是否存在，若不存在则自动调用 _create_trial_license() 创建。
-        """
-        if not os.path.exists(self.license_file):
-            self._create_trial_license()
-
-    def _create_trial_license(self):
-        """
-        创建永久许可证文件（试用期为 100 年）。
-
-        许可证数据包含：类型（PERMANENT）、创建时间、过期时间、机器 ID、数字签名。
-        数据序列化为 JSON 后通过 SimpleCrypto 加密，写入 license_file。
-        若过期时间年份超过 9999 则自动修正为 9999-12-31 或 2099-12-31。
-        """
-        create_time = datetime.now()
-        try:
-            expire_time = create_time + timedelta(days=self.trial_days)
-            if expire_time.year > 9999:
-                expire_time = datetime(9999, 12, 31)
-                print("⚠️  许可证日期超出范围，已调整为9999-12-31")
-        except OverflowError:
-            expire_time = datetime(2099, 12, 31)
-            print("⚠️  许可证日期溢出，已调整为2099-12-31")
-        license_data = {
-            "type": "PERMANENT",
-            "create_time": self._format_datetime(create_time),
-            "expire_time": self._format_datetime(expire_time),
-            "machine_id": self._get_machine_id(),
-            "signature": self._generate_signature("PERMANENT")
-        }
-        encrypted_data = self.crypto.encrypt(json.dumps(license_data))
-        with open(self.license_file, 'w') as f:
-            f.write(encrypted_data)
-
-    def _get_machine_id(self):
-        """
-        获取当前主机的唯一标识符。
-
-        通过组合主机名、操作系统名称和版本号生成字符串，
-        再取 MD5 哈希的前 16 位作为机器 ID。
-
-        :return: 16 位十六进制机器 ID 字符串；获取失败时返回 "unknown_machine"
-        """
-        try:
-            machine_info = f"{platform.node()}-{platform.system()}-{platform.release()}"
-            return hashlib.md5(machine_info.encode()).hexdigest()[:16]
-        except:
-            return "unknown_machine"
-
-    def _generate_signature(self, license_type):
-        """
-        根据许可证类型生成数字签名。
-
-        签名数据由许可证类型、当前日期和固定密钥拼接而成，
-        使用 SHA256 哈希生成最终签名。
-
-        :param license_type: 许可证类型字符串，"PERMANENT" 或其他值
-        :return: SHA256 哈希的十六进制字符串
-        """
-        if license_type == "PERMANENT":
-            key = "ODB2024PERM"
-        else:
-            key = "ODB2024TRL"
-        signature_data = f"{license_type}-{datetime.now().strftime('%Y%m%d')}-{key}"
-        return hashlib.sha256(signature_data.encode()).hexdigest()
-
-    def _verify_signature(self, license_data):
-        """
-        验证许可证数据中的数字签名是否有效。
-
-        重新生成预期签名并与许可证中的签名对比。
-
-        :param license_data: 解密后的许可证数据字典，需包含 "type" 和 "signature" 字段
-        :return: 签名匹配返回 True，不匹配或发生异常返回 False
-        """
-        try:
-            expected_signature = self._generate_signature(license_data["type"])
-            return license_data["signature"] == expected_signature
-        except:
-            return False
-
-    def validate_license(self):
-        """
-        验证许可证文件的完整性和有效性。
-
-        依次执行：文件存在性检查 → 读取并解密 → 签名验证 → 过期时间检查。
-
-        :return: 三元组 (is_valid, message, remaining_days)
-                 - is_valid (bool): 许可证是否有效
-                 - message (str): 验证结果描述信息
-                 - remaining_days (int): 剩余有效天数（永久版固定返回 99999）
-        """
-        try:
-            if not os.path.exists(self.license_file):
-                return False, "许可证文件不存在", 0
-            with open(self.license_file, 'r') as f:
-                encrypted_data = f.read().strip()
-            decrypted_data = self.crypto.decrypt(encrypted_data)
-            license_data = json.loads(decrypted_data)
-            if not self._verify_signature(license_data):
-                return False, "许可证签名无效", 0
-            expire_time = self._parse_datetime(license_data["expire_time"])
-            remaining_days = (expire_time - datetime.now()).days
-            if remaining_days < 0:
-                return False, "许可证已过期", 0
-            license_type = license_data.get("type", "PERMANENT")
-            if license_type == "PERMANENT":
-                return True, "永久版许可证有效", 99999
-            else:
-                return True, f"{license_type}版许可证有效，剩余 {remaining_days} 天", remaining_days
-        except Exception as e:
-            return False, f"许可证验证失败: {str(e)}", 0
 
 def getlogger():
     """

@@ -97,7 +97,7 @@ a = Analysis(
         'PIL.Image',
         # ── 项目模块 ──────────────────────────────────────────
         'version',
-        'license_manager',
+
         'mod_logger',
         'analyzer',
         'run_inspection',

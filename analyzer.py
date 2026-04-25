@@ -1148,6 +1148,11 @@ class AIAdvisor:
         'wait_events_top5': '等待事件 Top5',
         'blocked_sessions': '阻塞会话',
         'top_sql_top5': 'Top SQL 前5',
+        # ── SQL Server 专用指标 ──────────────────────────────────
+        'connection_usage_pct': '连接使用率',
+        'wait_type': '等待类型',
+        'wait_time_ms': '等待时间(毫秒)',
+        'waiting_tasks_count': '等待任务数',
     }
 
     METRIC_LABELS_EN = {
@@ -1169,6 +1174,11 @@ class AIAdvisor:
         'wait_events_top5': 'Top 5 Wait Events',
         'blocked_sessions': 'Blocked Sessions',
         'top_sql_top5': 'Top 5 SQL by Buffer Gets',
+        # ── SQL Server-specific metrics ────────────────────────────
+        'connection_usage_pct': 'Connection Usage %',
+        'wait_type': 'Wait Type',
+        'wait_time_ms': 'Wait Time (ms)',
+        'waiting_tasks_count': 'Waiting Tasks Count',
     }
 
     def __init__(self, backend: str = None, api_key: str = None,
@@ -1234,7 +1244,8 @@ class AIAdvisor:
                 oracle_extra += f"\n[Top SQL by Buffer Gets]\n{metrics['top_sql_top5']}"
 
         if lang == 'zh':
-            prompt = f"""你是一位拥有20年经验的 Oracle 数据库资深DBA，以下是对 {db_type.upper()} 数据库「{label}」的全面巡检结果，请进行深度诊断。
+            db_type_name = {'mysql': 'MySQL', 'pg': 'PostgreSQL', 'oracle': 'Oracle', 'sqlserver': 'SQL Server'}.get(db_type, db_type.upper())
+            prompt = f"""你是一位拥有20年经验的 {db_type_name} 数据库资深DBA，以下是对 {db_type_name} 数据库「{label}」的全面巡检结果，请进行深度诊断。
 
 {sep}
 【一、关键健康指标】
@@ -1318,9 +1329,9 @@ Format requirement (output Markdown directly, no prefixes like "Here are"):
         """
         调用 AI 后端进行诊断分析。
 
-        :param db_type: 'mysql'、'pg' 或 'oracle'
+        :param db_type: 'mysql'、'pg'、'oracle' 或 'sqlserver'
         :param label: 数据库标签名
-        :param context: MySQL/PG: getData.checkdb() 返回的 context；
+        :param context: MySQL/PG/SQLServer: getData.checkdb() 返回的 context；
                         Oracle: 预构建的 metrics dict（含 wait_events_top5/top_sql_top5 等）
         :param issues: smart_analyze_* 返回的风险列表
         :param timeout: 请求超时秒数
@@ -1330,7 +1341,7 @@ Format requirement (output Markdown directly, no prefixes like "Here are"):
         if not self.enabled:
             return ''
 
-        # ── 判断传入的是预构建 metrics（Oracle）还是原始 context（MySQL/PG）──
+        # ── 判断传入的是预构建 metrics（Oracle）还是原始 context（MySQL/PG/SQLServer）──
         _is_oracle_metrics = 'wait_events_top5' in context or 'top_sql_top5' in context
 
         if _is_oracle_metrics:
@@ -1349,6 +1360,27 @@ Format requirement (output Markdown directly, no prefixes like "Here are"):
             if db_type == 'mysql':
                 metrics['connections'] = context.get('threads_connected', [{}])[0].get('Value', 0) if context.get('threads_connected') else 0
                 metrics['max_connections'] = context.get('max_connections', [{}])[0].get('Value', 0) if context.get('max_connections') else 0
+            elif db_type == 'sqlserver':
+                # SQL Server 连接统计
+                conn_data = context.get('connections', [])
+                if conn_data and isinstance(conn_data, list) and len(conn_data) > 0:
+                    first_conn = conn_data[0] if isinstance(conn_data[0], dict) else {}
+                    metrics['connections'] = first_conn.get('total_connections', 0)
+                    metrics['max_connections'] = first_conn.get('max_connections', 0)
+                    metrics['connection_usage_pct'] = first_conn.get('connection_usage_pct', 0)
+                # SQL Server 等待事件 Top5
+                wait_stats = context.get('wait_stats', [])
+                if wait_stats:
+                    wait_top5 = []
+                    for w in wait_stats[:5]:
+                        if isinstance(w, dict):
+                            wait_top5.append({
+                                'wait_type': w.get('wait_type', ''),
+                                'wait_time_ms': w.get('wait_time_ms', 0),
+                                'waiting_tasks_count': w.get('waiting_tasks_count', 0)
+                            })
+                    if wait_top5:
+                        metrics['wait_events_top5'] = wait_top5
             else:
                 pg_conn = context.get('pg_connections', [{}])
                 if pg_conn and pg_conn[0]:

@@ -571,7 +571,38 @@ def create_word_template(inspector_name="Jack"):
     heading2.font.name = '微软雅黑'
 
     # 封面标题（二号）
-    doc.add_paragraph(self._t("report.dm_title"), style='ReportTitle')
+    # Logo 图片
+    logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dbcheck_logo.png')
+    if os.path.exists(logo_path):
+        logo_para = doc.add_paragraph()
+        logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        logo_run = logo_para.add_run()
+        logo_run.add_picture(logo_path, width=Cm(3.5))
+
+    # 报告标题
+    title_para = doc.add_paragraph()
+    title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    title_run = title_para.add_run('DM8 ' + 'Database Health Inspection Report')
+    title_run.font.size = Pt(28)
+    title_run.font.bold = True
+    title_run.font.color.rgb = RGBColor(15, 75, 135)
+    title_run.font.name = '微软雅黑'
+
+    # 副标题
+    subtitle_para = doc.add_paragraph()
+    subtitle_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    subtitle_run = subtitle_para.add_run('Database Health Inspection Report')
+    subtitle_run.font.size = Pt(14)
+    subtitle_run.font.color.rgb = RGBColor(100, 100, 100)
+    subtitle_run.font.italic = True
+
+    # 装饰分隔线
+    doc.add_paragraph()
+    line_para = doc.add_paragraph()
+    line_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    line_run = line_para.add_run('━' * 50)
+    line_run.font.color.rgb = RGBColor(15, 75, 135)
+    line_run.font.size = Pt(8)
     doc.add_paragraph("")
 
     # 封面信息表

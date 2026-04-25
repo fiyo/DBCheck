@@ -1723,19 +1723,38 @@ def build_word_report(db_info, os_data, check_results, db_version, ai_advice='',
     section.bottom_margin = Cm(2)
 
     # ── 封面标题 ────────────────────────────────────────────────────────────
-    title_p = doc.add_heading(_t('report.oracle_title'), level=1)
+    # Logo 图片
+    logo_path = os.path.join(os.path.dirname(__file__), 'dbcheck_logo.png')
+    if os.path.exists(logo_path):
+        logo_para = doc.add_paragraph()
+        logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        logo_run = logo_para.add_run()
+        logo_run.add_picture(logo_path, width=Cm(3.5))
+
+    # 报告标题
+    title_p = doc.add_paragraph()
     title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    for run in title_p.runs:
-        run.font.color.rgb = RGBColor(0, 102, 204)
+    title_run = title_p.add_run('Oracle ' + _t('report.oracle_title').replace('DBCheck Oracle Full Inspection Report', '').strip())
+    title_run.font.size = Pt(28)
+    title_run.font.bold = True
+    title_run.font.color.rgb = RGBColor(15, 75, 135)
 
-    sub_p = doc.add_paragraph()
-    sub_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    sub_p.add_run(f'{_t("report.cover_version_label")}: {db_version}').font.color.rgb = RGBColor(102, 102, 102)
-    sub_p.add_run(f'\n{_t("report.cover_time_label")}: {time.strftime("%Y-%m-%d %H:%M:%S")}').font.color.rgb = RGBColor(102, 102, 102)
-    if inspector:
-        sub_p.add_run(_t('report.inspector_label').format(i=inspector)).font.color.rgb = RGBColor(0, 102, 204)
+    # 英文副标题
+    subtitle_p = doc.add_paragraph()
+    subtitle_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    subtitle_run = subtitle_p.add_run('Database Health Inspection Report')
+    subtitle_run.font.size = Pt(14)
+    subtitle_run.font.color.rgb = RGBColor(100, 100, 100)
+    subtitle_run.font.italic = True
 
-    doc.add_paragraph()  # 空行
+    # 装饰分隔线
+    doc.add_paragraph()
+    line_para = doc.add_paragraph()
+    line_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    line_run = line_para.add_run('━' * 50)
+    line_run.font.color.rgb = RGBColor(15, 75, 135)
+    line_run.font.size = Pt(8)
+    doc.add_paragraph()
 
     # ── 汇总信息卡片 ────────────────────────────────────────────────────────
     inst_rows = check_results.get('实例信息', {}).get('instance', [])

@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>DBCheck · Database Inspector</title>
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
 <style>
 /* ─── Reset & Base ─── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -582,6 +583,7 @@ select option { background: var(--surface2); }
 .tag-pg    { background: rgba(56,139,253,.12); color: var(--accent2); }
 .tag-oracle { background: rgba(244,67,54,.12); color: #f44336; }
 .tag-dm    { background: rgba(255,193,7,.12); color: #ffc107; }
+.tag-sqlserver { background: rgba(244,67,54,.12); color: #ff5722; }
 
 /* ─── Responsive ─── */
 /* ─── 响应式断点 ─── */
@@ -679,7 +681,7 @@ var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
   <!-- ─── Sidebar ─── -->
   <aside class="sidebar">
     <div class="sidebar-logo">
-      <div class="logo-icon">🛡️</div>
+      <img src="/dbcheck_logo.png" alt="DBCheck" style="width:40px;height:40px;margin-bottom:10px;">
       <h1>DBCheck</h1>
       <p data-i18n="webui.logo_subtitle">数据库巡检工具</p>
     </div>
@@ -724,6 +726,7 @@ var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
       <!-- ══ Page: Home ══ -->
       <div class="page active" id="page-home">
         <div class="home-hero">
+          <img src="/dbcheck_logo.png" alt="DBCheck" style="width:80px;height:80px;margin-bottom:16px;">
           <h2 data-i18n="webui.hero_title">数据库健康巡检</h2>
           <p data-i18n="webui.hero_desc">自动采集 MySQL / PostgreSQL / Oracle / 达梦（DM）数据库关键指标，结合系统资源监控，一键生成专业 Word 巡检报告。</p>
           <div class="quick-actions">
@@ -820,6 +823,14 @@ var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
               </div>
               <div class="tc-name" data-i18n="webui.db_oracle_full_name">Oracle 全面巡检</div>
               <div class="tc-desc" data-i18n="webui.db_oracle_full_desc">增强版：基于 OS 层 + 数据库层，覆盖 80+ 检查项，适合 10g~21c。</div>
+            </div>
+            <div class="type-card" id="tc-sqlserver" onclick="selectDbType('sqlserver')">
+              <div class="tc-header">
+                <div class="tc-logo">🟠</div>
+                <div class="tc-check" id="chk-sqlserver"></div>
+              </div>
+              <div class="tc-name" data-i18n="webui.db_sqlserver_name">SQL Server</div>
+              <div class="tc-desc" data-i18n="webui.db_sqlserver_desc">适用于 SQL Server 2012+ 实例，采集连接、会话、等待统计、锁、备份等核心指标。</div>
             </div>
           </div>
           <div class="btn-row">
@@ -1259,13 +1270,15 @@ function selectDbType(type) {
   document.getElementById('tc-pg').classList.toggle('selected', type === 'pg');
   document.getElementById('tc-dm').classList.toggle('selected', type === 'dm');
   document.getElementById('tc-oracle_full').classList.toggle('selected', type === 'oracle_full');
+  document.getElementById('tc-sqlserver').classList.toggle('selected', type === 'sqlserver');
   document.getElementById('chk-mysql').textContent = type === 'mysql' ? '✓' : '';
   document.getElementById('chk-pg').textContent   = type === 'pg'    ? '✓' : '';
   document.getElementById('chk-dm').textContent = type === 'dm' ? '✓' : '';
   document.getElementById('chk-oracle_full').textContent = type === 'oracle_full' ? '✓' : '';
+  document.getElementById('chk-sqlserver').textContent = type === 'sqlserver' ? '✓' : '';
   // 默认端口 & 用户名
-  const portMap = { mysql: 3306, pg: 5432, dm: 5236, oracle_full: 1521 };
-  const userMap = { mysql: 'root', pg: 'postgres', dm: 'SYSDBA', oracle_full: 'sys' };
+  const portMap = { mysql: 3306, pg: 5432, dm: 5236, oracle_full: 1521, sqlserver: 1433 };
+  const userMap = { mysql: 'root', pg: 'postgres', dm: 'SYSDBA', oracle_full: 'sys', sqlserver: 'sa' };
   document.getElementById('f-port').value = portMap[type] || 3306;
   document.getElementById('f-user').value = userMap[type] || 'root';
   document.getElementById('f-database-wrap').style.display = type === 'pg' ? '' : 'none';
@@ -1357,17 +1370,18 @@ function fillConfirmPanel() {
     pg: '🐘 ' + i18n('webui.db_type_pg'),
     oracle_full: '🔴 ' + i18n('webui.db_type_oracle') + ' ' + i18n('webui.oracle_full_suffix'),
     dm: '🟡 ' + i18n('webui.db_type_dm'),
+    sqlserver: '🟠 ' + i18n('webui.db_type_sqlserver'),
   };
-  const nameDefaults = { mysql: 'MySQL_Server', pg: 'PG_Server', oracle_full: 'Oracle_Server', dm: 'DM8_Server' };
-  const portDefaults = { mysql: '3306', pg: '5432', oracle_full: '1521', dm: '5236' };
-  const userDefaults = { mysql: 'root', pg: 'postgres', oracle_full: 'sys', dm: 'SYSDBA' };
+  const nameDefaults = { mysql: 'MySQL_Server', pg: 'PG_Server', oracle_full: 'Oracle_Server', dm: 'DM8_Server', sqlserver: 'SQLServer' };
+  const portDefaults = { mysql: '3306', pg: '5432', oracle_full: '1521', dm: '5236', sqlserver: '1433' };
+  const userDefaults = { mysql: 'root', pg: 'postgres', oracle_full: 'sys', dm: 'SYSDBA', sqlserver: 'sa' };
   const typeLabel = typeLabels[dbType] || dbType;
   const name = document.getElementById('f-name').value.trim() || (nameDefaults[dbType]||'_Server');
   const host = document.getElementById('f-host').value.trim() || 'localhost';
   const port = document.getElementById('f-port').value || (portDefaults[dbType]||'1521');
   const sshLabel = sshEnabled ? `${document.getElementById('f-ssh-host').value || host}:${document.getElementById('f-ssh-port').value||22}` : i18n('webui.ssh_not_configured');
 
-  const tagClass = dbType === 'mysql' ? 'tag-mysql' : dbType === 'oracle_full' ? 'tag-oracle' : dbType === 'dm' ? 'tag-dm' : 'tag-pg';
+  const tagClass = dbType === 'mysql' ? 'tag-mysql' : dbType === 'oracle_full' ? 'tag-oracle' : dbType === 'dm' ? 'tag-dm' : dbType === 'sqlserver' ? 'tag-sqlserver' : 'tag-pg';
   document.getElementById('cf-dbtype').innerHTML = `<span class="tag ${tagClass}">${typeLabel}</span>`;
   document.getElementById('cf-name').textContent = name;
   document.getElementById('cf-conn').textContent = `${host}:${port}`;
@@ -1588,7 +1602,8 @@ async function loadReports() {
       const isPG    = f.name.includes('PostgreSQL') || f.name.includes('Postgres');
       const isOracle = f.name.includes('Oracle');
       const isDM    = f.name.includes('DM8') || f.name.includes('达梦');
-      const tagHtml = isMySQL ? '<span class="tag tag-mysql">' + i18n('webui.db_type_mysql') + '</span>' : isPG ? '<span class="tag tag-pg">' + i18n('webui.db_type_pg') + '</span>' : isOracle ? '<span class="tag tag-oracle">' + i18n('webui.db_type_oracle') + '</span>' : isDM ? '<span class="tag tag-dm">' + i18n('webui.db_type_dm') + '</span>' : '';
+      const isSQLServer = f.name.includes('SQLServer');
+      const tagHtml = isMySQL ? '<span class="tag tag-mysql">' + i18n('webui.db_type_mysql') + '</span>' : isPG ? '<span class="tag tag-pg">' + i18n('webui.db_type_pg') + '</span>' : isOracle ? '<span class="tag tag-oracle">' + i18n('webui.db_type_oracle') + '</span>' : isDM ? '<span class="tag tag-dm">' + i18n('webui.db_type_dm') + '</span>' : isSQLServer ? '<span class="tag tag-sqlserver">' + i18n('webui.db_type_sqlserver') + '</span>' : '';
       const size = f.size > 1024*1024 ? (f.size/1024/1024).toFixed(1)+' MB' : (f.size/1024).toFixed(1)+' KB';
       const dt = new Date(f.mtime*1000).toLocaleString('zh-CN');
       return `

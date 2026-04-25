@@ -16,7 +16,7 @@ a = Analysis(
     binaries=[],
     datas=[
         (os.path.join(project_root, 'templates', 'sqltemplates.ini'), 'templates'),
-        (os.path.join(project_root, 'license_manager.py'), '.'),  # 添加许可证管理器
+
     ],
     hiddenimports=[],
     hookspath=[],
