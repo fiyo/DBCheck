@@ -308,7 +308,7 @@ The main menu offers eight options:
     🟠  5 │ SQL Server      SQL Server Health Inspection & Report
     📋  6 │ Batch Template  Generate Batch Inspection Excel Template
     🌐  7 │ Launch Web UI   Browser-based GUI
-        8 │ Exit
+    ❌  8 │ Exit
 ==================================================
 ```
 

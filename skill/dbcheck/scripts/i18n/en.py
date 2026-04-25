@@ -12,7 +12,7 @@ EN = {
     "cli.main_menu_line5": "🟠  5 │ SQL Server    （2012+）",
     "cli.main_menu_line6": "📋  6 │ Batch Template Generator",
     "cli.main_menu_line7": "🌐  7 │ Launch Web UI",
-    "cli.main_menu_line8": "   8 │ Exit",
+    "cli.main_menu_line8": "❌  8 │ Exit",
     "cli.main_menu_prompt": "Select an option (1-8): ",
     "cli.main_menu_exiting": "Thanks for using DBCheck. Goodbye! 👋",
     "cli.main_menu_invalid": "❌ Invalid choice, please enter 1-8.",

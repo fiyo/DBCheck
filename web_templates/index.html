@@ -303,6 +303,24 @@ body {
 .type-card .tc-name {
   font-size: 15px; font-weight: 600;
 }
+.type-card .tc-name-row {
+  font-size: 15px; font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.type-card .beta-tag {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  background: #2196f3;
+  color: #fff;
+  border-radius: 3px;
+  margin-left: 4px;
+  vertical-align: middle;
+  text-transform: uppercase;
+}
 .type-card .tc-desc {
   font-size: 12px; color: var(--text-muted); line-height: 1.5;
 }
@@ -705,7 +723,7 @@ var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
     </div>
 
     <div class="sidebar-footer">
-      MySQL · PostgreSQL · Oracle · DM<br/>
+      Oracle · MySQL · PostgreSQL · SQL Server · DM<br/>
       <span style="opacity:.5">© 2026 DBCheck · Powered by <a href="mailto:sdfiyon@gmail.com" style="color:inherit;text-decoration:none">Jack.Ge</a></span>
       <span class="version-badge" id="version-badge">{{ version }}</span>
     </div>
@@ -792,10 +810,18 @@ var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
             <span class="badge" data-i18n="webui.step_badge">第 1 步 / 共 5 步</span>
           </div>
           <div class="type-grid">
-            <div class="type-card selected" id="tc-mysql" onclick="selectDbType('mysql')">
+            <div class="type-card selected" id="tc-oracle_full" onclick="selectDbType('oracle_full')">
+              <div class="tc-header">
+                <div class="tc-logo">🔴</div>
+                <div class="tc-check" id="chk-oracle_full">✓</div>
+              </div>
+              <div class="tc-name" data-i18n="webui.db_oracle_full_name">Oracle</div>
+              <div class="tc-desc" data-i18n="webui.db_oracle_full_desc">基于 OS 层 + 数据库层，覆盖 80+ 检查项，适合 10g~21c+。</div>
+            </div>
+            <div class="type-card" id="tc-mysql" onclick="selectDbType('mysql')">
               <div class="tc-header">
                 <div class="tc-logo">🐬</div>
-                <div class="tc-check" id="chk-mysql">✓</div>
+                <div class="tc-check" id="chk-mysql"></div>
               </div>
               <div class="tc-name" data-i18n="webui.db_mysql_name">MySQL</div>
               <div class="tc-desc" data-i18n="webui.db_mysql_desc">适用于 MySQL 5.7 / 8.x 实例，采集连接、InnoDB、慢查询、Binlog 等核心指标。</div>
@@ -808,6 +834,14 @@ var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
               <div class="tc-name" data-i18n="webui.db_pg_name">PostgreSQL</div>
               <div class="tc-desc" data-i18n="webui.db_pg_desc">适用于 PostgreSQL 10+ 实例，采集连接、缓存、Vacuum、索引、复制等核心指标。</div>
             </div>
+            <div class="type-card" id="tc-sqlserver" onclick="selectDbType('sqlserver')">
+              <div class="tc-header">
+                <div class="tc-logo">🟠</div>
+                <div class="tc-check" id="chk-sqlserver"></div>
+              </div>
+              <div class="tc-name-row"><span data-i18n="webui.db_sqlserver_name">SQL Server</span><span class="beta-tag">Beta</span></div>
+              <div class="tc-desc" data-i18n="webui.db_sqlserver_desc">适用于 SQL Server 2012+ 实例，采集连接、会话、等待统计、锁、备份等核心指标。</div>
+            </div>
             <div class="type-card" id="tc-dm" onclick="selectDbType('dm')">
               <div class="tc-header">
                 <div class="tc-logo">🟡</div>
@@ -815,22 +849,6 @@ var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
               </div>
               <div class="tc-name" data-i18n="webui.db_dm_name">达梦 DM8</div>
               <div class="tc-desc" data-i18n="webui.db_dm_desc">适用于达梦 DM8 及以上版本，采集表空间、内存、会话、事务、备份等核心指标。</div>
-            </div>
-            <div class="type-card" id="tc-oracle_full" onclick="selectDbType('oracle_full')">
-              <div class="tc-header">
-                <div class="tc-logo">🔴✨</div>
-                <div class="tc-check" id="chk-oracle_full"></div>
-              </div>
-              <div class="tc-name" data-i18n="webui.db_oracle_full_name">Oracle 全面巡检</div>
-              <div class="tc-desc" data-i18n="webui.db_oracle_full_desc">增强版：基于 OS 层 + 数据库层，覆盖 80+ 检查项，适合 10g~21c。</div>
-            </div>
-            <div class="type-card" id="tc-sqlserver" onclick="selectDbType('sqlserver')">
-              <div class="tc-header">
-                <div class="tc-logo">🟠</div>
-                <div class="tc-check" id="chk-sqlserver"></div>
-              </div>
-              <div class="tc-name" data-i18n="webui.db_sqlserver_name">SQL Server</div>
-              <div class="tc-desc" data-i18n="webui.db_sqlserver_desc">适用于 SQL Server 2012+ 实例，采集连接、会话、等待统计、锁、备份等核心指标。</div>
             </div>
           </div>
           <div class="btn-row">
@@ -1221,8 +1239,8 @@ function startWizard() {
   currentTaskId = null;
   logOffset = 0;
 
-  // 1. 先切换到 mysql 类型（更新 UI 显示，隐藏 Oracle 特有字段）
-  selectDbType('mysql');
+  // 1. 先切换到 oracle_full 类型（更新 UI 显示，隐藏 Oracle 特有字段）
+  selectDbType('oracle_full');
   // 2. 清除所有表单字段（port/user/ssh-port 由默认值覆盖，需保留）
   const fids = ['f-host','f-password','f-database',
                 'f-service-name','f-inspector','f-ssh-host',
@@ -1370,7 +1388,7 @@ function fillConfirmPanel() {
     pg: '🐘 ' + i18n('webui.db_type_pg'),
     oracle_full: '🔴 ' + i18n('webui.db_type_oracle') + ' ' + i18n('webui.oracle_full_suffix'),
     dm: '🟡 ' + i18n('webui.db_type_dm'),
-    sqlserver: '🟠 ' + i18n('webui.db_type_sqlserver'),
+    sqlserver: '🟠 ' + i18n('webui.db_type_sqlserver') + ' ' + i18n('webui.db_sqlserver_beta'),
   };
   const nameDefaults = { mysql: 'MySQL_Server', pg: 'PG_Server', oracle_full: 'Oracle_Server', dm: 'DM8_Server', sqlserver: 'SQLServer' };
   const portDefaults = { mysql: '3306', pg: '5432', oracle_full: '1521', dm: '5236', sqlserver: '1433' };

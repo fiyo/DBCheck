@@ -226,6 +226,38 @@ def run_dm(db_info, inspector_name, ssh_info=None):
     return ofile, file_name
 
 
+def run_sqlserver(db_info, inspector_name, ssh_info=None):
+    """执行 SQL Server 巡检"""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("main_sqlserver", os.path.join(SCRIPT_DIR, "main_sqlserver.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    data = mod.DBCheckSQLServer(
+        host=db_info['host'],
+        port=db_info['port'],
+        user=db_info['user'],
+        password=db_info['password'],
+        database=db_info.get('database'),
+        label=db_info['label'],
+        inspector=inspector_name,
+        ssh_host=ssh_info.get('ssh_host') if ssh_info else None,
+        ssh_user=ssh_info.get('ssh_user') if ssh_info else None,
+        ssh_password=ssh_info.get('ssh_password') if ssh_info else None,
+        ssh_key_file=ssh_info.get('ssh_key_file') if ssh_info else None
+    )
+
+    if not data.checkdb():
+        raise RuntimeError("巡检执行失败")
+
+    # SQL Server 的 _save_report 会自动生成报告
+    if not data.report_path or not os.path.exists(data.report_path):
+        raise RuntimeError("报告生成失败")
+
+    return data.report_path, os.path.basename(data.report_path)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="DBCheck 数据库巡检工具（无交互版）",
@@ -241,15 +273,15 @@ def main():
       --ssh-host 192.168.1.20 --ssh-user root --ssh-password mypass
 """
     )
-    parser.add_argument('--type', required=True, choices=['mysql', 'pg', 'oracle', 'dm'],
-                        help='数据库类型: mysql / pg / oracle / dm')
+    parser.add_argument('--type', required=True, choices=['mysql', 'pg', 'oracle', 'sqlserver', 'dm'],
+                        help='数据库类型: mysql / pg / oracle / sqlserver / dm')
     parser.add_argument('--host', required=True, help='数据库主机 IP 或域名')
     parser.add_argument('--port', type=int, default=None,
-                        help='数据库端口（默认: MySQL 3306, PG 5432）')
+                        help='数据库端口（默认: MySQL 3306, PG 5432, Oracle 1521, SQL Server 1433, DM8 5236）')
     parser.add_argument('--user', required=True, help='数据库用户名')
     parser.add_argument('--password', required=True, help='数据库密码')
     parser.add_argument('--database', default=None,
-                        help='数据库名（PG 专有，默认 postgres）')
+                        help='数据库名（PG/SQL Server 专有，默认 postgres/master）')
     parser.add_argument('--label', required=True,
                         help='数据库标签（用于报告命名，如"生产库-MySQL"）')
     parser.add_argument('--inspector', required=True,
@@ -264,7 +296,7 @@ def main():
     args = parser.parse_args()
 
     if args.port is None:
-        defaults = {'mysql': 3306, 'pg': 5432, 'oracle': 1521, 'dm': 5236}
+        defaults = {'mysql': 3306, 'pg': 5432, 'oracle': 1521, 'sqlserver': 1433, 'dm': 5236}
         args.port = defaults.get(args.type, 3306)
 
     db_info = {
@@ -287,7 +319,7 @@ def main():
             'ssh_key_file': args.ssh_key or '',
         }
 
-    type_labels = {'mysql': 'MySQL', 'pg': 'PostgreSQL', 'oracle': 'Oracle 全面巡检', 'dm': 'DM8'}
+    type_labels = {'mysql': 'MySQL', 'pg': 'PostgreSQL', 'oracle': 'Oracle', 'sqlserver': 'SQL Server', 'dm': 'DM8'}
     print(f"\n[{type_labels.get(args.type, args.type)}] 开始巡检: {args.label} ({args.host}:{args.port})")
     print("-" * 50)
 
@@ -298,6 +330,8 @@ def main():
             ofile, fname = run_pg(db_info, args.inspector, ssh_info)
         elif args.type == 'oracle':
             ofile, fname = run_oracle_full(db_info, args.inspector, ssh_info)
+        elif args.type == 'sqlserver':
+            ofile, fname = run_sqlserver(db_info, args.inspector, ssh_info)
         elif args.type == 'dm':
             ofile, fname = run_dm(db_info, args.inspector, ssh_info)
 

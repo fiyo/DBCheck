@@ -1,6 +1,6 @@
 ---
 name: dbcheck
-description: 执行 MySQL、PostgreSQL、Oracle、DM8 数据库健康巡检，内置 80+ 条增强风险分析规则 + 本地 Ollama AI 大模型诊断建议，一键生成专业 Word 巡检报告。适用于 DBA 和运维人员快速掌握数据库运行状况、排查风险。项目地址：https://github.com/fiyo/DBCheck.git
+description: 执行 MySQL、PostgreSQL、Oracle、SQL Server、DM8 数据库健康巡检，内置 100+ 条增强风险分析规则 + 本地 Ollama AI 大模型诊断建议，一键生成专业 Word 巡检报告。适用于 DBA 和运维人员快速掌握数据库运行状况、排查风险。项目地址：https://github.com/fiyo/DBCheck.git
 license: MIT
 metadata:
   {
@@ -32,7 +32,7 @@ metadata:
 
 | 能力 | 说明 |
 |------|------|
-| 📊 80+ 条增强风险规则 | 覆盖 MySQL 18+ / PostgreSQL 16+ / Oracle 20+ / DM8 16+ 全维度，每条附修复 SQL |
+| 📊 100+ 条增强风险规则 | 覆盖 MySQL 18+ / PostgreSQL 16+ / Oracle 20+ / SQL Server 15+ / DM8 16+ 全维度，每条附修复 SQL |
 | 🤖 AI 智能诊断（仅本地 Ollama） | 调用本地部署的大模型（需安装 Ollama）生成个性化优化建议，**API 地址强制校验为 localhost，数据绝不外传** |
 | 📈 历史趋势分析 | 多次巡检数据聚合，生成指标趋势折线图（存储在本地 history.json） |
 | 🌐 Web UI 可视化 | 浏览器完成全部操作，含趋势图和 AI 配置页面 |
@@ -61,6 +61,7 @@ metadata:
 | 🐬 MySQL | pymysql | 3306 | ✅ 支持 | 主从复制、binlog、查询缓存 |
 | 🐘 PostgreSQL | psycopg2 | 5432 | ✅ 支持 | 归档模式、缓存命中率、dead tuples |
 | 🔴 Oracle | oracledb / cx_Oracle | 1521 | ✅ 支持 | 表空间、SGA/PGA、RAC、ASM、Data Guard、Redo、备份 |
+| 🟠 SQL Server | pyodbc (ODBC Driver 17) | 1433 | ❌ 不支持 | 等待统计、锁与阻塞、备份检查 |
 | 🟡 DM8 | dmpython | 5236 | ✅ 支持 | 表空间、SGA/PGA、DM8 缓冲池、备份、DM8 特有视图 |
 
 > **DM8 SSH 说明**：通过 SSH 采集达梦服务器的主机级系统信息（CPU/内存/磁盘）。连接失败时自动降级为本地采集器。
@@ -70,11 +71,11 @@ metadata:
 当用户请求以下任意一项时，加载本 Skill 并执行：
 
 - 对数据库做健康检查 / 健康巡检 / 体检
-- 检查 MySQL / PostgreSQL / Oracle / DM8（达梦）的运行状态、连接数、缓存命中率等
+- 检查 MySQL / PostgreSQL / Oracle / SQL Server / DM8（达梦）的运行状态、连接数、缓存命中率等
 - 生成数据库巡检报告 / 健康报告
 - 数据库风险排查 / 巡检
 - "帮我巡检一下 XX 数据库"
-- "生成一份 MySQL/PostgreSQL/Oracle/DM8 巡检报告"
+- "生成一份 MySQL/PostgreSQL/Oracle/SQL Server/DM8 巡检报告"
 
 ## 前置准备
 
@@ -84,7 +85,7 @@ metadata:
 
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
-| `db_type` | 数据库类型 | 需用户确认：`mysql` / `pg` / `oracle` / `dm` |
+| `db_type` | 数据库类型 | 需用户确认：`mysql` / `pg` / `oracle` / `sqlserver` / `dm` |
 | `host` | 数据库主机 IP 或域名 | 需用户确认 |
 | `port` | 数据库端口 | MySQL 默认 3306，PG 默认 5432，Oracle 默认 1521，DM8 默认 5236 |
 | `user` | 数据库用户名 | 需用户确认 |
@@ -142,7 +143,7 @@ python -c "import pymysql, psycopg2, docxtpl, paramiko, psutil, openpyxl, docx" 
 如有缺失，提示用户安装：
 
 ```bash
-pip install pymysql psycopg2-binary paramiko openpyxl docxtpl python-docx pandas psutil flask oracledb dmpython flask_socketio
+pip install pymysql psycopg2-binary paramiko openpyxl docxtpl python-docx pandas psutil flask oracledb dmpython pyodbc flask_socketio
 ```
 
 ### 执行巡检
@@ -193,6 +194,23 @@ python run_inspection.py \
 
 > **Oracle 特权连接**：用户名输入 `sys as sysdba`，工具自动识别并使用 SYSDBA 模式连接。
 
+#### SQL Server 巡检
+
+```bash
+cd <skill_scripts_dir>
+python run_inspection.py \
+    --type sqlserver \
+    --host <数据库IP> \
+    --port 1433 \
+    --user <用户名> \
+    --password <密码> \
+    --database <数据库名，默认master> \
+    --label "<数据库标签>" \
+    --inspector "<巡检人员姓名>"
+```
+
+> **SQL Server 注意**：需要安装 ODBC Driver 17。无需填写 `--service_name` 参数。
+
 #### DM8（达梦）巡检
 
 ```bash
@@ -227,17 +245,17 @@ python run_inspection.py \
 #### 完整参数参考
 
 ```
---type          数据库类型: mysql / pg / oracle / dm（必需）
+--type          数据库类型: mysql / pg / oracle / sqlserver / dm（必需）
 --host          数据库主机 IP 或域名（必需）
---port          数据库端口（默认 MySQL 3306，PG 5432，Oracle 1521，DM8 5236）
+--port          数据库端口（默认 MySQL 3306，PG 5432，Oracle 1521，SQL Server 1433，DM8 5236）
 --user          数据库用户名（必需）
 --password      数据库密码（必需）
 --service_name  Oracle 服务名（Oracle 专用）
 --sid           Oracle SID（Oracle 专用，与 service_name 二选一）
---database      数据库名（PG 专用，默认 postgres；DM8 无需此参数）
+--database      数据库名（PG/SQL Server 专用，默认 postgres/master）
 --label         数据库标签，用于报告命名（必需）
 --inspector     巡检人员姓名（必需）
---ssh-host      SSH 主机 IP（可选，DM8 暂不支持）
+--ssh-host      SSH 主机 IP（可选，SQL Server/DM8 暂不支持）
 --ssh-port      SSH 端口（默认 22）
 --ssh-user      SSH 用户名（可选）
 --ssh-password  SSH 密码（可选）
@@ -251,6 +269,7 @@ python run_inspection.py \
   - MySQL：`MySQL巡检报告_<标签>_<时间戳>.docx`
   - PostgreSQL：`PostgreSQL巡检报告_<标签>_<时间戳>.docx`
   - Oracle：`Oracle巡检报告_<标签>_<时间戳>.docx`
+  - SQL Server：`SQLServer_<标签>_<时间戳>.docx`
   - DM8：`DM8巡检报告_<标签>_<时间戳>.docx`
 - 报告可用 Microsoft Word 或 WPS 打开
 
@@ -305,5 +324,6 @@ python run_inspection.py \
 - 报告生成依赖 `python-docx` 和 `docxtpl` 库，务必确保已安装
 - Oracle 支持 11g R2 / 12c / 19c / 21c 及以上版本，部分高级视图在不同版本间有差异，工具已做兼容处理
 - DM8 巡检依赖 `dmpython` 驱动（`pip install dmpython`）；V$ 视图列名与 Oracle 有较大差异，工具已针对 DM8 实测列名做过适配
+- SQL Server 巡检依赖 `pyodbc`（`pip install pyodbc`）和 **ODBC Driver 17**（需单独安装）
 - **本地文件写入**：巡检会在 `reports/` 生成 Word 报告、在当前目录写入 `history.json`（纯数值指标）、`autoDoc.log`（运行日志），均在本地机器上
 - **AI 诊断限制**：仅支持本地 Ollama，API 地址必须是 localhost/127.0.0.1；不支持任何远程 AI 服务

@@ -96,7 +96,7 @@ def print_banner():
 {DIM}  ──────────────────────────────────────────────────────────{RESET}
 {GREEN}{BOLD}    {t("cli.main_menu_line6")}{RESET}
 {MAGENTA}{BOLD}    {t("cli.main_menu_line7")}{RESET}
-{DIM}        {t("cli.main_menu_line8")}{RESET}
+{DIM}    {t("cli.main_menu_line8")}{RESET}
 {DIM}  ──────────────────────────────────────────────────────────{RESET}
 """
     print(art)
