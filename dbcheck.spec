@@ -3,7 +3,7 @@ import os
 
 block_cipher = None
 
-# 项目根目录（SPEC 是 PyInstaller 内置变量，指向本文件所在目录）
+# 项目根目录（SPEC 是 PyInstaller 内置变量，指向本文件所在目录） 
 project_root = os.path.dirname(os.path.abspath(SPEC))
 
 a = Analysis(

@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
+#
+# Copyright (c) 2024 DBCheck Contributors
+#
+# This file is part of DBCheck, an open-source database health inspection tool.
+# DBCheck is released under the MIT License.
+# See LICENSE or visit https://opensource.org/licenses/MIT for full license text.
+#
 from version import __version__ as VER
 
 # 磁盘采集时忽略的外接 ISO / Media 挂载点前缀
