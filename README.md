@@ -590,11 +590,12 @@ The generated Word report contains the following chapters (Oracle inspection rep
 
 ## Acknowledgments
 
-Special thanks to [Zhh9126/MySQLDBCHECK](https://github.com/Zhh9126/MySQLDBCHECK.git) for their foundational work!
+>This project referred to the following projects, and we would like to thank the original project author for their efforts:
 
-> DBCheck is an improvement on [Zhh9126/MySQLDBCHECK](https://github.com/Zhh9126/MySQLDBCHECK.git), adding PostgreSQL, Oracle, and DM8 support on top of the original MySQL functionality.
+* [Zhh9126/MySQLDBCHECK](https://github.com/Zhh9126/MySQLDBCHECK.git)
+* [Zhh9126/SQL-SERVER-CHECK](https://github.com/Zhh9126/SQL-SERVER-CHECK.git)
 
-Some features are still being actively developed and improved. Contributions and feedback are welcome!
+Some features are still undergoing rapid iteration, and more database types will be added in the future to enhance their own functionality. We welcome joint participation in feature development and feedback on issues and suggestions.
 
 ---
 

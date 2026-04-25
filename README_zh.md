@@ -588,10 +588,12 @@ dbcheck.exe         # Windows
 ---
 ## 鸣谢
 
-感谢 [Zhh9126/MySQLDBCHECK](https://github.com/Zhh9126/MySQLDBCHECK.git) 作者的贡献！
-> 本项目由 [Zhh9126/MySQLDBCHECK](https://github.com/Zhh9126/MySQLDBCHECK.git) 改进而来，在原 MySQL 支持的基础上新增了 PostgreSQL、Oracle、DM8 支持。
+> 本项目参考了以下项目，感谢原项目作者的付出：
 
-目前部分功能仍在持续完善中，欢迎共同参与功能开发以及反馈问题与建议。
+* [Zhh9126/MySQLDBCHECK](https://github.com/Zhh9126/MySQLDBCHECK.git)
+* [Zhh9126/SQL-SERVER-CHECK](https://github.com/Zhh9126/SQL-SERVER-CHECK.git)
+
+部分功能仍在快速迭代中，将来会增加更多的数据库类型，也会增强自身功能，欢迎共同参与功能开发以及反馈问题与建议。
 
 ---
 
