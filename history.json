@@ -36,5 +36,31 @@
         "health_status": "良好"
       }
     ]
+  },
+  "5b709c305418_localhost_3307": {
+    "db_type": "tidb",
+    "host": "localhost",
+    "port": "3307",
+    "label": "test=tidb",
+    "snapshots": [
+      {
+        "cpu_usage": 22.8,
+        "mem_usage": 77.4,
+        "disk_usage_max": 50.0,
+        "ts": "2026-04-27 18:18:27",
+        "report_time": "2026-04-27 18:18:27",
+        "risk_count": 6,
+        "health_status": "一般"
+      },
+      {
+        "cpu_usage": 24.2,
+        "mem_usage": 71.2,
+        "disk_usage_max": 50.0,
+        "ts": "2026-04-27 18:26:48",
+        "report_time": "2026-04-27 18:26:48",
+        "risk_count": 6,
+        "health_status": "一般"
+      }
+    ]
   }
 }

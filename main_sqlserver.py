@@ -819,7 +819,7 @@ class WordTemplateGeneratorSQLServer:
         # 标题
         title = doc.add_paragraph()
         title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        title_run = title.add_run('SQL Server ' + 'Database Health Inspection Report')
+        title_run = title.add_run(self._t('sqlserver.report_title'))
         title_run.font.size = Pt(28)
         title_run.font.bold = True
         title_run.font.color.rgb = RGBColor(15, 75, 135)

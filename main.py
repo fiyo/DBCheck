@@ -91,12 +91,13 @@ def print_banner():
 {CYAN}{BOLD}    {t("cli.main_menu_line1")}{RESET}
 {WHITE}{BOLD}    {t("cli.main_menu_line2")}{RESET}
 {RED}{BOLD}    {t("cli.main_menu_line3")}{RESET}
-{YELLOW}{BOLD}    {t("cli.main_menu_line4")}{RESET}
-{ORANGE}{BOLD}    {t("cli.main_menu_line5")}{RESET}
+{ORANGE}{BOLD}    {t("cli.main_menu_line4")}{RESET}
+{YELLOW}{BOLD}    {t("cli.main_menu_line5")}{RESET}
+{CYAN}{BOLD}    {t("cli.main_menu_line6")}{RESET}
 {DIM}  ──────────────────────────────────────────────────────────{RESET}
-{GREEN}{BOLD}    {t("cli.main_menu_line6")}{RESET}
-{MAGENTA}{BOLD}    {t("cli.main_menu_line7")}{RESET}
-{DIM}    {t("cli.main_menu_line8")}{RESET}
+{GREEN}{BOLD}    {t("cli.main_menu_line8")}{RESET}
+{MAGENTA}{BOLD}    {t("cli.main_menu_line9")}{RESET}
+{DIM}{BOLD}    {t("cli.main_menu_line10")}{RESET}
 {DIM}  ──────────────────────────────────────────────────────────{RESET}
 """
     print(art)
@@ -122,6 +123,10 @@ def _run_dm():
 def _run_sqlserver():
     import main_sqlserver
     main_sqlserver.main()
+
+def _run_tidb():
+    import main_tidb
+    main_tidb.main()
 
 
 def _run_oracle_full():
@@ -203,16 +208,19 @@ def main():
             print(f"\n{t('cli.main_menu_oracle_starting')}\n")
             _run_oracle_full()
         elif choice == '4':
-            print(f"\n{t('cli.main_menu_dm_starting')}\n")
-            _run_dm()
-        elif choice == '5':
             print(f"\n{t('cli.main_menu_sqlserver_starting')}\n")
             _run_sqlserver()
+        elif choice == '5':
+            print(f"\n{t('cli.main_menu_dm_starting')}\n")
+            _run_dm()
         elif choice == '6':
-            _run_template_menu()
+            print(f"\n{t('cli.main_menu_tidb_starting')}\n")
+            _run_tidb()
         elif choice == '7':
             _run_web_ui()
         elif choice == '8':
+            _run_template_menu()
+        elif choice == '0':
             print(f"\n{t('cli.main_menu_exiting')}")
             break
         else:

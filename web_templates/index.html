@@ -602,6 +602,7 @@ select option { background: var(--surface2); }
 .tag-oracle { background: rgba(244,67,54,.12); color: #f44336; }
 .tag-dm    { background: rgba(255,193,7,.12); color: #ffc107; }
 .tag-sqlserver { background: rgba(244,67,54,.12); color: #ff5722; }
+.tag-tidb    { background: rgba(76,175,80,.12); color: #4caf50; }
 
 /* ─── Responsive ─── */
 /* ─── 响应式断点 ─── */
@@ -812,7 +813,7 @@ var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
           <div class="type-grid">
             <div class="type-card selected" id="tc-oracle_full" onclick="selectDbType('oracle_full')">
               <div class="tc-header">
-                <div class="tc-logo">🔴</div>
+                <div class="tc-logo"><img src="/oracle.png" alt="DBCheck" style="width:36px;height:36px;"></div>
                 <div class="tc-check" id="chk-oracle_full">✓</div>
               </div>
               <div class="tc-name" data-i18n="webui.db_oracle_full_name">Oracle</div>
@@ -836,7 +837,7 @@ var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
             </div>
             <div class="type-card" id="tc-sqlserver" onclick="selectDbType('sqlserver')">
               <div class="tc-header">
-                <div class="tc-logo">🟠</div>
+                <div class="tc-logo"><img src="/sqlserver.png" alt="DBCheck" style="width:36px;height:36px;"></div>
                 <div class="tc-check" id="chk-sqlserver"></div>
               </div>
               <div class="tc-name-row"><span data-i18n="webui.db_sqlserver_name">SQL Server</span><span class="beta-tag">Beta</span></div>
@@ -844,11 +845,19 @@ var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
             </div>
             <div class="type-card" id="tc-dm" onclick="selectDbType('dm')">
               <div class="tc-header">
-                <div class="tc-logo">🟡</div>
+                <div class="tc-logo"><img src="/dm.png" alt="DBCheck" style="width:36px;height:36px;"></div>
                 <div class="tc-check" id="chk-dm"></div>
               </div>
               <div class="tc-name" data-i18n="webui.db_dm_name">达梦 DM8</div>
               <div class="tc-desc" data-i18n="webui.db_dm_desc">适用于达梦 DM8 及以上版本，采集表空间、内存、会话、事务、备份等核心指标。</div>
+            </div>
+            <div class="type-card" id="tc-tidb" onclick="selectDbType('tidb')">
+              <div class="tc-header">
+                <div class="tc-logo"><img src="/tidb.png" alt="DBCheck" style="width:36px;height:36px;"></div>
+                <div class="tc-check" id="chk-tidb"></div>
+              </div>
+              <div class="tc-name-row"><span data-i18n="webui.db_tidb_name">TiDB</span><span class="beta-tag">Beta</span></div>
+              <div class="tc-desc" data-i18n="webui.db_tidb_desc">适用于 TiDB 6.5+ / MySQL 8.0 兼容集群，采集集群拓扑、存储、事务、SQL 统计等核心指标。</div>
             </div>
           </div>
           <div class="btn-row">
@@ -1159,7 +1168,7 @@ var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
 
 <script>
 // ─── State ───
-let dbType = 'mysql';
+let dbType = 'oracle_full';
 let sshEnabled = false;
 let currentTaskId = null;
 let pollTimer = null;
@@ -1246,10 +1255,10 @@ function startWizard() {
   currentTaskId = null;
   logOffset = 0;
 
-  // 1. 重置数据库类型为 MySQL
-  dbType = 'mysql';
+  // 1. 重置数据库类型为 Oracle
+  dbType = 'oracle_full';
   sshEnabled = false;
-  selectDbType('mysql');
+  selectDbType('oracle_full');
 
   // 2. 清除所有表单字段（port/user/ssh-port 由默认值覆盖，需保留）
   const fids = ['f-name','f-host','f-password','f-database',
@@ -1314,14 +1323,15 @@ function selectDbType(type) {
   document.getElementById('tc-dm').classList.toggle('selected', type === 'dm');
   document.getElementById('tc-oracle_full').classList.toggle('selected', type === 'oracle_full');
   document.getElementById('tc-sqlserver').classList.toggle('selected', type === 'sqlserver');
+  document.getElementById('tc-tidb').classList.toggle('selected', type === 'tidb');
   document.getElementById('chk-mysql').textContent = type === 'mysql' ? '✓' : '';
   document.getElementById('chk-pg').textContent   = type === 'pg'    ? '✓' : '';
   document.getElementById('chk-dm').textContent = type === 'dm' ? '✓' : '';
   document.getElementById('chk-oracle_full').textContent = type === 'oracle_full' ? '✓' : '';
   document.getElementById('chk-sqlserver').textContent = type === 'sqlserver' ? '✓' : '';
   // 默认端口 & 用户名
-  const portMap = { mysql: 3306, pg: 5432, dm: 5236, oracle_full: 1521, sqlserver: 1433 };
-  const userMap = { mysql: 'root', pg: 'postgres', dm: 'SYSDBA', oracle_full: 'sys', sqlserver: 'sa' };
+  const portMap = { mysql: 3306, pg: 5432, dm: 5236, oracle_full: 1521, sqlserver: 1433, tidb: 4000 };
+  const userMap = { mysql: 'root', pg: 'postgres', dm: 'SYSDBA', oracle_full: 'sys', sqlserver: 'sa', tidb: 'root' };
   document.getElementById('f-port').value = portMap[type] || 3306;
   document.getElementById('f-user').value = userMap[type] || 'root';
   document.getElementById('f-database-wrap').style.display = type === 'pg' ? '' : 'none';
@@ -1414,17 +1424,18 @@ function fillConfirmPanel() {
     oracle_full: '🔴 ' + i18n('webui.db_type_oracle') + ' ' + i18n('webui.oracle_full_suffix'),
     dm: '🟡 ' + i18n('webui.db_type_dm'),
     sqlserver: '🟠 ' + i18n('webui.db_type_sqlserver') + ' ' + i18n('webui.db_sqlserver_beta'),
+    tidb:    '🐬 ' + i18n('webui.db_type_tidb') + ' ' + i18n('webui.db_tidb_beta'),
   };
-  const nameDefaults = { mysql: 'MySQL_Server', pg: 'PG_Server', oracle_full: 'Oracle_Server', dm: 'DM8_Server', sqlserver: 'SQLServer' };
-  const portDefaults = { mysql: '3306', pg: '5432', oracle_full: '1521', dm: '5236', sqlserver: '1433' };
-  const userDefaults = { mysql: 'root', pg: 'postgres', oracle_full: 'sys', dm: 'SYSDBA', sqlserver: 'sa' };
+  const nameDefaults = { mysql: 'MySQL_Server', pg: 'PG_Server', oracle_full: 'Oracle_Server', dm: 'DM8_Server', sqlserver: 'SQLServer', tidb: 'TiDB_Cluster' };
+  const portDefaults = { mysql: '3306', pg: '5432', oracle_full: '1521', dm: '5236', sqlserver: '1433', tidb: '4000' };
+  const userDefaults = { mysql: 'root', pg: 'postgres', oracle_full: 'sys', dm: 'SYSDBA', sqlserver: 'sa', tidb: 'root' };
   const typeLabel = typeLabels[dbType] || dbType;
   const name = document.getElementById('f-name').value.trim() || (nameDefaults[dbType]||'_Server');
   const host = document.getElementById('f-host').value.trim() || 'localhost';
   const port = document.getElementById('f-port').value || (portDefaults[dbType]||'1521');
   const sshLabel = sshEnabled ? `${document.getElementById('f-ssh-host').value || host}:${document.getElementById('f-ssh-port').value||22}` : i18n('webui.ssh_not_configured');
 
-  const tagClass = dbType === 'mysql' ? 'tag-mysql' : dbType === 'oracle_full' ? 'tag-oracle' : dbType === 'dm' ? 'tag-dm' : dbType === 'sqlserver' ? 'tag-sqlserver' : 'tag-pg';
+  const tagClass = dbType === 'mysql' ? 'tag-mysql' : dbType === 'oracle_full' ? 'tag-oracle' : dbType === 'dm' ? 'tag-dm' : dbType === 'sqlserver' ? 'tag-sqlserver' : dbType === 'tidb' ? 'tag-tidb' : 'tag-pg';
   document.getElementById('cf-dbtype').innerHTML = `<span class="tag ${tagClass}">${typeLabel}</span>`;
   document.getElementById('cf-name').textContent = name;
   document.getElementById('cf-conn').textContent = `${host}:${port}`;
@@ -1646,7 +1657,8 @@ async function loadReports() {
       const isOracle = f.name.includes('Oracle');
       const isDM    = f.name.includes('DM8') || f.name.includes('达梦');
       const isSQLServer = f.name.includes('SQLServer');
-      const tagHtml = isMySQL ? '<span class="tag tag-mysql">' + i18n('webui.db_type_mysql') + '</span>' : isPG ? '<span class="tag tag-pg">' + i18n('webui.db_type_pg') + '</span>' : isOracle ? '<span class="tag tag-oracle">' + i18n('webui.db_type_oracle') + '</span>' : isDM ? '<span class="tag tag-dm">' + i18n('webui.db_type_dm') + '</span>' : isSQLServer ? '<span class="tag tag-sqlserver">' + i18n('webui.db_type_sqlserver') + '</span>' : '';
+      const isTiDB = f.name.includes('TiDB');
+      const tagHtml = isMySQL ? '<span class="tag tag-mysql">' + i18n('webui.db_type_mysql') + '</span>' : isPG ? '<span class="tag tag-pg">' + i18n('webui.db_type_pg') + '</span>' : isOracle ? '<span class="tag tag-oracle">' + i18n('webui.db_type_oracle') + '</span>' : isDM ? '<span class="tag tag-dm">' + i18n('webui.db_type_dm') + '</span>' : isSQLServer ? '<span class="tag tag-sqlserver">' + i18n('webui.db_type_sqlserver') + '</span>' : isTiDB ? '<span class="tag tag-tidb">' + i18n('webui.db_type_tidb') + '</span>' : '';
       const size = f.size > 1024*1024 ? (f.size/1024/1024).toFixed(1)+' MB' : (f.size/1024).toFixed(1)+' KB';
       const dt = new Date(f.mtime*1000).toLocaleString('zh-CN');
       return `

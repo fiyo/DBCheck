@@ -25,9 +25,9 @@ socketio = SocketIO(cors_allowed_origins='*', async_mode='threading')
 
 # ── 本地模块 ──────────────────────────────────────────────
 try:
-    import main_mysql, main_pg, main_dm, main_oracle_full, main_sqlserver
+    import main_mysql, main_pg, main_dm, main_oracle_full, main_sqlserver, main_tidb
 except ImportError:
-    main_mysql = main_pg = main_dm = main_oracle_full = main_sqlserver = None
+    main_mysql = main_pg = main_dm = main_oracle_full = main_sqlserver = main_tidb = None
 
 app = Flask(__name__, template_folder='web_templates', static_folder='web_templates', static_url_path='/')
 app.config['SECRET_KEY'] = os.urandom(24)
@@ -147,7 +147,7 @@ def run_mysql_task(task_id, db_info, inspector_name):
         if not os.path.exists(reports_dir):
             os.makedirs(reports_dir)
         timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-        ext_name = _t('webui.mysql_report_filename').format(name=label_name, ts=timestamp)
+        ext_name = _t('webui.mysql_report_filename').format(ip=db_info['ip'], name=label_name, ts=timestamp)
         file_name = ext_name + '.docx'
         ofile = os.path.join(reports_dir, file_name)
 
@@ -254,7 +254,7 @@ def run_pg_task(task_id, db_info, inspector_name):
         if not os.path.exists(reports_dir):
             os.makedirs(reports_dir)
         timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-        ext_name = _t('webui.pg_report_filename').format(name=label_name, ts=timestamp)
+        ext_name = _t('webui.pg_report_filename').format(ip=db_info['ip'], name=label_name, ts=timestamp)
         file_name = ext_name + '.docx'
         ofile = os.path.join(reports_dir, file_name)
 
@@ -456,7 +456,7 @@ def run_dm_task(task_id, db_info, inspector_name):
         os.makedirs(reports_dir, exist_ok=True)
         _dt = __import__('datetime').datetime
         label_name = db_info.get('name', 'DM8')
-        ofile = os.path.join(reports_dir, _t('webui.dm_report_filename').format(name=label_name, ts=_dt.now().strftime('%Y%m%d_%H%M%S')) + '.docx')
+        ofile = os.path.join(reports_dir, _t('webui.dm_report_filename').format(ip=db_info['ip'], name=label_name, ts=_dt.now().strftime('%Y%m%d_%H%M%S')) + '.docx')
         ifile = mod.create_word_template(inspector_name)
         # ── 脱敏处理（如用户开启了脱敏导出）───────────────────
         if db_info.get('desensitize'):
@@ -578,7 +578,7 @@ def run_sqlserver_task(task_id, db_info, inspector_name):
         os.makedirs(reports_dir, exist_ok=True)
         _dt = __import__('datetime').datetime
         label_name = db_info.get('name', 'SQLServer')
-        ofile = os.path.join(reports_dir, _t('webui.sqlserver_report_filename').format(name=label_name, ts=_dt.now().strftime('%Y%m%d_%H%M%S')) + '.docx')
+        ofile = os.path.join(reports_dir, _t('webui.sqlserver_report_filename').format(ip=db_info['ip'], name=label_name, ts=_dt.now().strftime('%Y%m%d_%H%M%S')) + '.docx')
 
         if inspector.report_path and os.path.exists(inspector.report_path):
             # checkdb 已生成报告，直接使用
@@ -618,9 +618,138 @@ def run_sqlserver_task(task_id, db_info, inspector_name):
         if task:
             task['status'] = 'error'
 
+# ── TiDB 巡检任务 ──────────────────────────────────────────
+def run_tidb_task(task_id, db_info, inspector_name):
+    """TiDB 巡检 Web UI 任务"""
+    emit = socketio.emit
+    task = tasks.get(task_id)
+    def _emit(event, data):
+        msg = data.get('msg', '')
+        if msg and task is not None:
+            task.setdefault('log', []).append(msg)
+        emit(event, data, room=task_id)
+
+    _emit('log', {'msg': _t('webui.log_tidb_start').format(ts=_ts())})
+
+    if not main_tidb:
+        _emit('error', {'msg': _t('webui.err_tidb_module')})
+        return
+
+    try:
+        import main_tidb as mod
+        _emit('log', {'msg': _t('webui.log_connecting').format(ts=_ts(), host=db_info['ip'], port=db_info['port'])})
+        ok, ver = test_tidb_connection(db_info['ip'], db_info['port'], db_info['user'], db_info['password'], db_info.get('database'))
+        if not ok:
+            raise RuntimeError(_t('webui.err_db_connect').format(ver=ver))
+        _emit('log', {'msg': _t('webui.log_connected').format(ts=_ts(), ver=ver)})
+
+        ssh_info = {}
+        if db_info.get('ssh_host'):
+            ssh_info = {k: db_info[k] for k in ('ssh_host','ssh_port','ssh_user','ssh_password','ssh_key_file') if k in db_info}
+
+        _emit('log', {'msg': _t('webui.log_executing_sql').format(ts=_ts())})
+        data = mod.getData(db_info['ip'], db_info['port'], db_info['user'], db_info['password'], ssh_info)
+        if data is None or data.conn_db2 is None:
+            raise RuntimeError(_t('webui.err_getdata_none'))
+
+        # ── stdout 重定向：捕获 checkdb() 内部的 AI 诊断 print 输出 ──
+        import builtins as _bi
+        _orig_tidb_print = _bi.print
+        def _web_tidb_print(*_a, **_kw):
+            _sep = _kw.get('sep', ' ')
+            _msg = _sep.join(str(x) for x in _a)
+            _msg_clean = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', _msg)
+            if _msg_clean.strip():
+                _emit('log', {'msg': _msg_clean})
+            _orig_tidb_print(*_a, **_kw)
+        _bi.print = _web_tidb_print
+        try:
+            ret = data.checkdb('builtin')
+        finally:
+            _bi.print = _orig_tidb_print
+
+        if not ret:
+            raise RuntimeError(_t('webui.err_checkdb_false'))
+
+        # ── 生成 Word 报告 ──────────────────────────────────────────
+        _emit('log', {'msg': _t('webui.log_generating_report').format(ts=_ts())})
+        label_name = db_info.get('name', db_info.get('ip', 'unknown'))
+        ret.update({"co_name": [{'CO_NAME': label_name}]})
+        ret.update({"port": [{'PORT': db_info['port']}]})
+        ret.update({"ip": [{'IP': db_info['ip']}]})
+
+        inspector_name = db_info.get('inspector_name') or 'Jack'
+        ifile = mod.create_word_template_tidb(inspector_name)
+        if not ifile:
+            raise RuntimeError(_t('webui.err_template_create'))
+
+        reports_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reports')
+        if not os.path.exists(reports_dir):
+            os.makedirs(reports_dir)
+        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        ext_name = _t('webui.tidb_report_filename').format(ip=db_info['ip'], name=label_name, ts=timestamp)
+        file_name = ext_name + '.docx'
+        ofile = os.path.join(reports_dir, file_name)
+
+        # ── 脱敏处理（如用户开启了脱敏导出）────────────────────────
+        if db_info.get('desensitize'):
+            from desensitize import apply_desensitization
+            ret = apply_desensitization(ret)
+
+        savedoc = mod.saveDoc(context=ret, ofile=ofile, ifile=ifile, inspector_name=inspector_name)
+        if not savedoc.contextsave():
+            raise RuntimeError(_t('webui.err_report_generate'))
+        _emit('log', {'msg': _t('webui.log_report_ok').format(fname=file_name)})
+
+        if task:
+            task['status'] = 'done'
+            task['report_file'] = ofile
+            task['report_name'] = file_name
+
+        # ── 保存历史记录用于趋势分析 ──────────────────────────
+        try:
+            from analyzer import HistoryManager
+            hm = HistoryManager(os.path.dirname(os.path.abspath(__file__)))
+            hm.save_snapshot(
+                db_type='tidb',
+                host=db_info['ip'],
+                port=db_info['port'],
+                label=db_info.get('name', db_info['ip']),
+                context=ret
+            )
+        except Exception as e:
+            _emit('log', {'msg': f"[警告] 历史记录保存失败: {e}"})
+
+        _emit('done', {'msg': _t('webui.log_inspection_done').format(ver=ver), 'task_id': task_id})
+    except Exception as e:
+        import traceback
+        traceback.print_exc(file=sys.stdout)
+        _emit('error', {'msg': _t('webui.err_inspection').format(task='TiDB', e=f"{e}\n{traceback.format_exc()}")})
+        if task:
+            task['status'] = 'error'
 
 # ── 连接测试函数 ────────────────────────────────────────────
 def test_mysql_connection(host, port, user, password, database=None):
+    try:
+        import pymysql
+        port = int(port)
+        if database:
+            conn = pymysql.connect(host=host, port=port, user=user, password=password,
+                                   database=database, connect_timeout=10, charset='utf8mb4')
+        else:
+            conn = pymysql.connect(host=host, port=port, user=user, password=password,
+                                   connect_timeout=10, charset='utf8mb4')
+        cur = conn.cursor()
+        cur.execute("SELECT VERSION()")
+        ver = cur.fetchone()[0]
+        cur.close()
+        conn.close()
+        return True, ver
+    except Exception as e:
+        return False, str(e)
+
+def test_tidb_connection(host, port, user, password, database=None):
+    """测试 TiDB 连接（与 MySQL 协议兼容）"""
     try:
         import pymysql
         port = int(port)
@@ -890,6 +1019,8 @@ def api_test_db():
         ok, msg = test_dm_connection(data['host'], data['port'], data['user'], data['password'])
     elif db_type == 'sqlserver':
         ok, msg = test_sqlserver_connection(data['host'], data['port'], data['user'], data['password'], data.get('database', 'master'))
+    elif db_type == 'tidb':
+        ok, msg = test_tidb_connection(data['host'], data['port'], data['user'], data['password'], data.get('database'))
     else:
         return jsonify({'ok': False, 'msg': _t('webui.err_unknown_db_type')})
 
@@ -952,7 +1083,7 @@ def api_start_inspection():
             'port':      int(data.get('port', 0) or 0),
             'user':      data.get('user', ''),
             'password':  data.get('password', ''),
-            'database':  'master' if db_type == 'sqlserver' else ('DAMENG' if db_type == 'dm' else (data.get('database') or 'postgres')),
+            'database':  'master' if db_type == 'sqlserver' else ('DAMENG' if db_type == 'dm' else (data.get('database') or ('' if db_type == 'tidb' else 'postgres'))),
             'service_name': data.get('service_name', None),
             'sid':       data.get('sid', None),
             'output_dir': data.get('output_dir', None),
@@ -980,11 +1111,12 @@ def api_start_inspection():
             'started_at':  datetime.datetime.now().isoformat()
         }
         t = threading.Thread(target={
-            'mysql': run_mysql_task,
-            'pg':    run_pg_task,
+            'mysql':      run_mysql_task,
+            'pg':         run_pg_task,
             'oracle_full':run_oracle_full_task,
-            'dm':    run_dm_task,
-            'sqlserver': run_sqlserver_task,
+            'dm':         run_dm_task,
+            'sqlserver':  run_sqlserver_task,
+            'tidb':       run_tidb_task,
         }.get(db_type, run_mysql_task), args=(task_id, db_info, inspector_name))
         t.daemon = True
         t.start()
