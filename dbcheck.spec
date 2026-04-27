@@ -33,6 +33,7 @@ a = Analysis(
         'cx_Oracle',
         'dmpython',
         'dmPython',
+        'pyodbc',
         # ── Word 报告 ────────────────────────────────────────
         'docx',
         'docxtpl',
@@ -97,16 +98,22 @@ a = Analysis(
         'PIL.Image',
         # ── 项目模块 ──────────────────────────────────────────
         'version',
-
         'mod_logger',
         'analyzer',
-        'run_inspection',
+        'slow_query_analyzer',
+        'db_history',
+        'desensitize',
         'main_mysql',
         'main_pg',
-        'main_oracle',
         'main_oracle_full',
+        'main_sqlserver',
         'main_dm',
+        'main_tidb',
         'web_ui',
+        # ── i18n ──────────────────────────────────────────────
+        'i18n',
+        'i18n.zh',
+        'i18n.en',
     ],
     hookspath=[],
     hooksconfig={},
