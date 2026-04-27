@@ -244,8 +244,10 @@ Automatically detects potential database risks — **each risk includes an execu
 
 > Run multiple inspections on the same database, and DBCheck automatically aggregates the data to generate trend charts — spotting gradual changes before they become incidents.
 
-- After each inspection, key metrics (memory utilization, connections, QPS, CPU, etc.) are written to local `history.json`
-- Data is aggregated per database (IP + port + type), retaining up to 30 historical records
+- After each inspection, key metrics (memory utilization, connections, QPS, CPU, etc.) are written to a local **SQLite database** (`db_history.db`), surviving process restarts
+- Data is aggregated per database (IP + port + type), retaining up to 30 historical snapshots per instance
+- SQLite storage is wrapped by `SQLiteHistoryManager`; the original `HistoryManager` API is fully preserved — no migration needed for existing code
+- Graceful degradation: if SQLite is unavailable (permissions, locking), the system automatically falls back to in-memory mode without blocking inspections
 - The Web UI provides a **trend analysis page** with line charts and threshold lines
 - Side-by-side comparison with the previous run: changes shown with colored arrows (↑ deteriorating / ↓ improving)
 

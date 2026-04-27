@@ -856,262 +856,43 @@ def smart_analyze_oracle(context: dict) -> list:
 
 class HistoryManager:
     """
-    将每次巡检的关键指标持久化到 history.json，
+    将每次巡检的关键指标持久化到 SQLite 数据库，
     支持同一数据库实例的历史对比和趋势数据生成。
 
-    文件位于：<SCRIPT_DIR>/history.json
+    文件位于：<base_dir>/history.db
     """
 
     def __init__(self, base_dir: str):
-        self.path = os.path.join(base_dir, 'history.json')
-        self._data = self._load()
-
-    def _load(self) -> dict:
-        if os.path.exists(self.path):
-            try:
-                with open(self.path, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            except Exception:
-                return {}
-        return {}
-
-    def _save(self):
+        # 使用组合模式：内部持有 SQLiteHistoryManager 实例
+        # 避免直接继承导致的 MRO 问题
         try:
-            with open(self.path, 'w', encoding='utf-8') as f:
-                json.dump(self._data, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            print(f"⚠️  历史记录保存失败: {e}")
-
-    @staticmethod
-    def _db_key(db_type: str, host: str, port) -> str:
-        """生成数据库实例唯一键"""
-        raw = f"{db_type}:{host}:{port}"
-        return hashlib.md5(raw.encode()).hexdigest()[:12] + f"_{host}_{port}"
+            from db_history import SQLiteHistoryManager
+            self._inner = SQLiteHistoryManager(base_dir)
+        except Exception:
+            self._inner = None
 
     def save_snapshot(self, db_type: str, host: str, port, label: str, context: dict):
-        """
-        从 context 提取关键指标并存入历史记录。
+        if self._inner is None:
+            return None
+        return self._inner.save_snapshot(db_type, host, port, label, context)
 
-        :param db_type: 'mysql'、'pg' 或 'oracle'
-        :param host: 数据库 IP
-        :param port: 数据库端口
-        :param label: 数据库标签名
-        :param context: getData.checkdb() 返回的 context 字典
-        """
-        key = self._db_key(db_type, host, port)
-        if key not in self._data:
-            self._data[key] = {
-                'db_type': db_type, 'host': host, 'port': str(port),
-                'label': label, 'snapshots': []
-            }
-
-        snap = self._extract_metrics(db_type, context)
-        snap['ts'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        snap['report_time'] = snap['ts']
-        snap['risk_count'] = len(context.get('auto_analyze', []))
-        snap['health_status'] = context.get('health_status', '未知')
-
-        self._data[key]['snapshots'].append(snap)
-        # 只保留最近 30 条
-        self._data[key]['snapshots'] = self._data[key]['snapshots'][-30:]
-        self._save()
-        return key
-
-    def _extract_metrics(self, db_type: str, context: dict) -> dict:
-        """从 context 提取可量化的核心指标"""
-        def _safe_int(lst, field='Value'):
-            try:
-                return int(str(lst[0].get(field, 0)).replace(',', ''))
-            except Exception:
-                return 0
-
-        def _safe_float(lst, field='Value'):
-            try:
-                return float(str(lst[0].get(field, 0)).replace(',', ''))
-            except Exception:
-                return 0.0
-
-        m = {}
-        sys_info = context.get('system_info', {})
-        m['cpu_usage'] = _safe_float([sys_info.get('cpu', {})], 'usage_percent') if isinstance(sys_info.get('cpu'), dict) else sys_info.get('cpu', {}).get('usage_percent', 0)
-        m['mem_usage'] = sys_info.get('memory', {}).get('usage_percent', 0)
-        disks = sys_info.get('disk_list', [])
-        disks = sys_info.get('disk_list', [])
-        m['disk_usage_max'] = max((d.get('usage_percent', 0) for d in disks
-                                   if d.get('mountpoint', '/') not in IGNORE_MOUNTS), default=0)
-        # disk_list 为空时，尝试从原始 disk_usage 文本解析（SSH 采集器格式：df -Ph 输出）
-        if m['disk_usage_max'] == 0:
-            raw = sys_info.get('disk_usage', '')
-            if raw:
-                for line in raw.splitlines():
-                    parts = line.strip().split()
-                    if len(parts) >= 5:
-                        try:
-                            pct = int(parts[4].rstrip('%'))
-                            mp = parts[-1]
-                            if mp not in IGNORE_MOUNTS:
-                                m['disk_usage_max'] = max(m['disk_usage_max'], pct)
-                        except (ValueError, IndexError):
-                            continue
-
-        if db_type == 'mysql':
-            m['connections'] = _safe_int(context.get('threads_connected', []))
-            m['max_connections'] = _safe_int(context.get('max_connections', []))
-            m['max_used_connections'] = _safe_int(context.get('max_used_connections', []))
-            queries_data = context.get('queries', [])
-            m['queries_total'] = _safe_int(queries_data)
-            m['version'] = context.get('myversion', [{}])[0].get('version', '') if context.get('myversion') else ''
-        elif db_type in ('postgres', 'postgresql'):
-            pg_conn = context.get('pg_connections', [])
-            m['connections'] = _safe_int(pg_conn, 'used_connections') if pg_conn else 0
-            m['max_connections'] = _safe_int(pg_conn, 'max_connections') if pg_conn else 0
-            cache_hits = context.get('pg_cache_hit', [])
-            m['cache_hit_ratio'] = _safe_float(cache_hits, 'cache_hit_ratio') if cache_hits else 0.0
-            m['version'] = context.get('pg_version', [{}])[0].get('version', '') if context.get('pg_version') else ''
-        elif db_type in ('oracle', 'oracle_full'):
-            # Oracle / Oracle 全面巡检指标
-            ora_sess = context.get('ora_sessions', [])
-            m['connections'] = _safe_int(ora_sess, 'TOTAL_SESSIONS') if ora_sess else 0
-            ora_limit = context.get('ora_session_limit', [])
-            # oracle_full 没有 ora_session_limit，降级用当前连接+100估算
-            if ora_limit:
-                m['max_connections'] = _safe_int(ora_limit, 'SESSIONS_LIMIT')
-            else:
-                m['max_connections'] = m['connections'] + 100
-            sga_total = context.get('ora_sga_total', [])
-            m['sga_total_mb'] = _safe_float(sga_total, 'SGA_TOTAL_MB') if sga_total else 0.0
-
-            # 表空间最大使用率（用于趋势）
-            ts_list = context.get('ora_tablespace', [])
-            if ts_list:
-                max_ts_used = max((_safe_float(ts.get('USED_PCT_WITH_MAXEXT', ts.get('USED_PCT', 0))) for ts in ts_list), default=0)
-                m['max_tablespace_pct'] = max_ts_used
-            m['version'] = context.get('ora_version', [{}])[0].get('BANNER', '') if context.get('ora_version') else ''
-
-            # cpu_usage / mem_usage 在函数开头已从 system_info 提取，此处直接保留（Oracle 分支不清零）
-            # disk_usage_max 同上，已在函数开头通过 disk_list + disk_usage fallback 解析完毕
-
-        elif db_type == 'dm':
-            # DM8 达梦指标
-            dm_sess = context.get('dm_sessions', [])
-            m['connections'] = _safe_int(dm_sess, 'TOTAL_SESSIONS') if dm_sess else 0
-            dm_limit = context.get('dm_session_limit', [])
-            m['max_connections'] = _safe_int(dm_limit, 'SESSIONS_LIMIT') if dm_limit else m['connections'] + 100
-            dm_sga = context.get('dm_sga_total', [])
-            m['sga_total_mb'] = _safe_float(dm_sga, 'SGA_TOTAL_MB') if dm_sga else 0.0
-
-            # 表空间最大使用率
-            dm_ts = context.get('dm_tablespace', [])
-            if dm_ts:
-                max_ts_used = max((_safe_float(ts.get('USED_PCT', 0)) for ts in dm_ts), default=0)
-                m['max_tablespace_pct'] = max_ts_used
-            m['version'] = context.get('dm_version', [{}])[0].get('BANNER', '') if context.get('dm_version') else ''
-
-        elif db_type == 'sqlserver':
-            # SQL Server 指标
-            ss_conn = context.get('connections', [])
-            m['connections'] = ss_conn[0].get('connection_count', 0) if ss_conn else 0
-            m['max_connections'] = ss_conn[0].get('max_connections', 0) if ss_conn else 0
-            m['connection_usage_pct'] = ss_conn[0].get('connection_usage_pct', 0) if ss_conn else 0
-            
-            # 内存使用
-            host_info = context.get('host', {})
-            m['mem_usage'] = host_info.get('memory_percent', 0) if host_info else 0
-            
-            # 数据库状态
-            dbs = context.get('databases', [])
-            m['database_count'] = len(dbs)
-            
-            m['version'] = ''
-            ver_rows = context.get('version', [])
-            if ver_rows and len(ver_rows) > 0:
-                for row in ver_rows:
-                    if len(row) >= 2:
-                        m['version'] = str(row[1])
-                        break
-
-        return m
-
-    def get_trend(self, db_type: str, host: str, port) -> dict:
-        """
-        获取指定实例的历史趋势数据，供前端图表使用。
-
-        :return: {
-            'labels': ['2026-04-10 08:00', ...],
-            'metrics': {
-                'mem_usage': [65.2, 70.1, ...],
-                'connections': [20, 35, ...],
-                ...
-            },
-            'risk_counts': [1, 2, ...],
-            'health_statuses': ['良好', ...],
-            'label': '数据库标签名',
-            'snapshots_count': 10
-        }
-        """
-        key = self._db_key(db_type, host, port)
-        record = self._data.get(key)
-        if not record or not record.get('snapshots'):
+    def get_trend(self, db_type: str, host: str, port):
+        if self._inner is None:
             return {}
+        return self._inner.get_trend(db_type, host, port)
 
-        snaps = record['snapshots']
-        labels = [s['ts'] for s in snaps]
-        metric_keys = ['mem_usage', 'cpu_usage', 'disk_usage_max', 'connections',
-                       'cache_hit_ratio', 'queries_total', 'max_used_connections',
-                       'sga_total_mb', 'max_tablespace_pct']
-        metrics = {}
-        for mk in metric_keys:
-            vals = [s.get(mk, None) for s in snaps]
-            if any(v is not None and v != 0 for v in vals):
-                metrics[mk] = [v if v is not None else 0 for v in vals]
-
-        return {
-            'labels': labels,
-            'metrics': metrics,
-            'risk_counts': [s.get('risk_count', 0) for s in snaps],
-            'health_statuses': [s.get('health_status', '未知') for s in snaps],
-            'label': record.get('label', ''),
-            'snapshots_count': len(snaps)
-        }
-
-    def get_comparison(self, db_type: str, host: str, port) -> dict:
-        """
-        获取最近两次巡检的对比数据。
-
-        :return: {
-            'prev': {...metrics...},
-            'curr': {...metrics...},
-            'diff': {'mem_usage': +5.2, ...}
-        }
-        """
-        key = self._db_key(db_type, host, port)
-        record = self._data.get(key)
-        if not record or len(record.get('snapshots', [])) < 2:
+    def get_comparison(self, db_type: str, host: str, port):
+        if self._inner is None:
             return {}
+        return self._inner.get_comparison(db_type, host, port)
 
-        snaps = record['snapshots']
-        prev, curr = snaps[-2], snaps[-1]
-        diff = {}
-        for k in curr:
-            if k in prev and isinstance(curr[k], (int, float)) and isinstance(prev[k], (int, float)):
-                diff[k] = round(curr[k] - prev[k], 2)
+    def list_instances(self):
+        if self._inner is None:
+            return []
+        return self._inner.list_instances()
 
-        return {'prev': prev, 'curr': curr, 'diff': diff,
-                'prev_ts': prev['ts'], 'curr_ts': curr['ts']}
 
-    def list_instances(self) -> list:
-        """列出所有已记录的数据库实例"""
-        result = []
-        for key, rec in self._data.items():
-            result.append({
-                'key': key,
-                'db_type': rec.get('db_type', ''),
-                'host': rec.get('host', ''),
-                'port': rec.get('port', ''),
-                'label': rec.get('label', ''),
-                'snapshots_count': len(rec.get('snapshots', []))
-            })
-        return result
+
 
 
 # ═══════════════════════════════════════════════════════

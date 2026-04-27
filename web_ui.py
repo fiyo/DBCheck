@@ -950,20 +950,19 @@ def api_history_instances():
         from analyzer import HistoryManager
         script_dir = os.path.dirname(os.path.abspath(__file__))
         hm = HistoryManager(script_dir)
+        raw_instances = hm.list_instances()
         instances = []
-        for key, val in hm._data.items():
-            snapshots = val.get('snapshots', [])
-            last = snapshots[-1] if snapshots else {}
+        for inst in raw_instances:
             instances.append({
-                'key': key,
-                'db_type': val.get('db_type', ''),
-                'host': val.get('host', ''),
-                'port': str(val.get('port', '')),
-                'label': val.get('label', key),
-                'snapshot_count': len(snapshots),
-                'last_time': last.get('ts', ''),
-                'last_health': last.get('health_status', _t('webui.health_unknown')),
-                'last_risk': last.get('risk_count', 0),
+                'key': inst.get('key', ''),
+                'db_type': inst.get('db_type', ''),
+                'host': inst.get('host', ''),
+                'port': str(inst.get('port', '')),
+                'label': inst.get('label', inst.get('key', '')),
+                'snapshot_count': inst.get('snapshots_count', 0),
+                'last_time': inst.get('last_time', ''),
+                'last_health': inst.get('last_health', _t('webui.health_unknown')),
+                'last_risk': inst.get('last_risk', 0),
             })
         return jsonify({'ok': True, 'instances': instances})
     except Exception as e:
