@@ -1,0 +1,22 @@
+# DBCheck .gitattributes
+# 统一行尾符处理，避免 Windows/Linux 混用导致的 diff 噪音
+
+# Python 文件：checkin 时转 LF，checkout 时保持 LF（跨平台一致）
+*.py text eol=lf
+
+# 配置文件
+*.ini text eol=lf
+*.cfg text eol=lf
+*.toml text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+
+# Shell 脚本：必须保留 LF
+*.sh text eol=lf
+
+# 二进制文件（不转换）
+*.png binary
+*.jpg binary
+*.ico binary
+*.docx binary
+*.pdf binary

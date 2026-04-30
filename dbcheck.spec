@@ -17,6 +17,8 @@ a = Analysis(
         (os.path.join(project_root, 'templates'), 'templates'),
         # ── Web UI ───────────────────────────────────────────
         (os.path.join(project_root, 'web_templates'), 'web_templates'),
+        # ── i18n 国际化 ──────────────────────────────────────
+        (os.path.join(project_root, 'i18n'), 'i18n'),
     ],
     hiddenimports=[
         # ── 数据库驱动 ───────────────────────────────────────
@@ -103,6 +105,9 @@ a = Analysis(
         'slow_query_analyzer',
         'db_history',
         'desensitize',
+        'pdf_export',
+        'index_health',
+        'config_baseline',
         'main_mysql',
         'main_pg',
         'main_oracle_full',
