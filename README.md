@@ -3,7 +3,7 @@
 >DBCheck is an automated database health inspection tool that supports **MySQL**, **PostgreSQL**, **Oracle**, **SQL Server**, **Dameng DM8**, and **TiDB**. It generates standardized Microsoft Word inspection reports, helping DBAs and operations staff quickly assess database health status and identify potential risks.
 
 
-[![Version](https://img.shields.io/badge/version-2.3.3-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-2.3.6-blue.svg)]()
 [![MySQL](https://img.shields.io/badge/database-MySQL-blue.svg)]()
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-gray.svg)]()
 [![Oracle](https://img.shields.io/badge/Oracle-red.svg)]()

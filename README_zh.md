@@ -3,7 +3,7 @@
 >支持对 **MySQL**、**PostgreSQL**、**Oracle**、**SQL Server**、**达梦 DM8** 和 **TiDB** 六种主流关系型数据库进行自动化健康巡检，生成格式规范的 Microsoft Word 报告，帮助 DBA 和运维人员快速掌握数据库运行状况、发现潜在风险。
 
 
-[![Version](https://img.shields.io/badge/version-2.3.3-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-2.3.6-blue.svg)]()
 [![MySQL](https://img.shields.io/badge/database-MySQL-blue.svg)]()
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-gray.svg)]()
 [![Oracle](https://img.shields.io/badge/Oracle-red.svg)]()
