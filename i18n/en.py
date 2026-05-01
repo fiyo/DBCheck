@@ -302,6 +302,8 @@ EN = {
     "webui.db_type_tidb": "TiDB",
     "webui.nav_section_feature": "Features",
     "webui.nav_section_setting": "Settings",
+    "webui.nav_scheduler": "Scheduled Jobs",
+    "webui.nav_notifier": "Notifications",
     "webui.ssh_config": "SSH Configuration",
     "webui.db_desc_mysql": "For MySQL 5.7 / 8.x instances — collects connections, InnoDB, slow queries, Binlog and other core metrics.",
     "webui.db_desc_pg": "For PostgreSQL 10+ instances — collects connections, cache, Vacuum, indexes, replication and other core metrics.",

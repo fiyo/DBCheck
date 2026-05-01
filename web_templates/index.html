@@ -628,6 +628,50 @@ select option { background: var(--surface2); }
   #trend-charts-grid { grid-template-columns: 1fr; }
   .report-list { grid-template-columns: 1fr; }
 }
+
+/* ── Toast 通知 ──────────────────────────────── */
+#toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+.toast {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 18px;
+  min-width: 240px;
+  max-width: 360px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  pointer-events: auto;
+  animation: toastIn 0.3s ease;
+}
+.toast.toast-out {
+  animation: toastOut 0.3s ease forwards;
+}
+.toast-success { border-left: 4px solid #4caf50; }
+.toast-error   { border-left: 4px solid #f44336; }
+.toast-info    { border-left: 4px solid #2196f3; }
+.toast-icon { font-size: 18px; flex-shrink: 0; }
+.toast-msg  { flex: 1; color: var(--text); }
+
+@keyframes toastIn {
+  from { transform: translateX(110%); opacity: 0; }
+  to   { transform: translateX(0);   opacity: 1; }
+}
+@keyframes toastOut {
+  from { transform: translateX(0);   opacity: 1; }
+  to   { transform: translateX(110%); opacity: 0; }
+}
 </style>
 </head>
 <body>
@@ -718,7 +762,13 @@ var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
     <div class="nav-item" onclick="showPage('trend')" id="nav-trend">
       <span class="icon">📈</span> <span data-i18n="webui.trend_title">趋势分析</span>
     </div>
+    <div class="nav-item" onclick="showPage('scheduler')" id="nav-scheduler">
+      <span class="icon">⏰</span> <span data-i18n="webui.nav_scheduler">定时巡检</span>
+    </div>
     <div class="nav-section" data-i18n="webui.nav_section_setting">设置</div>
+    <div class="nav-item" onclick="showPage('notifier')" id="nav-notifier">
+      <span class="icon">📧</span> <span data-i18n="webui.nav_notifier">通知设置</span>
+    </div>
     <div class="nav-item" onclick="showPage('ai')" id="nav-ai">
       <span class="icon">🤖</span> <span data-i18n="webui.nav_ai">AI 诊断设置</span>
     </div>
@@ -1094,6 +1144,194 @@ var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
         </div>
       </div>
 
+      <!-- ══ Page: Scheduler ══ -->
+      <div class="page" id="page-scheduler">
+        <div class="card">
+          <div class="card-title">
+            <span>⏰</span> 定时巡检任务
+            <span class="badge" id="scheduler-job-count">0 个任务</span>
+          </div>
+          <div id="scheduler-job-list" style="margin-bottom:20px;"></div>
+          <button class="btn btn-primary" onclick="showAddJobForm()">+ 新建定时任务</button>
+        </div>
+
+        <!-- 添加/编辑任务表单 -->
+        <div class="card" id="add-job-form" style="display:none">
+          <div class="card-title">
+            <span>➕</span> <span id="job-form-title">新建定时任务</span>
+          </div>
+          <div class="form-grid">
+            <div class="field full">
+              <label>任务名称 <span class="req">*</span></label>
+              <input type="text" id="job-name" placeholder="例如：每日凌晨健康巡检" />
+            </div>
+            <div class="field">
+              <label>数据库类型 <span class="req">*</span></label>
+              <select id="job-db-type" onchange="onJobDbTypeChange()">
+                <option value="mysql">MySQL</option>
+                <option value="pg">PostgreSQL</option>
+                <option value="oracle_full">Oracle</option>
+                <option value="dm">达梦 DM8</option>
+                <option value="sqlserver">SQL Server</option>
+                <option value="tidb">TiDB</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>实例标签</label>
+              <input type="text" id="job-label" placeholder="用于报告命名" />
+            </div>
+            <div class="field">
+              <label>主机地址 <span class="req">*</span></label>
+              <input type="text" id="job-host" placeholder="localhost" />
+            </div>
+            <div class="field">
+              <label>端口 <span class="req">*</span></label>
+              <input type="number" id="job-port" value="3306" />
+            </div>
+            <div class="field">
+              <label>用户名 <span class="req">*</span></label>
+              <input type="text" id="job-user" placeholder="root" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label>密码</label>
+              <input type="password" id="job-password" placeholder="数据库密码" autocomplete="new-password" />
+            </div>
+            <div class="field" id="job-database-wrap" style="display:none">
+              <label>数据库名</label>
+              <input type="text" id="job-database" placeholder="默认 postgres" />
+            </div>
+          </div>
+
+          <!-- Cron 配置 -->
+          <div style="margin-top:20px;">
+            <label style="font-weight:600;margin-bottom:12px;display:block;">⏰ 执行周期（Cron 表达式）</label>
+            <div class="form-grid">
+              <div class="field">
+                <label>小时</label>
+                <select id="job-cron-hour" onchange="updateCronPreview()">
+                  <option value="*">每小时</option>
+                  <option value="2">凌晨 2 点</option>
+                  <option value="3">凌晨 3 点</option>
+                  <option value="6">早上 6 点</option>
+                  <option value="9">上午 9 点</option>
+                  <option value="14">下午 2 点</option>
+                  <option value="18">下午 6 点</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>分钟</label>
+                <select id="job-cron-minute" onchange="updateCronPreview()">
+                  <option value="0">整点</option>
+                  <option value="15">15 分</option>
+                  <option value="30">30 分</option>
+                  <option value="45">45 分</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>执行周期</label>
+                <select id="job-cron-day" onchange="updateCronPreview()">
+                  <option value="*">每天</option>
+                  <option value="1-5">工作日（周一至周五）</option>
+                  <option value="0,6">周末（周六、周日）</option>
+                </select>
+              </div>
+            </div>
+            <div style="margin-top:8px;font-size:12px;color:var(--text-muted);">
+              当前配置预览: <code id="job-cron-preview">每天 02:00 执行</code>
+            </div>
+          </div>
+
+          <div style="margin-top:20px;">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+              <input type="checkbox" id="job-notify" checked />
+              <span>巡检完成后发送通知</span>
+            </label>
+          </div>
+
+          <div class="btn-row" style="margin-top:24px;">
+            <button class="btn btn-primary" onclick="saveJob()">💾 保存任务</button>
+            <button class="btn btn-ghost" onclick="hideAddJobForm()">取消</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ Page: Notifier ══ -->
+      <div class="page" id="page-notifier">
+        <div class="card">
+          <div class="card-title">
+            <span>📧</span> 邮件通知配置
+            <span class="badge" id="email-status">未配置</span>
+          </div>
+          <div class="form-grid">
+            <div class="field">
+              <label>SMTP 服务器</label>
+              <input type="text" id="smtp-host" placeholder="smtp.qq.com" />
+            </div>
+            <div class="field">
+              <label>端口</label>
+              <input type="number" id="smtp-port" value="587" />
+            </div>
+            <div class="field">
+              <label>邮箱地址</label>
+              <input type="email" id="smtp-user" placeholder="your_email@qq.com" />
+            </div>
+            <div class="field">
+              <label>密码/授权码</label>
+              <input type="password" id="smtp-password" placeholder="邮箱授权码（非登录密码）" />
+            </div>
+            <div class="field full">
+              <label>收件人邮箱（逗号分隔）</label>
+              <input type="text" id="smtp-recipients" placeholder="admin@example.com, dba@example.com" />
+            </div>
+          </div>
+          <div style="margin-top:12px;">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+              <input type="checkbox" id="smtp-tls" checked />
+              <span>使用 TLS 加密</span>
+            </label>
+          </div>
+          <div class="btn-row" style="margin-top:20px;">
+            <button class="btn btn-primary" onclick="saveEmailConfig()">💾 保存配置</button>
+            <button class="btn btn-ghost" onclick="testEmailConfig()">🧪 测试发送</button>
+          </div>
+          <div id="email-msg" style="margin-top:10px;font-size:13px;"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <span>🔔</span> Webhook 告警配置
+            <span class="badge" id="webhook-status">未配置</span>
+          </div>
+          <div class="form-grid">
+            <div class="field full">
+              <label>类型</label>
+              <select id="webhook-type" onchange="onWebhookTypeChange()">
+                <option value="custom">自定义 Webhook</option>
+                <option value="wecom">企业微信</option>
+                <option value="dingtalk">钉钉</option>
+              </select>
+            </div>
+            <div class="field full">
+              <label>Webhook 地址</label>
+              <input type="text" id="webhook-url" placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx" />
+            </div>
+            <div class="field full" id="webhook-secret-wrap" style="display:none">
+              <label>签名密钥（可选）</label>
+              <input type="text" id="webhook-secret" placeholder="用于签名验证" />
+            </div>
+            <div class="field full" id="dingtalk-at-wrap" style="display:none">
+              <label>需要 @ 的手机号（逗号分隔）</label>
+              <input type="text" id="dingtalk-phones" placeholder="13800138000, 13900139000" />
+            </div>
+          </div>
+          <div class="btn-row" style="margin-top:20px;">
+            <button class="btn btn-primary" onclick="saveWebhookConfig()">💾 保存配置</button>
+            <button class="btn btn-ghost" onclick="testWebhookConfig()">🧪 测试发送</button>
+          </div>
+          <div id="webhook-msg" style="margin-top:10px;font-size:13px;"></div>
+        </div>
+      </div>
+
       <!-- ══ Page: AI Settings ══ -->
       <div class="page" id="page-ai">
         <div class="card">
@@ -1226,7 +1464,7 @@ async function toggleLang() {
     // 刷新页面以重新渲染
     location.reload();
   } catch(e) {
-    alert('Language switch failed: ' + e.message);
+    toastError('Language switch failed: ' + e.message);
   }
 }
 
@@ -1241,6 +1479,8 @@ function showPage(name) {
     wizard:  [i18n('webui.nav_wizard'),    i18n('webui.wizard_desc')],
     reports: [i18n('webui.reports_title'), i18n('webui.reports_desc')],
     trend:   [i18n('webui.trend_title'), i18n('webui.trend_desc')],
+    scheduler: [i18n('webui.nav_scheduler'), '管理定时巡检任务'],
+    notifier: [i18n('webui.nav_notifier'), '配置邮件和 Webhook 通知'],
     ai:      [i18n('webui.ai_title'),        i18n('webui.ai_desc')],
   };
   const t = titles[name] || [name, ''];
@@ -1248,6 +1488,8 @@ function showPage(name) {
   document.getElementById('topbar-sub').textContent = t[1];
   if (name === 'reports') loadReports();
   if (name === 'trend') loadTrendInstances();
+  if (name === 'scheduler') loadSchedulerJobs();
+  if (name === 'notifier') loadNotifierConfig();
   if (name === 'ai') loadAIConfig();
 }
 
@@ -1487,7 +1729,7 @@ async function startInspection() {
   } catch(e) {
     btn.disabled = false;
     btn.innerHTML = '🚀 开始巡检';
-    alert(i18n('webui.start_fail') + ': ' + e.message);
+    toastError(i18n('webui.start_fail') + ': ' + e.message);
   }
 }
 
@@ -1995,11 +2237,391 @@ async function testOllama() {
   }
 }
 
-// ─── Init ───
-initI18N();
-showPage('home');
-loadTrendInstances();
-loadAIConfig();
+// ─── Scheduler ───────────────────────────────────────────────────
+async function loadSchedulerJobs() {
+  try {
+    const res = await fetch('/api/scheduler/jobs');
+    const data = await res.json();
+    if (data.ok) {
+      renderJobList(data.jobs);
+    }
+  } catch(e) { console.error(e); }
+}
+
+function renderJobList(jobs) {
+  const container = document.getElementById('scheduler-job-list');
+  const countBadge = document.getElementById('scheduler-job-count');
+  countBadge.textContent = jobs.length + ' 个任务';
+  
+  if (!jobs.length) {
+    container.innerHTML = '<div style="color:var(--text-muted);padding:20px 0;text-align:center;">暂无定时任务，点击上方按钮创建</div>';
+    return;
+  }
+  
+  const html = jobs.map(job => {
+    const statusColor = job.running ? '#4caf50' : '#8b949e';
+    const statusText = job.running ? '运行中' : '已暂停';
+    const cronText = formatCronText(job.cron);
+    const enabledChecked = job.enabled ? 'checked' : '';
+    
+    return `
+      <div style="background:var(--surface2);border-radius:10px;padding:16px;margin-bottom:12px;display:flex;align-items:center;gap:16px;">
+        <div style="flex:1">
+          <div style="font-weight:600;margin-bottom:4px;">${escHtml(job.name)}</div>
+          <div style="font-size:12px;color:var(--text-muted);">
+            ${escHtml(job.db_type.toUpperCase())} · ${escHtml(job.db_info.host)}:${job.db_info.port}
+            · ${cronText}
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;">
+            <input type="checkbox" ${enabledChecked} onchange="toggleJob('${job.id}', this.checked)" />
+            启用
+          </label>
+          <button class="btn btn-ghost" style="padding:4px 12px;font-size:12px;" onclick="runJobNow('${job.id}')">▶ 立即执行</button>
+          <button class="btn btn-ghost" style="padding:4px 12px;font-size:12px;color:var(--danger);" onclick="deleteJob('${job.id}')">🗑 删除</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  container.innerHTML = html;
+}
+
+function formatCronText(cron) {
+  const hour = cron.hour || '*';
+  const minute = cron.minute || '0';
+  const day = cron.day || '*';
+  
+  let timeText = '';
+  if (hour === '*') {
+    timeText = '每小时';
+  } else if (minute === '0') {
+    timeText = `每天 ${hour}:00`;
+  } else {
+    timeText = `每天 ${hour}:${minute.padStart(2, '0')}`;
+  }
+  
+  let dayText = '';
+  if (day === '*') dayText = '';
+  else if (day === '1-5') dayText = '（工作日）';
+  else if (day === '0,6') dayText = '（周末）';
+  
+  return timeText + dayText;
+}
+
+function onJobDbTypeChange() {
+  const dbType = document.getElementById('job-db-type').value;
+  const dbWrap = document.getElementById('job-database-wrap');
+  const portInput = document.getElementById('job-port');
+  
+  const defaultPorts = {
+    mysql: 3306, pg: 5432, oracle_full: 1521,
+    dm: 5236, sqlserver: 1433, tidb: 4000
+  };
+  portInput.value = defaultPorts[dbType] || 3306;
+  dbWrap.style.display = (dbType === 'pg' || dbType === 'sqlserver') ? 'block' : 'none';
+}
+
+function updateCronPreview() {
+  const hour = document.getElementById('job-cron-hour').value;
+  const minute = document.getElementById('job-cron-minute').value;
+  const day = document.getElementById('job-cron-day').value;
+  
+  let timeText = '';
+  if (hour === '*') {
+    timeText = '每小时';
+  } else {
+    timeText = `每天 ${hour}:${minute.padStart(2, '0')}`;
+  }
+  
+  let dayText = '';
+  if (day === '1-5') dayText = '（工作日）';
+  else if (day === '0,6') dayText = '（周末）';
+  
+  document.getElementById('job-cron-preview').textContent = timeText + dayText;
+}
+
+function showAddJobForm() {
+  document.getElementById('add-job-form').style.display = 'block';
+  document.getElementById('job-form-title').textContent = '新建定时任务';
+  document.getElementById('job-name').value = '';
+  document.getElementById('job-db-type').value = 'mysql';
+  document.getElementById('job-label').value = '';
+  document.getElementById('job-host').value = '';
+  document.getElementById('job-port').value = '3306';
+  document.getElementById('job-user').value = '';
+  document.getElementById('job-password').value = '';
+  document.getElementById('job-notify').checked = true;
+  document.getElementById('job-cron-hour').value = '2';
+  document.getElementById('job-cron-minute').value = '0';
+  document.getElementById('job-cron-day').value = '*';
+  updateCronPreview();
+  onJobDbTypeChange();
+}
+
+function hideAddJobForm() {
+  document.getElementById('add-job-form').style.display = 'none';
+}
+
+async function saveJob() {
+  const name = document.getElementById('job-name').value.trim();
+  if (!name) { toastError('请输入任务名称'); return; }
+  
+  const host = document.getElementById('job-host').value.trim();
+  if (!host) { toastError('请输入主机地址'); return; }
+  
+  const jobData = {
+    name: name,
+    db_type: document.getElementById('job-db-type').value,
+    label: document.getElementById('job-label').value || host,
+    inspector_name: 'Jack',
+    host: host,
+    port: parseInt(document.getElementById('job-port').value) || 3306,
+    user: document.getElementById('job-user').value || '',
+    password: document.getElementById('job-password').value || '',
+    database: document.getElementById('job-database').value || '',
+    notify_on_done: document.getElementById('job-notify').checked,
+    cron: {
+      hour: document.getElementById('job-cron-hour').value,
+      minute: document.getElementById('job-cron-minute').value,
+      day: document.getElementById('job-cron-day').value
+    }
+  };
+  
+  try {
+    const res = await fetch('/api/scheduler/jobs', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(jobData)
+    });
+    const data = await res.json();
+    if (data.ok) {
+      hideAddJobForm();
+      loadSchedulerJobs();
+      toastSuccess('任务保存成功');
+    } else {
+      toastError('保存失败: ' + (data.error || '未知错误'));
+    }
+  } catch(e) {
+    toastError('保存失败: ' + e.message);
+  }
+}
+
+async function toggleJob(jobId, enabled) {
+  try {
+    await fetch(`/api/scheduler/jobs/${jobId}/toggle`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({enabled: enabled})
+    });
+    loadSchedulerJobs();
+  } catch(e) { console.error(e); }
+}
+
+async function runJobNow(jobId) {
+  if (!await toastConfirm('确认立即执行此任务？')) return;
+  try {
+    const res = await fetch(`/api/scheduler/jobs/${jobId}/run`, { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) {
+      toastSuccess('任务已触发，请到首页查看执行日志');
+    } else {
+      toastError('触发失败: ' + (data.msg || '未知错误'));
+    }
+  } catch(e) { toastError('触发失败: ' + e.message); }
+}
+
+async function deleteJob(jobId) {
+  if (!await toastConfirm('确认删除此任务？')) return;
+  try {
+    const res = await fetch(`/api/scheduler/jobs/${jobId}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.ok) {
+      toastSuccess('任务已删除');
+      loadSchedulerJobs();
+    } else {
+      toastError('删除失败: ' + (data.msg || data.error || '未知错误'));
+    }
+  } catch(e) { toastError('删除失败: ' + e.message); }
+}
+
+// ─── Notifier ───────────────────────────────────────────────────
+async function loadNotifierConfig() {
+  try {
+    const res = await fetch('/api/notifier/config');
+    const data = await res.json();
+    if (data.ok) {
+      const cfg = data.config;
+      
+      // 邮件配置
+      if (cfg.email) {
+        document.getElementById('smtp-host').value = cfg.email.host || '';
+        document.getElementById('smtp-port').value = cfg.email.port || 587;
+        document.getElementById('smtp-user').value = cfg.email.user || '';
+        document.getElementById('smtp-recipients').value = (cfg.email.recipients || []).join(', ');
+        document.getElementById('smtp-tls').checked = cfg.email.use_tls !== false;
+        if (cfg.email.password && cfg.email.password !== '***') {
+          document.getElementById('smtp-password').value = cfg.email.password;
+        }
+        document.getElementById('email-status').textContent = cfg.email.host ? '已配置' : '未配置';
+      }
+      
+      // Webhook 配置
+      if (cfg.webhook) {
+        document.getElementById('webhook-type').value = cfg.webhook.type || 'custom';
+        document.getElementById('webhook-url').value = cfg.webhook.url || '';
+        document.getElementById('webhook-secret').value = cfg.webhook.secret || '';
+        document.getElementById('dingtalk-phones').value = (cfg.webhook.at_mobiles || []).join(', ');
+        onWebhookTypeChange();
+        document.getElementById('webhook-status').textContent = cfg.webhook.url ? '已配置' : '未配置';
+      }
+    }
+  } catch(e) { console.error(e); }
+}
+
+function onWebhookTypeChange() {
+  const type = document.getElementById('webhook-type').value;
+  const secretWrap = document.getElementById('webhook-secret-wrap');
+  const dingtalkWrap = document.getElementById('dingtalk-at-wrap');
+  
+  secretWrap.style.display = (type === 'wecom' || type === 'dingtalk') ? 'block' : 'none';
+  dingtalkWrap.style.display = type === 'dingtalk' ? 'block' : 'none';
+}
+
+async function saveEmailConfig() {
+  const cfg = {
+    host: document.getElementById('smtp-host').value,
+    port: parseInt(document.getElementById('smtp-port').value) || 587,
+    user: document.getElementById('smtp-user').value,
+    password: document.getElementById('smtp-password').value,
+    use_tls: document.getElementById('smtp-tls').checked,
+    recipients: document.getElementById('smtp-recipients').value.split(',').map(s => s.trim()).filter(Boolean)
+  };
+  
+  try {
+    const res = await fetch('/api/notifier/config', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({email: cfg})
+    });
+    const data = await res.json();
+    const msg = document.getElementById('email-msg');
+    if (data.ok) {
+      msg.textContent = '✅ 邮件配置已保存';
+      msg.style.color = '#4caf50';
+      document.getElementById('email-status').textContent = '已配置';
+    } else {
+      msg.textContent = '❌ 保存失败: ' + (data.error || '');
+      msg.style.color = '#f44336';
+    }
+  } catch(e) {
+    document.getElementById('email-msg').textContent = '❌ 保存失败: ' + e.message;
+  }
+}
+
+async function testEmailConfig() {
+  const cfg = {
+    host: document.getElementById('smtp-host').value,
+    port: parseInt(document.getElementById('smtp-port').value) || 587,
+    user: document.getElementById('smtp-user').value,
+    password: document.getElementById('smtp-password').value,
+    use_tls: document.getElementById('smtp-tls').checked,
+    recipients: document.getElementById('smtp-recipients').value.split(',').map(s => s.trim()).filter(Boolean)
+  };
+  
+  const msg = document.getElementById('email-msg');
+  msg.textContent = '正在测试...';
+  msg.style.color = 'var(--text-muted)';
+  
+  try {
+    const res = await fetch('/api/notifier/test-email', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({email: cfg})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      msg.textContent = '✅ ' + data.msg;
+      msg.style.color = '#4caf50';
+    } else {
+      msg.textContent = '❌ ' + data.msg;
+      msg.style.color = '#f44336';
+    }
+  } catch(e) {
+    msg.textContent = '❌ 测试失败: ' + e.message;
+    msg.style.color = '#f44336';
+  }
+}
+
+async function saveWebhookConfig() {
+  const phones = document.getElementById('dingtalk-phones').value
+    .split(',').map(s => s.trim()).filter(Boolean);
+  
+  const cfg = {
+    type: document.getElementById('webhook-type').value,
+    url: document.getElementById('webhook-url').value,
+    secret: document.getElementById('webhook-secret').value,
+    at_mobiles: phones,
+    is_at_all: false
+  };
+  
+  try {
+    const res = await fetch('/api/notifier/config', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({webhook: cfg})
+    });
+    const data = await res.json();
+    const msg = document.getElementById('webhook-msg');
+    if (data.ok) {
+      msg.textContent = '✅ Webhook 配置已保存';
+      msg.style.color = '#4caf50';
+      document.getElementById('webhook-status').textContent = '已配置';
+    } else {
+      msg.textContent = '❌ 保存失败: ' + (data.error || '');
+      msg.style.color = '#f44336';
+    }
+  } catch(e) {
+    document.getElementById('webhook-msg').textContent = '❌ 保存失败: ' + e.message;
+  }
+}
+
+async function testWebhookConfig() {
+  const phones = document.getElementById('dingtalk-phones').value
+    .split(',').map(s => s.trim()).filter(Boolean);
+  
+  const cfg = {
+    type: document.getElementById('webhook-type').value,
+    url: document.getElementById('webhook-url').value,
+    secret: document.getElementById('webhook-secret').value,
+    at_mobiles: phones,
+    is_at_all: false
+  };
+  
+  const msg = document.getElementById('webhook-msg');
+  msg.textContent = '正在测试...';
+  msg.style.color = 'var(--text-muted)';
+  
+  try {
+    const res = await fetch('/api/notifier/test-webhook', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({webhook: cfg})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      msg.textContent = '✅ ' + data.msg;
+      msg.style.color = '#4caf50';
+    } else {
+      msg.textContent = '❌ ' + data.msg;
+      msg.style.color = '#f44336';
+    }
+  } catch(e) {
+    msg.textContent = '❌ 测试失败: ' + e.message;
+    msg.style.color = '#f44336';
+  }
+}
 </script>
 
 <!-- AI 诊断展开/收起 -->
@@ -2017,5 +2639,49 @@ function toggleAiAdvice() {
   }
 }
 </script>
+
+<!-- Toast 通知容器 -->
+<div id="toast-container"></div>
+
+<script>
+/* ── Toast 通知系统 ─────────────────────────── */
+function toast(msg, type='info', duration=4000) {
+  const container = document.getElementById('toast-container');
+  const icons = { success: '✅', error: '❌', info: 'ℹ️' };
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.innerHTML = `<span class="toast-icon">${icons[type] || 'ℹ️'}</span><span class="toast-msg">${escHtml(String(msg))}</span>`;
+  container.appendChild(el);
+  el.addEventListener('click', () => dismiss(el));
+  setTimeout(() => dismiss(el), duration);
+  return el;
+}
+function dismiss(el) {
+  if (!el.parentNode) return;
+  el.classList.add('toast-out');
+  setTimeout(() => el.remove(), 300);
+}
+function toastSuccess(msg, duration) { return toast(msg, 'success', duration); }
+function toastError(msg, duration)   { return toast(msg, 'error', duration || 5000); }
+
+function toastConfirm(msg) {
+  return new Promise(resolve => {
+    const container = document.getElementById('toast-container');
+    const el = document.createElement('div');
+    el.className = 'toast toast-info';
+    el.innerHTML = `
+      <span class="toast-icon">🤔</span>
+      <span class="toast-msg">${escHtml(String(msg))}</span>
+      <div style="display:flex;gap:8px;flex-shrink:0;">
+        <button id="toast-confirm-btn" class="btn btn-primary" style="padding:4px 12px;font-size:13px;">确定</button>
+        <button id="toast-cancel-btn" class="btn btn-ghost" style="padding:4px 12px;font-size:13px;">取消</button>
+      </div>`;
+    container.appendChild(el);
+    document.getElementById('toast-confirm-btn').onclick = () => { dismiss(el); resolve(true); };
+    document.getElementById('toast-cancel-btn').onclick = () => { dismiss(el); resolve(false); };
+  });
+}
+</script>
+
 </body>
 </html>

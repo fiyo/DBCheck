@@ -3,7 +3,7 @@
 DBCheck is an open-source, cross-platform automated database health check tool that supports six mainstream relational databases: **MySQL**, **PostgreSQL**, **Oracle**, **SQL Server**, **DM8**, and **TiDB**. The tool automatically generates standardized Microsoft Word inspection reports by executing predefined SQL checks and collecting system resources. It also provides advanced features such as historical trend analysis, AI-powered intelligent diagnostics, configuration baseline compliance checks, index health analysis, in-depth slow query analysis, and data-masked export. DBCheck aims to free DBAs from repetitive and time-consuming manual inspection work, improving database operation and maintenance efficiency and risk detection capabilities.
 
 
-[![Version](https://img.shields.io/badge/version-2.3.6-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)]()
 [![MySQL](https://img.shields.io/badge/database-MySQL-blue.svg)]()
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-gray.svg)]()
 [![Oracle](https://img.shields.io/badge/Oracle-red.svg)]()
@@ -479,11 +479,70 @@ Slow query analysis results appear in the report's risk chapter, tagged with sev
 
 ---
 
+## Scheduled Inspection & Auto-Notification ⏰📧🔔
+
+> Configure recurring inspection tasks with cron expressions — DBCheck runs automatically and sends reports to your team via email or Webhook the moment each run completes.
+
+### Scheduling
+
+The Web UI provides a dedicated **⏰ Scheduled Inspection** page:
+
+| Feature | Description |
+|---------|-------------|
+| Cron Expression | Configurable second/minute/hour/day/month/weekday schedule |
+| Quick Presets | Daily (2 AM), Weekdays (9 AM), Weekly (Monday 9 AM), Monthly (1st 3 AM) |
+| Per-Task Notification Toggle | Each task independently controls whether to send a notification on completion |
+| One-Click Run | Trigger any scheduled task immediately without waiting for the next run |
+| Persistent Jobs | Task configs saved to `scheduler_jobs.json` — survive restarts |
+
+### Notifications
+
+The Web UI provides a dedicated **📧🔔 Notification Settings** page:
+
+#### Email Report (SMTP)
+
+| Feature | Description |
+|---------|-------------|
+| SMTP Server | Supports 126, 163, QQ, corporate mail, and other SMTP services |
+| Port | 465 (SSL implicit) or 587 (TLS explicit) |
+| TLS | Auto-detected by port; configurable |
+| Recipients | Multiple comma-separated addresses |
+| Trigger | Automatically sent after every successful scheduled inspection |
+| Attachment | Word inspection report attached directly |
+
+#### Webhook Alert
+
+| Feature | Description |
+|---------|-------------|
+| Types | Enterprise WeChat (markdown), DingTalk (markdown + @), Custom JSON |
+| Trigger | Sent after every scheduled inspection — both success and failure |
+| Failure Alert | Includes error message; report file included on success |
+| Custom Payload | Template variables: `{label}`, `{db_type}`, `{status}`, `{error}`, `{report_file}` |
+
+#### Environment Variable Override
+
+Sensitive credentials can be loaded from environment variables instead of the config file:
+
+| Variable | Description |
+|----------|-------------|
+| `SMTP_HOST` | SMTP server address |
+| `SMTP_PORT` | SMTP port |
+| `SMTP_USER` | Username / email |
+| `SMTP_PASSWORD` | Password or authorization code |
+| `SMTP_USE_TLS` | Enable TLS (`true`/`false`) |
+| `SMTP_FROM_NAME` | Display name in From field |
+| `WEBHOOK_URL` | Webhook URL |
+| `WEBHOOK_TYPE` | `wecom` / `dingtalk` / `custom` |
+
+> Environment variables take precedence over values in `notifier_config.json`, enabling secure deployments without storing credentials in config files.
+
+---
+
 ## Environment Requirements
 
 - **Operating System**: Linux / macOS / Windows
 - **Python**: 3.6+
-- **General Dependencies**: pymysql, psycopg2-binary, python-docx, docxtpl, paramiko, psutil, openpyxl, pandas, flask, flask_socketio
+- **General Dependencies**: pymysql, psycopg2-binary, python-docx, docxtpl, paramiko, psutil, openpyxl, pandas, flask, flask_socketio, apscheduler
 - **Oracle Dependencies**: `oracledb` (recommended, pure Python, no Instant Client needed) or `cx_Oracle` (requires Oracle Instant Client)
 - **DM8 Dependencies**: `dmpython` (pip install dmpython)
 - **SQL Server Dependencies**: `pyodbc` + ODBC Driver 17 (supported on Windows and Linux)
@@ -586,9 +645,9 @@ python web_ui.py
 | 5 | Inspector name (default: dbcheck), optionally check "🔒 Desensitize Report" to mask sensitive info |
 | 6 | Confirm and execute with one click — real-time log streaming (SSE) |
 | 7 | Upon completion, preview intelligent analysis + AI diagnosis results online |
-| 8 | 📊 Historical trend analysis: view metric trends across multiple inspection runs |
-| 9 | 🤖 AI diagnosis settings: configure local Ollama parameters (address / model / timeout) |
-| 10 | Download the Word report and browse historical reports |
+| 8 | 📊 History & Trends | View trend charts and historical inspection reports |
+| 9 | ⏰ Scheduled Inspection | Configure cron-based recurring inspections |
+| 10 | 📧🔔 Notification Settings | Email and Webhook alerting configuration |
 
 ### OpenClaw Skill
 

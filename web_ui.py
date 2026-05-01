@@ -18,6 +18,16 @@ from flask_socketio import SocketIO, emit
 import socket
 from i18n import t as _t
 
+# ── 延迟导入调度器和通知器（避免循环依赖）─────────────────────
+_scheduler = None
+
+def _get_scheduler():
+    global _scheduler
+    if _scheduler is None:
+        from scheduler import get_scheduler
+        _scheduler = get_scheduler()
+    return _scheduler
+
 # async_mode='threading' 最稳定，跨平台/打包零兼容问题，
 # 满足 DBCheck Web UI 低并发使用场景（单用户/少量连接）。
 # 不依赖 gevent/eventlet，避免打包后版本冲突。
@@ -1389,6 +1399,163 @@ def on_join(data):
     task_id = data.get('task_id')
     if task_id:
         socketio.emit('log', {'msg': _t('webui.ws_connected_waiting').format(ts=_ts())})
+
+# ══════════════════════════════════════════════════════════════
+# 定时调度 API
+# ══════════════════════════════════════════════════════════════
+
+@app.route('/api/scheduler/jobs', methods=['GET'])
+def api_scheduler_list():
+    """列出所有定时任务"""
+    try:
+        sm = _get_scheduler()
+        return jsonify({'ok': True, 'jobs': sm.list_jobs()})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/scheduler/jobs', methods=['POST'])
+def api_scheduler_add():
+    """添加定时任务"""
+    try:
+        data = request.json
+        if not data:
+            return jsonify({'ok': False, 'error': 'No data provided'}), 400
+        
+        # 验证必需字段
+        job_id = data.get('id') or str(uuid.uuid4())
+        cron = data.get('cron', {})
+        if not cron:
+            return jsonify({'ok': False, 'error': 'Cron expression required'}), 400
+        
+        job_cfg = {
+            'id': job_id,
+            'name': data.get('name', '定时巡检'),
+            'db_type': data.get('db_type', 'mysql'),
+            'inspector_name': data.get('inspector_name', 'Jack'),
+            'notify_on_done': bool(data.get('notify_on_done', True)),
+            'cron': cron,
+            'enabled': True,
+            'db_info': {
+                'label': data.get('label', ''),
+                'db_type': data.get('db_type', 'mysql'),
+                'host': data.get('host', ''),
+                'port': int(data.get('port', 0) or 3306),
+                'user': data.get('user', ''),
+                'password': data.get('password', ''),
+                'database': data.get('database', ''),
+                'service_name': data.get('service_name', None),
+                'sid': data.get('sid', None),
+                'ssh_host': data.get('ssh_host', None),
+                'ssh_port': int(data.get('ssh_port', 22) or 22),
+                'ssh_user': data.get('ssh_user', None),
+                'ssh_password': data.get('ssh_password', ''),
+                'ssh_key_file': data.get('ssh_key_file', ''),
+            }
+        }
+        
+        sm = _get_scheduler()
+        success = sm.add_job(job_cfg)
+        if success:
+            return jsonify({'ok': True, 'job_id': job_id, 'msg': 'Task added successfully'})
+        else:
+            return jsonify({'ok': False, 'error': 'Failed to add task (check cron expression)'}), 400
+    except Exception as e:
+        import traceback
+        traceback.print_exc(file=sys.stdout)
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/scheduler/jobs/<job_id>', methods=['DELETE'])
+def api_scheduler_delete(job_id):
+    """删除定时任务"""
+    try:
+        sm = _get_scheduler()
+        success = sm.remove_job(job_id)
+        return jsonify({'ok': success, 'msg': 'Task deleted' if success else 'Task not found'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/scheduler/jobs/<job_id>/toggle', methods=['POST'])
+def api_scheduler_toggle(job_id):
+    """启用/禁用定时任务"""
+    try:
+        data = request.json
+        enabled = bool(data.get('enabled', True))
+        sm = _get_scheduler()
+        sm.toggle_job(job_id, enabled)
+        return jsonify({'ok': True, 'enabled': enabled})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/scheduler/jobs/<job_id>/run', methods=['POST'])
+def api_scheduler_run_now(job_id):
+    """立即执行定时任务（手动触发）"""
+    try:
+        sm = _get_scheduler()
+        success = sm.run_job_now(job_id)
+        return jsonify({'ok': success, 'msg': 'Task triggered' if success else 'Task not found'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+# ══════════════════════════════════════════════════════════════
+# 通知配置 API
+# ══════════════════════════════════════════════════════════════
+
+@app.route('/api/notifier/config', methods=['GET'])
+def api_notifier_get():
+    """获取通知配置（隐藏密码）"""
+    try:
+        from notifier import get_notifier_config
+        return jsonify({'ok': True, 'config': get_notifier_config()})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/notifier/config', methods=['POST'])
+def api_notifier_save():
+    """保存通知配置"""
+    try:
+        data = request.json or {}
+        from notifier import save_notifier_config
+        save_notifier_config(
+            email_cfg=data.get('email'),
+            webhook_cfg=data.get('webhook')
+        )
+        return jsonify({'ok': True, 'msg': 'Configuration saved'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/notifier/test-email', methods=['POST'])
+def api_notifier_test_email():
+    """测试邮件发送"""
+    try:
+        data = request.json or {}
+        from notifier import EmailNotifier
+        cfg = data.get('email', {})
+        notifier = EmailNotifier(cfg)
+        ok, msg = notifier.test_connection()
+        return jsonify({'ok': ok, 'msg': msg})
+    except Exception as e:
+        return jsonify({'ok': False, 'msg': str(e)}), 500
+
+
+@app.route('/api/notifier/test-webhook', methods=['POST'])
+def api_notifier_test_webhook():
+    """测试 Webhook"""
+    try:
+        data = request.json or {}
+        from notifier import WebhookNotifier
+        cfg = data.get('webhook', {})
+        notifier = WebhookNotifier(cfg)
+        ok, msg = notifier.test_connection()
+        return jsonify({'ok': ok, 'msg': msg})
+    except Exception as e:
+        return jsonify({'ok': False, 'msg': str(e)}), 500
 
 # ── 启动 ────────────────────────────────────────────────────
 if __name__ == '__main__':

@@ -1,6 +1,7 @@
 dist/
 build/
 __pycache__/
+*.pyc
 copyright_registration/
 *.docx
 *.pdf
@@ -8,3 +9,9 @@ PUBLISH.md
 test_dm_*.py
 probe*.py
 history.json
+db_history.db
+.env
+notifier_config.json
+scheduler_jobs.json
+scheduler.log
+snapshot/

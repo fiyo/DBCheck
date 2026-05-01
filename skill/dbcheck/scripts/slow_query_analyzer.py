@@ -82,12 +82,14 @@ MYSQL_SLOW_QUERIES = {
     """,
 
     # Top SQL by lock wait time (MySQL 5.7+)
+    # 注意：AVG_LOCK_TIME 列在 MySQL 8.0.21+ 才存在，早期版本会报错
+    # 为兼容性，仅使用 SUM_LOCK_TIME / COUNT_STAR 替代
     "mysql_top_by_lock": """
         SELECT
             DIGEST_TEXT AS query_sample_text,
             COUNT_STAR AS exec_count,
             SUM_LOCK_TIME / 1000000000000 AS total_lock_sec,
-            AVG_LOCK_TIME / 1000000000000 AS avg_lock_sec,
+            SUM_LOCK_TIME / GREATEST(COUNT_STAR, 1) / 1000000000000 AS avg_lock_sec,
             SUM_ROWS_AFFECTED AS rows_affected
         FROM performance_schema.events_statements_summary_by_digest
         WHERE DIGEST_TEXT IS NOT NULL
@@ -737,24 +739,39 @@ class MySQLSlowQueryAnalyzer(BaseSlowQueryAnalyzer):
         result = {}
 
         # 1. Top SQL by latency（需要 performance_schema.events_statements_summary_by_digest）
-        result['top_by_latency'] = self._exec_sql(conn,
-            MYSQL_SLOW_QUERIES['mysql_top_by_latency'])
+        try:
+            result['top_by_latency'] = self._exec_sql(conn,
+                MYSQL_SLOW_QUERIES['mysql_top_by_latency'])
+        except Exception:
+            result['top_by_latency'] = []
 
         # 2. 全表扫描 SQL
-        result['full_table_scan'] = self._exec_sql(conn,
-            MYSQL_SLOW_QUERIES['mysql_top_full_table_scan'])
+        try:
+            result['full_table_scan'] = self._exec_sql(conn,
+                MYSQL_SLOW_QUERIES['mysql_top_full_table_scan'])
+        except Exception:
+            result['full_table_scan'] = []
 
-        # 3. 按锁等待排序
-        result['top_by_lock'] = self._exec_sql(conn,
-            MYSQL_SLOW_QUERIES['mysql_top_by_lock'])
+        # 3. 按锁等待排序（AVG_LOCK_TIME 可能在早期 MySQL 中不存在）
+        try:
+            result['top_by_lock'] = self._exec_sql(conn,
+                MYSQL_SLOW_QUERIES['mysql_top_by_lock'])
+        except Exception:
+            result['top_by_lock'] = []
 
         # 4. 按临时表使用量（可能溢出到磁盘）
-        result['top_tmp_tables'] = self._exec_sql(conn,
-            MYSQL_SLOW_QUERIES['mysql_top_tmp_tables'])
+        try:
+            result['top_tmp_tables'] = self._exec_sql(conn,
+                MYSQL_SLOW_QUERIES['mysql_top_tmp_tables'])
+        except Exception:
+            result['top_tmp_tables'] = []
 
         # 5. 按排序操作量
-        result['top_sorting'] = self._exec_sql(conn,
-            MYSQL_SLOW_QUERIES['mysql_top_sorting'])
+        try:
+            result['top_sorting'] = self._exec_sql(conn,
+                MYSQL_SLOW_QUERIES['mysql_top_sorting'])
+        except Exception:
+            result['top_sorting'] = []
 
         # 6. 当前 slow_log（如开启）
         try:

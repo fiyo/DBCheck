@@ -3,7 +3,7 @@
 DBCheck 是一款开源、跨平台的数据库自动化健康巡检工具，支持 MySQL、PostgreSQL、Oracle、SQL Server、达梦 DM8 及 TiDB 六种主流关系型数据库。工具通过执行预定义的 SQL 检查项与系统资源采集，自动生成格式规范的 Microsoft Word 巡检报告，并提供历史趋势分析、AI 智能诊断、配置基线合规检查、索引健康分析、慢查询深度分析、脱敏导出等高级功能。DBCheck 旨在将 DBA 从重复、耗时的手工巡检工作中解放出来，提升数据库运维效率与风险发现能力。
 
 
-[![Version](https://img.shields.io/badge/版本-2.3.6-blue.svg)]()
+[![Version](https://img.shields.io/badge/版本-2.4.0-blue.svg)]()
 [![MySQL](https://img.shields.io/badge/支持的数据库-MySQL-blue.svg)]()
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-gray.svg)]()
 [![Oracle](https://img.shields.io/badge/Oracle-red.svg)]()
@@ -479,6 +479,65 @@ checkdb() 执行顺序：
 
 ---
 
+## 定时巡检与自动通知 ⏰📧🔔
+
+> 通过 Cron 表达式配置周期巡检任务，DBCheck 自动执行并在完成后即时向团队推送邮件报告或 Webhook 告警。
+
+### 定时调度
+
+Web UI 提供独立的 **⏰ 定时巡检** 页面：
+
+| 功能 | 说明 |
+|------|------|
+| Cron 表达式 | 自由配置秒/分/时/日/月/周 |
+| 快捷预设 | 每天凌晨2点 / 工作日上午9点 / 每周一9点 / 每月1号3点 |
+| 单任务通知开关 | 每个任务独立控制完成后是否发送通知 |
+| 一键立即执行 | 不等待定时器，随时手动触发任务 |
+| 持久化任务配置 | 任务保存到 `scheduler_jobs.json`，服务重启后自动恢复 |
+
+### 通知推送
+
+Web UI 提供独立的 **📧🔔 通知设置** 页面：
+
+#### 邮件报告（SMTP）
+
+| 功能 | 说明 |
+|------|------|
+| SMTP 服务器 | 支持 126、163、QQ、企业邮箱等 |
+| 端口 | 465（SSL 隐式）或 587（TLS 明文）|
+| TLS | 根据端口自动检测，可手动配置 |
+| 收件人 | 支持多个，逗号分隔 |
+| 触发时机 | 每次定时巡检成功后自动发送 |
+| 附件 | Word 巡检报告作为附件直接发送 |
+
+#### Webhook 告警
+
+| 功能 | 说明 |
+|------|------|
+| 类型 | 企业微信（Markdown）、钉钉（Markdown + @）、自定义 JSON |
+| 触发时机 | 每次定时巡检完成后发送，成功失败均推送 |
+| 失败告警 | 包含错误信息，成功时附带报告文件 |
+| 自定义模板 | 支持变量：`{label}`、`{db_type}`、`{status}`、`{error}`、`{report_file}` |
+
+#### 环境变量覆盖
+
+敏感信息可通过环境变量注入，无需写入配置文件：
+
+| 变量 | 说明 |
+|------|------|
+| `SMTP_HOST` | SMTP 服务器地址 |
+| `SMTP_PORT` | SMTP 端口 |
+| `SMTP_USER` | 用户名 / 邮箱 |
+| `SMTP_PASSWORD` | 密码或授权码 |
+| `SMTP_USE_TLS` | 启用 TLS（`true`/`false`）|
+| `SMTP_FROM_NAME` | 发件人显示名称 |
+| `WEBHOOK_URL` | Webhook 地址 |
+| `WEBHOOK_TYPE` | `wecom` / `dingtalk` / `custom` |
+
+> 环境变量优先于 `notifier_config.json`，适合安全部署场景，无需在磁盘存储明文凭证。
+
+---
+
 ## 环境要求
 
 - **操作系统**：Linux / macOS / Windows
@@ -579,8 +638,8 @@ python web_ui.py
 | 6 | 确认信息后一键执行，实时查看日志进度（SSE 推送）|
 | 7 | 巡检完成，在线预览智能分析 + AI 诊断结果 |
 | 8 | 📊 历史趋势分析：查看同一数据库多次巡检的指标趋势 |
-| 9 | 🤖 AI 诊断设置：配置本地 Ollama 参数（地址/模型/超时）|
-| 10 | 下载 Word 报告，随时查阅历史报告 |
+| 9 | ⏰ 定时巡检：配置 Cron 表达式实现自动周期巡检 |
+| 10 | 📧🔔 通知设置：配置邮件 / Webhook 告警推送 |
 
 ### OpenClaw Skill（AI 助手直连）
 
