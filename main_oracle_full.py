@@ -41,6 +41,47 @@ try:
 except ImportError:
     _HAS_ORACLE = False
 
+
+def _get_oracle_conn_thunk_first(dsn, user, password, mode=None):
+    """
+    连接 Oracle，优先尝试 thin mode（纯 Python，无需 Instant Client）；
+    若遇到 DPY-3010（Oracle 11g 等低版本不支持），自动 fallback 到 thick mode。
+
+    参数:
+        dsn:         Oracle DSN 字符串
+        user:        用户名
+        password:    密码
+        mode:        连接模式（如 oracledb.SYSDBA），可选
+
+    返回:
+        oracledb.Connection 对象
+    """
+    # 先尝试 thin mode（默认，无需配置）
+    try:
+        if mode is not None:
+            return oracledb.connect(user=user, password=password, dsn=dsn, mode=mode)
+        else:
+            return oracledb.connect(user=user, password=password, dsn=dsn)
+    except Exception as e:
+        err_str = str(e)
+        # DPY-3010 = thin mode 不支持此数据库版本（如 Oracle 11g）
+        if 'DPY-3010' not in err_str:
+            raise  # 其他错误不 fallback，直接抛异常
+        print("  ⚠️  thin mode 不支持此版本，尝试 thick mode（需要 Oracle Instant Client）...")
+        try:
+            oracledb.init_oracle_client()  # 加载 Instant Client
+        except Exception as init_err:
+            # 已经初始化过（multiple init）或找不到库
+            init_err_str = str(init_err)
+            if 'DPY-6004' not in init_err_str and 'ORA-' not in init_err_str:
+                print("  ❌ 找不到 Oracle Instant Client，请安装后重试：")
+                print("     https://python-oracledb.readthedocs.io/en/latest/user_guide/installation.html")
+            raise
+        if mode is not None:
+            return oracledb.connect(user=user, password=password, dsn=dsn, mode=mode)
+        else:
+            return oracledb.connect(user=user, password=password, dsn=dsn)
+
 try:
     from docx import Document
     from docx.shared import Pt, RGBColor, Cm
@@ -2595,10 +2636,8 @@ def single_inspection(args):
         # sys 用户默认以 SYSDBA 身份连接（oracle privilege model）
         if args.user.upper() == 'SYS' and not args.sysdba:
             args.sysdba = True
-        if args.sysdba:
-            conn = oracledb.connect(user=args.user, password=args.password, dsn=dsn, mode=oracledb.SYSDBA)
-        else:
-            conn = oracledb.connect(user=args.user, password=args.password, dsn=dsn)
+        mode = oracledb.SYSDBA if args.sysdba else None
+        conn = _get_oracle_conn_thunk_first(dsn, args.user, args.password, mode)
         print(f"  ✅ {_t('oracle_log_connect_ok')} (mode: {'SYSDBA' if args.sysdba else 'NORMAL'})")
     except Exception as e:
         print(f"  ❌ {_t('oracle_log_connect_fail')}: {e}")

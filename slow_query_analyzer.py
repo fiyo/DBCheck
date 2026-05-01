@@ -253,7 +253,7 @@ ORACLE_SLOW_QUERIES = {
         SELECT
             sql_id,
             SUBSTR(sql_text, 1, 200) AS sql_text,
-            parses,
+            parse_calls,
             executions,
             ROUND(elapsed_time / 1000000, 2) AS elapsed_sec,
             ROUND(elapsed_time / 1000000 / NULLIF(executions, 0), 3) AS avg_elapsed_sec,
