@@ -1481,53 +1481,27 @@
 
       <div class="quickstart reveal">
         <div class="quickstart-tabs">
-          <button class="quickstart-tab active" onclick="switchTab('pip')">pip 安装</button>
-          <button class="quickstart-tab" onclick="switchTab('git')">Git Clone</button>
+          <button class="quickstart-tab active" onclick="switchTab('git')">Git Clone</button>
           <button class="quickstart-tab" onclick="switchTab('skill')">OpenClaw Skill</button>
         </div>
 
-        <!-- pip 安装 -->
-        <div class="quickstart-content active" id="tab-pip">
-          <div class="code-block">
-            <div class="code-header">
-              <span class="code-lang">Bash / Terminal</span>
-              <button class="code-copy" onclick="copyCode(this)">复制</button>
-            </div>
-            <div class="code-body">
-<code><span class="code-comment"># 安装 DBCheck</span>
-pip install dbc-check
-
-<span class="code-comment"># 查看帮助</span>
-dbc-check --help
-
-<span class="code-comment"># 运行巡检（以 MySQL 为例）</span>
-<span class="code-keyword">python</span> -m dbc_check.main_mysql <span class="code-string">--host 127.0.0.1</span> <span class="code-string">--port 3306</span> <span class="code-string">--user root</span> <span class="code-string">--password your_password</span>
-
-<span class="code-comment"># 启动 Web UI</span>
-<span class="code-keyword">python</span> -m dbc_check.web_ui</code>
-            </div>
-          </div>
-        </div>
-
+        
         <!-- Git Clone -->
-        <div class="quickstart-content" id="tab-git">
+        <div class="quickstart-content active" id="tab-git">
           <div class="code-block">
             <div class="code-header">
               <span class="code-lang">Bash / Terminal</span>
               <button class="code-copy" onclick="copyCode(this)">复制</button>
             </div>
             <div class="code-body">
-<code><span class="code-comment"># 克隆仓库</span>
-git clone git@github.com:fiyo/DBCheck.git
+<code><span class="code-comment"># 克隆仓库</br></span>
+git clone git@github.com:fiyo/DBCheck.git</br>
 
-<span class="code-comment"># 进入目录</span>
-<span class="code-keyword">cd</span> DBCheck
+<span class="code-comment"># 进入目录</br></span>
+<span class="code-keyword">cd</span> DBCheck</br>
 
-<span class="code-comment"># 安装依赖</span>
-pip install -r requirements.txt
-
-<span class="code-comment"># 运行巡检（以 MySQL 为例）</span>
-<span class="code-keyword">python</span> main_mysql.py
+<span class="code-comment"># 安装依赖</br></span>
+pip install -r requirements.txt</br>
 
 <span class="code-comment"># 启动 Web UI</span>
 <span class="code-keyword">python</span> web_ui.py</code>
@@ -1543,17 +1517,11 @@ pip install -r requirements.txt
               <button class="code-copy" onclick="copyCode(this)">复制</button>
             </div>
             <div class="code-body">
-<code><span class="code-comment"># 安装 DBCheck Skill</span>
-claw skill install dbcheck
+<code><span class="code-comment"># 安装 DBCheck Skill</br></span>
+clawhub install dbcheck</br>
 
-<span class="code-comment"># 列出所有支持的数据库类型</span>
-claw dbcheck --list
-
-<span class="code-comment"># 运行 MySQL 巡检</span>
-claw dbcheck mysql <span class="code-string">--host 127.0.0.1</span> <span class="code-string">--port 3306</span>
-
-<span class="code-comment"># 运行 PostgreSQL 巡检</span>
-claw dbcheck pg <span class="code-string">--host 127.0.0.1</span> <span class="code-string">--port 5432</span></code>
+<span class="code-comment"># 执行巡检</br></span>
+帮我巡检一下 MySQL 数据库</code>
             </div>
           </div>
         </div>
@@ -1605,7 +1573,7 @@ claw dbcheck pg <span class="code-string">--host 127.0.0.1</span> <span class="c
           </ul>
         </div>
 
-        <div class="edition-card reveal">
+        <!-- <div class="edition-card reveal">
           <div class="edition-icon">🔌</div>
           <h3 class="edition-title">REST API</h3>
           <p class="edition-desc">供其他系统调用</p>
@@ -1615,7 +1583,7 @@ claw dbcheck pg <span class="code-string">--host 127.0.0.1</span> <span class="c
             <li><i class="fas fa-check"></i> 集成到监控系统</li>
             <li><i class="fas fa-check"></i> 灵活的触发方式</li>
           </ul>
-        </div>
+        </div> -->
       </div>
     </div>
   </section>
