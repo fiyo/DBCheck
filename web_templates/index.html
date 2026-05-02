@@ -130,6 +130,17 @@ body {
 .sidebar-logo h1 {
   font-size: 16px; font-weight: 600; letter-spacing: .5px;
 }
+.sidebar-logo h1 .edition-badge {
+  font-size: 9px;
+  font-weight: 500;
+  padding: 2px 6px;
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+  border-radius: 4px;
+  vertical-align: middle;
+  margin-left: 6px;
+  letter-spacing: 0.5px;
+}
 .sidebar-logo p {
   font-size: 11px; color: var(--text-muted); margin-top: 2px;
 }
@@ -843,7 +854,7 @@ function formatBytes(bytes) {
   <aside class="sidebar">
     <div class="sidebar-logo">
       <img src="/dbcheck_logo.png" alt="DBCheck" style="width:40px;height:40px;margin-bottom:10px;">
-      <h1>DBCheck</h1>
+      <h1>DBCheck <span class="edition-badge" data-i18n="webui.edition_badge">社区版</span></h1>
       <p data-i18n="webui.logo_subtitle">基于 AI 的智能数据库巡检工具</p>
     </div>
 

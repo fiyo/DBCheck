@@ -376,6 +376,7 @@ EN = {
     "webui.label_ssh_user": "SSH Username",
     "webui.label_username": "Username",
     "webui.logo_subtitle": "Database Inspection Tool",
+    "webui.edition_badge": "Community",
     "webui.nav_ai": "AI Settings",
     "webui.nav_home": "Home",
     "webui.nav_wizard": "New Inspection",
