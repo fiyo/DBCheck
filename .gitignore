@@ -17,3 +17,9 @@ scheduler.log
 snapshot/
 docs/README.md
 docs/
+# Pro license activation
+license.key
+license.key.bak
+
+# Pro runtime data
+pro_data/
