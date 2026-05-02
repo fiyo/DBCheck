@@ -134,12 +134,21 @@ body {
   font-size: 9px;
   font-weight: 500;
   padding: 2px 6px;
-  background: rgba(59, 130, 246, 0.2);
-  color: #60a5fa;
   border-radius: 4px;
   vertical-align: middle;
   margin-left: 6px;
   letter-spacing: 0.5px;
+  transition: all 0.3s ease;
+}
+.sidebar-logo h1 .edition-badge.community {
+  background: rgba(107, 114, 128, 0.25);
+  color: #9ca3af;
+}
+.sidebar-logo h1 .edition-badge.pro {
+  background: linear-gradient(135deg, #f97316, #ea580c);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 0 6px rgba(249, 115, 22, 0.4);
 }
 .sidebar-logo p {
   font-size: 11px; color: var(--text-muted); margin-top: 2px;
@@ -854,7 +863,7 @@ function formatBytes(bytes) {
   <aside class="sidebar">
     <div class="sidebar-logo">
       <img src="/dbcheck_logo.png" alt="DBCheck" style="width:40px;height:40px;margin-bottom:10px;">
-      <h1>DBCheck <span class="edition-badge" data-i18n="webui.edition_badge">社区版</span></h1>
+      <h1>DBCheck <span class="edition-badge" id="sidebar-edition-badge" data-i18n="webui.edition_badge">社区版</span></h1>
       <p data-i18n="webui.logo_subtitle">基于 AI 的智能数据库巡检工具</p>
     </div>
 
@@ -1453,8 +1462,7 @@ function formatBytes(bytes) {
         <div class="card">
           <div class="card-title">
             <span>🔑</span> 专业版许可证
-            <span class="badge" id="pro-license-status" style="background:var(--warn)">社区版</span>
-          </div>
+            <span class="badge" id="pro-license-status" style="background:var(--warn)">社区版</span>          </div>
           <div id="pro-license-info" style="margin-bottom:16px;padding:12px;background:var(--surface2);border-radius:8px;">
             <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
               <span style="font-size:24px;" id="pro-edition-icon">🏠</span>
@@ -3013,7 +3021,9 @@ initApp();
 // ── Pro 专业版函数 ──────────────────────────────
 async function showProPage() {
   await loadProStatus();
-  const isPro = document.getElementById('pro-license-status').textContent !== '社区版';
+  // 这里 isPro 判断改为用 class，不在依赖文字
+  const badge = document.getElementById('pro-license-status');
+  const isPro = badge.classList.contains('pro-active');
   if (isPro) {
     document.getElementById('pro-health-card').style.display = '';
     document.getElementById('pro-instances-card').style.display = '';
@@ -3034,18 +3044,34 @@ async function loadProStatus() {
     const formEl = document.getElementById('pro-license-form');
     const btnA = document.getElementById('btn-pro-activate');
     const btnD = document.getElementById('btn-pro-deactivate');
+    const sidebarBadge = document.getElementById('sidebar-edition-badge');
     if (data.ok && data.is_pro && data.license.valid) {
+      // ── Pro 专业版：橙色 VIP 样式 ──
       statusEl.textContent = '专业版';
-      statusEl.style.background = 'var(--accent)';
-      iconEl.textContent = '🚀';
-      nameEl.textContent = 'DBCheck Pro ' + (data.version || '');
+      statusEl.className = 'badge pro-active';
+      statusEl.style.background = 'linear-gradient(135deg, #f97316, #ea580c)';
+      statusEl.style.color = '#fff';
+      statusEl.style.fontWeight = '600';
+      statusEl.style.boxShadow = '0 0 6px rgba(249,115,22,0.4)';
+      iconEl.textContent = '👑';
+      nameEl.innerHTML = '<span style="background:linear-gradient(135deg,#f97316,#ea580c);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:700;">DBCheck Pro</span> ' + (data.version || '');
       detailEl.textContent = '许可证: ' + (data.license.type || '') + ' | 到期: ' + (data.license.expires || 'N/A');
       formEl.style.display = 'none';
       btnA.style.display = 'none';
       btnD.style.display = '';
+      // 侧边栏徽章也更新为橙色专业版
+      if (sidebarBadge) {
+        sidebarBadge.textContent = 'Pro';
+        sidebarBadge.className = 'edition-badge pro';
+      }
     } else {
+      // ── 社区版：灰色样式 ──
       statusEl.textContent = '社区版';
+      statusEl.className = 'badge';
       statusEl.style.background = 'var(--warn)';
+      statusEl.style.color = '';
+      statusEl.style.fontWeight = '';
+      statusEl.style.boxShadow = '';
       iconEl.textContent = '🏠';
       nameEl.textContent = '社区版';
       detailEl.textContent = '开源免费，无实例限制';
@@ -3056,6 +3082,11 @@ async function loadProStatus() {
       document.getElementById('pro-instances-card').style.display = 'none';
       document.getElementById('pro-groups-card').style.display = 'none';
       document.getElementById('pro-history-card').style.display = 'none';
+      // 侧边栏徽章恢复社区版
+      if (sidebarBadge) {
+        sidebarBadge.textContent = '社区版';
+        sidebarBadge.className = 'edition-badge community';
+      }
     }
   } catch(e) {}
 }
