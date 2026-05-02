@@ -3,7 +3,7 @@
 DBCheck is an open-source, cross-platform automated database health check tool that supports six mainstream relational databases: **MySQL**, **PostgreSQL**, **Oracle**, **SQL Server**, **DM8**, and **TiDB**. The tool automatically generates standardized Microsoft Word inspection reports by executing predefined SQL checks and collecting system resources. It also provides advanced features such as historical trend analysis, AI-powered intelligent diagnostics, configuration baseline compliance checks, index health analysis, in-depth slow query analysis, and data-masked export. DBCheck aims to free DBAs from repetitive and time-consuming manual inspection work, improving database operation and maintenance efficiency and risk detection capabilities.
 
 
-[![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-2.5.0-blue.svg)]()
 [![MySQL](https://img.shields.io/badge/database-MySQL-blue.svg)]()
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-gray.svg)]()
 [![Oracle](https://img.shields.io/badge/Oracle-red.svg)]()
@@ -538,6 +538,86 @@ Sensitive credentials can be loaded from environment variables instead of the co
 
 ---
 
+## RAG Knowledge Base 📚
+
+> Upload your database documentation and operational manuals — DBCheck automatically vectorizes the content and retrieves relevant knowledge during AI diagnostics to generate more accurate optimization recommendations.
+
+### Overview
+
+The RAG Knowledge Base enables AI-powered diagnostics to reference your own documentation:
+
+- **Upload documents**: Support for PDF, Word (.docx), Markdown (.md), TXT, and HTML formats
+- **Automatic chunking**: Intelligent semantic segmentation with configurable chunk size and overlap
+- **Vector storage**: SQLite-based vector store, queries run locally
+- **Ollama integration**: Uses `nomic-embed-text` for embedding generation
+- **AI-enhanced diagnosis**: During AI diagnostics, automatically retrieves relevant knowledge base content and injects it into the prompt
+
+### Supported Document Formats
+
+| Format | Extension | Notes |
+|--------|-----------|-------|
+| PDF | `.pdf` | PyPDF2 based extraction |
+| Word | `.docx` | python-docx based extraction |
+| Markdown | `.md` | Plain text with structure preserved |
+| Text | `.txt` | Plain text |
+| HTML | `.html` / `.htm` | BeautifulSoup based extraction |
+
+### How It Works
+
+```
+Document Upload → Semantic Chunking → Ollama Embedding → Vector Storage
+                                    ↓
+        AI Diagnosis ← Knowledge Retrieval ← Top-K Similarity Search
+```
+
+### Web UI Integration
+
+The **📚 RAG Knowledge Base** page in Web UI provides:
+
+- **Ollama Status Detection**: Shows connection status on page load
+- **Document Upload**: Select file + database type + title → automatic chunking and vectorization
+- **Document List**: Displays uploaded documents with title, database type, file size, chunk count, and status
+- **Document Deletion**: One-click delete with toast confirmation dialog
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/rag/documents` | GET | List all uploaded documents |
+| `/api/rag/documents` | POST | Upload and vectorize a document |
+| `/api/rag/documents/<doc_id>` | DELETE | Delete a document |
+| `/api/rag/ollama-status` | GET | Check Ollama connection status |
+
+### Getting Started
+
+1. **Pull Ollama Embedding Model**
+   ```bash
+   ollama pull nomic-embed-text
+   ```
+
+2. **Start Ollama** (if not already running)
+   ```bash
+   ollama serve
+   ```
+
+3. **Open Web UI** → Navigate to **📚 RAG Knowledge Base**
+   ```bash
+   python web_ui.py
+   ```
+
+4. **Upload Documents**: Select your database documentation (Oracle Admin Guide, MySQL Reference Manual, etc.) and select the appropriate database type
+
+5. **Run AI Diagnosis**: The system automatically retrieves relevant knowledge base content during diagnostics
+
+### Ollama Models Required
+
+| Model | Purpose | Command |
+|-------|---------|---------|
+| `nomic-embed-text` | Document embedding | `ollama pull nomic-embed-text` |
+| `qwen3:30b` (or similar) | AI diagnosis LLM | `ollama pull qwen3:30b` |
+
+---
+
 ## Environment Requirements
 
 - **Operating System**: Linux / macOS / Windows
@@ -648,6 +728,7 @@ python web_ui.py
 | 8 | 📊 History & Trends | View trend charts and historical inspection reports |
 | 9 | ⏰ Scheduled Inspection | Configure cron-based recurring inspections |
 | 10 | 📧🔔 Notification Settings | Email and Webhook alerting configuration |
+| 11 | 📚 RAG Knowledge Base | Upload and manage database documentation for AI-enhanced diagnostics |
 
 ### OpenClaw Skill
 

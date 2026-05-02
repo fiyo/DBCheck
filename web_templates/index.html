@@ -755,10 +755,11 @@ async function loadRagDocuments() {
     const tbody = document.getElementById('rag-doc-tbody');
     const countBadge = document.getElementById('rag-doc-count');
     if (data.ok && data.documents && data.documents.length > 0) {
-      countBadge.textContent = data.documents.length + ' 个文档，' + (data.total_chunks || 0) + ' 个片段';
+      var docCount = data.documents.length || 0;
+      countBadge.textContent = docCount + ' ' + i18n('webui.rag_doc_unit') + '，' + (data.total_chunks || 0) + ' ' + i18n('webui.rag_chunk_unit');
       tbody.innerHTML = data.documents.map(doc => '<tr><td style="padding:8px 10px;border-bottom:1px solid var(--border)">' + escHtml(doc.title || doc.doc_id) + '</td><td style="padding:8px 10px;border-bottom:1px solid var(--border)">' + escHtml(doc.db_type || 'all') + '</td><td style="padding:8px 10px;border-bottom:1px solid var(--border)">' + formatBytes(doc.file_size || 0) + '</td><td style="padding:8px 10px;border-bottom:1px solid var(--border)">' + (doc.chunk_count || 0) + '</td><td style="padding:8px 10px;border-bottom:1px solid var(--border)"><span style="color:#4caf50">&#9679; 就绪</span></td><td style="padding:8px 10px;border-bottom:1px solid var(--border)"><button class="btn btn-ghost rag-del-btn" style="color:#f44336;font-size:12px;padding:4px 8px" data-doc-id="' + doc.doc_id + '" data-doc-title="' + escHtml(doc.title || doc.doc_id) + '">&#128465; 删除</button></td></tr>').join('');
     } else {
-      countBadge.textContent = '0 个文档';
+      countBadge.textContent = i18n('webui.rag_doc_count_zero');
       tbody.innerHTML = '<tr><td colspan="6" style="padding:16px;text-align:center;color:var(--text-muted)">' + (i18n('webui.rag_no_docs') || '暂无已加载文档，请上传。') + '</td></tr>';
     }
   } catch(e) { console.error('loadRagDocuments failed', e); }
@@ -770,7 +771,7 @@ async function uploadRagDocument() {
   const fileInput = document.getElementById('rag-file-input');
   const dbType = document.getElementById('rag-db-type').value;
   const title = document.getElementById('rag-doc-title').value.trim();
-  if (!fileInput.files || !fileInput.files[0]) { toastError('请先选择文件'); return; }
+  if (!fileInput.files || !fileInput.files[0]) { toastError(i18n('webui.rag_need_file')); return; }
   const status = document.getElementById('rag-upload-status');
   status.style.display = 'block';
   status.style.background = 'var(--surface2)';
@@ -796,7 +797,7 @@ async function uploadRagDocument() {
       status.style.background = '#ffebee'; status.style.color = '#c62828';
       status.textContent = (i18n('webui.rag_upload_fail') || '上传失败') + ': ' + (data.error || '');
     }
-  } catch(e) { status.style.background = '#ffebee'; status.style.color = '#c62828'; status.textContent = '上传失败: ' + e.message; }
+  } catch(e) { status.style.background = '#ffebee'; status.style.color = '#c62828'; status.textContent = (i18n('webui.rag_upload_fail') || '上传失败：{}').replace('{}', e.message); }
 }
 
 async function deleteRagDocument(docId, title) {
@@ -805,7 +806,7 @@ async function deleteRagDocument(docId, title) {
     const res = await fetch('/api/rag/documents/' + encodeURIComponent(docId), { method: 'DELETE' });
     const data = await res.json();
     if (data.ok) { toastSuccess('删除成功'); loadRagDocuments(); } else { toastError((i18n('webui.rag_delete_fail') || '删除失败') + ': ' + (data.error || '')); }
-  } catch(e) { toastError('删除失败: ' + e.message); }
+  } catch(e) { toastError(i18n('webui.rag_delete_fail').replace('{}', e.message)); }
 }
 
 async function checkRagOllama() {
@@ -1248,25 +1249,25 @@ function formatBytes(bytes) {
       <div class="page" id="page-scheduler">
         <div class="card">
           <div class="card-title">
-            <span>⏰</span> 定时巡检任务
-            <span class="badge" id="scheduler-job-count">0 个任务</span>
+            <span>⏰</span> <span data-i18n="webui.scheduler_title">定时巡检任务</span>
+            <span class="badge" id="scheduler-job-count"></span>
           </div>
           <div id="scheduler-job-list" style="margin-bottom:20px;"></div>
-          <button class="btn btn-primary" onclick="showAddJobForm()">+ 新建定时任务</button>
+          <button class="btn btn-primary" onclick="showAddJobForm()">+ <span data-i18n="webui.scheduler_new_job">新建定时任务</span></button>
         </div>
 
         <!-- 添加/编辑任务表单 -->
         <div class="card" id="add-job-form" style="display:none">
           <div class="card-title">
-            <span>➕</span> <span id="job-form-title">新建定时任务</span>
+            <span>➕</span> <span id="job-form-title" data-i18n="webui.scheduler_job_form_title_new">新建定时任务</span>
           </div>
           <div class="form-grid">
             <div class="field full">
-              <label>任务名称 <span class="req">*</span></label>
+              <label data-i18n="webui.scheduler_name_label">任务名称</label> <span class="req">*</span>
               <input type="text" id="job-name" placeholder="例如：每日凌晨健康巡检" />
             </div>
             <div class="field">
-              <label>数据库类型 <span class="req">*</span></label>
+              <label data-i18n="webui.scheduler_db_type_label">数据库类型</label> <span class="req">*</span>
               <select id="job-db-type" onchange="onJobDbTypeChange()">
                 <option value="mysql">MySQL</option>
                 <option value="pg">PostgreSQL</option>
@@ -1277,39 +1278,39 @@ function formatBytes(bytes) {
               </select>
             </div>
             <div class="field">
-              <label>实例标签</label>
+              <label data-i18n="webui.scheduler_label_label">实例标签</label>
               <input type="text" id="job-label" placeholder="用于报告命名" />
             </div>
             <div class="field">
-              <label>主机地址 <span class="req">*</span></label>
+              <label data-i18n="webui.scheduler_host_label">主机地址</label> <span class="req">*</span>
               <input type="text" id="job-host" placeholder="localhost" />
             </div>
             <div class="field">
-              <label>端口 <span class="req">*</span></label>
+              <label data-i18n="webui.scheduler_port_label">端口</label> <span class="req">*</span>
               <input type="number" id="job-port" value="3306" />
             </div>
             <div class="field">
-              <label>用户名 <span class="req">*</span></label>
+              <label data-i18n="webui.scheduler_user_label">用户名</label> <span class="req">*</span>
               <input type="text" id="job-user" placeholder="root" autocomplete="off" />
             </div>
             <div class="field">
-              <label>密码</label>
+              <label data-i18n="webui.scheduler_pass_label">密码</label>
               <input type="password" id="job-password" placeholder="数据库密码" autocomplete="new-password" />
             </div>
             <div class="field" id="job-database-wrap" style="display:none">
-              <label>数据库名</label>
+              <label data-i18n="webui.scheduler_database_label">数据库名</label>
               <input type="text" id="job-database" placeholder="默认 postgres" />
             </div>
           </div>
 
           <!-- Cron 配置 -->
           <div style="margin-top:20px;">
-            <label style="font-weight:600;margin-bottom:12px;display:block;">⏰ 执行周期（Cron 表达式）</label>
+            <label style="font-weight:600;margin-bottom:12px;display:block;">⏰ <span data-i18n="webui.scheduler_cron_label">执行周期（Cron 表达式）</span></label>
             <div class="form-grid">
               <div class="field">
-                <label>小时</label>
+                <label data-i18n="webui.scheduler_cron_hour">小时</label>
                 <select id="job-cron-hour" onchange="updateCronPreview()">
-                  <option value="*">每小时</option>
+                  <option value="*" data-i18n="webui.scheduler_cron_hourly">每小时</option>
                   <option value="2">凌晨 2 点</option>
                   <option value="3">凌晨 3 点</option>
                   <option value="6">早上 6 点</option>
@@ -1319,18 +1320,18 @@ function formatBytes(bytes) {
                 </select>
               </div>
               <div class="field">
-                <label>分钟</label>
+                <label data-i18n="webui.scheduler_cron_minute">分钟</label>
                 <select id="job-cron-minute" onchange="updateCronPreview()">
-                  <option value="0">整点</option>
+                  <option value="0" data-i18n="webui.scheduler_cron_onhour">整点</option>
                   <option value="15">15 分</option>
                   <option value="30">30 分</option>
                   <option value="45">45 分</option>
                 </select>
               </div>
               <div class="field">
-                <label>执行周期</label>
+                <label data-i18n="webui.scheduler_cron_period">执行周期</label>
                 <select id="job-cron-day" onchange="updateCronPreview()">
-                  <option value="*">每天</option>
+                  <option value="*" data-i18n="webui.scheduler_cron_daily">每天</option>
                   <option value="1-5">工作日（周一至周五）</option>
                   <option value="0,6">周末（周六、周日）</option>
                 </select>
@@ -1360,59 +1361,59 @@ function formatBytes(bytes) {
         <div class="card">
           <div class="card-title">
             <span>📧</span> 邮件通知配置
-            <span class="badge" id="email-status">未配置</span>
+            <span class="badge" id="email-status" data-i18n="webui.email_status_fail">未配置</span>
           </div>
           <div class="form-grid">
             <div class="field">
-              <label>SMTP 服务器</label>
+              <label data-i18n="webui.email_server_label">SMTP 服务器</label>
               <input type="text" id="smtp-host" placeholder="smtp.qq.com" />
             </div>
             <div class="field">
-              <label>端口</label>
+              <label data-i18n="webui.email_port_label">端口</label>
               <input type="number" id="smtp-port" value="587" />
             </div>
             <div class="field">
-              <label>邮箱地址</label>
+              <label data-i18n="webui.email_addr_label">邮箱地址</label>
               <input type="email" id="smtp-user" placeholder="your_email@qq.com" />
             </div>
             <div class="field">
-              <label>密码/授权码</label>
+              <label data-i18n="webui.email_pass_label">密码/授权码</label>
               <input type="password" id="smtp-password" placeholder="邮箱授权码（非登录密码）" />
             </div>
             <div class="field full">
-              <label>收件人邮箱（逗号分隔）</label>
+              <label data-i18n="webui.email_recipients_label">收件人邮箱（逗号分隔）</label>
               <input type="text" id="smtp-recipients" placeholder="admin@example.com, dba@example.com" />
             </div>
           </div>
           <div style="margin-top:12px;">
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
               <input type="checkbox" id="smtp-tls" checked />
-              <span>使用 TLS 加密</span>
+              <span data-i18n="webui.email_tls_label">使用 TLS 加密</span>
             </label>
           </div>
           <div class="btn-row" style="margin-top:20px;">
-            <button class="btn btn-primary" onclick="saveEmailConfig()">💾 保存配置</button>
-            <button class="btn btn-ghost" onclick="testEmailConfig()">🧪 测试发送</button>
+            <button class="btn btn-primary" onclick="saveEmailConfig()" data-i18n="webui.email_btn_save" data-i18n="webui.webhook_btn_save">💾 保存配置</button>
+            <button class="btn btn-ghost" onclick="testEmailConfig()" data-i18n="webui.email_btn_test" data-i18n="webui.webhook_btn_test">🧪 测试发送</button>
           </div>
           <div id="email-msg" style="margin-top:10px;font-size:13px;"></div>
         </div>
 
         <div class="card">
           <div class="card-title">
-            <span>🔔</span> Webhook 告警配置
-            <span class="badge" id="webhook-status">未配置</span>
+            <span>🔔</span> <span data-i18n="webui.webhook_title">Webhook 告警配置</span>
+            <span class="badge" id="webhook-status" data-i18n="webui.webhook_status_fail">未配置</span>
           </div>
           <div class="form-grid">
             <div class="field full">
               <label>类型</label>
               <select id="webhook-type" onchange="onWebhookTypeChange()">
-                <option value="custom">自定义 Webhook</option>
+                <option value="custom" data-i18n="webui.webhook_type_custom">自定义 Webhook</option>
                 <option value="wecom">企业微信</option>
                 <option value="dingtalk">钉钉</option>
               </select>
             </div>
             <div class="field full">
-              <label>Webhook 地址</label>
+              <label data-i18n="webui.webhook_url_label">Webhook 地址</label>
               <input type="text" id="webhook-url" placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx" />
             </div>
             <div class="field full" id="webhook-secret-wrap" style="display:none">
@@ -1547,8 +1548,8 @@ function formatBytes(bytes) {
               </select>
             </div>
             <div class="form-group" style="flex:2;min-width:200px">
-              <label data-i18n="webui.rag_title_field">文档标题（可选）</label>
-              <input type="text" id="rag-doc-title" class="form-input" placeholder="留空则使用文件名"/>
+              <label data-i18n="webui.rag_title_field">文档标题（可选，默认用文件名）</label>
+              <input type="text" id="rag-doc-title" class="form-input" data-i18n="webui.rag_title_placeholder" placeholder="留空则使用文件名"/>
             </div>
           </div>
           <div id="rag-upload-status" style="display:none;margin-bottom:10px;font-size:12.5px;padding:8px 12px;border-radius:6px"></div>
@@ -1559,18 +1560,18 @@ function formatBytes(bytes) {
 
         <div class="card" style="margin-top:16px">
           <div class="card-title"><span>📋</span> <span data-i18n="webui.rag_doc_list">已加载文档</span>
-            <span class="badge" id="rag-doc-count" style="margin-left:8px">0 个文档</span>
+            <span class="badge" id="rag-doc-count" style="margin-left:8px" data-i18n="webui.rag_doc_count_zero">0 个文档</span>
           </div>
           <div id="rag-doc-table-wrap" style="overflow-x:auto">
             <table style="width:100%;font-size:13px;border-collapse:collapse">
               <thead>
                 <tr style="background:var(--surface2);text-align:left">
-                  <th style="padding:8px 10px;border-bottom:1px solid var(--border)">标题</th>
-                  <th style="padding:8px 10px;border-bottom:1px solid var(--border)">类型</th>
-                  <th style="padding:8px 10px;border-bottom:1px solid var(--border)">大小</th>
-                  <th style="padding:8px 10px;border-bottom:1px solid var(--border)">块数</th>
-                  <th style="padding:8px 10px;border-bottom:1px solid var(--border)">状态</th>
-                  <th style="padding:8px 10px;border-bottom:1px solid var(--border)">操作</th>
+                  <th style="padding:8px 10px;border-bottom:1px solid var(--border)" data-i18n="webui.rag_th_title">标题</th>
+                  <th style="padding:8px 10px;border-bottom:1px solid var(--border)" data-i18n="webui.rag_th_type">类型</th>
+                  <th style="padding:8px 10px;border-bottom:1px solid var(--border)" data-i18n="webui.rag_th_size">大小</th>
+                  <th style="padding:8px 10px;border-bottom:1px solid var(--border)" data-i18n="webui.rag_th_chunks">块数</th>
+                  <th style="padding:8px 10px;border-bottom:1px solid var(--border)" data-i18n="webui.rag_th_status">状态</th>
+                  <th style="padding:8px 10px;border-bottom:1px solid var(--border)" data-i18n="webui.rag_th_action">操作</th>
                 </tr>
               </thead>
               <tbody id="rag-doc-tbody">
@@ -2450,10 +2451,10 @@ async function loadSchedulerJobs() {
 function renderJobList(jobs) {
   const container = document.getElementById('scheduler-job-list');
   const countBadge = document.getElementById('scheduler-job-count');
-  countBadge.textContent = jobs.length + ' 个任务';
+  countBadge.textContent = jobs.length + ' ' + i18n('webui.scheduler_job_count').replace('{} ', '');
   
   if (!jobs.length) {
-    container.innerHTML = '<div style="color:var(--text-muted);padding:20px 0;text-align:center;">暂无定时任务，点击上方按钮创建</div>';
+    container.innerHTML = '<div style="color:var(--text-muted);padding:20px 0;text-align:center;">' + i18n('webui.scheduler_empty') + '</div>';
     return;
   }
   
@@ -2543,7 +2544,7 @@ function updateCronPreview() {
 
 function showAddJobForm() {
   document.getElementById('add-job-form').style.display = 'block';
-  document.getElementById('job-form-title').textContent = '新建定时任务';
+  document.getElementById('job-form-title').textContent = i18n('webui.scheduler_job_form_title_new');
   document.getElementById('job-name').value = '';
   document.getElementById('job-db-type').value = 'mysql';
   document.getElementById('job-label').value = '';
@@ -2565,10 +2566,10 @@ function hideAddJobForm() {
 
 async function saveJob() {
   const name = document.getElementById('job-name').value.trim();
-  if (!name) { toastError('请输入任务名称'); return; }
+  if (!name) { toastError(i18n('webui.scheduler_name_required')); return; }
   
   const host = document.getElementById('job-host').value.trim();
-  if (!host) { toastError('请输入主机地址'); return; }
+  if (!host) { toastError(i18n('webui.scheduler_host_required')); return; }
   
   const jobData = {
     name: name,
@@ -2598,12 +2599,12 @@ async function saveJob() {
     if (data.ok) {
       hideAddJobForm();
       loadSchedulerJobs();
-      toastSuccess('任务保存成功');
+      toastSuccess(i18n('webui.scheduler_job_saved'));
     } else {
-      toastError('保存失败: ' + (data.error || '未知错误'));
+      toastError(i18n('webui.scheduler_save_fail').replace('{}', data.error || '未知错误'));
     }
   } catch(e) {
-    toastError('保存失败: ' + e.message);
+    toastError(i18n('webui.scheduler_save_fail').replace('{}', e.message));
   }
 }
 
@@ -2619,30 +2620,30 @@ async function toggleJob(jobId, enabled) {
 }
 
 async function runJobNow(jobId) {
-  if (!await toastConfirm('确认立即执行此任务？')) return;
+  if (!await toastConfirm(i18n('webui.scheduler_run_confirm'))) return;
   try {
     const res = await fetch(`/api/scheduler/jobs/${jobId}/run`, { method: 'POST' });
     const data = await res.json();
     if (data.ok) {
-      toastSuccess('任务已触发，请到首页查看执行日志');
+      toastSuccess(i18n('webui.scheduler_run_ok'));
     } else {
-      toastError('触发失败: ' + (data.msg || '未知错误'));
+      toastError(i18n('webui.scheduler_run_fail').replace('{}', data.msg || '未知错误'));
     }
   } catch(e) { toastError('触发失败: ' + e.message); }
 }
 
 async function deleteJob(jobId) {
-  if (!await toastConfirm('确认删除此任务？')) return;
+  if (!await toastConfirm(i18n('webui.scheduler_delete_confirm'))) return;
   try {
     const res = await fetch(`/api/scheduler/jobs/${jobId}`, { method: 'DELETE' });
     const data = await res.json();
     if (data.ok) {
-      toastSuccess('任务已删除');
+      toastSuccess(i18n('webui.scheduler_delete_ok'));
       loadSchedulerJobs();
     } else {
-      toastError('删除失败: ' + (data.msg || data.error || '未知错误'));
+      toastError(i18n('webui.scheduler_delete_fail').replace('{}', data.msg || data.error || '未知错误'));
     }
-  } catch(e) { toastError('删除失败: ' + e.message); }
+  } catch(e) { toastError(i18n('webui.rag_delete_fail').replace('{}', e.message)); }
 }
 
 // ─── Notifier ───────────────────────────────────────────────────
@@ -2663,7 +2664,7 @@ async function loadNotifierConfig() {
         if (cfg.email.password && cfg.email.password !== '***') {
           document.getElementById('smtp-password').value = cfg.email.password;
         }
-        document.getElementById('email-status').textContent = cfg.email.host ? '已配置' : '未配置';
+        document.getElementById('email-status').textContent = cfg.email.host ? i18n('webui.email_status_ok') : i18n('webui.email_status_fail');
       }
       
       // Webhook 配置
@@ -2673,7 +2674,7 @@ async function loadNotifierConfig() {
         document.getElementById('webhook-secret').value = cfg.webhook.secret || '';
         document.getElementById('dingtalk-phones').value = (cfg.webhook.at_mobiles || []).join(', ');
         onWebhookTypeChange();
-        document.getElementById('webhook-status').textContent = cfg.webhook.url ? '已配置' : '未配置';
+        document.getElementById('webhook-status').textContent = cfg.webhook.url ? i18n('webui.webhook_status_ok') : i18n('webui.webhook_status_fail');
       }
     }
   } catch(e) { console.error(e); }
@@ -2707,15 +2708,15 @@ async function saveEmailConfig() {
     const data = await res.json();
     const msg = document.getElementById('email-msg');
     if (data.ok) {
-      msg.textContent = '✅ 邮件配置已保存';
+      msg.textContent = '✅ ' + i18n('webui.email_save_ok');
       msg.style.color = '#4caf50';
-      document.getElementById('email-status').textContent = '已配置';
+      document.getElementById('email-status').textContent = i18n('webui.email_status_ok');
     } else {
-      msg.textContent = '❌ 保存失败: ' + (data.error || '');
+      msg.textContent = '❌ ' + i18n('webui.email_save_fail').replace('{}', data.error || '');
       msg.style.color = '#f44336';
     }
   } catch(e) {
-    document.getElementById('email-msg').textContent = '❌ 保存失败: ' + e.message;
+    document.getElementById('email-msg').textContent = '❌ ' + i18n('webui.email_save_fail').replace('{}', e.message);
   }
 }
 
@@ -2730,7 +2731,7 @@ async function testEmailConfig() {
   };
   
   const msg = document.getElementById('email-msg');
-  msg.textContent = '正在测试...';
+  msg.textContent = i18n('webui.email_testing') || '正在测试...';
   msg.style.color = 'var(--text-muted)';
   
   try {
@@ -2748,7 +2749,7 @@ async function testEmailConfig() {
       msg.style.color = '#f44336';
     }
   } catch(e) {
-    msg.textContent = '❌ 测试失败: ' + e.message;
+    msg.textContent = '❌ ' + i18n('webui.email_test_fail').replace('{}', e.message);
     msg.style.color = '#f44336';
   }
 }
@@ -2774,15 +2775,15 @@ async function saveWebhookConfig() {
     const data = await res.json();
     const msg = document.getElementById('webhook-msg');
     if (data.ok) {
-      msg.textContent = '✅ Webhook 配置已保存';
+      msg.textContent = '✅ ' + i18n('webui.webhook_save_ok');
       msg.style.color = '#4caf50';
-      document.getElementById('webhook-status').textContent = '已配置';
+      document.getElementById('webhook-status').textContent = i18n('webui.webhook_status_ok');
     } else {
-      msg.textContent = '❌ 保存失败: ' + (data.error || '');
+      msg.textContent = '❌ ' + i18n('webui.webhook_save_fail').replace('{}', data.error || '');
       msg.style.color = '#f44336';
     }
   } catch(e) {
-    document.getElementById('webhook-msg').textContent = '❌ 保存失败: ' + e.message;
+    document.getElementById('webhook-msg').textContent = '❌ ' + i18n('webui.webhook_save_fail').replace('{}', e.message);
   }
 }
 
@@ -2817,7 +2818,7 @@ async function testWebhookConfig() {
       msg.style.color = '#f44336';
     }
   } catch(e) {
-    msg.textContent = '❌ 测试失败: ' + e.message;
+    msg.textContent = '❌ ' + i18n('webui.webhook_test_fail').replace('{}', e.message);
     msg.style.color = '#f44336';
   }
 }

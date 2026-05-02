@@ -3,7 +3,7 @@
 DBCheck 是一款开源、跨平台的数据库自动化健康巡检工具，支持 MySQL、PostgreSQL、Oracle、SQL Server、达梦 DM8 及 TiDB 六种主流关系型数据库。工具通过执行预定义的 SQL 检查项与系统资源采集，自动生成格式规范的 Microsoft Word 巡检报告，并提供历史趋势分析、AI 智能诊断、配置基线合规检查、索引健康分析、慢查询深度分析、脱敏导出等高级功能。DBCheck 旨在将 DBA 从重复、耗时的手工巡检工作中解放出来，提升数据库运维效率与风险发现能力。
 
 
-[![Version](https://img.shields.io/badge/版本-2.4.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/版本-2.5.0-blue.svg)]()
 [![MySQL](https://img.shields.io/badge/支持的数据库-MySQL-blue.svg)]()
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-gray.svg)]()
 [![Oracle](https://img.shields.io/badge/Oracle-red.svg)]()
@@ -538,6 +538,86 @@ Web UI 提供独立的 **📧🔔 通知设置** 页面：
 
 ---
 
+## RAG 知识库 📚
+
+> 上传数据库官方文档和运维手册，DBCheck 自动将内容向量化，AI 诊断时自动检索相关知识，生成更精准的优化建议。
+
+### 功能概述
+
+RAG 知识库让 AI 诊断能够参考你自己的文档资料：
+
+- **上传文档**：支持 PDF、Word（.docx）、Markdown（.md）、TXT、HTML 等格式
+- **智能分块**：按段落语义分割，可配置分块大小和重叠字符数
+- **向量存储**：基于 SQLite 的向量库，查询全本地运行
+- **Ollama 集成**：使用 `nomic-embed-text` 生成向量嵌入
+- **AI 增强诊断**：AI 诊断时自动检索知识库相关内容，注入 Prompt 提升诊断准确率
+
+### 支持的文档格式
+
+| 格式 | 扩展名 | 说明 |
+|------|--------|------|
+| PDF | `.pdf` | PyPDF2 提取文本 |
+| Word | `.docx` | python-docx 提取文本 |
+| Markdown | `.md` | 保留结构纯文本 |
+| 文本 | `.txt` | 纯文本文件 |
+| HTML | `.html` / `.htm` | BeautifulSoup 提取文本 |
+
+### 工作原理
+
+```
+文档上传 → 语义分块 → Ollama 向量化 → 向量存储
+                                    ↓
+        AI 诊断 ← 知识检索 ← Top-K 相似度搜索
+```
+
+### Web UI 集成
+
+Web UI 中的 **📚 RAG 知识库** 页面提供：
+
+- **Ollama 状态检测**：页面加载时自动检测连接状态
+- **上传文档**：选择文件 + 数据库类型 + 标题，上传后自动分块并向量化
+- **文档列表**：展示已上传文档（标题、数据库类型、文件大小、分块数、状态）
+- **删除文档**：一键删除，使用 toast 确认弹窗
+
+### API 接口
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/rag/documents` | GET | 列出所有已上传文档 |
+| `/api/rag/documents` | POST | 上传文档并向量化 |
+| `/api/rag/documents/<doc_id>` | DELETE | 删除文档 |
+| `/api/rag/ollama-status` | GET | 检测 Ollama 连接状态 |
+
+### 快速上手
+
+1. **拉取 Ollama Embedding 模型**
+   ```bash
+   ollama pull nomic-embed-text
+   ```
+
+2. **启动 Ollama**（如果尚未运行）
+   ```bash
+   ollama serve
+   ```
+
+3. **打开 Web UI** → 进入 **📚 RAG 知识库** 页面
+   ```bash
+   python web_ui.py
+   ```
+
+4. **上传文档**：选择数据库官方文档（Oracle 管理手册、MySQL 参考手册等），选择对应的数据库类型
+
+5. **执行 AI 诊断**：诊断时系统自动检索知识库相关内容
+
+### Ollama 依赖模型
+
+| 模型 | 用途 | 命令 |
+|------|------|------|
+| `nomic-embed-text` | 文档向量化 | `ollama pull nomic-embed-text` |
+| `qwen3:30b`（或类似） | AI 诊断大模型 | `ollama pull qwen3:30b` |
+
+---
+
 ## 环境要求
 
 - **操作系统**：Linux / macOS / Windows
@@ -640,6 +720,7 @@ python web_ui.py
 | 8 | 📊 历史趋势分析：查看同一数据库多次巡检的指标趋势 |
 | 9 | ⏰ 定时巡检：配置 Cron 表达式实现自动周期巡检 |
 | 10 | 📧🔔 通知设置：配置邮件 / Webhook 告警推送 |
+| 11 | 📚 RAG 知识库：上传和管理数据库文档，增强 AI 诊断能力 |
 
 ### OpenClaw Skill（AI 助手直连）
 
