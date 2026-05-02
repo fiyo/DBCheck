@@ -1882,7 +1882,5 @@ EN = {
     "webui.pro_no_instance": "No instances yet, click Add to create one",
     "webui.pro_no_history": "No inspection history yet",
     "webui.pro_edition_free": "Community",
-    "webui.pro_edition_pro": "Pro",
-}ui.scheduler_testing": "Testing...",
-
+    "webui.pro_edition_pro": "Pro"
 }
