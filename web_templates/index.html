@@ -3010,10 +3010,15 @@ function toastConfirm(msg) {
 async function initApp() {
   await initI18N();
   // 只绑定一次 RAG 删除按钮事件
-  document.getElementById('rag-doc-tbody').addEventListener('click', function(e) {
-    var btn = e.target.closest('.rag-del-btn');
-    if (btn) { deleteRagDocument(btn.dataset.docId, btn.dataset.docTitle); }
-  });
+  var ragBody = document.getElementById('rag-doc-tbody');
+  if (ragBody) {
+    ragBody.addEventListener('click', function(e) {
+      var btn = e.target.closest('.rag-del-btn');
+      if (btn) { deleteRagDocument(btn.dataset.docId, btn.dataset.docTitle); }
+    });
+  }
+  // 初始加载 Pro 状态，更新侧边栏徽章
+  await loadProStatus();
   showPage('home');
 }
 initApp();
@@ -3047,7 +3052,7 @@ async function loadProStatus() {
     const sidebarBadge = document.getElementById('sidebar-edition-badge');
     if (data.ok && data.is_pro && data.license.valid) {
       // ── Pro 专业版：橙色 VIP 样式 ──
-      statusEl.textContent = '专业版';
+      statusEl.textContent = i18n('webui.edition_badge_pro');
       statusEl.className = 'badge pro-active';
       statusEl.style.background = 'linear-gradient(135deg, #f97316, #ea580c)';
       statusEl.style.color = '#fff';
@@ -3061,19 +3066,19 @@ async function loadProStatus() {
       btnD.style.display = '';
       // 侧边栏徽章也更新为橙色专业版
       if (sidebarBadge) {
-        sidebarBadge.textContent = 'Pro';
+        sidebarBadge.textContent = i18n('webui.edition_badge_pro');
         sidebarBadge.className = 'edition-badge pro';
       }
     } else {
       // ── 社区版：灰色样式 ──
-      statusEl.textContent = '社区版';
+      statusEl.textContent = i18n('webui.edition_badge');
       statusEl.className = 'badge';
       statusEl.style.background = 'var(--warn)';
       statusEl.style.color = '';
       statusEl.style.fontWeight = '';
       statusEl.style.boxShadow = '';
       iconEl.textContent = '🏠';
-      nameEl.textContent = '社区版';
+      nameEl.textContent = i18n('webui.edition_badge');
       detailEl.textContent = '开源免费，无实例限制';
       formEl.style.display = '';
       btnA.style.display = '';
@@ -3084,7 +3089,7 @@ async function loadProStatus() {
       document.getElementById('pro-history-card').style.display = 'none';
       // 侧边栏徽章恢复社区版
       if (sidebarBadge) {
-        sidebarBadge.textContent = '社区版';
+        sidebarBadge.textContent = i18n('webui.edition_badge');
         sidebarBadge.className = 'edition-badge community';
       }
     }

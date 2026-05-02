@@ -400,6 +400,7 @@ ZI = {
     "webui.label_username": "用户名",
     "webui.logo_subtitle": "基于 AI 的智能数据库巡检工具",
     "webui.edition_badge": "社区版",
+    "webui.edition_badge_pro": "专业版",
     "webui.nav_ai": "AI 诊断设置",
     "webui.nav_home": "首页",
     "webui.nav_wizard": "新建巡检",

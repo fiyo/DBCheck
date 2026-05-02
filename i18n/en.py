@@ -377,6 +377,7 @@ EN = {
     "webui.label_username": "Username",
     "webui.logo_subtitle": "Database Inspection Tool",
     "webui.edition_badge": "Community",
+    "webui.edition_badge_pro": "Pro",
     "webui.nav_ai": "AI Settings",
     "webui.nav_home": "Home",
     "webui.nav_wizard": "New Inspection",
