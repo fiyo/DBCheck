@@ -166,34 +166,12 @@
     }
 
     .nav-logo-icon {
-      width: 40px;
       height: 40px;
-      background: linear-gradient(135deg, var(--primary), var(--secondary));
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.25rem;
-      font-weight: 800;
-      color: white;
-      position: relative;
-      overflow: hidden;
+      width: auto;
     }
 
     .nav-logo-icon::before {
-      content: '';
-      position: absolute;
-      top: -50%;
-      left: -50%;
-      width: 200%;
-      height: 200%;
-      background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
-      animation: shine 3s ease-in-out infinite;
-    }
-
-    @keyframes shine {
-      0% { transform: translateX(-100%) rotate(45deg); }
-      100% { transform: translateX(100%) rotate(45deg); }
+      display: none;
     }
 
     .nav-logo-text {
@@ -1166,10 +1144,10 @@
 
   <!-- Navigation -->
   <nav id="navbar">
-    <a href="#" class="nav-logo">
-      <div class="nav-logo-icon">DB</div>
-      <span class="nav-logo-text">DBCheck</span>
-    </a>
+      <a href="#" class="nav-logo">
+        <img src="./dbcheck_logo.png" alt="DBCheck" class="nav-logo-icon">
+        <span class="nav-logo-text">DBCheck</span>
+      </a>
     <div class="nav-links">
       <a href="#features" class="nav-link">功能特性</a>
       <a href="#databases" class="nav-link">支持的数据库</a>
@@ -1406,22 +1384,22 @@
           <div class="db-version">10+</div>
         </div>
         <div class="db-card reveal">
-          <span class="db-icon">🏛️</span>
+          <span class="db-icon"><img src="./oracle.png" alt="Oracle" style="width:36px;height:36px;"></span>
           <div class="db-name">Oracle</div>
           <div class="db-version">11g / 19c / 21c</div>
         </div>
         <div class="db-card reveal">
-          <span class="db-icon">🗄️</span>
+          <span class="db-icon"><img src="./sqlserver.png" alt="SQL Server" style="width:36px;height:36px;"></span>
           <div class="db-name">SQL Server</div>
           <div class="db-version">2012+</div>
         </div>
         <div class="db-card reveal">
-          <span class="db-icon">🔷</span>
+          <span class="db-icon"><img src="./dm.png" alt="达梦 DM" style="width:36px;height:36px;"></span>
           <div class="db-name">达梦 DM8</div>
           <div class="db-version">DM8 及以上</div>
         </div>
         <div class="db-card reveal">
-          <span class="db-icon">🐠</span>
+          <span class="db-icon"><img src="./tidb.png" alt="TiDB" style="width:36px;height:36px;"></span>
           <div class="db-name">TiDB</div>
           <div class="db-version">兼容 MySQL</div>
         </div>
@@ -1503,7 +1481,7 @@ git clone git@github.com:fiyo/DBCheck.git</br>
 <span class="code-comment"># 安装依赖</br></span>
 pip install -r requirements.txt</br>
 
-<span class="code-comment"># 启动 Web UI</span>
+<span class="code-comment"># 启动 Web UI</br></span>
 <span class="code-keyword">python</span> web_ui.py</code>
             </div>
           </div>
@@ -1616,7 +1594,7 @@ clawhub install dbcheck</br>
     <div class="footer-content">
       <div class="footer-brand">
         <a href="#" class="nav-logo">
-          <div class="nav-logo-icon">DB</div>
+          <img src="./dbcheck_logo.png" alt="DBCheck" class="nav-logo-icon">
           <span class="nav-logo-text">DBCheck</span>
         </a>
         <p>

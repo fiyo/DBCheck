@@ -15,3 +15,4 @@ notifier_config.json
 scheduler_jobs.json
 scheduler.log
 snapshot/
+docs/README.md

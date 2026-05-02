@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>页面未找到 - DBCheck</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <style>
+    :root {
+      --primary: #6366f1;
+      --primary-light: #818cf8;
+      --secondary: #06b6d4;
+      --bg-dark: #0a0a0f;
+      --bg-card: #12121a;
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .bg-grid {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: 
+        linear-gradient(rgba(99, 102, 241, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px);
+      background-size: 60px 60px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .bg-gradient {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: 
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99, 102, 241, 0.15), transparent),
+        radial-gradient(ellipse 60% 40% at 80% 60%, rgba(6, 182, 212, 0.1), transparent);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .content {
+      text-align: center;
+      z-index: 1;
+      padding: 2rem;
+      animation: fadeIn 0.8s ease forwards;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .error-code {
+      font-size: clamp(6rem, 20vw, 12rem);
+      font-weight: 900;
+      line-height: 1;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 1rem;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+
+    .error-icon {
+      font-size: 4rem;
+      margin-bottom: 1.5rem;
+      color: var(--primary-light);
+      animation: bounce 2s ease-in-out infinite;
+    }
+
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      color: var(--text-primary);
+    }
+
+    p {
+      color: var(--text-secondary);
+      font-size: 1.1rem;
+      margin-bottom: 2rem;
+      max-width: 400px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.875rem 1.75rem;
+      background: linear-gradient(135deg, var(--primary), var(--primary-light));
+      color: white;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 1rem;
+      border-radius: 10px;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
+    }
+
+    .btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 30px rgba(99, 102, 241, 0.5);
+    }
+
+    .secondary-btn {
+      background: var(--bg-card);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      box-shadow: none;
+      margin-left: 1rem;
+    }
+
+    .secondary-btn:hover {
+      border-color: var(--primary);
+      box-shadow: 0 4px 20px rgba(99, 102, 241, 0.3);
+    }
+
+    .hint {
+      margin-top: 3rem;
+      padding: 1.5rem;
+      background: rgba(99, 102, 241, 0.1);
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      border-radius: 12px;
+      max-width: 500px;
+    }
+
+    .hint-title {
+      font-weight: 600;
+      color: var(--primary-light);
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .hint-text {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin: 0;
+    }
+
+    /* Spinner */
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 600px) {
+      .btn {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      
+      .secondary-btn {
+        margin-left: 0;
+        margin-top: 0.75rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="bg-gradient"></div>
+  
+  <div class="content">
+    <div class="error-icon">
+      <i class="fas fa-wrench"></i>
+    </div>
+    
+    <div class="error-code">404</div>
+    
+    <h1>页面正在更新中...</h1>
+    
+    <p>
+      抱歉，您访问的页面暂时不可用。<br>
+      可能是网站正在进行更新或迁移，请稍等几分钟后再试。
+    </p>
+    
+    <div>
+      <a href="/" class="btn">
+        <i class="fas fa-home"></i>
+        返回首页
+      </a>
+      <a href="https://github.com/fiyo/DBCheck" target="_blank" class="btn secondary-btn">
+        <i class="fab fa-github"></i>
+        GitHub
+      </a>
+    </div>
+    
+    <div class="hint">
+      <div class="hint-title">
+        <i class="fas fa-info-circle"></i>
+        提示
+      </div>
+      <p class="hint-text">
+        如果问题持续存在，欢迎在 GitHub 上提交 issue 反馈
+      </p>
+    </div>
+  </div>
+
+  <script>
+    // Auto-redirect after countdown
+    let countdown = 30;
+    const countdownEl = document.createElement('p');
+    countdownEl.style.cssText = 'margin-top: 1rem; color: var(--text-muted); font-size: 0.9rem;';
+    countdownEl.innerHTML = `<span id="countdown">${countdown}</span> 秒后自动返回首页...`;
+    
+    const hint = document.querySelector('.hint');
+    hint.appendChild(countdownEl);
+    
+    const timer = setInterval(() => {
+      countdown--;
+      document.getElementById('countdown').textContent = countdown;
+      if (countdown <= 0) {
+        clearInterval(timer);
+        window.location.href = '/';
+      }
+    }, 1000);
+  </script>
+</body>
+</html>
