@@ -738,6 +738,103 @@ var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
   }
   mk(); setInterval(mk, 3200);
 })();
+
+// ─── RAG 知识库 ─────────────────────────────────────
+async function showRagPage() {
+  // 先绑定按钮，不受后续加载影响
+  document.getElementById('rag-upload-btn').onclick = uploadRagDocument;
+  // 并行加载，但各自捕获错误，互不影响
+  loadRagDocuments().catch(e => console.error('loadRagDocuments failed', e));
+  checkRagOllama().catch(e => console.error('checkRagOllama failed', e));
+}
+
+async function loadRagDocuments() {
+  try {
+    const res = await fetch('/api/rag/documents');
+    const data = await res.json();
+    const tbody = document.getElementById('rag-doc-tbody');
+    const countBadge = document.getElementById('rag-doc-count');
+    if (data.ok && data.documents && data.documents.length > 0) {
+      countBadge.textContent = data.documents.length + ' 个文档，' + (data.total_chunks || 0) + ' 个片段';
+      tbody.innerHTML = data.documents.map(doc => '<tr><td style="padding:8px 10px;border-bottom:1px solid var(--border)">' + escHtml(doc.title || doc.doc_id) + '</td><td style="padding:8px 10px;border-bottom:1px solid var(--border)">' + escHtml(doc.db_type || 'all') + '</td><td style="padding:8px 10px;border-bottom:1px solid var(--border)">' + formatBytes(doc.file_size || 0) + '</td><td style="padding:8px 10px;border-bottom:1px solid var(--border)">' + (doc.chunk_count || 0) + '</td><td style="padding:8px 10px;border-bottom:1px solid var(--border)"><span style="color:#4caf50">&#9679; 就绪</span></td><td style="padding:8px 10px;border-bottom:1px solid var(--border)"><button class="btn btn-ghost rag-del-btn" style="color:#f44336;font-size:12px;padding:4px 8px" data-doc-id="' + doc.doc_id + '" data-doc-title="' + escHtml(doc.title || doc.doc_id) + '">&#128465; 删除</button></td></tr>').join('');
+    } else {
+      countBadge.textContent = '0 个文档';
+      tbody.innerHTML = '<tr><td colspan="6" style="padding:16px;text-align:center;color:var(--text-muted)">' + (i18n('webui.rag_no_docs') || '暂无已加载文档，请上传。') + '</td></tr>';
+    }
+  } catch(e) { console.error('loadRagDocuments failed', e); }
+}
+
+
+
+async function uploadRagDocument() {
+  const fileInput = document.getElementById('rag-file-input');
+  const dbType = document.getElementById('rag-db-type').value;
+  const title = document.getElementById('rag-doc-title').value.trim();
+  if (!fileInput.files || !fileInput.files[0]) { toastError('请先选择文件'); return; }
+  const status = document.getElementById('rag-upload-status');
+  status.style.display = 'block';
+  status.style.background = 'var(--surface2)';
+  status.style.color = 'var(--text-muted)';
+  status.textContent = i18n('webui.rag_uploading') || '上传中...';
+  const formData = new FormData();
+  formData.append('file', fileInput.files[0]);
+  formData.append('db_type', dbType);
+  formData.append('title', title);
+  try {
+    const res = await fetch('/api/rag/documents', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (data.ok) {
+      status.style.background = '#e8f5e9'; status.style.color = '#2e7d32';
+      // 从返回的 message 中解析分块数，如"文档「xxx」添加成功，共 99 个分块，已导入向量库"
+      var chunkDisplay = '?';
+      var m = data.message && data.message.match(/共\s*(\d+)\s*个分块/);
+      if (m) chunkDisplay = m[1];
+      status.textContent = (i18n('webui.rag_upload_ok') || '上传成功：已分 {} 块').replace('{}', chunkDisplay);
+      fileInput.value = ''; document.getElementById('rag-doc-title').value = '';
+      setTimeout(function() { loadRagDocuments(); }, 500);
+    } else {
+      status.style.background = '#ffebee'; status.style.color = '#c62828';
+      status.textContent = (i18n('webui.rag_upload_fail') || '上传失败') + ': ' + (data.error || '');
+    }
+  } catch(e) { status.style.background = '#ffebee'; status.style.color = '#c62828'; status.textContent = '上传失败: ' + e.message; }
+}
+
+async function deleteRagDocument(docId, title) {
+  if (!await toastConfirm((i18n('webui.rag_delete_confirm') || '确定删除「{}」？').replace('{}', title))) return;
+  try {
+    const res = await fetch('/api/rag/documents/' + encodeURIComponent(docId), { method: 'DELETE' });
+    const data = await res.json();
+    if (data.ok) { toastSuccess('删除成功'); loadRagDocuments(); } else { toastError((i18n('webui.rag_delete_fail') || '删除失败') + ': ' + (data.error || '')); }
+  } catch(e) { toastError('删除失败: ' + e.message); }
+}
+
+async function checkRagOllama() {
+  const status = document.getElementById('rag-ollama-status');
+  status.style.display = 'block';
+  status.textContent = i18n('webui.rag_ollama_checking') || '正在检查...';
+  status.style.background = 'var(--surface2)';
+  status.style.color = 'var(--text-muted)';
+  try {
+    const res = await fetch('/api/rag/ollama-status');
+    const data = await res.json();
+    if (data.ok) {
+      status.style.background = '#e8f5e9'; status.style.color = '#2e7d32';
+      status.textContent = (i18n('webui.rag_ollama_ok') || '✅ Ollama Embedding 已连接（{}）').replace('{}', data.model || '');
+    } else {
+      status.style.background = '#fff3e0'; status.style.color = '#e65100';
+      status.textContent = (i18n('webui.rag_ollama_fail') || '⚠ Ollama 未连接').replace('{}', 'nomic-embed-text');
+    }
+  } catch(e) { status.style.background = '#ffebee'; status.style.color = '#c62828'; status.textContent = '检查失败: ' + e.message; }
+}
+
+function formatBytes(bytes) {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
 </script>
 <div class="app-shell">
 
@@ -746,7 +843,7 @@ var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
     <div class="sidebar-logo">
       <img src="/dbcheck_logo.png" alt="DBCheck" style="width:40px;height:40px;margin-bottom:10px;">
       <h1>DBCheck</h1>
-      <p data-i18n="webui.logo_subtitle">数据库巡检工具</p>
+      <p data-i18n="webui.logo_subtitle">基于 AI 的智能数据库巡检工具</p>
     </div>
 
     <div class="nav-section" data-i18n="webui.nav_section_feature">功能</div>
@@ -765,6 +862,9 @@ var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
     <div class="nav-item" onclick="showPage('scheduler')" id="nav-scheduler">
       <span class="icon">⏰</span> <span data-i18n="webui.nav_scheduler">定时巡检</span>
     </div>
+    <div class="nav-item" onclick="showPage('rag')" id="nav-rag">
+      <span class="icon">📚</span> <span data-i18n="webui.rag_nav">RAG 知识库</span>
+    </div>
     <div class="nav-section" data-i18n="webui.nav_section_setting">设置</div>
     <div class="nav-item" onclick="showPage('notifier')" id="nav-notifier">
       <span class="icon">📧</span> <span data-i18n="webui.nav_notifier">通知设置</span>
@@ -774,7 +874,7 @@ var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
     </div>
 
     <div class="sidebar-footer">
-      Oracle · MySQL · PostgreSQL · SQL Server · DM<br/>
+      Oracle · MySQL · PostgreSQL · SQL Server<br/>DM · TiDB<br/>
       <span style="opacity:.5">© 2026 DBCheck · Powered by <a href="mailto:sdfiyon@gmail.com" style="color:inherit;text-decoration:none">Jack.Ge</a></span>
       <span class="version-badge" id="version-badge">{{ version }}</span>
     </div>
@@ -1390,6 +1490,31 @@ var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
               💡 完全本地运行，无需 API Key，数据不出本机。先安装 Ollama 并拉取模型：ollama pull qwen2.5:7b
             </div>
           </div>
+          <!-- RAG 知识库配置（仅在 Ollama 后端时显示） -->
+          <div id="rag-config-fields" style="display:none; margin-top:16px; padding:16px; background:var(--surface2); border-radius:10px;">
+            <div class="card-title" style="font-size:14px; margin-bottom:12px;">
+              📚 <span data-i18n="webui.rag_title">RAG 知识库</span>
+            </div>
+            <div class="form-group">
+              <label>
+                <input type="checkbox" id="rag-enable" style="width:auto;margin-right:6px;vertical-align:middle"/>
+                <span data-i18n="webui.rag_enable">启用 RAG 知识库</span>
+              </label>
+              <div style="font-size:11.5px;color:var(--text-muted);margin-top:4px" data-i18n="webui.rag_enable_hint">开启后，AI 诊断将自动检索知识库中的相关文档片段</div>
+            </div>
+            <div class="form-group">
+              <label data-i18n="webui.rag_embedding_model">Embedding 模型</label>
+              <input type="text" id="rag-embedding-model" class="form-input" placeholder="nomic-embed-text"/>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px">需先用 Ollama 拉取：ollama pull nomic-embed-text</div>
+            </div>
+            <div class="form-group">
+              <label data-i18n="webui.rag_top_k">检索返回条数 (Top K)</label>
+              <input type="number" id="rag-top-k" class="form-input" value="3" min="1" max="20" style="width:100px"/>
+              <span style="font-size:12px;color:var(--text-muted);margin-left:8px" data-i18n="webui.rag_top_k_hint">每次诊断时检索最相关的文档片段数量，建议 3~5</span>
+            </div>
+            <div id="rag-status" style="font-size:12px;padding:6px 10px;border-radius:6px;display:none"></div>
+          </div><!-- /rag-config-fields -->
+
 
           <div id="ai-save-banner" style="display:none" class="status-banner ok" style="margin-bottom:12px" data-i18n="webui.ai_save_ok">✅ 配置已保存，下次巡检时生效</div>
 
@@ -1399,6 +1524,64 @@ var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
           </div>
         </div>
       </div>
+      <div class="page" id="page-rag">
+        <div class="card">
+          <div class="card-title"><span>📚</span> <span data-i18n="webui.rag_upload_title">RAG 知识库</span></div>
+          <div style="color:var(--text-muted);font-size:12.5px;margin-bottom:14px" data-i18n="webui.rag_desc">上传数据库文档到本地知识库，AI 诊断时自动检索相关内容</div>
+          <div class="form-group">
+            <label data-i18n="webui.rag_file">选择文件</label>
+            <input type="file" id="rag-file-input" accept=".txt,.md,.pdf,.docx,.html" style="color:var(--text);font-size:13px"/>
+            <div style="font-size:11.5px;color:var(--text-muted);margin-top:4px" data-i18n="webui.rag_support_tip">支持 .txt / .md / .pdf / .docx / .html，单文件 ≤100MB</div>
+          </div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap">
+            <div class="form-group" style="flex:1;min-width:160px">
+              <label data-i18n="webui.rag_db_type">适用数据库</label>
+              <select id="rag-db-type" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text)">
+                <option value="mysql">MySQL</option>
+                <option value="pg">PostgreSQL</option>
+                <option value="oracle">Oracle</option>
+                <option value="sqlserver">SQL Server</option>
+                <option value="dm">DM8</option>
+                <option value="tidb">TiDB</option>
+                <option value="all">全部类型</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex:2;min-width:200px">
+              <label data-i18n="webui.rag_title_field">文档标题（可选）</label>
+              <input type="text" id="rag-doc-title" class="form-input" placeholder="留空则使用文件名"/>
+            </div>
+          </div>
+          <div id="rag-upload-status" style="display:none;margin-bottom:10px;font-size:12.5px;padding:8px 12px;border-radius:6px"></div>
+          <div class="btn-row">
+            <button class="btn btn-primary" id="rag-upload-btn" data-i18n="webui.rag_upload_btn">📤 上传并向量化</button>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <div class="card-title"><span>📋</span> <span data-i18n="webui.rag_doc_list">已加载文档</span>
+            <span class="badge" id="rag-doc-count" style="margin-left:8px">0 个文档</span>
+          </div>
+          <div id="rag-doc-table-wrap" style="overflow-x:auto">
+            <table style="width:100%;font-size:13px;border-collapse:collapse">
+              <thead>
+                <tr style="background:var(--surface2);text-align:left">
+                  <th style="padding:8px 10px;border-bottom:1px solid var(--border)">标题</th>
+                  <th style="padding:8px 10px;border-bottom:1px solid var(--border)">类型</th>
+                  <th style="padding:8px 10px;border-bottom:1px solid var(--border)">大小</th>
+                  <th style="padding:8px 10px;border-bottom:1px solid var(--border)">块数</th>
+                  <th style="padding:8px 10px;border-bottom:1px solid var(--border)">状态</th>
+                  <th style="padding:8px 10px;border-bottom:1px solid var(--border)">操作</th>
+                </tr>
+              </thead>
+              <tbody id="rag-doc-tbody">
+                <tr><td colspan="6" style="padding:16px;text-align:center;color:var(--text-muted)" data-i18n="webui.rag_no_docs">暂无已加载文档，请上传。</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="rag-ollama-status" style="margin-top:10px;font-size:12px;padding:6px 10px;border-radius:6px;display:none"></div>
+        </div>
+      </div><!-- /page-rag -->
+
 
     </div><!-- /content -->
   </div><!-- /main -->
@@ -1491,6 +1674,7 @@ function showPage(name) {
   if (name === 'scheduler') loadSchedulerJobs();
   if (name === 'notifier') loadNotifierConfig();
   if (name === 'ai') loadAIConfig();
+  if (name === 'rag') showRagPage();
 }
 
 function startWizard() {
@@ -2161,6 +2345,12 @@ async function loadAIConfig() {
       document.getElementById('ai-ollama-model').value = cfg.model || '';
       document.getElementById('ai-timeout').value = cfg.timeout || 600;
     }
+    // 加载 RAG 配置
+    if (cfg.rag) {
+      document.getElementById('rag-enable').checked = cfg.rag.enabled !== false;
+      document.getElementById('rag-embedding-model').value = cfg.rag.embedding_model || 'nomic-embed-text';
+      document.getElementById('rag-top-k').value = cfg.rag.top_k || 3;
+    }
     onAIBackendChange();
   } catch(e) { console.error(e); }
 }
@@ -2169,6 +2359,7 @@ function onAIBackendChange() {
   const b = document.getElementById('ai-backend').value;
   document.getElementById('ai-openai-fields').style.display  = b === 'openai'  ? 'block' : 'none';
   document.getElementById('ai-ollama-fields').style.display  = b === 'ollama'  ? 'block' : 'none';
+  document.getElementById('rag-config-fields').style.display  = b === 'ollama'  ? 'block' : 'none';
   document.getElementById('ai-save-banner').style.display = 'none';
 }
 
@@ -2184,6 +2375,14 @@ async function saveAIConfig() {
     cfg.api_url  = document.getElementById('ai-ollama-url').value || 'http://localhost:11434';
     cfg.model    = document.getElementById('ai-ollama-model').value || 'qwen2.5:7b';
     cfg.timeout  = parseInt(document.getElementById('ai-timeout').value) || 600;
+    // 保存 RAG 配置
+    cfg.rag = {
+      enabled: document.getElementById('rag-enable').checked,
+      embedding_model: document.getElementById('rag-embedding-model').value.trim() || 'nomic-embed-text',
+      top_k: parseInt(document.getElementById('rag-top-k').value) || 3,
+      chunk_size: 1000,
+      chunk_overlap: 100,
+    };
   }
   try {
     const res = await fetch('/api/ai_config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(cfg) });
@@ -2673,14 +2872,25 @@ function toastConfirm(msg) {
       <span class="toast-icon">🤔</span>
       <span class="toast-msg">${escHtml(String(msg))}</span>
       <div style="display:flex;gap:8px;flex-shrink:0;">
-        <button id="toast-confirm-btn" class="btn btn-primary" style="padding:4px 12px;font-size:13px;">确定</button>
-        <button id="toast-cancel-btn" class="btn btn-ghost" style="padding:4px 12px;font-size:13px;">取消</button>
+        <button class="toast-confirm-btn btn btn-primary" style="padding:4px 12px;font-size:13px;">确定</button>
+        <button class="toast-cancel-btn btn btn-ghost" style="padding:4px 12px;font-size:13px;">取消</button>
       </div>`;
     container.appendChild(el);
-    document.getElementById('toast-confirm-btn').onclick = () => { dismiss(el); resolve(true); };
-    document.getElementById('toast-cancel-btn').onclick = () => { dismiss(el); resolve(false); };
+    el.querySelector('.toast-confirm-btn').onclick = () => { dismiss(el); resolve(true); };
+    el.querySelector('.toast-cancel-btn').onclick = () => { dismiss(el); resolve(false); };
   });
 }
+
+async function initApp() {
+  await initI18N();
+  // 只绑定一次 RAG 删除按钮事件
+  document.getElementById('rag-doc-tbody').addEventListener('click', function(e) {
+    var btn = e.target.closest('.rag-del-btn');
+    if (btn) { deleteRagDocument(btn.dataset.docId, btn.dataset.docTitle); }
+  });
+  showPage('home');
+}
+initApp();
 </script>
 
 </body>

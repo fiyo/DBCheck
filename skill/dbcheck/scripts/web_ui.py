@@ -1601,12 +1601,12 @@ def api_rag_upload_document():
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(f.filename)[1])
         f.save(tmp.name)
         tmp.close()
-        ok, message = mgr.add_document(tmp.name, db_type, title)
+        result = mgr.add_document(tmp.name, db_type, title)
         os.unlink(tmp.name)
-        if ok:
-            return jsonify({'ok': True, 'message': message})
+        if result.get('ok'):
+            return jsonify({'ok': True, 'doc': result})
         else:
-            return jsonify({'ok': False, 'error': message})
+            return jsonify({'ok': False, 'error': result.get('error', '向量化失败')})
     except Exception as e:
         import traceback; traceback.print_exc()
         return jsonify({'ok': False, 'error': str(e)})
@@ -1617,7 +1617,7 @@ def api_rag_delete_document(doc_id):
     if mgr is None:
         return jsonify({'ok': False, 'error': 'RAG 模块未加载'})
     try:
-        ok, _ = mgr.delete_document(doc_id)
+        ok = mgr.delete_document(doc_id)
         return jsonify({'ok': ok})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)})

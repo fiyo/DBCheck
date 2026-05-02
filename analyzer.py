@@ -1107,7 +1107,8 @@ class AIAdvisor:
     }
 
     def __init__(self, backend: str = None, api_key: str = None,
-                 api_url: str = None, model: str = None):
+                 api_url: str = None, model: str = None,
+                 rag_enabled: bool = True):
         # ── 安全限制 1: 只允许 ollama 或 disabled ──
         raw_backend = (backend or os.environ.get('DBCHECK_AI_BACKEND', 'disabled')).lower()
         if raw_backend == 'openai':
@@ -1131,12 +1132,35 @@ class AIAdvisor:
         if self.backend == 'ollama' and not model and not os.environ.get('DBCHECK_AI_MODEL'):
             self.model = 'qwen3:8b'
 
+        # ── RAG 知识库初始化（静默降级，失败不影响 AI 诊断主流程）─────────
+        self.rag_enabled = False
+        self.rag_retriever = None
+        if rag_enabled and self.backend == 'ollama':
+            self._init_rag()
+
+    def _init_rag(self):
+        """初始化 RAG 知识库（失败时静默降级）"""
+        try:
+            from rag import RAGRetriever, VectorStore, OllamaEmbedding
+            vs = VectorStore()
+            emb = OllamaEmbedding(api_url=self.api_url)
+            self.rag_retriever = RAGRetriever(vs, emb)
+            self.rag_enabled = True
+            print("[AIAdvisor] RAG 知识库已启用")
+        except Exception as e:
+            self.rag_enabled = False
+            self.rag_retriever = None
+            # 仅 debug 级别输出，不影响用户体验
+            import sys
+            if '-v' in sys.argv or '--verbose' in sys.argv:
+                print(f"[AIAdvisor] RAG 初始化跳过: {e}")
+
     @property
     def enabled(self) -> bool:
         return self.backend != 'disabled'
 
     def _build_prompt(self, db_type: str, label: str, metrics: dict, issues: list,
-                      lang: str = 'zh') -> str:
+                      lang: str = 'zh', rag_context: str = '') -> str:
         """构建发给 LLM 的诊断 Prompt，支持中英文"""
         labels = self.METRIC_LABELS_ZH if lang == 'zh' else self.METRIC_LABELS_EN
         sep = '=' * 60
@@ -1193,7 +1217,10 @@ class AIAdvisor:
 {slow_query_extra if slow_query_extra else ''}
 {oracle_extra if oracle_extra else ''}
 {sep}
-【三、诊断要求】
+【三、参考文档（RAG 知识库）】
+{rag_context if rag_context else '  （未加载任何参考文档）'}
+{sep}
+【四、诊断要求】
 {sep}
 请基于以上巡检数据，给出 4~6 条专业优化建议，要求：
 1. 优先分析【等待事件 Top5】：识别主要等待类型（如 db file sequential read、log file sync、buffer busy waits 等），给出具体优化方向
@@ -1233,7 +1260,10 @@ class AIAdvisor:
 {slow_query_extra if slow_query_extra else ''}
 {oracle_extra if oracle_extra else ''}
 {sep}
-[III. Diagnosis Requirements]
+[III. Reference Documents (RAG Knowledge Base)]
+{rag_context if rag_context else '  (No reference documents loaded)'}
+{sep}
+[IV. Diagnosis Requirements]
 {sep}
 Based on the inspection data above, provide 4~6 professional optimization recommendations:
 1. Prioritize analysis of [Top 5 Wait Events]: identify major wait types (e.g., db file sequential read, log file sync, buffer busy waits) and provide specific optimization directions.
@@ -1347,7 +1377,17 @@ Format requirement (output Markdown directly, no prefixes like "Here are"):
                     ])
                     metrics['slow_query_count'] = len(sq.get('top_sql_by_latency', []))
 
-        prompt = self._build_prompt(db_type, label, metrics, issues, lang)
+        # ── RAG 知识库检索（在构建 Prompt 前执行）─────────────────────
+        rag_context = ''
+        if self.rag_enabled and self.rag_retriever:
+            try:
+                rag_results = self.rag_retriever.retrieve_for_diagnosis(
+                    db_type, metrics, issues, top_k=3)
+                rag_context = self.rag_retriever.format_rag_context(rag_results, lang)
+            except Exception:
+                pass  # RAG 失败不影响 AI 诊断主流程
+
+        prompt = self._build_prompt(db_type, label, metrics, issues, lang, rag_context)
 
         try:
             if self.backend == 'ollama':
