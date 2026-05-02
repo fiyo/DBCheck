@@ -1894,4 +1894,23 @@ ZI = {
     "webui.email_testing": "正在测试...",
     "webui.scheduler_testing": "正在测试...",
 
+    # ── Pro 专业版 ──
+    "webui.nav_pro": "专业版",
+    "webui.pro_title": "专业版设置",
+    "webui.pro_license_status": "许可证状态",
+    "webui.pro_activate_btn": "激活专业版",
+    "webui.pro_deactivate_btn": "注销许可证",
+    "webui.pro_instance_manage": "实例管理",
+    "webui.pro_group_manage": "分组管理",
+    "webui.pro_health_score": "健康评分",
+    "webui.pro_history": "巡检历史",
+    "webui.pro_add_instance": "添加实例",
+    "webui.pro_edit_instance": "编辑实例",
+    "webui.pro_delete_instance": "删除实例",
+    "webui.pro_test_instance": "测试连接",
+    "webui.pro_import": "导入",
+    "webui.pro_no_instance": "暂无实例，点击上方按钮添加",
+    "webui.pro_no_history": "暂无巡检记录",
+    "webui.pro_edition_free": "社区版",
+    "webui.pro_edition_pro": "专业版",
 }

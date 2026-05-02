@@ -1864,4 +1864,25 @@ EN = {
     "webui.email_testing": "Testing...",
     "webui.scheduler_testing": "Testing...",
 
+    # ── Pro ──
+    "webui.nav_pro": "Pro",
+    "webui.pro_title": "Pro Settings",
+    "webui.pro_license_status": "License Status",
+    "webui.pro_activate_btn": "Activate Pro",
+    "webui.pro_deactivate_btn": "Deactivate",
+    "webui.pro_instance_manage": "Instance Management",
+    "webui.pro_group_manage": "Group Management",
+    "webui.pro_health_score": "Health Score",
+    "webui.pro_history": "Inspection History",
+    "webui.pro_add_instance": "Add Instance",
+    "webui.pro_edit_instance": "Edit",
+    "webui.pro_delete_instance": "Delete",
+    "webui.pro_test_instance": "Test",
+    "webui.pro_import": "Import",
+    "webui.pro_no_instance": "No instances yet, click Add to create one",
+    "webui.pro_no_history": "No inspection history yet",
+    "webui.pro_edition_free": "Community",
+    "webui.pro_edition_pro": "Pro",
+}ui.scheduler_testing": "Testing...",
+
 }

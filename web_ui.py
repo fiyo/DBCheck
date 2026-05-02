@@ -1636,6 +1636,328 @@ def api_rag_ollama_status():
         return jsonify({'ok': False, 'error': str(e)})
 
 
+# ── Pro 专业版 API ──────────────────────────────────────────
+@app.route('/api/pro/status', methods=['GET'])
+def api_pro_status():
+    """获取 Pro 版本状态"""
+    try:
+        from pro import get_license_manager, is_pro, get_edition
+        from pro import get_instance_manager
+        import pro.version as pro_version
+
+        lm = get_license_manager()
+        im = get_instance_manager()
+
+        license_info = lm.verify()
+        stats = im.get_statistics()
+
+        return jsonify({
+            'ok': True,
+            'is_pro': is_pro(),
+            'edition': get_edition(),
+            'version': pro_version.__version__,
+            'release_date': getattr(pro_version, '__release_date__', ''),
+            'license': {
+                'valid': license_info.get('valid', False),
+                'type': license_info.get('type', 'community'),
+                'expires': license_info.get('expires', ''),
+                'max_instances': license_info.get('max_instances', 0),
+                'features': license_info.get('features', ['basic']),
+            },
+            'instances': stats,
+        })
+    except ImportError:
+        return jsonify({
+            'ok': True,
+            'is_pro': False,
+            'edition': 'community',
+            'version': 'community',
+            'license': {'valid': False, 'type': 'community', 'features': ['basic']},
+            'instances': {'total_instances': 0},
+        })
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/license/activate', methods=['POST'])
+def api_pro_license_activate():
+    """激活许可证"""
+    try:
+        from pro import get_license_manager
+        data = request.get_json()
+        license_key = data.get('license_key', '')
+
+        if not license_key:
+            return jsonify({'ok': False, 'error': '请输入许可证密钥'})
+
+        lm = get_license_manager()
+        result = lm.activate(license_key)
+
+        if result.get('success'):
+            return jsonify({'ok': True, 'message': '许可证激活成功'})
+        else:
+            return jsonify({'ok': False, 'error': result.get('message', '激活失败')})
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/license/deactivate', methods=['POST'])
+def api_pro_license_deactivate():
+    """注销许可证"""
+    try:
+        from pro import get_license_manager
+        lm = get_license_manager()
+        result = lm.deactivate()
+        return jsonify(result)
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/instances', methods=['GET'])
+def api_pro_instances():
+    """获取所有实例"""
+    try:
+        from pro import get_instance_manager
+        im = get_instance_manager()
+        instances = im.get_all_instances()
+        return jsonify({
+            'ok': True,
+            'instances': [i.to_dict() for i in instances],
+        })
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/instances', methods=['POST'])
+def api_pro_add_instance():
+    """添加实例"""
+    try:
+        from pro import get_instance_manager, DatabaseInstance
+        data = request.get_json()
+
+        instance = DatabaseInstance(
+            id=data.get('id', ''),
+            name=data.get('name', ''),
+            db_type=data.get('db_type', 'mysql'),
+            host=data.get('host', ''),
+            port=int(data.get('port', 3306)),
+            user=data.get('user', ''),
+            password=data.get('password', ''),
+            service_name=data.get('service_name', ''),
+            tags=data.get('tags', []),
+            group=data.get('group', 'default'),
+            description=data.get('description', ''),
+        )
+
+        im = get_instance_manager()
+        result = im.add_instance(instance)
+        return jsonify(result)
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/instances/<instance_id>', methods=['PUT'])
+def api_pro_update_instance(instance_id):
+    """更新实例"""
+    try:
+        from pro import get_instance_manager
+        data = request.get_json()
+        im = get_instance_manager()
+        result = im.update_instance(instance_id, data)
+        return jsonify(result)
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/instances/<instance_id>', methods=['DELETE'])
+def api_pro_delete_instance(instance_id):
+    """删除实例"""
+    try:
+        from pro import get_instance_manager
+        im = get_instance_manager()
+        result = im.delete_instance(instance_id)
+        return jsonify(result)
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/instances/<instance_id>/test', methods=['POST'])
+def api_pro_test_instance(instance_id):
+    """测试实例连接"""
+    try:
+        from pro import get_instance_manager
+        import test_db as test_func
+
+        im = get_instance_manager()
+        instance = im.get_instance(instance_id)
+
+        if not instance:
+            return jsonify({'ok': False, 'error': '实例不存在'})
+
+        # 根据数据库类型测试连接
+        test_funcs = {
+            'mysql': test_mysql_connection,
+            'tidb': test_tidb_connection,
+            'postgresql': test_pg_connection,
+            'oracle': test_oracle_connection,
+            'dm': test_dm_connection,
+            'sqlserver': test_sqlserver_connection,
+        }
+
+        test_func = test_funcs.get(instance.db_type)
+        if not test_func:
+            return jsonify({'ok': False, 'error': f'不支持的数据库类型: {instance.db_type}'})
+
+        if instance.db_type == 'oracle':
+            ok, msg = test_func(instance.host, instance.port, instance.user, instance.password, instance.service_name)
+        elif instance.db_type == 'sqlserver':
+            ok, msg = test_func(instance.host, instance.port, instance.user, instance.password)
+        elif instance.db_type == 'dm':
+            ok, msg = test_func(instance.host, instance.port, instance.user, instance.password)
+        else:
+            ok, msg = test_func(instance.host, instance.port, instance.user, instance.password)
+
+        return jsonify({'ok': ok, 'message': msg})
+    except ImportError as e:
+        return jsonify({'ok': False, 'error': f'Pro 模块未安装: {str(e)}'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/groups', methods=['GET'])
+def api_pro_groups():
+    """获取所有分组"""
+    try:
+        from pro import get_instance_manager
+        im = get_instance_manager()
+        groups = im.get_all_groups()
+        return jsonify({
+            'ok': True,
+            'groups': [g.to_dict() for g in groups],
+        })
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/groups', methods=['POST'])
+def api_pro_add_group():
+    """添加分组"""
+    try:
+        from pro import get_instance_manager, InstanceGroup
+        data = request.get_json()
+        group = InstanceGroup(
+            name=data.get('name', ''),
+            description=data.get('description', ''),
+            color=data.get('color', '#378ADD'),
+        )
+        im = get_instance_manager()
+        result = im.add_group(group)
+        return jsonify(result)
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/statistics', methods=['GET'])
+def api_pro_statistics():
+    """获取全局统计"""
+    try:
+        from pro import get_instance_manager
+        im = get_instance_manager()
+        stats = im.get_statistics()
+        stats['global_health_score'] = im.get_global_health_score()
+        return jsonify({'ok': True, 'statistics': stats})
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/health-score', methods=['GET'])
+def api_pro_health_score():
+    """获取全局健康评分"""
+    try:
+        from pro import get_instance_manager
+        im = get_instance_manager()
+        score = im.get_global_health_score()
+        return jsonify({
+            'ok': True,
+            'score': score,
+            'level': 'critical' if score <= 30 else 'high' if score <= 50 else 'medium' if score <= 70 else 'low' if score <= 85 else 'healthy',
+        })
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/history', methods=['GET'])
+def api_pro_inspection_history():
+    """获取巡检历史"""
+    try:
+        from pro import get_instance_manager
+        instance_id = request.args.get('instance_id')
+        limit = int(request.args.get('limit', 100))
+        im = get_instance_manager()
+        history = im.get_inspection_history(instance_id, limit)
+        return jsonify({'ok': True, 'history': history})
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/trend/<instance_id>', methods=['GET'])
+def api_pro_instance_trend(instance_id):
+    """获取实例健康趋势"""
+    try:
+        from pro import get_instance_manager
+        days = int(request.args.get('days', 30))
+        im = get_instance_manager()
+        trend = im.get_instance_trend(instance_id, days)
+        return jsonify({'ok': True, 'trend': trend})
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+# ── 批量导入实例 ────────────────────────────────────────────
+@app.route('/api/pro/instances/import', methods=['POST'])
+def api_pro_import_instances():
+    """从 CSV 批量导入实例"""
+    try:
+        from pro import get_instance_manager
+        data = request.get_json()
+        csv_content = data.get('csv_content', '')
+
+        if not csv_content:
+            return jsonify({'ok': False, 'error': '请提供 CSV 内容'})
+
+        im = get_instance_manager()
+        result = im.batch_add_from_csv(csv_content)
+        return jsonify(result)
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     port = 5003
     print(_t('webui.startup_msg').format(port=port))

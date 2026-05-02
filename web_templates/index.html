@@ -877,6 +877,9 @@ function formatBytes(bytes) {
     <div class="nav-item" onclick="showPage('rag')" id="nav-rag">
       <span class="icon">📚</span> <span data-i18n="webui.rag_nav">RAG 知识库</span>
     </div>
+    <div class="nav-item" onclick="showPage('pro')" id="nav-pro" style="background:var(--surface2);">
+      <span class="icon">🚀</span> <span>DBCheck Pro</span>
+    </div>
     <div class="nav-section" data-i18n="webui.nav_section_setting">设置</div>
     <div class="nav-item" onclick="showPage('notifier')" id="nav-notifier">
       <span class="icon">📧</span> <span data-i18n="webui.nav_notifier">通知设置</span>
@@ -1444,6 +1447,108 @@ function formatBytes(bytes) {
         </div>
       </div>
 
+      <!-- ══ Page: Pro Settings ══ -->
+      <div class="page" id="page-pro">
+        <!-- License Card -->
+        <div class="card">
+          <div class="card-title">
+            <span>🔑</span> 专业版许可证
+            <span class="badge" id="pro-license-status" style="background:var(--warn)">社区版</span>
+          </div>
+          <div id="pro-license-info" style="margin-bottom:16px;padding:12px;background:var(--surface2);border-radius:8px;">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+              <span style="font-size:24px;" id="pro-edition-icon">🏠</span>
+              <div>
+                <div style="font-weight:500;" id="pro-edition-name">社区版</div>
+                <div style="font-size:12px;color:var(--text-muted);" id="pro-license-detail">开源免费，无实例限制</div>
+              </div>
+            </div>
+          </div>
+          <div class="form-grid" id="pro-license-form">
+            <div class="field full">
+              <label>许可证密钥</label>
+              <input type="text" id="pro-license-key" placeholder="DBCheck-Pro-XXXX-XXXX-XXXX" />
+            </div>
+          </div>
+          <div class="btn-row" style="margin-top:16px;">
+            <button class="btn btn-primary" id="btn-pro-activate" onclick="activateProLicense()">🚀 激活专业版</button>
+            <button class="btn btn-ghost" id="btn-pro-deactivate" onclick="deactivateProLicense()" style="display:none;">注销许可证</button>
+          </div>
+          <div id="pro-license-msg" style="margin-top:10px;font-size:13px;"></div>
+        </div>
+
+        <!-- Global Health Score -->
+        <div class="card" id="pro-health-card" style="display:none;">
+          <div class="card-title">
+            <span>📊</span> 全局健康评分
+          </div>
+          <div style="text-align:center;padding:20px;">
+            <div id="pro-health-score" style="font-size:48px;font-weight:700;color:var(--accent);">--</div>
+            <div style="font-size:14px;color:var(--text-muted);margin-top:4px;">
+              综合健康评分（0-100）
+            </div>
+            <div style="margin-top:12px;">
+              <span class="badge" id="pro-health-level" style="background:var(--accent)">--</span>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;text-align:center;margin-top:16px;">
+            <div style="padding:12px;background:var(--surface2);border-radius:8px;">
+              <div id="pro-stat-total" style="font-size:24px;font-weight:600;">0</div>
+              <div style="font-size:12px;color:var(--text-muted);">总实例</div>
+            </div>
+            <div style="padding:12px;background:var(--surface2);border-radius:8px;">
+              <div id="pro-stat-enabled" style="font-size:24px;font-weight:600;color:var(--accent);">0</div>
+              <div style="font-size:12px;color:var(--text-muted);">已启用</div>
+            </div>
+            <div style="padding:12px;background:var(--surface2);border-radius:8px;">
+              <div id="pro-stat-risks" style="font-size:24px;font-weight:600;color:var(--danger);">0</div>
+              <div style="font-size:12px;color:var(--text-muted);">风险项</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Instance Management -->
+        <div class="card" id="pro-instances-card" style="display:none;">
+          <div class="card-title">
+            <span>🗄️</span> 实例管理
+            <span class="badge" id="pro-instance-count" style="background:var(--accent2)">0</span>
+            <div style="margin-left:auto;">
+              <button class="btn btn-ghost" onclick="showAddInstanceModal()" style="font-size:12px;padding:4px 10px;">➕ 添加实例</button>
+              <button class="btn btn-ghost" onclick="importInstances()" style="font-size:12px;padding:4px 10px;">📥 导入</button>
+            </div>
+          </div>
+          <div id="pro-instances-list" style="margin-top:12px;">
+            <div style="text-align:center;padding:40px;color:var(--text-muted);">
+              暂无实例，点击上方按钮添加
+            </div>
+          </div>
+        </div>
+
+        <!-- Groups Management -->
+        <div class="card" id="pro-groups-card" style="display:none;">
+          <div class="card-title">
+            <span>📁</span> 分组管理
+            <div style="margin-left:auto;">
+              <button class="btn btn-ghost" onclick="showAddGroupModal()" style="font-size:12px;padding:4px 10px;">➕ 添加分组</button>
+            </div>
+          </div>
+          <div id="pro-groups-list" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;">
+          </div>
+        </div>
+
+        <!-- Inspection History -->
+        <div class="card" id="pro-history-card" style="display:none;">
+          <div class="card-title">
+            <span>📜</span> 巡检历史
+          </div>
+          <div id="pro-history-list" style="margin-top:12px;max-height:400px;overflow-y:auto;">
+            <div style="text-align:center;padding:40px;color:var(--text-muted);">
+              暂无巡检记录
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- ══ Page: AI Settings ══ -->
       <div class="page" id="page-ai">
         <div class="card">
@@ -1687,6 +1792,7 @@ function showPage(name) {
   if (name === 'notifier') loadNotifierConfig();
   if (name === 'ai') loadAIConfig();
   if (name === 'rag') showRagPage();
+  if (name === 'pro') showProPage();
 }
 
 function startWizard() {
@@ -2903,6 +3009,190 @@ async function initApp() {
   showPage('home');
 }
 initApp();
+
+// ── Pro 专业版函数 ──────────────────────────────
+async function showProPage() {
+  await loadProStatus();
+  const isPro = document.getElementById('pro-license-status').textContent !== '社区版';
+  if (isPro) {
+    document.getElementById('pro-health-card').style.display = '';
+    document.getElementById('pro-instances-card').style.display = '';
+    document.getElementById('pro-groups-card').style.display = '';
+    document.getElementById('pro-history-card').style.display = '';
+    await Promise.all([loadProHealth(), loadProInstances(), loadProGroups(), loadProHistory()]);
+  }
+}
+
+async function loadProStatus() {
+  try {
+    const res = await fetch('/api/pro/status');
+    const data = await res.json();
+    const statusEl = document.getElementById('pro-license-status');
+    const iconEl = document.getElementById('pro-edition-icon');
+    const nameEl = document.getElementById('pro-edition-name');
+    const detailEl = document.getElementById('pro-license-detail');
+    const formEl = document.getElementById('pro-license-form');
+    const btnA = document.getElementById('btn-pro-activate');
+    const btnD = document.getElementById('btn-pro-deactivate');
+    if (data.ok && data.is_pro && data.license.valid) {
+      statusEl.textContent = '专业版';
+      statusEl.style.background = 'var(--accent)';
+      iconEl.textContent = '🚀';
+      nameEl.textContent = 'DBCheck Pro ' + (data.version || '');
+      detailEl.textContent = '许可证: ' + (data.license.type || '') + ' | 到期: ' + (data.license.expires || 'N/A');
+      formEl.style.display = 'none';
+      btnA.style.display = 'none';
+      btnD.style.display = '';
+    } else {
+      statusEl.textContent = '社区版';
+      statusEl.style.background = 'var(--warn)';
+      iconEl.textContent = '🏠';
+      nameEl.textContent = '社区版';
+      detailEl.textContent = '开源免费，无实例限制';
+      formEl.style.display = '';
+      btnA.style.display = '';
+      btnD.style.display = 'none';
+      document.getElementById('pro-health-card').style.display = 'none';
+      document.getElementById('pro-instances-card').style.display = 'none';
+      document.getElementById('pro-groups-card').style.display = 'none';
+      document.getElementById('pro-history-card').style.display = 'none';
+    }
+  } catch(e) {}
+}
+
+async function activateProLicense() {
+  const key = document.getElementById('pro-license-key').value.trim();
+  if (!key) { toastError('请输入许可证密钥'); return; }
+  const msgEl = document.getElementById('pro-license-msg');
+  msgEl.textContent = '正在激活...';
+  msgEl.style.color = 'var(--text-muted)';
+  try {
+    const res = await fetch('/api/pro/license/activate', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({license_key: key})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      toastSuccess('许可证激活成功！');
+      msgEl.textContent = '';
+      await loadProStatus();
+    } else {
+      toastError(data.error || '激活失败');
+      msgEl.textContent = data.error || '激活失败';
+      msgEl.style.color = 'var(--danger)';
+    }
+  } catch(e) { toastError('激活请求失败: ' + e.message); }
+}
+
+async function deactivateProLicense() {
+  if (!confirm('确定要注销许可证吗？')) return;
+  try {
+    const res = await fetch('/api/pro/license/deactivate', {method: 'POST'});
+    const data = await res.json();
+    if (data.success) { toastSuccess('许可证已注销'); await loadProStatus(); }
+  } catch(e) { toastError('注销失败: ' + e.message); }
+}
+
+async function loadProHealth() {
+  try {
+    const res = await fetch('/api/pro/health-score');
+    const data = await res.json();
+    if (!data.ok) return;
+    document.getElementById('pro-health-score').textContent = data.score;
+    const levelEl = document.getElementById('pro-health-level');
+    levelEl.textContent = data.level.toUpperCase();
+    levelEl.style.background = data.level === 'healthy' ? 'var(--accent)' :
+                             data.level === 'low' ? '#4caf50' :
+                             data.level === 'medium' ? 'var(--warn)' : 'var(--danger)';
+    const res2 = await fetch('/api/pro/statistics');
+    const data2 = await res2.json();
+    if (data2.ok) {
+      document.getElementById('pro-stat-total').textContent = data2.statistics.total_instances;
+      document.getElementById('pro-stat-enabled').textContent = data2.statistics.enabled_instances;
+    }
+  } catch(e) {}
+}
+
+async function loadProInstances() {
+  try {
+    const res = await fetch('/api/pro/instances');
+    const data = await res.json();
+    if (!data.ok) return;
+    const listEl = document.getElementById('pro-instances-list');
+    document.getElementById('pro-instance-count').textContent = data.instances.length;
+    if (data.instances.length === 0) {
+      listEl.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">暂无实例，点击上方按钮添加</div>';
+      return;
+    }
+    const icons = {mysql:'🐬',postgresql:'🐘',oracle:'🔶',sqlserver:'🪟',dm:'🏛️',tidb:'🌱'};
+    listEl.innerHTML = data.instances.map(inst => `
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--surface2);border-radius:8px;margin-bottom:8px;">
+        <span style="font-size:18px;">${icons[inst.db_type]||'🗄️'}</span>
+        <div style="flex:1;">
+          <div style="font-weight:500;">${escHtml(inst.name)}</div>
+          <div style="font-size:12px;color:var(--text-muted);">${escHtml(inst.host)}:${inst.port} · ${escHtml(inst.group||'default')}</div>
+        </div>
+        <button class="btn btn-ghost" style="font-size:12px;padding:4px 8px;" onclick="testInstance('${inst.id}')">测试</button>
+        <button class="btn btn-ghost" style="font-size:12px;padding:4px 8px;" onclick="editInstance('${inst.id}')">编辑</button>
+        <button class="btn btn-ghost" style="font-size:12px;padding:4px 8px;color:var(--danger);" onclick="deleteInstance('${inst.id}')">删除</button>
+      </div>`).join('');
+  } catch(e) {}
+}
+
+async function loadProGroups() {
+  try {
+    const res = await fetch('/api/pro/groups');
+    const data = await res.json();
+    if (!data.ok) return;
+    const listEl = document.getElementById('pro-groups-list');
+    listEl.innerHTML = data.groups.map(g => `
+      <span style="display:inline-block;padding:6px 14px;background:var(--surface2);border-radius:20px;font-size:13px;cursor:pointer;" onclick="loadProInstancesByGroup('${g.name}')">
+        <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${g.color||'#378ADD'};margin-right:6px;"></span>
+        ${escHtml(g.name)}
+      </span>`).join('');
+  } catch(e) {}
+}
+
+async function loadProHistory() {
+  try {
+    const res = await fetch('/api/pro/history?limit=20');
+    const data = await res.json();
+    if (!data.ok || !data.history || data.history.length === 0) {
+      document.getElementById('pro-history-list').innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">暂无巡检记录</div>';
+      return;
+    }
+    const listEl = document.getElementById('pro-history-list');
+    listEl.innerHTML = data.history.map(h => {
+      const d = new Date(h.inspect_time);
+      const dateStr = d.toLocaleString('zh-CN');
+      const scoreColor = h.health_score >= 86 ? 'var(--accent)' : h.health_score >= 70 ? '#4caf50' : h.health_score >= 50 ? 'var(--warn)' : 'var(--danger)';
+      return `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--surface2);border-radius:8px;margin-bottom:6px;">
+        <div style="font-size:20px;font-weight:700;color:${scoreColor};min-width:40px;">${h.health_score||'--'}</div>
+        <div style="flex:1;">
+          <div style="font-weight:500;">${escHtml(h.instance_name||h.instance_id)}</div>
+          <div style="font-size:12px;color:var(--text-muted);">${dateStr} · ${escHtml(h.db_type||'')} · 风险项:${h.risk_count||0}</div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {}
+}
+
+// 实例操作占位函数（后续扩展）
+window.testInstance = async function(id) { toast('测试连接中...', 'info'); };
+window.editInstance = function(id) { toast('编辑功能开发中...', 'info'); };
+window.deleteInstance = async function(id) {
+  if (!confirm('确定要删除此实例吗？')) return;
+  try {
+    const res = await fetch('/api/pro/instances/' + id, {method:'DELETE'});
+    const data = await res.json();
+    if (data.success) { toastSuccess('实例已删除'); await loadProInstances(); }
+    else toastError(data.message||'删除失败');
+  } catch(e) { toastError('删除失败: ' + e.message); }
+};
+window.showAddInstanceModal = function() { toast('添加实例功能开发中，当前可通过 API 添加', 'info'); };
+window.showAddGroupModal = function() { toast('分组管理功能开发中', 'info'); };
+window.loadProInstancesByGroup = function(groupName) { toast('按分组筛选: ' + groupName, 'info'); };
+
 </script>
 
 </body>
