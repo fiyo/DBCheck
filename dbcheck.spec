@@ -19,6 +19,8 @@ a = Analysis(
         (os.path.join(project_root, 'web_templates'), 'web_templates'),
         # ── i18n 国际化 ──────────────────────────────────────
         (os.path.join(project_root, 'i18n'), 'i18n'),
+        # ── RAG 知识库模块 ───────────────────────────────────
+        (os.path.join(project_root, 'rag'), 'rag'),
     ],
     hiddenimports=[
         # ── 数据库驱动 ───────────────────────────────────────
@@ -135,6 +137,13 @@ a = Analysis(
         'i18n',
         'i18n.zh',
         'i18n.en',
+        # ── RAG 知识库模块（v2.5.0 新增）─────────────────
+        'rag',
+        'rag.manager',
+        'rag.document_processor',
+        'rag.embeddings',
+        'rag.vector_store',
+        'rag.retriever',
     ],
     hookspath=[],
     hooksconfig={},
