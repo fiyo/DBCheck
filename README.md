@@ -3,7 +3,7 @@
 DBCheck is an open-source, cross-platform automated database health check tool that supports six mainstream relational databases: **MySQL**, **PostgreSQL**, **Oracle**, **SQL Server**, **DM8**, and **TiDB**. The tool automatically generates standardized Microsoft Word inspection reports by executing predefined SQL checks and collecting system resources. It also provides advanced features such as historical trend analysis, AI-powered intelligent diagnostics, configuration baseline compliance checks, index health analysis, in-depth slow query analysis, and data-masked export. DBCheck aims to free DBAs from repetitive and time-consuming manual inspection work, improving database operation and maintenance efficiency and risk detection capabilities.
 
 
-[![Version](https://img.shields.io/badge/version-2.5.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)]()
 [![MySQL](https://img.shields.io/badge/database-MySQL-blue.svg)]()
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-gray.svg)]()
 [![Oracle](https://img.shields.io/badge/Oracle-red.svg)]()
@@ -97,10 +97,10 @@ Each risk is presented as a card: **Risk Level (High/Medium/Low) → Issue Descr
 
 | Capability | Description |
 |-----------|-------------|
+| 🗄️ Centralized Datasource Management | Unified management of all database instances with grouping, batch inspection, connection testing, and CSV import/export |
 | 📊 Historical Trend Analysis | Automatically aggregates data from multiple inspection runs on the same database, generates metric trend line charts, and compares against previous results to surface changes |
 | 🤖 AI-Powered Diagnosis | Calls local Ollama based on inspection metrics to generate personalized optimization recommendations |
 | 🔍 130+ Enhanced Rules | Full-dimensional risk detection across six databases (MySQL 35+, PG 27+, Oracle 20+, SQL Server 15+, DM8 16+, TiDB 18+) — including 28 new slow query deep analysis rules |
-| 🔒 Desensitize Report | Auto-masks IP, port, username, service name in exported Word report to prevent info leakage |
 
 ---
 
@@ -145,6 +145,42 @@ Each risk is presented as a card: **Risk Level (High/Medium/Low) → Issue Descr
 | Datafile Status | — | — | ✅ | ✅ | ✅ | — |
 | DM8 Buffer Pool Details | — | — | — | — | ✅ | — |
 | Placement & Affinity Policy | — | — | — | — | — | ✅ |
+
+### Datasource Management 🗄️
+
+> Unified management of all database instances with grouping, batch inspection, and connection testing — significantly improving operational efficiency.
+
+#### Core Features
+
+| Feature | Description |
+|---------|-------------|
+| Multi-Database Support | MySQL / PostgreSQL / Oracle / SQL Server / DM8 / TiDB |
+| Instance Info | Customizable labels, groups, ports, usernames |
+| Oracle-Specific | Service Name/SID configuration, SYSDBA privileged connection |
+| Connection Testing | One-click database connection test with real-time results |
+| Group Management | Organize by business/environment with custom color tags |
+| CSV Import/Export | Batch import/export datasource configurations |
+
+#### Web UI Datasource Management
+
+| Feature | Description |
+|---------|-------------|
+| Add Datasource | Select database type → fill connection info → save |
+| Edit Datasource | Modify any field, password optional update |
+| Delete Datasource | With confirmation dialog to prevent accidental deletion |
+| Connection Test | Test saved datasources with real-time results |
+| Group Filtering | Filter by group to quickly locate target instances |
+| Batch Import | Import datasources from CSV file |
+| Batch Export | Export all datasources to CSV with one click |
+
+#### Group Management
+
+| Feature | Description |
+|---------|-------------|
+| Create Group | Custom name and color support |
+| Edit Group | Modify name and color |
+| Delete Group | Non-default groups can be deleted |
+| Color Tags | Each group can have different colors for easy identification |
 
 ### Configuration Baseline Checks
 
@@ -718,17 +754,18 @@ python web_ui.py
 
 | Step | Function |
 |:---:|---------|
-| 1 | Select database type (🐬 MySQL / 🐘 PostgreSQL / 🔴 Oracle / 🟠 SQL Server / 🟡 DM8 / 🐬 TiDB) |
-| 2 | Fill in connection info — Oracle requires service name/SID; DM8 does not need a database name |
-| 3 | Online connection testing (SYSDBA privileged verification via checkbox) |
-| 4 | Configure SSH for system resource collection (optional, default port 22; DM8 supports SSH with auto-fallback) |
-| 5 | Inspector name (default: dbcheck), optionally check "🔒 Desensitize Report" to mask sensitive info |
-| 6 | Confirm and execute with one click — real-time log streaming (SSE) |
-| 7 | Upon completion, preview intelligent analysis + AI diagnosis results online |
-| 8 | 📊 History & Trends | View trend charts and historical inspection reports |
-| 9 | ⏰ Scheduled Inspection | Configure cron-based recurring inspections |
-| 10 | 📧🔔 Notification Settings | Email and Webhook alerting configuration |
-| 11 | 📚 RAG Knowledge Base | Upload and manage database documentation for AI-enhanced diagnostics |
+| 1 | 🗄️ Datasource Management: Add, edit, delete, test database connections with group management |
+| 2 | Select database type (🐬 MySQL / 🐘 PostgreSQL / 🔴 Oracle / 🟠 SQL Server / 🟡 DM8 / 🐬 TiDB) |
+| 3 | Fill in connection info — Oracle requires service name/SID; DM8 does not need a database name |
+| 4 | Online connection testing (SYSDBA privileged verification via checkbox) |
+| 5 | Configure SSH for system resource collection (optional, default port 22; DM8 supports SSH with auto-fallback) |
+| 6 | Inspector name (default: dbcheck), optionally check "🔒 Desensitize Report" to mask sensitive info |
+| 7 | Confirm and execute with one click — real-time log streaming (SSE) |
+| 8 | Upon completion, preview intelligent analysis + AI diagnosis results online |
+| 9 | 📊 History & Trends | View trend charts and historical inspection reports |
+| 10 | ⏰ Scheduled Inspection | Configure cron-based recurring inspections |
+| 11 | 📧🔔 Notification Settings | Email and Webhook alerting configuration |
+| 12 | 📚 RAG Knowledge Base | Upload and manage database documentation for AI-enhanced diagnostics |
 
 ### OpenClaw Skill
 

@@ -66,6 +66,7 @@ class DatabaseInstance:
     user: str
     password: str = ""  # 加密存储
     service_name: str = ""  # Oracle 专用
+    sysdba: bool = False  # Oracle SYSDBA 连接
     tags: List[str] = None  # 标签列表
     group: str = "default"  # 分组
     enabled: bool = True
@@ -227,7 +228,7 @@ class InstanceManager:
         output = io.StringIO()
         writer = csv.DictWriter(output, fieldnames=[
             'name', 'db_type', 'host', 'port', 'user', 'password',
-            'service_name', 'group', 'tags', 'description'
+            'service_name', 'sysdba', 'group', 'tags', 'description'
         ])
         writer.writeheader()
         for inst in self._instances.values():
@@ -239,6 +240,7 @@ class InstanceManager:
                 'user': inst.user,
                 'password': '',  # 不导出明文密码
                 'service_name': inst.service_name,
+                'sysdba': inst.sysdba,
                 'group': inst.group,
                 'tags': ','.join(inst.tags or []),
                 'description': inst.description,
@@ -276,12 +278,14 @@ class InstanceManager:
                 conn.close()
                 return {'ok': True, 'message': '连接成功 (PostgreSQL %s:%d)' % (inst.host, inst.port)}
 
-            elif db_type == 'oracle':
+            elif db_type == 'oracle' or db_type == 'oracle_full':
                 import oracledb
                 dsn = inst.service_name or '%s:%d/orcl' % (inst.host, inst.port)
-                conn = oracledb.connect(user=inst.user, password=password, dsn=dsn)
+                mode = oracledb.SYSDBA if inst.sysdba else oracledb.DEFAULT_MODE
+                conn = oracledb.connect(user=inst.user, password=password, dsn=dsn, mode=mode)
                 conn.close()
-                return {'ok': True, 'message': '连接成功 (Oracle %s)' % dsn}
+                sysdba_msg = " (SYSDBA)" if inst.sysdba else ""
+                return {'ok': True, 'message': '连接成功 (Oracle%s %s)' % (sysdba_msg, dsn)}
 
             elif db_type == 'sqlserver':
                 import pyodbc

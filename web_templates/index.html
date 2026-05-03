@@ -591,10 +591,130 @@ select option { background: var(--surface2); }
   flex-shrink: 0;
 }
 
-.feature-grid {
+/* 首页区域 */
+.home-section {
   width: 100%;
   max-width: 900px;
-  margin: 0 auto 24px;
+  margin: 0 auto 32px;
+}
+.section-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+.section-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.section-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* 功能卡片网格 */
+.feature-grid-new {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.feature-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  transition: all var(--trans);
+}
+.feature-card:hover {
+  border-color: var(--accent2);
+  transform: translateY(-2px);
+}
+.feature-card.feature-primary {
+  grid-column: 1 / -1;
+  background: linear-gradient(135deg, rgba(46,160,67,0.15), rgba(56,139,253,0.15));
+  border-color: rgba(46,160,67,0.3);
+}
+.feature-card.feature-primary:hover {
+  border-color: var(--accent);
+}
+.feature-card .fc-icon {
+  font-size: 28px;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.05);
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+.feature-card.feature-primary .fc-icon {
+  background: rgba(46,160,67,0.2);
+}
+.feature-card .fc-content {
+  flex: 1;
+}
+.feature-card .fc-content h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--text);
+}
+.feature-card .fc-content p {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.feature-card .btn {
+  flex-shrink: 0;
+  align-self: center;
+}
+
+/* 数据库支持网格 */
+.db-support-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+}
+.db-support-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 12px;
+  text-align: center;
+  transition: all var(--trans);
+}
+.db-support-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+.db-support-card .db-logo {
+  font-size: 32px;
+  margin-bottom: 8px;
+}
+.db-support-card .db-info h4 {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: var(--text);
+}
+.db-support-card .db-info span {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.db-support-card.db-mysql:hover { border-color: #00758f; }
+.db-support-card.db-pg:hover { border-color: #336791; }
+.db-support-card.db-oracle:hover { border-color: #f80000; }
+.db-support-card.db-dm:hover { border-color: #f5a623; }
+.db-support-card.db-sqlserver:hover { border-color: #cc2927; }
+.db-support-card.db-tidb:hover { border-color: #00b140; }
+
+/* 旧样式保留但隐藏 */
+.feature-grid {
+  display: none;
 }
 .overview-grid {
   display: grid;
@@ -840,6 +960,29 @@ select option { background: var(--surface2); }
 @keyframes toastOut {
   from { transform: translateX(0);   opacity: 1; }
   to   { transform: translateX(110%); opacity: 0; }
+}
+
+/* 响应式布局 */
+@media (max-width: 900px) {
+  .feature-grid-new {
+    grid-template-columns: 1fr;
+  }
+  .db-support-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (max-width: 600px) {
+  .db-support-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .feature-card {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  .feature-card .fc-content h3 {
+    font-size: 14px;
+  }
 }
 </style>
 </head>
@@ -1195,8 +1338,11 @@ function formatBytes(bytes) {
                 '<input id="ds-password" type="password" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="' + i18n('webui.pro_ds_password') + '"></div>' +
               '<div id="ds-database-wrap" style="display:none"><label style="font-size:12px;color:var(--text-muted)">' + i18n('webui.pro_ds_database_pg') + '</label>' +
                 '<input id="ds-database" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="' + i18n('webui.pro_ds_placeholder_database') + '"></div>' +
-              '<div id="ds-service-wrap" style="display:none"><label style="font-size:12px;color:var(--text-muted)">' + i18n('webui.pro_ds_service_oracle') + '</label>' +
+              '<div id="ds-service-wrap" style="display:none"><label style="font-size:12px;color:var(--text-muted)">' + i18n('webui.label_service_sid') + '</label>' +
                 '<input id="ds-service-name" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="' + i18n('webui.pro_ds_placeholder_service') + '"></div>' +
+              '<div id="ds-sysdba-wrap" style="display:none"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 0">' +
+                '<input type="checkbox" id="ds-sysdba" style="width:16px;height:16px;accent-color:var(--accent)" />' +
+                '<span style="font-size:13px">' + i18n('webui.checkbox_sysdba') + '</span></label></div>' +
               '<div><label style="font-size:12px;color:var(--text-muted)">' + i18n('webui.pro_ds_group') + '</label>' +
                 '<select id="ds-group" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px">' +
                 '<option value="default">default</option></select></div>' +
@@ -1218,15 +1364,21 @@ function formatBytes(bytes) {
         });
       }
 
+      let _currentDbType = '';
       function onDsDbTypeChange() {
         const dbType = document.getElementById('ds-db-type').value;
         const portMap = {mysql:3306, pg:5432, dm:5236, oracle_full:1521, sqlserver:1433, tidb:4000};
-        const userMap = {mysql:'root', pg:'postgres', dm:'SYSDBA', oracle_full:'sys', sqlserver:'sa', tidb:'root'};
+        const userMap = {mysql:'root', pg:'postgres', dm:'SYSDBA', oracle_full:'system', sqlserver:'sa', tidb:'root'};
         document.getElementById('ds-port').value = portMap[dbType] || 3306;
         const userEl = document.getElementById('ds-user');
-        if (!userEl.value) userEl.value = userMap[dbType] || 'root';
+        // 类型改变时强制更新用户名
+        if (dbType !== _currentDbType || !userEl.value) {
+          userEl.value = userMap[dbType] || 'root';
+        }
+        _currentDbType = dbType;
         document.getElementById('ds-database-wrap').style.display = dbType === 'pg' ? '' : 'none';
         document.getElementById('ds-service-wrap').style.display = dbType === 'oracle_full' ? '' : 'none';
+        document.getElementById('ds-sysdba-wrap').style.display = dbType === 'oracle_full' ? '' : 'none';
       }
 
       async function saveDatasource() {
@@ -1242,7 +1394,10 @@ function formatBytes(bytes) {
           group: document.getElementById('ds-group').value.trim() || 'default',
         };
         if (payload.db_type === 'pg') payload.database = document.getElementById('ds-database').value.trim();
-        if (payload.db_type === 'oracle_full') payload.service_name = document.getElementById('ds-service-name').value.trim();
+        if (payload.db_type === 'oracle_full') {
+          payload.service_name = document.getElementById('ds-service-name').value.trim();
+          payload.sysdba = document.getElementById('ds-sysdba').checked;
+        }
         if (!payload.name || !payload.host || !payload.user) {
           msgEl.style.color = 'var(--danger)';
           msgEl.textContent = i18n('webui.pro_ds_required_hint');
@@ -1298,6 +1453,7 @@ function formatBytes(bytes) {
               }
               if (ds.db_type === 'oracle_full') {
                 document.getElementById('ds-service-name').value = ds.service_name || '';
+                document.getElementById('ds-sysdba').checked = ds.sysdba === true;
               }
               onDsDbTypeChange();
               // 添加隐藏字段存储ID
@@ -1453,21 +1609,22 @@ function formatBytes(bytes) {
       <!-- ══ Page: Home ══ -->
       <div class="page active" id="page-home">
         <!-- 简化标题栏 -->
-        <div class="home-header">
-          <div class="home-title-row">
-            <div>
-              <h1 class="home-title" data-i18n="webui.home_welcome">欢迎使用 DBCheck</h1>
-              <p class="home-subtitle" data-i18n="webui.home_subtitle">数据库健康巡检工具</p>
-            </div>
-            <div class="home-actions">
-              <button class="btn btn-primary" onclick="startWizard()" data-i18n="webui.btn_start_inspection">▶ 开始巡检</button>
-              <button class="btn btn-ghost" onclick="showPage('reports')" data-i18n="webui.view_history_reports">📄 历史报告</button>
-            </div>
+        <!-- <div class="home-hero">
+          <img src="/dbcheck_logo.png" alt="DBCheck" style="width:80px;height:80px;margin-bottom:16px;">
+          <h2 data-i18n="webui.hero_title">数据库健康巡检</h2>
+          <p data-i18n="webui.hero_desc">自动采集 MySQL / PostgreSQL / Oracle / SQL Server/ 达梦（DM）/ TiDB 数据库关键指标，结合系统资源监控，一键生成专业 Word 巡检报告。</p>
+          <div class="quick-actions">
+            <button class="btn btn-primary" onclick="startWizard()" data-i18n="webui.btn_start_inspection">▶ 开始巡检</button>
+            <button class="btn btn-ghost" onclick="showPage('reports')" data-i18n="webui.view_history_reports">📄 查看历史报告</button>
           </div>
-        </div>
+        </div> -->
 
         <!-- 首页概览卡片 -->
         <div class="home-overview" id="home-overview-section" style="display:none;">
+          <div class="section-header">
+            <h2 class="section-title">系统概览</h2>
+            <p class="section-desc">运行状态实时监控</p>
+          </div>
           <div class="overview-grid">
             <!-- 实例分布 -->
             <div class="overview-card">
@@ -1531,36 +1688,108 @@ function formatBytes(bytes) {
           </div>
         </div>
 
-        <div class="feature-grid">
-          <div class="feature-item">
-            <div class="fi-icon">🗄️</div>
-            <div class="fi-title" data-i18n="webui.fi_support">多数据库支持</div>
-            <div class="fi-desc" data-i18n="webui.fi_support_desc">同时支持 MySQL、PostgreSQL、Oracle 与达梦（DM），覆盖主流生产环境。</div>
+        <!-- 核心功能区 -->
+        <div class="home-section">
+          <div class="section-header">
+            <h2 class="section-title">核心功能</h2>
+            <p class="section-desc">一站式数据库健康巡检解决方案</p>
           </div>
-          <div class="feature-item">
-            <div class="fi-icon">📊</div>
-            <div class="fi-title" data-i18n="webui.fi_metrics">全面指标采集</div>
-            <div class="fi-desc" data-i18n="webui.fi_metrics_desc">连接、内存、锁、复制、索引、慢查询等 20+ 项指标。</div>
+          <div class="feature-grid-new">
+            <div class="feature-card feature-primary">
+              <div class="fc-icon">🚀</div>
+              <div class="fc-content">
+                <h3>快速巡检</h3>
+                <p>选择数据库 → 填写连接 → 一键巡检，5 分钟生成完整报告</p>
+              </div>
+              <button class="btn btn-primary" onclick="showPage('wizard')">立即开始</button>
+            </div>
+            <div class="feature-card">
+              <div class="fc-icon">🗄️</div>
+              <div class="fc-content">
+                <h3>多数据库支持</h3>
+                <p>MySQL · PostgreSQL · Oracle · SQL Server · DM8 · TiDB</p>
+              </div>
+            </div>
+            <div class="feature-card">
+              <div class="fc-icon">📊</div>
+              <div class="fc-content">
+                <h3>全面指标采集</h3>
+                <p>连接、内存、锁、复制、索引、慢查询等 20+ 项核心指标</p>
+              </div>
+            </div>
+            <div class="feature-card">
+              <div class="fc-icon">⚠️</div>
+              <div class="fc-content">
+                <h3>AI 智能诊断</h3>
+                <p>自动识别阈值异常，给出风险等级与处理建议</p>
+              </div>
+            </div>
+            <div class="feature-card">
+              <div class="fc-icon">📝</div>
+              <div class="fc-content">
+                <h3>专业 Word 报告</h3>
+                <p>规范模板，覆盖封面、配置、性能、安全等完整章节</p>
+              </div>
+            </div>
+            <div class="feature-card">
+              <div class="fc-icon">⏰</div>
+              <div class="fc-content">
+                <h3>定时巡检</h3>
+                <p>配置 Cron 表达式，自动执行巡检并推送报告</p>
+              </div>
+            </div>
           </div>
-          <div class="feature-item">
-            <div class="fi-icon">🖥️</div>
-            <div class="fi-title" data-i18n="webui.fi_system">系统资源监控</div>
-            <div class="fi-desc" data-i18n="webui.fi_system_desc">支持本地采集或 SSH 远程采集 CPU / 内存 / 磁盘信息。</div>
+        </div>
+
+        <!-- 数据库支持展示 -->
+        <div class="home-section">
+          <div class="section-header">
+            <h2 class="section-title">支持的数据库</h2>
+            <p class="section-desc">覆盖主流开源与商业数据库</p>
           </div>
-          <div class="feature-item">
-            <div class="fi-icon">⚠️</div>
-            <div class="fi-title" data-i18n="webui.fi_risk">AI 智能风险分析</div>
-            <div class="fi-desc" data-i18n="webui.fi_risk_desc">自动识别阈值异常，给出风险等级与处理建议。</div>
-          </div>
-          <div class="feature-item">
-            <div class="fi-icon">📝</div>
-            <div class="fi-title" data-i18n="webui.fi_report">专业 Word 报告</div>
-            <div class="fi-desc" data-i18n="webui.fi_report_desc">规范模板，覆盖封面、配置、性能、安全等完整章节。</div>
-          </div>
-          <div class="feature-item">
-            <div class="fi-icon">🚀</div>
-            <div class="fi-title" data-i18n="webui.fi_web">Web 可视化操作</div>
-            <div class="fi-desc" data-i18n="webui.fi_web_desc">全程界面化，告别命令行，支持实时日志追踪。</div>
+          <div class="db-support-grid">
+            <div class="db-support-card db-mysql">
+              <div class="db-logo">🐬</div>
+              <div class="db-info">
+                <h4>MySQL</h4>
+                <span>5.6 / 5.7 / 8.0+</span>
+              </div>
+            </div>
+            <div class="db-support-card db-pg">
+              <div class="db-logo">🐘</div>
+              <div class="db-info">
+                <h4>PostgreSQL</h4>
+                <span>10+</span>
+              </div>
+            </div>
+            <div class="db-support-card db-oracle">
+              <div class="db-logo">🔴</div>
+              <div class="db-info">
+                <h4>Oracle</h4>
+                <span>10g / 11g / 12c / 19c / 21c</span>
+              </div>
+            </div>
+            <div class="db-support-card db-dm">
+              <div class="db-logo">🟡</div>
+              <div class="db-info">
+                <h4>达梦 DM8</h4>
+                <span>DM8 及以上</span>
+              </div>
+            </div>
+            <div class="db-support-card db-sqlserver">
+              <div class="db-logo">🟠</div>
+              <div class="db-info">
+                <h4>SQL Server</h4>
+                <span>2012+</span>
+              </div>
+            </div>
+            <div class="db-support-card db-tidb">
+              <div class="db-logo">🟢</div>
+              <div class="db-info">
+                <h4>TiDB</h4>
+                <span>6.5+ / MySQL 8.0 兼容</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -2561,7 +2790,7 @@ function selectDbType(type, skipReload) {
   document.getElementById('chk-sqlserver').textContent = type === 'sqlserver' ? '✓' : '';
   // 默认端口 & 用户名
   const portMap = { mysql: 3306, pg: 5432, dm: 5236, oracle_full: 1521, sqlserver: 1433, tidb: 4000 };
-  const userMap = { mysql: 'root', pg: 'postgres', dm: 'SYSDBA', oracle_full: 'sys', sqlserver: 'sa', tidb: 'root' };
+  const userMap = { mysql: 'root', pg: 'postgres', dm: 'SYSDBA', oracle_full: 'system', sqlserver: 'sa', tidb: 'root' };
   document.getElementById('f-port').value = portMap[type] || 3306;
   document.getElementById('f-user').value = userMap[type] || 'root';
   document.getElementById('f-database-wrap').style.display = type === 'pg' ? '' : 'none';
@@ -2689,7 +2918,7 @@ function fillConfirmPanel() {
   };
   const nameDefaults = { mysql: 'MySQL_Server', pg: 'PG_Server', oracle_full: 'Oracle_Server', dm: 'DM8_Server', sqlserver: 'SQLServer', tidb: 'TiDB_Cluster' };
   const portDefaults = { mysql: '3306', pg: '5432', oracle_full: '1521', dm: '5236', sqlserver: '1433', tidb: '4000' };
-  const userDefaults = { mysql: 'root', pg: 'postgres', oracle_full: 'sys', dm: 'SYSDBA', sqlserver: 'sa', tidb: 'root' };
+  const userDefaults = { mysql: 'root', pg: 'postgres', oracle_full: 'system', dm: 'SYSDBA', sqlserver: 'sa', tidb: 'root' };
   const typeLabel = typeLabels[dbType] || dbType;
   const name = document.getElementById('f-name').value.trim() || (nameDefaults[dbType]||'_Server');
   const host = document.getElementById('f-host').value.trim() || 'localhost';

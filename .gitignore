@@ -17,9 +17,20 @@ scheduler.log
 snapshot/
 docs/README.md
 docs/
+memory/
+20260409082251/
+scheduler.log
+scheduler_jobs.json
+ai_config.json
+dbc_config.json
+.db_key
+flask.log
+
 # Pro license activation
 license.key
 license.key.bak
+
+mysql_inspector.lic
 
 # Pro runtime data
 pro_data/

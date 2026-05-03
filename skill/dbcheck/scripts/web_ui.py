@@ -1058,7 +1058,16 @@ def index():
     except Exception:
         lang = 'zh'
         i18n_data = {}
-    return render_template('index.html', version=__version__, lang=lang, i18n_data=i18n_data)
+    # 检测 Pro 模块是否可用
+    pro_available = False
+    try:
+        from pro import get_rule_engine
+        get_rule_engine()
+        pro_available = True
+    except Exception:
+        pass
+    return render_template('index.html', version=__version__, lang=lang, i18n_data=i18n_data,
+                           pro_available=pro_available)
 
 
 @app.route('/api/i18n')
@@ -1247,19 +1256,40 @@ def api_start_inspection():
         db_type = data.get('db_type', 'mysql')
         inspector_name = data.get('inspector_name', data.get('inspector', 'Jack'))
 
-        db_info = {
-            'ip':        data.get('host', ''),
-            'port':      int(data.get('port', 0) or 0),
-            'user':      data.get('user', ''),
-            'password':  data.get('password', ''),
-            'database':  'master' if db_type == 'sqlserver' else ('DAMENG' if db_type == 'dm' else (data.get('database') or ('' if db_type == 'tidb' else 'postgres'))),
-            'service_name': data.get('service_name', None),
-            'sid':       data.get('sid', None),
-            'output_dir': data.get('output_dir', None),
-            'zip':       data.get('zip', False),
-            'name':      data.get('name', ''),
-            'desensitize': bool(data.get('desensitize', False)),
-        }
+        # 支持通过数据源ID获取连接信息
+        datasource_id = data.get('datasource_id')
+        if datasource_id:
+            from pro import get_instance_manager
+            im = get_instance_manager()
+            instance = im.get_instance_decrypted(datasource_id)
+            if not instance:
+                return jsonify({'ok': False, 'msg': '数据源不存在'})
+            # 使用数据源的连接信息
+            db_info = {
+                'ip':        instance.get('host', ''),
+                'port':      int(instance.get('port', 0) or 0),
+                'user':      instance.get('user', ''),
+                'password':  instance.get('password', ''),
+                'database':  'master' if db_type == 'sqlserver' else ('DAMENG' if db_type == 'dm' else (instance.get('database') or ('' if db_type == 'tidb' else 'postgres'))),
+                'service_name': instance.get('service_name', None),
+                'name':      instance.get('name', ''),
+                'desensitize': bool(data.get('desensitize', False)),
+            }
+        else:
+            # 原有逻辑：使用手动输入的连接信息
+            db_info = {
+                'ip':        data.get('host', ''),
+                'port':      int(data.get('port', 0) or 0),
+                'user':      data.get('user', ''),
+                'password':  data.get('password', ''),
+                'database':  'master' if db_type == 'sqlserver' else ('DAMENG' if db_type == 'dm' else (data.get('database') or ('' if db_type == 'tidb' else 'postgres'))),
+                'service_name': data.get('service_name', None),
+                'sid':       data.get('sid', None),
+                'output_dir': data.get('output_dir', None),
+                'zip':       data.get('zip', False),
+                'name':      data.get('name', ''),
+                'desensitize': bool(data.get('desensitize', False)),
+            }
 
         if data.get('ssh_host'):
             db_info.update({
@@ -1421,39 +1451,55 @@ def api_scheduler_add():
         data = request.json
         if not data:
             return jsonify({'ok': False, 'error': 'No data provided'}), 400
-        
+
         # 验证必需字段
         job_id = data.get('id') or str(uuid.uuid4())
         cron = data.get('cron', {})
         if not cron:
             return jsonify({'ok': False, 'error': 'Cron expression required'}), 400
-        
-        job_cfg = {
-            'id': job_id,
-            'name': data.get('name', '定时巡检'),
-            'db_type': data.get('db_type', 'mysql'),
-            'inspector_name': data.get('inspector_name', 'Jack'),
-            'notify_on_done': bool(data.get('notify_on_done', True)),
-            'cron': cron,
-            'enabled': True,
-            'db_info': {
-                'label': data.get('label', ''),
-                'db_type': data.get('db_type', 'mysql'),
-                'host': data.get('host', ''),
-                'port': int(data.get('port', 0) or 3306),
-                'user': data.get('user', ''),
-                'password': data.get('password', ''),
-                'database': data.get('database', ''),
-                'service_name': data.get('service_name', None),
-                'sid': data.get('sid', None),
-                'ssh_host': data.get('ssh_host', None),
-                'ssh_port': int(data.get('ssh_port', 22) or 22),
-                'ssh_user': data.get('ssh_user', None),
-                'ssh_password': data.get('ssh_password', ''),
-                'ssh_key_file': data.get('ssh_key_file', ''),
+
+        # 如果指定了数据源，只保存 datasource_id（密码在执行时解密）
+        datasource_id = data.get('datasource_id')
+        if datasource_id:
+            job_cfg = {
+                'id': job_id,
+                'name': data.get('name', '定时巡检'),
+                'inspector_name': data.get('inspector_name', 'Jack'),
+                'notify_on_done': bool(data.get('notify_on_done', True)),
+                'cron': cron,
+                'enabled': True,
+                'db_info': {
+                    'datasource_id': datasource_id,
+                    'label': data.get('label', datasource_id),
+                }
             }
-        }
-        
+        else:
+            job_cfg = {
+                'id': job_id,
+                'name': data.get('name', '定时巡检'),
+                'db_type': data.get('db_type', 'mysql'),
+                'inspector_name': data.get('inspector_name', 'Jack'),
+                'notify_on_done': bool(data.get('notify_on_done', True)),
+                'cron': cron,
+                'enabled': True,
+                'db_info': {
+                    'label': data.get('label', ''),
+                    'db_type': data.get('db_type', 'mysql'),
+                    'host': data.get('host', ''),
+                    'port': int(data.get('port', 0) or 3306),
+                    'user': data.get('user', ''),
+                    'password': data.get('password', ''),
+                    'database': data.get('database', ''),
+                    'service_name': data.get('service_name', None),
+                    'sid': data.get('sid', None),
+                    'ssh_host': data.get('ssh_host', None),
+                    'ssh_port': int(data.get('ssh_port', 22) or 22),
+                    'ssh_user': data.get('ssh_user', None),
+                    'ssh_password': data.get('ssh_password', ''),
+                    'ssh_key_file': data.get('ssh_key_file', ''),
+                }
+            }
+
         sm = _get_scheduler()
         success = sm.add_job(job_cfg)
         if success:
@@ -1601,12 +1647,12 @@ def api_rag_upload_document():
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(f.filename)[1])
         f.save(tmp.name)
         tmp.close()
-        result = mgr.add_document(tmp.name, db_type, title)
+        ok, message = mgr.add_document(tmp.name, db_type, title)
         os.unlink(tmp.name)
-        if result.get('ok'):
-            return jsonify({'ok': True, 'doc': result})
+        if ok:
+            return jsonify({'ok': True, 'message': message})
         else:
-            return jsonify({'ok': False, 'error': result.get('error', '向量化失败')})
+            return jsonify({'ok': False, 'error': message})
     except Exception as e:
         import traceback; traceback.print_exc()
         return jsonify({'ok': False, 'error': str(e)})
@@ -1617,7 +1663,7 @@ def api_rag_delete_document(doc_id):
     if mgr is None:
         return jsonify({'ok': False, 'error': 'RAG 模块未加载'})
     try:
-        ok = mgr.delete_document(doc_id)
+        ok, _ = mgr.delete_document(doc_id)
         return jsonify({'ok': ok})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)})
@@ -1634,6 +1680,418 @@ def api_rag_ollama_status():
         return jsonify({'ok': False, 'error': '返回向量为空'})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)})
+
+
+# ── Pro 专业版 API ──────────────────────────────────────────
+@app.route('/api/pro/status', methods=['GET'])
+def api_pro_status():
+    """获取 Pro 版本状态（无需许可证验证）"""
+    try:
+        from pro import is_pro, get_edition
+        from pro import get_instance_manager
+        import pro.version as pro_version
+
+        im = get_instance_manager()
+        stats = im.get_statistics()
+
+        return jsonify({
+            'ok': True,
+            'is_pro': True,  # 无需许可证，始终为 True
+            'edition': 'community+',
+            'version': getattr(pro_version, '__version__', '2.3.8'),
+            'release_date': getattr(pro_version, '__release_date__', ''),
+            'license': {
+                'valid': True,
+                'type': 'community+',
+                'expires': '',
+                'max_instances': -1,  # 无限制
+                'features': ['all'],
+            },
+            'instances': stats,
+        })
+    except ImportError:
+        return jsonify({
+            'ok': True,
+            'is_pro': True,
+            'edition': 'community+',
+            'version': '2.3.8',
+            'license': {'valid': True, 'type': 'community+', 'features': ['all']},
+            'instances': {'total_instances': 0},
+        })
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/groups', methods=['GET'])
+def api_pro_groups():
+    """获取所有分组"""
+    try:
+        from pro import get_instance_manager
+        im = get_instance_manager()
+        groups = im.get_all_groups()
+        # 兼容对象和字典两种格式
+        result = []
+        for g in groups:
+            if isinstance(g, dict):
+                result.append(g)
+            else:
+                result.append(g.to_dict())
+        return jsonify({
+            'ok': True,
+            'groups': result,
+        })
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/groups', methods=['POST'])
+def api_pro_add_group():
+    """添加分组"""
+    try:
+        from pro import get_instance_manager, InstanceGroup
+        data = request.get_json()
+        group = InstanceGroup(
+            name=data.get('name', ''),
+            description=data.get('description', ''),
+            color=data.get('color', '#378ADD'),
+        )
+        im = get_instance_manager()
+        result = im.add_group(group)
+        return jsonify(result)
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/groups/<path:group_name>', methods=['DELETE'])
+def api_pro_delete_group(group_name):
+    """删除分组"""
+    try:
+        from pro import get_instance_manager
+        im = get_instance_manager()
+        result = im.delete_group(group_name)
+        return jsonify(result)
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/statistics', methods=['GET'])
+def api_pro_statistics():
+    """获取全局统计"""
+    try:
+        from pro import get_instance_manager
+        im = get_instance_manager()
+        stats = im.get_statistics()
+        stats['global_health_score'] = im.get_global_health_score()
+        return jsonify({'ok': True, 'statistics': stats})
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/health-score', methods=['GET'])
+def api_pro_health_score():
+    """获取全局健康评分"""
+    try:
+        from pro import get_instance_manager
+        im = get_instance_manager()
+        score = im.get_global_health_score()
+        return jsonify({
+            'ok': True,
+            'score': score,
+            'level': 'critical' if score <= 30 else 'high' if score <= 50 else 'medium' if score <= 70 else 'low' if score <= 85 else 'healthy',
+        })
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/history', methods=['GET'])
+def api_pro_inspection_history():
+    """获取巡检历史"""
+    try:
+        from pro import get_instance_manager
+        instance_id = request.args.get('instance_id')
+        limit = int(request.args.get('limit', 100))
+        im = get_instance_manager()
+        history = im.get_inspection_history(instance_id, limit)
+        return jsonify({'ok': True, 'history': history})
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/trend/<instance_id>', methods=['GET'])
+def api_pro_instance_trend(instance_id):
+    """获取实例健康趋势"""
+    try:
+        from pro import get_instance_manager
+        days = int(request.args.get('days', 30))
+        im = get_instance_manager()
+        trend = im.get_instance_trend(instance_id, days)
+        return jsonify({'ok': True, 'trend': trend})
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/instances/import', methods=['POST'])
+def api_pro_import_instances():
+    """从 CSV 批量导入实例"""
+    try:
+        from pro import get_instance_manager
+        data = request.get_json()
+        csv_content = data.get('csv_content', '')
+
+        if not csv_content:
+            return jsonify({'ok': False, 'error': '请提供 CSV 内容'})
+
+        im = get_instance_manager()
+        result = im.batch_add_from_csv(csv_content)
+        return jsonify(result)
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+# ══════════════════════════════════════════════════════════════
+#  Pro 数据源管理 API
+# ══════════════════════════════════════════════════════════════
+
+@app.route('/api/pro/datasources', methods=['GET'])
+def api_pro_datasources():
+    """获取数据源列表"""
+    try:
+        from pro import get_instance_manager
+        im = get_instance_manager()
+        instances = im.get_all_instances(mask_password=True)
+        return jsonify({'ok': True, 'datasources': instances})
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/datasources/<instance_id>', methods=['GET'])
+def api_pro_datasource(instance_id):
+    """获取单个数据源"""
+    try:
+        from pro import get_instance_manager
+        im = get_instance_manager()
+        inst = im.get_instance(instance_id, mask_password=False)
+        if not inst:
+            return jsonify({'ok': False, 'error': '数据源不存在'})
+        return jsonify({'ok': True, 'datasource': inst})
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/datasources/<instance_id>/decrypt', methods=['GET'])
+def api_pro_datasource_decrypt(instance_id):
+    """获取单个数据源（解密密码，供表单回填）"""
+    try:
+        from pro import get_instance_manager
+        im = get_instance_manager()
+        inst = im.get_instance_decrypted(instance_id)
+        if not inst:
+            return jsonify({'ok': False, 'error': '数据源不存在'})
+        return jsonify({'ok': True, 'datasource': inst})
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/datasources', methods=['POST'])
+def api_pro_datasource_add():
+    """新增数据源"""
+    try:
+        from pro import get_instance_manager
+        from pro.instance_manager import DatabaseInstance
+        import uuid
+
+        data = request.get_json()
+        inst = DatabaseInstance(
+            id=str(uuid.uuid4())[:12],
+            name=data.get('name', ''),
+            db_type=data.get('db_type', 'mysql'),
+            host=data.get('host', ''),
+            port=int(data.get('port', 3306)),
+            user=data.get('user', ''),
+            password=data.get('password', ''),
+            service_name=data.get('service_name', ''),
+            sysdba=bool(data.get('sysdba', False)),
+            tags=data.get('tags', []),
+            group=data.get('group', 'default'),
+            description=data.get('description', ''),
+        )
+        im = get_instance_manager()
+        result = im.add_instance(inst)
+        return jsonify(result)
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/datasources/<instance_id>', methods=['PUT'])
+def api_pro_datasource_update(instance_id):
+    """更新数据源"""
+    try:
+        from pro import get_instance_manager
+        data = request.get_json()
+        im = get_instance_manager()
+        result = im.update_instance(instance_id, data)
+        return jsonify(result)
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/datasources/<instance_id>', methods=['DELETE'])
+def api_pro_datasource_delete(instance_id):
+    """删除数据源"""
+    try:
+        from pro import get_instance_manager
+        im = get_instance_manager()
+        result = im.delete_instance(instance_id)
+        return jsonify(result)
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/datasources/<instance_id>/test', methods=['POST'])
+def api_pro_datasource_test(instance_id):
+    """测试数据源连接"""
+    try:
+        from pro import get_instance_manager
+        im = get_instance_manager()
+        result = im.test_connection(instance_id)
+        return jsonify(result)
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/datasources/export', methods=['GET'])
+def api_pro_datasources_export():
+    """导出数据源 CSV"""
+    try:
+        from pro import get_instance_manager
+        im = get_instance_manager()
+        csv_content = im.export_csv()
+        return jsonify({'ok': True, 'csv': csv_content})
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/datasources/import', methods=['POST'])
+def api_pro_datasources_import():
+    """导入数据源 CSV"""
+    try:
+        from pro import get_instance_manager
+        data = request.get_json()
+        csv_content = data.get('csv_content', '')
+        im = get_instance_manager()
+        result = im.batch_add_from_csv(csv_content)
+        return jsonify(result)
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+# ══════════════════════════════════════════════════════════════
+#  Pro 规则管理 API
+# ══════════════════════════════════════════════════════════════
+
+@app.route('/api/pro/rules', methods=['GET'])
+def api_pro_rules():
+    """获取规则列表"""
+    try:
+        from pro.rule_engine import get_rule_engine
+        db_type = request.args.get('db_type', None)
+        engine = get_rule_engine()
+        rules = engine.list_rules(db_type)
+        return jsonify({'ok': True, 'rules': rules})
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/rules', methods=['POST'])
+def api_pro_rules_add():
+    """新增自定义规则"""
+    try:
+        from pro.rule_engine import get_rule_engine
+        data = request.get_json()
+        engine = get_rule_engine()
+        rule_id = data.get('id', '')
+        if not rule_id:
+            return jsonify({'ok': False, 'error': '规则 ID 不能为空'})
+        ok = engine.save_custom_rule(data)
+        if ok:
+            return jsonify({'ok': True, 'message': '规则已保存'})
+        return jsonify({'ok': False, 'error': '保存失败'})
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/rules/<rule_id>', methods=['DELETE'])
+def api_pro_rules_delete(rule_id):
+    """删除自定义规则"""
+    try:
+        from pro.rule_engine import get_rule_engine
+        engine = get_rule_engine()
+        ok = engine.delete_custom_rule(rule_id)
+        if ok:
+            return jsonify({'ok': True, 'message': '规则已删除'})
+        return jsonify({'ok': False, 'error': '规则不存在'})
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/rules/<rule_id>/toggle', methods=['POST'])
+def api_pro_rules_toggle(rule_id):
+    """启用/禁用规则（真正的切换：取反当前状态）"""
+    try:
+        from pro.rule_engine import get_rule_engine
+        engine = get_rule_engine()
+        # 先查当前状态，再取反
+        rule = engine.get_rule(rule_id)
+        if rule is None:
+            return jsonify({'ok': False, 'error': '规则不存在'}), 404
+        new_enabled = not rule.get('enabled', False)
+        engine.toggle_rule(rule_id, new_enabled)
+        return jsonify({'ok': True, 'enabled': new_enabled, 'message': '设置已保存'})
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
 
 
 if __name__ == '__main__':

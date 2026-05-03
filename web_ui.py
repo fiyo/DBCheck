@@ -1932,6 +1932,7 @@ def api_pro_datasource_add():
             user=data.get('user', ''),
             password=data.get('password', ''),
             service_name=data.get('service_name', ''),
+            sysdba=bool(data.get('sysdba', False)),
             tags=data.get('tags', []),
             group=data.get('group', 'default'),
             description=data.get('description', ''),
