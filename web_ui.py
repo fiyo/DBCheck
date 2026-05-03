@@ -1685,135 +1685,39 @@ def api_rag_ollama_status():
 # ── Pro 专业版 API ──────────────────────────────────────────
 @app.route('/api/pro/status', methods=['GET'])
 def api_pro_status():
-    """获取 Pro 版本状态"""
+    """获取 Pro 版本状态（无需许可证验证）"""
     try:
-        from pro import get_license_manager, is_pro, get_edition
+        from pro import is_pro, get_edition
         from pro import get_instance_manager
         import pro.version as pro_version
 
-        lm = get_license_manager()
         im = get_instance_manager()
-
-        license_info = lm.verify()
         stats = im.get_statistics()
 
         return jsonify({
             'ok': True,
-            'is_pro': is_pro(),
-            'edition': get_edition(),
-            'version': pro_version.__version__,
+            'is_pro': True,  # 无需许可证，始终为 True
+            'edition': 'community+',
+            'version': getattr(pro_version, '__version__', '2.3.8'),
             'release_date': getattr(pro_version, '__release_date__', ''),
             'license': {
-                'valid': license_info.get('valid', False),
-                'type': license_info.get('type', 'community'),
-                'expires': license_info.get('expires', ''),
-                'max_instances': license_info.get('max_instances', 0),
-                'features': license_info.get('features', ['basic']),
+                'valid': True,
+                'type': 'community+',
+                'expires': '',
+                'max_instances': -1,  # 无限制
+                'features': ['all'],
             },
             'instances': stats,
         })
     except ImportError:
         return jsonify({
             'ok': True,
-            'is_pro': False,
-            'edition': 'community',
-            'version': 'community',
-            'license': {'valid': False, 'type': 'community', 'features': ['basic']},
+            'is_pro': True,
+            'edition': 'community+',
+            'version': '2.3.8',
+            'license': {'valid': True, 'type': 'community+', 'features': ['all']},
             'instances': {'total_instances': 0},
         })
-    except Exception as e:
-        return jsonify({'ok': False, 'error': str(e)}), 500
-
-
-@app.route('/api/pro/license/activate', methods=['POST'])
-def api_pro_license_activate():
-    """激活许可证"""
-    try:
-        from pro import get_license_manager
-        data = request.get_json()
-        license_key = data.get('license_key', '')
-
-        if not license_key:
-            return jsonify({'ok': False, 'error': '请输入许可证密钥'})
-
-        lm = get_license_manager()
-        result = lm.activate(license_key)
-
-        if result.get('success'):
-            return jsonify({'ok': True, 'message': '许可证激活成功'})
-        else:
-            return jsonify({'ok': False, 'error': result.get('message', '激活失败')})
-    except ImportError:
-        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
-    except Exception as e:
-        return jsonify({'ok': False, 'error': str(e)}), 500
-
-
-@app.route('/api/pro/license/deactivate', methods=['POST'])
-def api_pro_license_deactivate():
-    """注销许可证"""
-    try:
-        from pro import get_license_manager
-        lm = get_license_manager()
-        result = lm.deactivate()
-        return jsonify(result)
-    except ImportError:
-        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
-    except Exception as e:
-        return jsonify({'ok': False, 'error': str(e)}), 500
-
-
-    except ImportError:
-        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
-    except Exception as e:
-        return jsonify({'ok': False, 'error': str(e)}), 500
-
-        return jsonify({'ok': True, 'instance': inst})
-    except ImportError:
-        return jsonify({'ok': False, 'error': 'Pro 模块未安装'}), 500
-    except Exception as e:
-        return jsonify({'ok': False, 'error': str(e)}), 500
-
-
-    except Exception as e:
-        return jsonify({'ok': False, 'error': str(e)}), 500
-
-
-    except Exception as e:
-        return jsonify({'ok': False, 'error': str(e)}), 500
-
-
-    except Exception as e:
-        return jsonify({'ok': False, 'error': str(e)}), 500
-
-
-
-        # 根据数据库类型测试连接
-        test_funcs = {
-            'mysql': test_mysql_connection,
-            'tidb': test_tidb_connection,
-            'postgresql': test_pg_connection,
-            'oracle': test_oracle_connection,
-            'dm': test_dm_connection,
-            'sqlserver': test_sqlserver_connection,
-        }
-
-        test_func = test_funcs.get(instance.db_type)
-        if not test_func:
-            return jsonify({'ok': False, 'error': f'不支持的数据库类型: {instance.db_type}'})
-
-        if instance.db_type == 'oracle':
-            ok, msg = test_func(instance.host, instance.port, instance.user, instance.password, instance.service_name)
-        elif instance.db_type == 'sqlserver':
-            ok, msg = test_func(instance.host, instance.port, instance.user, instance.password)
-        elif instance.db_type == 'dm':
-            ok, msg = test_func(instance.host, instance.port, instance.user, instance.password)
-        else:
-            ok, msg = test_func(instance.host, instance.port, instance.user, instance.password)
-
-        return jsonify({'ok': ok, 'message': msg})
-    except ImportError as e:
-        return jsonify({'ok': False, 'error': f'Pro 模块未安装: {str(e)}'})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 

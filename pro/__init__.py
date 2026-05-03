@@ -1,15 +1,18 @@
 # -*- coding: utf-8 -*-
 """
 DBCheck Pro Module
-专业版核心模块
+专业版核心模块（社区版合并后，无需许可证验证）
 """
 
-from .license_manager import (
-    LicenseManager,
-    get_license_manager,
-    is_pro,
-    get_edition,
-)
+# License removed - all Pro features are now free
+def is_pro():
+    """Always return True - Pro features are now free in community edition"""
+    return True
+
+def get_edition():
+    """Return edition name"""
+    return 'community+'
+
 from .instance_manager import (
     InstanceManager,
     DatabaseInstance,
@@ -29,9 +32,7 @@ from .rule_engine import (
 )
 
 __all__ = [
-    # License
-    "LicenseManager",
-    "get_license_manager",
+    # Pro status (no license required)
     "is_pro",
     "get_edition",
     # Instance

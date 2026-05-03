@@ -1278,7 +1278,7 @@ function formatBytes(bytes) {
     <div class="nav-item" onclick="showPage('ai')" id="nav-ai">
       <span class="icon">🤖</span> <span data-i18n="webui.nav_ai">AI 诊断设置</span>
     </div>
-    <div class="nav-item" onclick="showPage('license')" id="nav-license">
+    <div class="nav-item" onclick="showPage('license')" id="nav-license" style="display:none;">
       <span class="icon">🔑</span> <span data-i18n="webui.nav_license">许可证</span>
     </div>
 
@@ -3623,60 +3623,26 @@ async function initApp() {
 initApp();
 
 async function loadProStatus() {
-  try {
-    const res = await fetch('/api/pro/status');
-    const data = await res.json();
-    const statusEl = document.getElementById('pro-license-status');
-    const iconEl = document.getElementById('pro-edition-icon');
-    const nameEl = document.getElementById('pro-edition-name');
-    const detailEl = document.getElementById('pro-license-detail');
-    const formEl = document.getElementById('pro-license-form');
-    const btnA = document.getElementById('btn-pro-activate');
-    const btnD = document.getElementById('btn-pro-deactivate');
-    const sidebarBadge = document.getElementById('sidebar-edition-badge');
-    if (data.ok && data.is_pro && data.license.valid) {
-      // ── Pro 专业版：橙色 VIP 样式 ──
-      statusEl.textContent = i18n('webui.edition_badge_pro');
-      statusEl.className = 'badge pro-active';
-      statusEl.style.background = 'linear-gradient(135deg, #f97316, #ea580c)';
-      statusEl.style.color = '#fff';
-      statusEl.style.fontWeight = '600';
-      statusEl.style.boxShadow = '0 0 6px rgba(249,115,22,0.4)';
-      iconEl.textContent = '👑';
-      nameEl.innerHTML = '<span style="background:linear-gradient(135deg,#f97316,#ea580c);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:700;">DBCheck Pro</span> ' + (data.version || '');
-      detailEl.textContent = '许可证: ' + (data.license.type || '') + ' | 到期: ' + (data.license.expires || 'N/A');
-      formEl.style.display = 'none';
-      btnA.style.display = 'none';
-      btnD.style.display = '';
-      // 侧边栏徽章也更新为橙色专业版
-      if (sidebarBadge) {
-        sidebarBadge.textContent = i18n('webui.edition_badge_pro');
-        sidebarBadge.className = 'edition-badge pro';
-      }
-    } else {
-      // ── 社区版：灰色样式 ──
-      statusEl.textContent = i18n('webui.edition_badge');
-      statusEl.className = 'badge';
-      statusEl.style.background = 'var(--warn)';
-      statusEl.style.color = '';
-      statusEl.style.fontWeight = '';
-      statusEl.style.boxShadow = '';
-      iconEl.textContent = '🏠';
-      nameEl.textContent = i18n('webui.edition_badge');
-      detailEl.textContent = '开源免费，无实例限制';
-      formEl.style.display = '';
-      btnA.style.display = '';
-      btnD.style.display = 'none';
-      // 侧边栏徽章恢复社区版
-      if (sidebarBadge) {
-        sidebarBadge.textContent = i18n('webui.edition_badge');
-        sidebarBadge.className = 'edition-badge community';
-      }
+    try {
+        const res = await fetch('/api/pro/status');
+        const data = await res.json();
+        // 专业版功能已免费，无需许可证验证
+        const statusEl = document.getElementById('pro-license-status');
+        const detailEl = document.getElementById('pro-license-detail');
+        const formEl = document.getElementById('pro-license-form');
+        const btnA = document.getElementById('btn-pro-activate');
+        const btnD = document.getElementById('btn-pro-deactivate');
+        
+        if (statusEl) statusEl.textContent = '已集成';
+        if (detailEl) detailEl.textContent = '专业版功能已免费提供';
+        if (formEl) formEl.style.display = 'none';
+        if (btnA) btnA.style.display = 'none';
+        if (btnD) btnD.style.display = 'none';
+    } catch(e) {
+        console.error('Failed to load Pro status:', e);
     }
-  } catch(e) {}
 }
-
-async function activateProLicense() {
+/* (已禁用 - 无需许可证) async function activateProLicense() {
   const key = document.getElementById('pro-license-key').value.trim();
   if (!key) { toastError('请输入许可证密钥'); return; }
   const msgEl = document.getElementById('pro-license-msg');
@@ -3699,8 +3665,9 @@ async function activateProLicense() {
     }
   } catch(e) { toastError('激活请求失败: ' + e.message); }
 }
+*/
 
-async function deactivateProLicense() {
+/* (已禁用 - 无需许可证) async function deactivateProLicense() {
   if (!confirm('确定要注销许可证吗？')) return;
   try {
     const res = await fetch('/api/pro/license/deactivate', {method: 'POST'});
@@ -3708,6 +3675,7 @@ async function deactivateProLicense() {
     if (data.success) { toastSuccess('许可证已注销'); await loadProStatus(); }
   } catch(e) { toastError('注销失败: ' + e.message); }
 }
+*/
 
 async function loadProHealth() {
   try {
