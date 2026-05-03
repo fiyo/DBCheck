@@ -564,20 +564,34 @@ select option { background: var(--surface2); }
 .report-item .btn { flex-shrink: 0; }
 
 /* ─── Home Page ─── */
-.home-hero {
-  padding: 32px 0 24px;
-  text-align: center;
+.home-header {
+  max-width: 900px;
+  margin: 0 auto 16px;
+  padding: 24px 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
 }
-.home-hero h2 {
-  font-size: 28px; font-weight: 700;
+.home-title-row h1 {
+  font-size: 22px;
+  font-weight: 700;
   background: linear-gradient(135deg, #e6edf3, var(--accent2));
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  margin-bottom: 10px;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 4px;
 }
-.home-hero p { color: var(--text-muted); font-size: 14px; max-width: 480px; margin: 0 auto 24px; }
+.home-title-row .home-subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.home-actions {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
 
-/* 首页概览卡片 */
-.home-overview {
+.feature-grid {
   width: 100%;
   max-width: 900px;
   margin: 0 auto 24px;
@@ -1438,6 +1452,20 @@ function formatBytes(bytes) {
 
       <!-- ══ Page: Home ══ -->
       <div class="page active" id="page-home">
+        <!-- 简化标题栏 -->
+        <div class="home-header">
+          <div class="home-title-row">
+            <div>
+              <h1 class="home-title" data-i18n="webui.home_welcome">欢迎使用 DBCheck</h1>
+              <p class="home-subtitle" data-i18n="webui.home_subtitle">数据库健康巡检工具</p>
+            </div>
+            <div class="home-actions">
+              <button class="btn btn-primary" onclick="startWizard()" data-i18n="webui.btn_start_inspection">▶ 开始巡检</button>
+              <button class="btn btn-ghost" onclick="showPage('reports')" data-i18n="webui.view_history_reports">📄 历史报告</button>
+            </div>
+          </div>
+        </div>
+
         <!-- 首页概览卡片 -->
         <div class="home-overview" id="home-overview-section" style="display:none;">
           <div class="overview-grid">
@@ -1500,17 +1528,6 @@ function formatBytes(bytes) {
               </div>
               <div class="kb-hint" id="home-kb-hint" data-i18n="webui.home_kb_hint">上传数据库文档，AI 诊断更精准</div>
             </div>
-          </div>
-        </div>
-
-        <!-- Hero 区域 -->
-        <div class="home-hero">
-          <img src="/dbcheck_logo.png" alt="DBCheck" style="width:80px;height:80px;margin-bottom:16px;">
-          <h2 data-i18n="webui.hero_title">数据库健康巡检</h2>
-          <p data-i18n="webui.hero_desc">自动采集 MySQL / PostgreSQL / Oracle / SQL Server/ 达梦（DM）/ TiDB 数据库关键指标，结合系统资源监控，一键生成专业 Word 巡检报告。</p>
-          <div class="quick-actions">
-            <button class="btn btn-primary" onclick="startWizard()" data-i18n="webui.btn_start_inspection">▶ 开始巡检</button>
-            <button class="btn btn-ghost" onclick="showPage('reports')" data-i18n="webui.view_history_reports">📄 查看历史报告</button>
           </div>
         </div>
 

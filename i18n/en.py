@@ -2042,6 +2042,7 @@ EN = {
     "webui.ds_operation_fail": "Operation failed: {}",
     "webui.ds_load_fail": "Failed to load datasources",
     # ── Home Overview ──
+    "webui.home_welcome": "Welcome to DBCheck",
     "webui.home_instance_dist": "Instance Distribution",
     "webui.home_instance_dist_sub": "Database type counts",
     "webui.home_scheduler": "Scheduled Inspection",

@@ -2074,6 +2074,7 @@ ZI = {
     "webui.ds_operation_fail": "操作失败：{}",
     "webui.ds_load_fail": "加载数据源失败",
     # ── 首页概览 ──
+    "webui.home_welcome": "欢迎使用 DBCheck",
     "webui.home_instance_dist": "实例分布",
     "webui.home_instance_dist_sub": "各类型数据库数量",
     "webui.home_scheduler": "定时巡检",
