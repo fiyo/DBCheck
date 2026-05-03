@@ -1,0 +1,232 @@
+# -*- coding: utf-8 -*-
+rules:
+  # ── 系统资源 ──
+  - id: tidb_mem_usage_high
+    name: 系统内存使用率过高
+    name_zh: 系统内存使用率过高
+    category: system
+    db_types: [tidb]
+    severity: high
+    priority: high
+    owner: 系统管理员
+    enabled: true
+    description: 系统内存使用率超过 90%
+    description_zh: 系统内存使用率超过 90%
+    condition: "mem_usage > 90"
+    params:
+      mem_usage: "${context.system_info.memory.usage_percent}"
+    message: "系统内存使用率 {mem_usage:.1f}%，超过 90% 可能触发 OOM"
+    message_zh: "系统内存使用率 {mem_usage:.1f}%，超过 90% 可能触发 OOM"
+    fix_sql: ""
+
+  - id: tidb_mem_usage_medium
+    name: 系统内存使用率预警
+    name_zh: 系统内存使用率预警
+    category: system
+    db_types: [tidb]
+    severity: medium
+    priority: medium
+    owner: 系统管理员
+    enabled: true
+    description: 系统内存使用率超过 80%
+    description_zh: 系统内存使用率超过 80%
+    condition: "mem_usage > 80 and mem_usage <= 90"
+    params:
+      mem_usage: "${context.system_info.memory.usage_percent}"
+    message: "系统内存使用率 {mem_usage:.1f}%，建议关注"
+    message_zh: "系统内存使用率 {mem_usage:.1f}%，建议关注"
+    fix_sql: ""
+
+  - id: tidb_disk_usage_high
+    name: 磁盘空间紧张
+    name_zh: 磁盘空间紧张
+    category: system
+    db_types: [tidb]
+    severity: high
+    priority: high
+    owner: 系统管理员
+    enabled: true
+    description: 磁盘使用率超过 90%
+    description_zh: 磁盘使用率超过 90%
+    condition: "any(disk.get('usage_percent', 0) > 90 for disk in disk_list)"
+    params:
+      disk_list: "${context.system_info.disk_list}"
+    message: "磁盘 {mountpoint} 使用率 {usage:.1f}%，可能导致存储空间不足"
+    message_zh: "磁盘 {mountpoint} 使用率 {usage:.1f}%，可能导致存储空间不足"
+    fix_sql: ""
+
+  # ── TiDB 特有规则 ──
+  - id: tidb_conn_usage_high
+    name: 连接数使用率过高
+    name_zh: 连接数使用率过高
+    category: connection
+    db_types: [tidb]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 活动连接数超过最大连接的 90%
+    description_zh: 活动连接数超过最大连接的 90%
+    condition: "max_conn > 0 and (active_conn / max_conn * 100) > 90"
+    params:
+      max_conn: "${context.max_connections}"
+      active_conn: "${context.active_connections}"
+    message: "连接数使用率达 {pct:.1f}%（{active_conn}/{max_conn}），可能拒绝新连接"
+    message_zh: "连接数使用率达 {pct:.1f}%（{active_conn}/{max_conn}），可能拒绝新连接"
+    fix_sql: "-- 在 config.toml 中调整：\n-- [performance]\n-- max-server-connections = 3000"
+    fix_params:
+      pct: "(active_conn / max_conn * 100) if max_conn > 0 else 0"
+
+  - id: tidb_long_running_query
+    name: 长时间运行的查询
+    name_zh: 长时间运行的查询
+    category: performance
+    db_types: [tidb]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 存在运行超过 60 秒的查询
+    description_zh: 存在运行超过 60 秒的查询
+    condition: "len(long_queries) > 0"
+    params:
+      long_queries: "${context._long_queries}"
+    message: "发现 {n} 个运行超过 60 秒的查询"
+    message_zh: "发现 {n} 个运行超过 60 秒的查询"
+    fix_sql: "-- 查看长时间运行查询：\nSELECT * FROM INFORMATION_SCHEMA.CLUSTER_PROCESSLIST WHERE Time > 60;\n-- 终止查询：\nKILL TIDB xxx;"
+    fix_params:
+      n: "len(long_queries)"
+
+  - id: tidb_slow_query_log
+    name: 慢查询数量过多
+    name_zh: 慢查询数量过多
+    category: performance
+    db_types: [tidb]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: 最近 1 小时慢查询数量超过 100
+    description_zh: 最近 1 小时慢查询数量超过 100
+    condition: "slow_count > 100"
+    params:
+      slow_count: "${context.slow_query_count}"
+    message: "最近 1 小时产生 {count} 条慢查询，建议分析并优化"
+    message_zh: "最近 1 小时产生 {count} 条慢查询，建议分析并优化"
+    fix_sql: "-- 查看最近慢查询：\nSELECT * FROM INFORMATION_SCHEMA.SLOW_QUERY ORDER BY Time DESC LIMIT 10;\n-- 调整慢查询阈值：\nSET tidb_slow_log_threshold = 200;"
+    fix_params:
+      count: "slow_count"
+
+  - id: tidb_storage_capacity_low
+    name: 存储容量接近上限
+    name_zh: 存储容量接近上限
+    category: storage
+    db_types: [tidb]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: TiKV 存储空间使用率超过 80%
+    description_zh: TiKV 存储空间使用率超过 80%
+    condition: "storage_ratio > 80"
+    params:
+      storage_ratio: "${context.tikv_storage_usage}"
+    message: "TiKV 存储空间使用率达 {ratio:.1f}%，接近容量上限"
+    message_zh: "TiKV 存储空间使用率达 {ratio:.1f}%，接近容量上限"
+    fix_sql: "-- 添加新 TiKV 节点扩容：\ntiup cluster scale-out tidb-test.yaml\n-- 或清理旧数据"
+    fix_params:
+      ratio: "storage_ratio"
+
+  - id: tidb_region_health
+    name: Region 健康度异常
+    name_zh: Region 健康度异常
+    category: storage
+    db_types: [tidb]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 存在大量不健康的 Region
+    description_zh: 存在大量不健康的 Region
+    condition: "unhealthy_regions > 0"
+    params:
+      unhealthy_regions: "${context.unhealthy_region_count}"
+    message: "存在 {count} 个不健康的 Region，数据可用性存在风险"
+    message_zh: "存在 {count} 个不健康的 Region，数据可用性存在风险"
+    fix_sql: "-- 查看不健康 Region：\ncurl http://pd_ip:2379/pd/api/v1/regions?state=2\n-- 检查 TiKV 节点状态"
+    fix_params:
+      count: "unhealthy_regions"
+
+  - id: tidb_copr_cpu_high
+    name: Coprocessor CPU 使用率过高
+    name_zh: Coprocessor CPU 使用率过高
+    category: performance
+    db_types: [tidb]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: Coprocessor CPU 使用率超过 80%
+    description_zh: Coprocessor CPU 使用率超过 80%
+    condition: "copr_cpu > 80"
+    params:
+      copr_cpu: "${context.copr_cpu_usage}"
+    message: "Coprocessor CPU 使用率达 {pct:.1f}%，下推计算负载较高"
+    message_zh: "Coprocessor CPU 使用率达 {pct:.1f}%，下推计算负载较高"
+    fix_sql: "-- 检查复杂查询：\nEXPLAIN ANALYZE SELECT ...;\n-- 考虑添加 TiDB 节点提升计算能力"
+    fix_params:
+      pct: "copr_cpu"
+
+  - id: tidb_binlog_off
+    name: TiDB Binlog 未开启
+    name_zh: TiDB Binlog 未开启
+    category: backup
+    db_types: [tidb]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: TiDB Binlog 未开启，无法同步到下游
+    description_zh: TiDB Binlog 未开启，无法同步到下游
+    condition: "binlog_enabled is not None and str(binlog_enabled).upper() == 'OFF'"
+    params:
+      binlog_enabled: "${context.tidb_enable_binlog}"
+    message: "Binlog 未开启，无法实现增量同步和变更数据捕获"
+    message_zh: "Binlog 未开启，无法实现增量同步和变更数据捕获"
+    fix_sql: "-- 在 config.toml 中开启：\n-- [binlog]\n-- enable = true\n-- 然后重启 TiDB 实例"
+
+  - id: tidb_auto_analyze_off
+    name: 自动统计信息收集未开启
+    name_zh: 自动统计信息收集未开启
+    category: maintenance
+    db_types: [tidb]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: 自动统计信息收集未开启
+    description_zh: 自动统计信息收集未开启
+    condition: "auto_analyze is not None and str(auto_analyze).upper() == 'OFF'"
+    params:
+      auto_analyze: "${context.tidb_auto_analyze}"
+    message: "自动统计信息收集未开启，可能导致执行计划不优"
+    message_zh: "自动统计信息收集未开启，可能导致执行计划不优"
+    fix_sql: "SET GLOBAL tidb_auto_analyze_ratio = 0.5;\nSET GLOBAL tidb_auto_analyze_start_time = '00:00 +0800';\nSET GLOBAL tidb_auto_analyze_end_time = '06:00 +0800';"
+
+  - id: tidb_empty_password
+    name: 用户空密码
+    name_zh: 用户空密码
+    category: security
+    db_types: [tidb]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 存在未设置密码的用户
+    description_zh: 存在未设置密码的用户
+    condition: "False"
+    params: {}
+    message: "数据库用户存在空密码，存在严重安全风险"
+    message_zh: "数据库用户存在空密码，存在严重安全风险"
+    fix_sql: "ALTER USER 'username'@'%' IDENTIFIED BY '强密码';"
+    enabled: true

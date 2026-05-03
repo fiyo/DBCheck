@@ -363,6 +363,23 @@ def smart_analyze_mysql(context: dict) -> list:
                 'fix_sql': ''
             })
 
+    # ── 插件规则检查（Pro 版）────────────────────────────
+    try:
+        from pro.rule_engine import analyze_with_plugins
+        plugin_issues = analyze_with_plugins('mysql', context)
+        if plugin_issues:
+            issues.extend(plugin_issues)
+    except Exception:
+        pass
+
+    # ── 插件规则检查（Pro 版）──────────────────────────────
+    try:
+        from pro.rule_engine import analyze_with_plugins
+        plugin_issues = analyze_with_plugins('postgresql', context)
+        if plugin_issues:
+            issues.extend(plugin_issues)
+    except Exception:
+        pass
     return issues
 
 
@@ -595,6 +612,14 @@ def smart_analyze_pg(context: dict) -> list:
                 'fix_sql': ''
             })
 
+    # ── 插件规则检查（Pro 版）──────────────────────────────
+    try:
+        from pro.rule_engine import analyze_with_plugins
+        plugin_issues = analyze_with_plugins('oracle', context)
+        if plugin_issues:
+            issues.extend(plugin_issues)
+    except Exception:
+        pass
     return issues
 
 
@@ -962,6 +987,14 @@ def smart_analyze_oracle(context: dict) -> list:
             'fix_sql': '\n'.join(fix_lines)
         })
 
+    # ── 插件规则检查（Pro 版）──────────────────────────────
+    try:
+        from pro.rule_engine import analyze_with_plugins
+        plugin_issues = analyze_with_plugins("oracle", context)
+        if plugin_issues:
+            issues.extend(plugin_issues)
+    except Exception:
+        pass
     return issues
 
 

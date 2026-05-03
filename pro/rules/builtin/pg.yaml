@@ -1,0 +1,230 @@
+# -*- coding: utf-8 -*-
+rules:
+  # ── 系统资源（所有数据库通用） ──
+  - id: pg_mem_usage_high
+    name: 系统内存使用率过高
+    name_zh: 系统内存使用率过高
+    category: system
+    db_types: [pg]
+    severity: high
+    priority: high
+    owner: 系统管理员
+    enabled: true
+    description: 系统内存使用率超过 90%
+    description_zh: 系统内存使用率超过 90%
+    condition: "mem_usage > 90"
+    params:
+      mem_usage: "${context.system_info.memory.usage_percent}"
+    message: "系统内存使用率 {mem_usage:.1f}%，超过 90% 可能触发 OOM"
+    message_zh: "系统内存使用率 {mem_usage:.1f}%，超过 90% 可能触发 OOM"
+    fix_sql: ""
+
+  - id: pg_mem_usage_medium
+    name: 系统内存使用率预警
+    name_zh: 系统内存使用率预警
+    category: system
+    db_types: [pg]
+    severity: medium
+    priority: medium
+    owner: 系统管理员
+    enabled: true
+    description: 系统内存使用率超过 80%
+    description_zh: 系统内存使用率超过 80%
+    condition: "mem_usage > 80 and mem_usage <= 90"
+    params:
+      mem_usage: "${context.system_info.memory.usage_percent}"
+    message: "系统内存使用率 {mem_usage:.1f}%，建议关注"
+    message_zh: "系统内存使用率 {mem_usage:.1f}%，建议关注"
+    fix_sql: ""
+
+  - id: pg_disk_usage_high
+    name: 磁盘空间紧张
+    name_zh: 磁盘空间紧张
+    category: system
+    db_types: [pg]
+    severity: high
+    priority: high
+    owner: 系统管理员
+    enabled: true
+    description: 磁盘使用率超过 90%
+    description_zh: 磁盘使用率超过 90%
+    condition: "any(disk.get('usage_percent', 0) > 90 for disk in disk_list)"
+    params:
+      disk_list: "${context.system_info.disk_list}"
+    message: "磁盘 {mountpoint} 使用率 {usage:.1f}%，可能导致数据库写入失败"
+    message_zh: "磁盘 {mountpoint} 使用率 {usage:.1f}%，可能导致数据库写入失败"
+    fix_sql: ""
+
+  # ── PostgreSQL 特有规则 ──
+  - id: pg_conn_usage_high
+    name: 连接数使用率过高
+    name_zh: 连接数使用率过高
+    category: connection
+    db_types: [pg]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 活动连接数超过最大连接的 90%
+    description_zh: 活动连接数超过最大连接的 90%
+    condition: "max_conn > 0 and (active_conn / max_conn * 100) > 90"
+    params:
+      max_conn: "${context.max_connections[0].Value}"
+      active_conn: "${context.numbackends[0].Value}"
+    message: "连接数使用率达 {pct:.1f}%（{active_conn}/{max_conn}），可能拒绝新连接"
+    message_zh: "连接数使用率达 {pct:.1f}%（{active_conn}/{max_conn}），可能拒绝新连接"
+    fix_sql: "ALTER ROLE postgres CONNECTION LIMIT 200;"
+    fix_params:
+      pct: "(active_conn / max_conn * 100) if max_conn > 0 else 0"
+
+  - id: pg_conn_usage_medium
+    name: 连接数使用率预警
+    name_zh: 连接数使用率预警
+    category: connection
+    db_types: [pg]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: 活动连接数超过最大连接的 80%
+    description_zh: 活动连接数超过最大连接的 80%
+    condition: "max_conn > 0 and (active_conn / max_conn * 100) > 80 and (active_conn / max_conn * 100) <= 90"
+    params:
+      max_conn: "${context.max_connections[0].Value}"
+      active_conn: "${context.numbackends[0].Value}"
+    message: "连接数使用率达 {pct:.1f}%，建议关注"
+    message_zh: "连接数使用率达 {pct:.1f}%，建议关注"
+    fix_sql: ""
+    fix_params:
+      pct: "(active_conn / max_conn * 100) if max_conn > 0 else 0"
+
+  - id: pg_long_running_query
+    name: 长时间运行的查询
+    name_zh: 长时间运行的查询
+    category: performance
+    db_types: [pg]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 存在运行超过 60 秒的查询
+    description_zh: 存在运行超过 60 秒的查询
+    condition: "len(long_queries) > 0"
+    params:
+      long_queries: "${context._long_queries}"
+    message: "发现 {n} 个运行超过 60 秒的查询"
+    message_zh: "发现 {n} 个运行超过 60 秒的查询"
+    fix_sql: "SELECT pg_cancel_backend(pid);  -- 取消查询\nSELECT pg_terminate_backend(pid);  -- 终止连接"
+    fix_params:
+      n: "len(long_queries)"
+
+  - id: pg_checkpoint_warning
+    name: 检查点频率异常
+    name_zh: 检查点频率异常
+    category: performance
+    db_types: [pg]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: 检查点过于频繁（间隔 < 5 分钟）
+    description_zh: 检查点过于频繁（间隔 < 5 分钟）
+    condition: "checkpoints_req > checkpoints_timed * 0.5"
+    params:
+      checkpoints_timed: "${context.checkpoints_timed[0].Value}"
+      checkpoints_req: "${context.checkpoints_req[0].Value}"
+    message: "大量检查点由后台进程触发，可能由检查点不足或缓冲区过小导致"
+    message_zh: "大量检查点由后台进程触发，可能由检查点不足或缓冲区过小导致"
+    fix_sql: "-- 调大 checkpoint_completion_target：\nALTER SYSTEM SET checkpoint_completion_target = 0.9;\n-- 调大 shared_buffers：\nALTER SYSTEM SET shared_buffers = '4GB';"
+
+  - id: pg_bloat_high
+    name: 表膨胀率过高
+    name_zh: 表膨胀率过高
+    category: maintenance
+    db_types: [pg]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: 表膨胀率超过 30%
+    description_zh: 表膨胀率超过 30%
+    condition: "bloat_ratio > 30"
+    params:
+      bloat_ratio: "${context.bloat_ratio}"
+    message: "表 {table_name} 膨胀率达 {ratio:.1f}%，建议执行 VACUUM"
+    message_zh: "表 {table_name} 膨胀率达 {ratio:.1f}%，建议执行 VACUUM"
+    fix_sql: "VACUUM ANALYZE schema.table_name;"
+    fix_params:
+      ratio: "bloat_ratio"
+
+  - id: pg_autovacuum_off
+    name: 自动清理未开启
+    name_zh: 自动清理未开启
+    category: maintenance
+    db_types: [pg]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: autovacuum 未开启
+    description_zh: autovacuum 未开启
+    condition: "autovacuum is not None and str(autovacuum).lower() == 'off'"
+    params:
+      autovacuum: "${context.autovacuum[0].Value}"
+    message: "自动清理已关闭，表膨胀可能无法及时回收"
+    message_zh: "自动清理已关闭，表膨胀可能无法及时回收"
+    fix_sql: "ALTER SYSTEM SET autovacuum = on;\nSELECT pg_reload_conf();"
+
+  - id: pg_wal_archive_off
+    name: WAL 归档未开启
+    name_zh: WAL 归档未开启
+    category: backup
+    db_types: [pg]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: archive_mode 未开启
+    description_zh: archive_mode 未开启
+    condition: "archive_mode is not None and str(archive_mode).lower() == 'off'"
+    params:
+      archive_mode: "${context.archive_mode[0].Value}"
+    message: "WAL 归档未开启，无法实现 Point-in-Time Recovery"
+    message_zh: "WAL 归档未开启，无法实现 Point-in-Time Recovery"
+    fix_sql: "-- 在 postgresql.conf 中设置：\n-- archive_mode = on\n-- archive_command = 'test ! -f /mnt/wal/%f && cp %p /mnt/wal/%f'\n-- 然后重启数据库"
+
+  - id: pg_empty_password
+    name: 用户空密码
+    name_zh: 用户空密码
+    category: security
+    db_types: [pg]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 存在未设置密码的用户
+    description_zh: 存在未设置密码的用户
+    condition: "False"
+    params: {}
+    message: "数据库用户存在空密码，存在严重安全风险"
+    message_zh: "数据库用户存在空密码，存在严重安全风险"
+    fix_sql: "ALTER USER username WITH PASSWORD '强密码';"
+    enabled: true
+
+  - id: pg_public_schema_privilege
+    name: public schema 权限过宽
+    name_zh: public schema 权限过宽
+    category: security
+    db_types: [pg]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: public schema 允许所有用户创建对象
+    description_zh: public schema 允许所有用户创建对象
+    condition: "False"
+    params: {}
+    message: "public schema 权限过宽，建议撤销 PUBLIC 的 CREATE 权限"
+    message_zh: "public schema 权限过宽，建议撤销 PUBLIC 的 CREATE 权限"
+    fix_sql: "REVOKE CREATE ON SCHEMA public FROM PUBLIC;"
+    enabled: true

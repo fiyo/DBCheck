@@ -366,7 +366,7 @@ body {
 .field.full { grid-column: 1/-1; }
 .field label {
   font-size: 12.5px; font-weight: 500; color: var(--text-muted);
-  display: flex; align-items: center; gap: 5px;
+  display: flex; align-items: center; gap: 3px;
 }
 .field label .req { color: var(--danger); }
 .field label .opt {
@@ -856,6 +856,383 @@ function formatBytes(bytes) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
+
+      // ─── Data Sources Page ────────────────────────
+      let currentGroupFilter = '';
+      async function loadDataSources(groupFilter) {
+        if (groupFilter !== undefined) currentGroupFilter = groupFilter || '';
+        try {
+          const res = await fetch('/api/pro/datasources');
+          const data = await res.json();
+          const listEl = document.getElementById('datasources-list');
+          const countEl = document.getElementById('datasources-count');
+          await loadGroupChips();
+          if (data.ok && data.datasources && data.datasources.length > 0) {
+            let list = data.datasources;
+            if (currentGroupFilter) {
+              list = list.filter(ds => (ds.group || 'default') === currentGroupFilter);
+            }
+            countEl.textContent = list.length;
+            if (list.length === 0) {
+              listEl.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);" data-i18n="webui.pro_datasource_group_empty">该分组暂无数据源</div>';
+              return;
+            }
+            listEl.innerHTML = list.map(ds => {
+              const dbIcons = {mysql:'🐬', pg:'🐘', oracle_full:'🔴', dm:'🟡', sqlserver:'🟠', tidb:'🟢'};
+              const icon = dbIcons[ds.db_type] || '🗄️';
+              const tagClass = 'tag-' + (ds.db_type === 'oracle_full' ? 'oracle' : ds.db_type === 'sqlserver' ? 'sqlserver' : ds.db_type);
+              const groupLabel = ds.group || 'default';
+              return '<div style="padding:12px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;display:flex;align-items:center;gap:12px">' +
+                '<span class="tag ' + tagClass + '" style="font-size:12px">' + icon + ' ' + (ds.db_type||'') + '</span>' +
+                '<div style="flex:1">' +
+                  '<div style="font-weight:600;font-size:13px">' + escHtml(ds.name || (ds.host + ':' + ds.port)) + '</div>' +
+                  '<div style="font-size:11px;color:var(--text-muted)">' + escHtml(ds.host) + ':' + (ds.port||'') + (ds.database ? ' / ' + escHtml(ds.database) : '') + '</div>' +
+                  '<div style="font-size:11px;color:var(--accent2);margin-top:2px">📁 ' + escHtml(groupLabel) + '</div>' +
+                '</div>' +
+                '<button class="btn btn-ghost" style="font-size:12px;padding:4px 10px" onclick="editDatasource(\'' + ds.id + '\')">✏️ ' + i18n('webui.pro_datasource_edit') + '</button>' +
+                '<button class="btn btn-ghost" style="font-size:12px;padding:4px 10px" onclick="testDatasourceConnection(\'' + ds.id + '\')">🔗 ' + i18n('webui.pro_datasource_test') + '</button>' +
+                '<button class="btn btn-ghost" style="font-size:12px;padding:4px 10px;color:var(--danger)" onclick="deleteDatasource(\'' + ds.id + '\')">🗑️ ' + i18n('webui.pro_datasource_delete_btn') + '</button>' +
+              '</div>';
+            }).join('');
+          } else {
+            countEl.textContent = '0';
+            listEl.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted)" data-i18n="webui.datasources_empty">暂无数据源，点击上方按钮添加</div>';
+          }
+        } catch(e) { console.error('loadDataSources failed', e); }
+      }
+
+      async function loadGroupChips() {
+        try {
+          const res = await fetch('/api/pro/groups');
+          const data = await res.json();
+          const wrap = document.getElementById('group-chips-wrap');
+          const allChip = document.getElementById('group-all-chip');
+          if (!data.ok || !data.groups || data.groups.length === 0) { wrap.innerHTML = ''; return; }
+          allChip.className = 'group-chip' + (!currentGroupFilter ? ' active' : '');
+          wrap.innerHTML = data.groups.map(g => {
+            const isActive = currentGroupFilter === g.name;
+            const isDefault = g.name === 'default';
+            const delBtn = isDefault ? '' : '<button onclick="event.stopPropagation();deleteGroup(\'' + g.name.replace(/'/g, "\\'") + '\')" style="background:none;border:none;cursor:pointer;color:var(--text-muted);padding:0 2px;margin-left:4px;font-size:11px;line-height:1" title="' + i18n('webui.delete_group_title') + '">✕</button>';
+            return '<span class="group-chip' + (isActive ? ' active' : '') + '" onclick="filterByGroup(\'' + g.name.replace(/'/g, "\\'") + '\')" style="display:inline-flex;align-items:center;padding:4px 8px 4px 12px;border-radius:16px;font-size:12px;cursor:pointer;border:1px solid ' + (isActive ? 'var(--accent)' : 'transparent') + '">' +
+              '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + (g.color||'#3788DD') + ';margin-right:6px;"></span>' +
+              escHtml(g.name) + delBtn + '</span>';
+          }).join('');
+        } catch(e) {}
+      }
+
+      // 通用确认模态框
+      function showConfirmModal(title, message, onConfirm) {
+        document.getElementById('confirm-modal-backdrop')?.remove();
+        window._confirmCallback = onConfirm;
+        const html = '<div id="confirm-modal-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9998;display:flex;align-items:center;justify-content:center">' +
+          '<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;min-width:320px;max-width:400px;z-index:9999">' +
+            '<div style="font-size:15px;font-weight:600;margin-bottom:12px">' + title + '</div>' +
+            '<div style="font-size:13px;color:var(--text-muted);margin-bottom:20px">' + message + '</div>' +
+            '<div style="display:flex;justify-content:flex-end;gap:10px">' +
+              '<button class="btn btn-ghost" onclick="document.getElementById(\'confirm-modal-backdrop\').remove()">' + i18n('webui.cancel') + '</button>' +
+              '<button class="btn btn-danger" onclick="document.getElementById(\'confirm-modal-backdrop\').remove();if(window._confirmCallback){window._confirmCallback();delete window._confirmCallback;}">' + i18n('webui.confirm') + '</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+        document.body.insertAdjacentHTML('beforeend', html);
+      }
+
+      async function deleteGroup(groupName) {
+        if (groupName === 'default') { toastError(i18n('webui.pro_group_delete_default')); return; }
+        showConfirmModal(
+          i18n('webui.group_delete_title'),
+          i18n('webui.group_delete_confirm').replace('{}', groupName),
+          async () => {
+            try {
+              const res = await fetch('/api/pro/groups/' + encodeURIComponent(groupName), {method: 'DELETE'});
+              const data = await res.json();
+              if (data.ok) {
+                toastSuccess(i18n('webui.group_deleted'));
+                if (currentGroupFilter === groupName) currentGroupFilter = '';
+                await loadGroupChips();
+                loadDataSources();
+              } else {
+                toastError(i18n('webui.pro_ds_delete_fail').replace('{}', data.error || 'Unknown error'));
+              }
+            } catch(e) { toastError(i18n('webui.pro_ds_delete_fail').replace('{}', e.message)); }
+          }
+        );
+      }
+
+      function filterByGroup(groupName) {
+        currentGroupFilter = groupName || '';
+        const allChip = document.getElementById('group-all-chip');
+        allChip.className = 'group-chip' + (!currentGroupFilter ? ' active' : '');
+        loadDataSources(currentGroupFilter);
+      }
+
+      async function showAddGroupModalFromDatasource() {
+        document.getElementById('group-modal-backdrop')?.remove();
+        const html = '<div id="group-modal-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9998;display:flex;align-items:center;justify-content:center">' +
+          '<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;min-width:320px;max-width:400px;z-index:9999">' +
+            '<div style="font-size:15px;font-weight:600;margin-bottom:16px">' + i18n('webui.group_create_title') + '</div>' +
+            '<div style="display:grid;gap:12px">' +
+              '<div><label style="font-size:12px;color:var(--text-muted)">' + i18n('webui.group_name_label') + '</label>' +
+                '<input id="group-name-input" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="default"></div>' +
+              '<div><label style="font-size:12px;color:var(--text-muted)">' + i18n('webui.group_color_label') + '</label>' +
+                '<input id="group-color-input" type="color" value="#3788DD" style="width:40px;height:28px;margin-top:4px;padding:0;border:1px solid var(--border);border-radius:6px;background:transparent;cursor:pointer"></div>' +
+            '</div>' +
+            '<div id="group-modal-msg" style="margin-top:10px;font-size:12px"></div>' +
+            '<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">' +
+              '<button class="btn btn-ghost" onclick="document.getElementById(\'group-modal-backdrop\').remove()">' + i18n('webui.cancel') + '</button>' +
+              '<button class="btn btn-primary" onclick="submitNewGroup()">' + i18n('webui.save') + '</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+        document.body.insertAdjacentHTML('beforeend', html);
+        document.getElementById('group-name-input').focus();
+      }
+
+      async function submitNewGroup() {
+        const nameEl = document.getElementById('group-name-input');
+        const colorEl = document.getElementById('group-color-input');
+        const msgEl = document.getElementById('group-modal-msg');
+        const name = nameEl.value.trim();
+        if (!name) { msgEl.textContent = i18n('webui.pro_group_name_required'); msgEl.style.color = 'var(--danger)'; return; }
+        try {
+          const res = await fetch('/api/pro/groups', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({name: name, color: colorEl.value})
+          });
+          const data = await res.json();
+          if (data.ok) {
+            toastSuccess(i18n('webui.group_created'));
+            document.getElementById('group-modal-backdrop')?.remove();
+            await loadGroupChips();
+          } else {
+            msgEl.textContent = data.error || i18n('webui.ds_create_fail');
+            msgEl.style.color = 'var(--danger)';
+          }
+        } catch(e) {
+          msgEl.textContent = '创建失败: ' + e.message;
+          msgEl.style.color = 'var(--danger)';
+        }
+      }
+
+      function showAddDatasourceModal(existingDs) {
+        document.getElementById('datasource-modal-backdrop')?.remove();
+        const isEdit = !!existingDs;
+        const modalTitle = isEdit ? i18n('webui.pro_datasource_edit_title') : i18n('webui.pro_datasource_add_title');
+        const saveBtnText = isEdit ? i18n('webui.pro_datasource_save_update') : i18n('webui.pro_datasource_save_create');
+        const html = '<div id="datasource-modal-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9998;display:flex;align-items:center;justify-content:center">' +
+          '<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;min-width:420px;max-width:520px;z-index:9999">' +
+            '<div style="font-size:15px;font-weight:600;margin-bottom:16px">' + modalTitle + '</div>' +
+            '<div style="display:grid;gap:12px">' +
+              '<div><label style="font-size:12px;color:var(--text-muted)">' + i18n('webui.pro_ds_db_type_req') + '</label>' +
+                '<select id="ds-db-type" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" onchange="onDsDbTypeChange()">' +
+                  '<option value="mysql">MySQL</option>' +
+                  '<option value="pg">PostgreSQL</option>' +
+                  '<option value="oracle_full">Oracle</option>' +
+                  '<option value="dm">达梦 DM8</option>' +
+                  '<option value="sqlserver">SQL Server</option>' +
+                  '<option value="tidb">TiDB</option>' +
+                '</select></div>' +
+              '<div><label style="font-size:12px;color:var(--text-muted)">' + i18n('webui.pro_ds_label_req') + '</label>' +
+                '<input id="ds-label" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="' + i18n('webui.pro_ds_placeholder_name') + '"></div>' +
+              '<div><label style="font-size:12px;color:var(--text-muted)">' + i18n('webui.pro_ds_host_req') + '</label>' +
+                '<input id="ds-host" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="' + i18n('webui.pro_ds_placeholder_host') + '"></div>' +
+              '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
+                '<div><label style="font-size:12px;color:var(--text-muted)">' + i18n('webui.pro_ds_port_req') + '</label>' +
+                  '<input id="ds-port" type="number" value="3306" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px"></div>' +
+                '<div><label style="font-size:12px;color:var(--text-muted)">' + i18n('webui.pro_ds_user_req') + '</label>' +
+                  '<input id="ds-user" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="' + i18n('webui.pro_ds_placeholder_user') + '"></div>' +
+              '</div>' +
+              '<div><label style="font-size:12px;color:var(--text-muted)">' + i18n('webui.pro_ds_password') + '</label>' +
+                '<input id="ds-password" type="password" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="' + i18n('webui.pro_ds_password') + '"></div>' +
+              '<div id="ds-database-wrap" style="display:none"><label style="font-size:12px;color:var(--text-muted)">' + i18n('webui.pro_ds_database_pg') + '</label>' +
+                '<input id="ds-database" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="' + i18n('webui.pro_ds_placeholder_database') + '"></div>' +
+              '<div id="ds-service-wrap" style="display:none"><label style="font-size:12px;color:var(--text-muted)">' + i18n('webui.pro_ds_service_oracle') + '</label>' +
+                '<input id="ds-service-name" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="' + i18n('webui.pro_ds_placeholder_service') + '"></div>' +
+              '<div><label style="font-size:12px;color:var(--text-muted)">' + i18n('webui.pro_ds_group') + '</label>' +
+                '<select id="ds-group" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px">' +
+                '<option value="default">default</option></select></div>' +
+            '</div>' +
+            '<div id="ds-save-msg" style="margin-top:10px;font-size:12px"></div>' +
+            '<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">' +
+              '<button class="btn btn-ghost" onclick="document.getElementById(\'datasource-modal-backdrop\').remove()">' + i18n('webui.cancel') + '</button>' +
+              '<button class="btn btn-primary" onclick="saveDatasource()">' + saveBtnText + '</button>' +
+            '</div>' +
+          '</div></div>';
+        document.body.insertAdjacentHTML('beforeend', html);
+        onDsDbTypeChange();
+        // 填充分组 select
+        fetch('/api/pro/groups').then(r=>r.json()).then(d=>{
+          const sel = document.getElementById('ds-group');
+          if(sel && d.ok && d.groups){
+            sel.innerHTML = d.groups.map(g=>'<option value="'+escHtml(g.name)+'">'+escHtml(g.name)+'</option>').join('') + '<option value="default">default</option>';
+          }
+        });
+      }
+
+      function onDsDbTypeChange() {
+        const dbType = document.getElementById('ds-db-type').value;
+        const portMap = {mysql:3306, pg:5432, dm:5236, oracle_full:1521, sqlserver:1433, tidb:4000};
+        const userMap = {mysql:'root', pg:'postgres', dm:'SYSDBA', oracle_full:'sys', sqlserver:'sa', tidb:'root'};
+        document.getElementById('ds-port').value = portMap[dbType] || 3306;
+        const userEl = document.getElementById('ds-user');
+        if (!userEl.value) userEl.value = userMap[dbType] || 'root';
+        document.getElementById('ds-database-wrap').style.display = dbType === 'pg' ? '' : 'none';
+        document.getElementById('ds-service-wrap').style.display = dbType === 'oracle_full' ? '' : 'none';
+      }
+
+      async function saveDatasource() {
+        const msgEl = document.getElementById('ds-save-msg');
+        const editId = document.getElementById('ds-edit-id')?.value;
+        const payload = {
+          db_type: document.getElementById('ds-db-type').value,
+          name: document.getElementById('ds-label').value.trim(),
+          host: document.getElementById('ds-host').value.trim(),
+          port: parseInt(document.getElementById('ds-port').value) || 3306,
+          user: document.getElementById('ds-user').value.trim(),
+          password: document.getElementById('ds-password').value || undefined,
+          group: document.getElementById('ds-group').value.trim() || 'default',
+        };
+        if (payload.db_type === 'pg') payload.database = document.getElementById('ds-database').value.trim();
+        if (payload.db_type === 'oracle_full') payload.service_name = document.getElementById('ds-service-name').value.trim();
+        if (!payload.name || !payload.host || !payload.user) {
+          msgEl.style.color = 'var(--danger)';
+          msgEl.textContent = i18n('webui.pro_ds_required_hint');
+          return;
+        }
+        msgEl.style.color = 'var(--text-muted)';
+        msgEl.textContent = '保存中...';
+        try {
+          const url = editId ? '/api/pro/datasources/' + editId : '/api/pro/datasources';
+          const method = editId ? 'PUT' : 'POST';
+          const res = await fetch(url, {
+            method: method, headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json();
+          if (data.ok) {
+            msgEl.style.color = 'var(--accent)';
+            msgEl.textContent = '✅ ' + (editId ? i18n('webui.ds_update_success') + '！' : i18n('webui.ds_save_success') + '！');
+            setTimeout(() => {
+              document.getElementById('datasource-modal-backdrop')?.remove();
+              loadDataSources();
+            }, 800);
+          } else {
+            msgEl.style.color = 'var(--danger)';
+            msgEl.textContent = '❌ ' + (data.error || i18n('webui.ds_save_fail'));
+          }
+        } catch(e) {
+          msgEl.style.color = 'var(--danger)';
+          msgEl.textContent = '❌ ' + e.message;
+        }
+      }
+
+      async function editDatasource(id) {
+        try {
+          const res = await fetch('/api/pro/datasources/' + id);
+          const data = await res.json();
+          if (data.ok && data.datasource) {
+            const ds = data.datasource;
+            // 先获取原始密码用于编辑
+            showAddDatasourceModal(ds);
+            // 填充表单
+            setTimeout(() => {
+              document.getElementById('ds-db-type').value = ds.db_type || 'mysql';
+              document.getElementById('ds-label').value = ds.name || '';
+              document.getElementById('ds-host').value = ds.host || '';
+              document.getElementById('ds-port').value = ds.port || 3306;
+              document.getElementById('ds-user').value = ds.user || '';
+              // 密码留空，不回显
+              document.getElementById('ds-password').placeholder = '（不修改请留空）';
+              document.getElementById('ds-group').value = ds.group || 'default';
+              if (ds.db_type === 'pg') {
+                document.getElementById('ds-database').value = ds.database || '';
+              }
+              if (ds.db_type === 'oracle_full') {
+                document.getElementById('ds-service-name').value = ds.service_name || '';
+              }
+              onDsDbTypeChange();
+              // 添加隐藏字段存储ID
+              const form = document.getElementById('datasource-modal-backdrop').querySelector('div[style*="min-width"]');
+              const idInput = document.createElement('input');
+              idInput.type = 'hidden';
+              idInput.id = 'ds-edit-id';
+              idInput.value = id;
+              form.appendChild(idInput);
+            }, 100);
+          } else {
+            toastError(i18n('webui.ds_get_info_fail'));
+          }
+        } catch(e) {
+          toastError('加载失败: ' + e.message);
+        }
+      }
+
+      async function deleteDatasource(id) {
+        if (!await toastConfirm(i18n('webui.pro_ds_delete_confirm'))) return;
+        try {
+          const res = await fetch('/api/pro/datasources/' + id, {method:'DELETE'});
+          const data = await res.json();
+          if (data.ok) { toastSuccess(i18n('webui.pro_ds_deleted')); loadDataSources(); }
+          else { toastError(i18n('webui.pro_ds_delete_fail').replace('{}', data.error || '')); }
+        } catch(e) { toastError(e.message); }
+      }
+
+      async function testDatasourceConnection(id) {
+        try {
+          const res = await fetch('/api/pro/datasources/' + id + '/test', {method:'POST'});
+          const data = await res.json();
+          if (data.ok) { toastSuccess(i18n('webui.ds_connect_success').replace('{}', data.version || '')); }
+          else { toastError(i18n('webui.ds_connect_fail').replace('{}', data.error || '')); }
+        } catch(e) { toastError(e.message); }
+      }
+
+      // ─── Rules Page ─────────────────────────────
+      {% if pro_available %}
+      async function loadRules() {
+        try {
+          const dbType = document.getElementById('rules-db-type')?.value || '';
+          const url = '/api/pro/rules' + (dbType ? '?db_type=' + encodeURIComponent(dbType) : '');
+          const res = await fetch(url);
+          const data = await res.json();
+          const listEl = document.getElementById('rules-list');
+          const countEl = document.getElementById('rules-count');
+          if (data.ok && data.rules) {
+            countEl.textContent = data.rules.length;
+            listEl.innerHTML = '<div style="display:flex;flex-direction:column;gap:8px">' +
+              data.rules.map(r => {
+                const isDisabled = !r.enabled;
+                const statusColor = isDisabled ? 'var(--danger)' : 'var(--accent)';
+                const statusText = isDisabled ? (i18n('webui.rules_disabled') || '已禁用') : (i18n('webui.rules_enabled') || '启用');
+                return '<div style="padding:12px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">' +
+                  '<div style="font-size:12px;color:' + statusColor + ';min-width:50px">' + statusText + '</div>' +
+                  '<div style="flex:1">' +
+                    '<div style="font-weight:600;font-size:13px">' + escHtml(r.id) + '</div>' +
+                    '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;max-width:500px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(r.condition || '') + '</div>' +
+                  '</div>' +
+                  '<button class="btn btn-ghost" style="font-size:12px;padding:4px 10px" onclick="toggleRule(\'' + r.id + '\')">' + (isDisabled ? (i18n('webui.rules_enable_btn') || '✅ 启用') : (i18n('webui.rules_disable_btn') || '⛔ 禁用')) + '</button>' +
+                '</div>';
+              }).join('') + '</div>';
+          } else {
+            countEl.textContent = '0';
+            listEl.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted)">' + (i18n('webui.rules_empty') || '暂无自定义规则') + '</div>';
+          }
+        } catch(e) { console.error('loadRules failed', e); }
+      }
+
+      async function toggleRule(ruleId) {
+        try {
+          const res = await fetch('/api/pro/rules/' + encodeURIComponent(ruleId) + '/toggle', {
+            method:'POST',
+            headers: {'Content-Type':'application/json'},
+            body: '{}'
+          });
+          const data = await res.json();
+          if (data.ok) { toastSuccess('规则状态已更新'); loadRules(); }
+          else { toastError(i18n('webui.ds_operation_fail').replace('{}', data.error || '')); }
+        } catch(e) { toastError(e.message); }
+      }
+      {% endif %}
+
 </script>
 <div class="app-shell">
 
@@ -874,20 +1251,25 @@ function formatBytes(bytes) {
     <div class="nav-item" onclick="showPage('wizard')" id="nav-wizard">
       <span class="icon">🔍</span> <span data-i18n="webui.nav_wizard">新建巡检</span>
     </div>
-    <div class="nav-item" onclick="showPage('reports')" id="nav-reports">
-      <span class="icon">📄</span> <span data-i18n="webui.reports_title">历史报告</span>
-    </div>
-    <div class="nav-item" onclick="showPage('trend')" id="nav-trend">
-      <span class="icon">📈</span> <span data-i18n="webui.trend_title">趋势分析</span>
-    </div>
     <div class="nav-item" onclick="showPage('scheduler')" id="nav-scheduler">
       <span class="icon">⏰</span> <span data-i18n="webui.nav_scheduler">定时巡检</span>
     </div>
+    <div class="nav-item" onclick="showPage('reports')" id="nav-reports">
+      <span class="icon">📄</span> <span data-i18n="webui.reports_title">历史巡检报告</span>
+    </div>
+    <div class="nav-item" onclick="showPage('trend')" id="nav-trend">
+      <span class="icon">📈</span> <span data-i18n="webui.trend_title">历史趋势分析</span>
+    </div>
+    <div class="nav-item" onclick="showPage('datasources')" id="nav-datasources">
+      <span class="icon">🗄️</span> <span data-i18n="webui.nav_datasources">数据源管理</span>
+    </div>
+    {% if pro_available %}
+    <div class="nav-item" onclick="showPage('rules')" id="nav-rules">
+      <span class="icon">📋</span> <span data-i18n="webui.nav_rules">规则引擎</span>
+    </div>
+    {% endif %}
     <div class="nav-item" onclick="showPage('rag')" id="nav-rag">
       <span class="icon">📚</span> <span data-i18n="webui.rag_nav">RAG 知识库</span>
-    </div>
-    <div class="nav-item" onclick="showPage('pro')" id="nav-pro" style="background:var(--surface2);">
-      <span class="icon">🚀</span> <span>DBCheck Pro</span>
     </div>
     <div class="nav-section" data-i18n="webui.nav_section_setting">设置</div>
     <div class="nav-item" onclick="showPage('notifier')" id="nav-notifier">
@@ -895,6 +1277,9 @@ function formatBytes(bytes) {
     </div>
     <div class="nav-item" onclick="showPage('ai')" id="nav-ai">
       <span class="icon">🤖</span> <span data-i18n="webui.nav_ai">AI 诊断设置</span>
+    </div>
+    <div class="nav-item" onclick="showPage('license')" id="nav-license">
+      <span class="icon">🔑</span> <span data-i18n="webui.nav_license">许可证</span>
     </div>
 
     <div class="sidebar-footer">
@@ -1044,6 +1429,13 @@ function formatBytes(bytes) {
           <div class="card-title">
             <span>🔌</span> <span data-i18n="webui.step2_title">数据库连接信息</span>
             <span class="badge" data-i18n="webui.step_badge">第 2 步 / 共 5 步</span>
+          </div>
+          <!-- 选择已保存的数据源 -->
+          <div class="field full" style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border)">
+            <label>📋 选择已保存的数据源 <span style="font-size:11px;color:var(--text-muted)">(可选，选择后将自动填充连接信息)</span></label>
+            <select id="f-datasource" onchange="onDatasourceChange()" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text)">
+              <option value="">-- 手动输入连接信息 --</option>
+            </select>
           </div>
           <div class="form-grid">
             <div class="field full">
@@ -1286,49 +1678,45 @@ function formatBytes(bytes) {
           </div>
           <div class="form-grid">
             <div class="field full">
-              <label data-i18n="webui.scheduler_name_label">任务名称</label> <span class="req">*</span>
-              <input type="text" id="job-name" placeholder="例如：每日凌晨健康巡检" />
+              <label>任务名称 <span class="req">*</span></label>
+              <input type="text" id="job-name" placeholder="任务名称（用于报告命名）" />
             </div>
-            <div class="field">
-              <label data-i18n="webui.scheduler_db_type_label">数据库类型</label> <span class="req">*</span>
-              <select id="job-db-type" onchange="onJobDbTypeChange()">
-                <option value="mysql">MySQL</option>
-                <option value="pg">PostgreSQL</option>
-                <option value="oracle_full">Oracle</option>
-                <option value="dm">达梦 DM8</option>
-                <option value="sqlserver">SQL Server</option>
-                <option value="tidb">TiDB</option>
+            <div class="field full">
+              <label>选择已有数据源</label>
+              <select id="job-datasource" onchange="onJobDatasourceChange()">
+                <option value="">-- 手动输入连接信息 --</option>
               </select>
             </div>
             <div class="field">
-              <label data-i18n="webui.scheduler_label_label">实例标签</label>
-              <input type="text" id="job-label" placeholder="用于报告命名" />
+              <label>数据库类型 <span class="req">*</span></label>
+              <select id="job-db-type" onchange="onJobDbTypeChange()"></select>
             </div>
             <div class="field">
-              <label data-i18n="webui.scheduler_host_label">主机地址</label> <span class="req">*</span>
+              <label>主机地址 <span class="req">*</span></label>
               <input type="text" id="job-host" placeholder="localhost" />
             </div>
             <div class="field">
-              <label data-i18n="webui.scheduler_port_label">端口</label> <span class="req">*</span>
+              <label>端口 <span class="req">*</span></label>
               <input type="number" id="job-port" value="3306" />
             </div>
             <div class="field">
-              <label data-i18n="webui.scheduler_user_label">用户名</label> <span class="req">*</span>
+              <label>用户名 <span class="req">*</span></label>
               <input type="text" id="job-user" placeholder="root" autocomplete="off" />
             </div>
             <div class="field">
-              <label data-i18n="webui.scheduler_pass_label">密码</label>
+              <label>密码</label>
               <input type="password" id="job-password" placeholder="数据库密码" autocomplete="new-password" />
             </div>
             <div class="field" id="job-database-wrap" style="display:none">
-              <label data-i18n="webui.scheduler_database_label">数据库名</label>
+              <label>数据库名</label>
               <input type="text" id="job-database" placeholder="默认 postgres" />
             </div>
           </div>
 
-          <!-- Cron 配置 -->
+          <div id="job-test-status" style="margin-top:10px;display:none;"></div>
+
           <div style="margin-top:20px;">
-            <label style="font-weight:600;margin-bottom:12px;display:block;">⏰ <span data-i18n="webui.scheduler_cron_label">执行周期（Cron 表达式）</span></label>
+            <label style="font-weight:600;margin-bottom:12px;display:block;">⏰ 执行周期</label>
             <div class="form-grid">
               <div class="field">
                 <label data-i18n="webui.scheduler_cron_hour">小时</label>
@@ -1372,7 +1760,9 @@ function formatBytes(bytes) {
             </label>
           </div>
 
-          <div class="btn-row" style="margin-top:24px;">
+          <div class="btn-row" style="margin-top:20px;">
+            <button class="btn btn-ghost" onclick="testJobDb()" style="font-size:12px;">🔗 测试连接</button>
+            <div style="flex:1"></div>
             <button class="btn btn-primary" onclick="saveJob()">💾 保存任务</button>
             <button class="btn btn-ghost" onclick="hideAddJobForm()">取消</button>
           </div>
@@ -1456,13 +1846,13 @@ function formatBytes(bytes) {
         </div>
       </div>
 
-      <!-- ══ Page: Pro Settings ══ -->
-      <div class="page" id="page-pro">
-        <!-- License Card -->
+      <!-- ══ Page: License ══ -->
+      <div class="page" id="page-license">
         <div class="card">
           <div class="card-title">
-            <span>🔑</span> 专业版许可证
-            <span class="badge" id="pro-license-status" style="background:var(--warn)">社区版</span>          </div>
+            <span>🔑</span> <span data-i18n="webui.license_title">专业版许可证</span>
+            <span class="badge" id="pro-license-status" style="background:var(--warn)">社区版</span>
+          </div>
           <div id="pro-license-info" style="margin-bottom:16px;padding:12px;background:var(--surface2);border-radius:8px;">
             <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
               <span style="font-size:24px;" id="pro-edition-icon">🏠</span>
@@ -1474,86 +1864,15 @@ function formatBytes(bytes) {
           </div>
           <div class="form-grid" id="pro-license-form">
             <div class="field full">
-              <label>许可证密钥</label>
-              <input type="text" id="pro-license-key" placeholder="DBCheck-Pro-XXXX-XXXX-XXXX" />
+              <label data-i18n="webui.license_key_label">许可证密钥</label>
+              <input type="text" id="pro-license-key" placeholder="DBCheck-Pro-XXXX-XXXX-XXXX" data-i18n-placeholder="webui.license_key_placeholder" />
             </div>
           </div>
           <div class="btn-row" style="margin-top:16px;">
-            <button class="btn btn-primary" id="btn-pro-activate" onclick="activateProLicense()">🚀 激活专业版</button>
-            <button class="btn btn-ghost" id="btn-pro-deactivate" onclick="deactivateProLicense()" style="display:none;">注销许可证</button>
+            <button class="btn btn-primary" id="btn-pro-activate" onclick="activateProLicense()">🚀 <span data-i18n="webui.license_activate_btn">激活专业版</span></button>
+            <button class="btn btn-ghost" id="btn-pro-deactivate" onclick="deactivateProLicense()" style="display:none;" data-i18n="webui.license_deactivate_btn">注销许可证</button>
           </div>
           <div id="pro-license-msg" style="margin-top:10px;font-size:13px;"></div>
-        </div>
-
-        <!-- Global Health Score -->
-        <div class="card" id="pro-health-card" style="display:none;">
-          <div class="card-title">
-            <span>📊</span> 全局健康评分
-          </div>
-          <div style="text-align:center;padding:20px;">
-            <div id="pro-health-score" style="font-size:48px;font-weight:700;color:var(--accent);">--</div>
-            <div style="font-size:14px;color:var(--text-muted);margin-top:4px;">
-              综合健康评分（0-100）
-            </div>
-            <div style="margin-top:12px;">
-              <span class="badge" id="pro-health-level" style="background:var(--accent)">--</span>
-            </div>
-          </div>
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;text-align:center;margin-top:16px;">
-            <div style="padding:12px;background:var(--surface2);border-radius:8px;">
-              <div id="pro-stat-total" style="font-size:24px;font-weight:600;">0</div>
-              <div style="font-size:12px;color:var(--text-muted);">总实例</div>
-            </div>
-            <div style="padding:12px;background:var(--surface2);border-radius:8px;">
-              <div id="pro-stat-enabled" style="font-size:24px;font-weight:600;color:var(--accent);">0</div>
-              <div style="font-size:12px;color:var(--text-muted);">已启用</div>
-            </div>
-            <div style="padding:12px;background:var(--surface2);border-radius:8px;">
-              <div id="pro-stat-risks" style="font-size:24px;font-weight:600;color:var(--danger);">0</div>
-              <div style="font-size:12px;color:var(--text-muted);">风险项</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Instance Management -->
-        <div class="card" id="pro-instances-card" style="display:none;">
-          <div class="card-title">
-            <span>🗄️</span> 实例管理
-            <span class="badge" id="pro-instance-count" style="background:var(--accent2)">0</span>
-            <div style="margin-left:auto;">
-              <button class="btn btn-ghost" onclick="showAddInstanceModal()" style="font-size:12px;padding:4px 10px;">➕ 添加实例</button>
-              <button class="btn btn-ghost" onclick="importInstances()" style="font-size:12px;padding:4px 10px;">📥 导入</button>
-            </div>
-          </div>
-          <div id="pro-instances-list" style="margin-top:12px;">
-            <div style="text-align:center;padding:40px;color:var(--text-muted);">
-              暂无实例，点击上方按钮添加
-            </div>
-          </div>
-        </div>
-
-        <!-- Groups Management -->
-        <div class="card" id="pro-groups-card" style="display:none;">
-          <div class="card-title">
-            <span>📁</span> 分组管理
-            <div style="margin-left:auto;">
-              <button class="btn btn-ghost" onclick="showAddGroupModal()" style="font-size:12px;padding:4px 10px;">➕ 添加分组</button>
-            </div>
-          </div>
-          <div id="pro-groups-list" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;">
-          </div>
-        </div>
-
-        <!-- Inspection History -->
-        <div class="card" id="pro-history-card" style="display:none;">
-          <div class="card-title">
-            <span>📜</span> 巡检历史
-          </div>
-          <div id="pro-history-list" style="margin-top:12px;max-height:400px;overflow-y:auto;">
-            <div style="text-align:center;padding:40px;color:var(--text-muted);">
-              暂无巡检记录
-            </div>
-          </div>
         </div>
       </div>
 
@@ -1706,6 +2025,54 @@ function formatBytes(bytes) {
           <div id="rag-ollama-status" style="margin-top:10px;font-size:12px;padding:6px 10px;border-radius:6px;display:none"></div>
         </div>
       </div><!-- /page-rag -->
+      <!-- ══ Page: Data Sources ══ -->
+      <div class="page" id="page-datasources">
+        <div class="card">
+          <div class="card-title">
+            <span>🗄️</span> <span data-i18n="webui.datasources_title">数据源管理</span>
+            <span class="badge" id="datasources-count">0</span>
+            <button class="btn btn-primary" style="margin-left:auto;padding:6px 14px;font-size:12px" onclick="showAddDatasourceModal()">➕ <span data-i18n="webui.datasources_add">添加数据源</span></button>
+          </div>
+          <!-- 分组筛选 -->
+          <div style="margin:12px 0 4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span style="font-size:12px;color:var(--text-muted)" data-i18n="webui.group_filter">分组筛选：</span>
+            <span id="group-all-chip" class="group-chip active" onclick="filterByGroup('')" style="display:inline-block;padding:4px 12px;background:var(--surface2);border-radius:16px;font-size:12px;cursor:pointer;border:1px solid var(--accent)" data-i18n="webui.group_all">全部</span>
+            <span id="group-chips-wrap" style="display:inline-flex;gap:6px;flex-wrap:wrap"></span>
+            <button class="btn btn-ghost" style="font-size:11px;padding:2px 8px;margin-left:4px" onclick="showAddGroupModalFromDatasource()" data-i18n="webui.add_group_btn">＋分组</button>
+          </div>
+          <div id="datasources-list" style="margin-top:12px;">
+            <div style="text-align:center;padding:40px;color:var(--text-muted);" data-i18n="webui.datasources_empty">暂无数据源，点击上方按钮添加</div>
+          </div>
+        </div>
+      </div>
+      {% if pro_available %}
+      <!-- ══ Page: Rules ══ -->
+      <div class="page" id="page-rules">
+        <div class="card">
+          <div class="card-title">
+            <span>📋</span> <span data-i18n="webui.rules_title">插件规则管理</span>
+            <span class="badge" id="rules-count">0</span>
+            <button class="btn btn-ghost" style="margin-left:auto;padding:6px 14px;font-size:12px" onclick="loadRules()">↻ <span data-i18n="webui.rules_refresh">刷新</span></button>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+            <label style="font-size:12px;color:var(--text-muted)" data-i18n="webui.rules_filter_dbtype">数据库类型：</label>
+            <select id="rules-db-type" onchange="loadRules()" style="padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px">
+              <option value="" data-i18n="webui.rules_filter_all">全部</option>
+              <option value="mysql">MySQL</option>
+              <option value="pg">PostgreSQL</option>
+              <option value="oracle_full">Oracle</option>
+              <option value="dm">达梦 DM8</option>
+              <option value="sqlserver">SQL Server</option>
+              <option value="tidb">TiDB</option>
+            </select>
+          </div>
+          <div id="rules-list" style="margin-top:12px;">
+            <div style="text-align:center;padding:40px;color:var(--text-muted);" data-i18n="webui.rules_loading">正在加载规则...</div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
 
 
     </div><!-- /content -->
@@ -1790,6 +2157,9 @@ function showPage(name) {
     scheduler: [i18n('webui.nav_scheduler'), '管理定时巡检任务'],
     notifier: [i18n('webui.nav_notifier'), '配置邮件和 Webhook 通知'],
     ai:      [i18n('webui.ai_title'),        i18n('webui.ai_desc')],
+    datasources: [i18n('webui.nav_datasources'), ''],
+    rules:   [i18n('webui.nav_rules'),      ''],
+    license: [i18n('webui.nav_license'),   i18n('webui.license_desc')],
   };
   const t = titles[name] || [name, ''];
   document.getElementById('topbar-title').textContent = t[0];
@@ -1797,10 +2167,14 @@ function showPage(name) {
   if (name === 'reports') loadReports();
   if (name === 'trend') loadTrendInstances();
   if (name === 'scheduler') loadSchedulerJobs();
+  if (name === 'datasources') loadDataSources();
+  {% if pro_available %}
+  if (name === 'rules') loadRules();
+  {% endif %}
   if (name === 'notifier') loadNotifierConfig();
   if (name === 'ai') loadAIConfig();
   if (name === 'rag') showRagPage();
-  if (name === 'pro') showProPage();
+  if (name === 'license') loadProStatus();
 }
 
 function startWizard() {
@@ -1865,11 +2239,97 @@ function gotoStep(n) {
     el.textContent = i18n('webui.step_badge').replace('{}', n).replace('{}', STEP_COUNT);
   });
   if (n === 5) fillConfirmPanel();
+  if (n === 2) loadDatasourcesForSelect();
+}
+
+// ─── Load Datasources for Select ───
+async function loadDatasourcesForSelect() {
+  try {
+    const res = await fetch('/api/pro/datasources');
+    const data = await res.json();
+    const sel = document.getElementById('f-datasource');
+    sel.innerHTML = '<option value="">-- 手动输入连接信息 --</option>';
+    if (data.ok && data.datasources) {
+      let hasMatch = false;
+      data.datasources.forEach(ds => {
+        if (ds.db_type && dbType && ds.db_type.toLowerCase() === dbType.toLowerCase()) {
+          hasMatch = true;
+          const opt = document.createElement('option');
+          opt.value = ds.id;
+          opt.textContent = (ds.name || ds.host + ':' + ds.port);
+          sel.appendChild(opt);
+        }
+      });
+      if (!hasMatch) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = (i18n('webui.no_matching_datasource') || '-- 没有匹配的数据源 --').replace('{}', dbType || '');
+        opt.disabled = true;
+        sel.appendChild(opt);
+      }
+    }
+  } catch (e) { console.error('loadDatasourcesForSelect failed', e); }
+}
+
+function onDatasourceChange() {
+  const dsId = document.getElementById('f-datasource').value;
+  if (!dsId) { resetFormFromDatasource(); return; }
+  // 显示加载状态
+  document.getElementById('f-name').value = '加载中...';
+  // 调用解密接口获取密码
+  fetch('/api/pro/datasources/' + dsId + '/decrypt').then(r => r.json()).then(data => {
+    if (data.ok && data.datasource) {
+      const ds = data.datasource;
+      // 切换数据库类型，但不重载下拉框（保持当前选择）
+      if (ds.db_type) selectDbType(ds.db_type, true);
+      document.getElementById('f-name').value = ds.name || '';
+      document.getElementById('f-host').value = ds.host || '';
+      document.getElementById('f-port').value = ds.port || '';
+      document.getElementById('f-user').value = ds.user || '';
+      document.getElementById('f-password').value = ds.password || '';
+      document.getElementById('f-password').placeholder = '数据库密码';
+      if (ds.db_type === 'pg') {
+        document.getElementById('f-database').value = ds.database || '';
+      }
+      if (ds.db_type === 'oracle_full') {
+        document.getElementById('f-service-name').value = ds.service_name || '';
+        document.getElementById('f-sysdba').checked = !!ds.sysdba;
+      }
+    } else {
+      document.getElementById('f-name').value = '';
+      toastError(i18n('webui.ds_load_fail'));
+    }
+  }).catch(e => {
+    document.getElementById('f-name').value = '';
+    toastError('加载数据源失败: ' + e.message);
+  });
+}
+
+function resetFormFromDatasource() {
+  // 清除自动填充的内容，让用户手动输入
+  ['f-name','f-host','f-port','f-user','f-password','f-database','f-service-name'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('f-password').placeholder = '数据库密码';
 }
 
 // ─── DB Type ───
-function selectDbType(type) {
+function selectDbType(type, skipReload) {
   dbType = type;
+  // 切换数据库类型时，清空上次填入的连接信息（密码始终清空）
+  ['f-name','f-host','f-port','f-user','f-database','f-service-name'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  // 密码不保留，让用户重新输入
+  const pwdEl = document.getElementById('f-password');
+  if (pwdEl) { pwdEl.value = ''; pwdEl.placeholder = '数据库密码'; }
+  document.getElementById('f-sysdba').checked = false;
+  // 不再手动清空下拉框，改为重新加载匹配的数据源
+  if (!skipReload) {
+    loadDatasourcesForSelect();
+  }
   document.getElementById('tc-mysql').classList.toggle('selected', type === 'mysql');
   document.getElementById('tc-pg').classList.toggle('selected', type === 'pg');
   document.getElementById('tc-dm').classList.toggle('selected', type === 'dm');
@@ -1895,7 +2355,7 @@ function selectDbType(type) {
   if (sysdbaWrap) sysdbaWrap.style.display = type === 'oracle_full' ? '' : 'none';
 }
 
-// ─── Test DB ───
+// ─── Test DB (新建巡检页) ───
 async function testDb() {
   const el = document.getElementById('db-test-status');
   el.innerHTML = '<div class="status-banner info"><span class="spinner"></span> ' + i18n('webui.testing_connection') + '</div>';
@@ -1922,6 +2382,37 @@ async function testDb() {
     }
   } catch(e) {
     el.innerHTML = `<div class="status-banner err">${i18n('webui.connection_fail')}：${escHtml(e.message)}</div>`;
+  }
+}
+
+// ─── Test DB (定时巡检页) ───
+async function testJobDb() {
+  const el = document.getElementById('job-test-status');
+  el.style.display = 'block';
+  el.innerHTML = '<div class="status-banner info"><span class="spinner"></span> ' + i18n('webui.testing_connection') + '</div>';
+  try {
+    const dbType = document.getElementById('job-db-type').value;
+    const portDefaults = { mysql:3306, pg:5432, oracle_full:1521, dm:5236, sqlserver:1433, tidb:4000 };
+    const res = await fetch('/api/test_db', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        db_type: dbType,
+        host:     document.getElementById('job-host').value.trim(),
+        port:     parseInt(document.getElementById('job-port').value) || (portDefaults[dbType]||3306),
+        user:     document.getElementById('job-user').value.trim(),
+        password: document.getElementById('job-password').value,
+        database: dbType === 'pg' ? (document.getElementById('job-database').value.trim() || 'postgres') : '',
+      })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      el.innerHTML = '<div class="status-banner ok">' + i18n('webui.connection_ok') + '：' + escHtml(data.msg) + '</div>';
+    } else {
+      el.innerHTML = '<div class="status-banner err">' + i18n('webui.connection_fail') + '：' + escHtml(data.msg) + '</div>';
+    }
+  } catch(e) {
+    el.innerHTML = '<div class="status-banner err">' + i18n('webui.connection_fail') + '：' + escHtml(e.message) + '</div>';
   }
 }
 
@@ -2010,7 +2501,11 @@ async function startInspection() {
   const svcName = document.getElementById('f-service-name') ? document.getElementById('f-service-name').value.trim() : null;
   const inspector = document.getElementById('f-inspector').value.trim() || 'Jack';
 
-  const payload = { db_type: dbType, name, host, port, user, password, database, service_name: svcName, inspector_name: inspector, sysdba: document.getElementById('f-sysdba').checked, desensitize: document.getElementById('f-desensitize').checked };
+  // 检查是否选择了已保存的数据源
+  const datasourceId = document.getElementById('f-datasource').value;
+  const payload = datasourceId
+    ? { db_type: dbType, datasource_id: datasourceId, inspector_name: inspector, desensitize: document.getElementById('f-desensitize').checked }
+    : { db_type: dbType, name, host, port, user, password, database, service_name: svcName, inspector_name: inspector, sysdba: document.getElementById('f-sysdba').checked, desensitize: document.getElementById('f-desensitize').checked };
   if (sshEnabled) {
     payload.ssh_host     = document.getElementById('f-ssh-host').value.trim() || host;
     payload.ssh_port     = parseInt(document.getElementById('f-ssh-port').value) || 22;
@@ -2588,14 +3083,19 @@ function renderJobList(jobs) {
     const statusText = job.running ? '运行中' : '已暂停';
     const cronText = formatCronText(job.cron);
     const enabledChecked = job.enabled ? 'checked' : '';
-    
+    const dbInfo = job.db_info || {};
+    const dsId = dbInfo.datasource_id;
+    // 数据源ID模式显示数据源名称
+    const hostDisplay = dsId ? ('📁 ' + escHtml(dbInfo.host || dsId)) : (escHtml(dbInfo.host || '未知') + ':' + (dbInfo.port || ''));
+    const dbTypeDisplay = dsId ? (escHtml((dbInfo.db_type || '').toUpperCase())) : escHtml((job.db_type || 'MYSQL').toUpperCase());
+    const userDisplay = dsId ? '' : (' · ' + escHtml(dbInfo.user || ''));
+
     return `
       <div style="background:var(--surface2);border-radius:10px;padding:16px;margin-bottom:12px;display:flex;align-items:center;gap:16px;">
         <div style="flex:1">
           <div style="font-weight:600;margin-bottom:4px;">${escHtml(job.name)}</div>
           <div style="font-size:12px;color:var(--text-muted);">
-            ${escHtml(job.db_type.toUpperCase())} · ${escHtml(job.db_info.host)}:${job.db_info.port}
-            · ${cronText}
+            ${dbTypeDisplay} · ${hostDisplay}${userDisplay} · ${cronText}
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
@@ -2639,13 +3139,60 @@ function onJobDbTypeChange() {
   const dbType = document.getElementById('job-db-type').value;
   const dbWrap = document.getElementById('job-database-wrap');
   const portInput = document.getElementById('job-port');
-  
+
   const defaultPorts = {
     mysql: 3306, pg: 5432, oracle_full: 1521,
     dm: 5236, sqlserver: 1433, tidb: 4000
   };
   portInput.value = defaultPorts[dbType] || 3306;
   dbWrap.style.display = (dbType === 'pg' || dbType === 'sqlserver') ? 'block' : 'none';
+
+  // 更新数据源下拉框（仅显示匹配类型的数据源）
+  loadJobDatasources(dbType);
+}
+
+async function loadJobDatasources(dbType) {
+  const sel = document.getElementById('job-datasource');
+  sel.innerHTML = '<option value="">-- 手动输入连接信息 --</option>';
+  try {
+    const res = await fetch('/api/pro/datasources');
+    const data = await res.json();
+    if (data.ok && data.datasources) {
+      data.datasources.forEach(ds => {
+        if (ds.db_type === dbType) {
+          const opt = document.createElement('option');
+          opt.value = ds.id;
+          opt.textContent = ds.name || (ds.host + ':' + ds.port);
+          sel.appendChild(opt);
+        }
+      });
+    }
+  } catch(e) { console.error('loadJobDatasources failed', e); }
+}
+
+function onJobDatasourceChange() {
+  const dsId = document.getElementById('job-datasource').value;
+  if (!dsId) {
+    // 清空手动输入字段
+    document.getElementById('job-host').value = '';
+    document.getElementById('job-port').value = '';
+    document.getElementById('job-user').value = '';
+    document.getElementById('job-password').value = '';
+    document.getElementById('job-database').value = '';
+    return;
+  }
+  fetch('/api/pro/datasources/' + dsId + '/decrypt').then(r => r.json()).then(data => {
+    if (data.ok && data.datasource) {
+      const ds = data.datasource;
+      document.getElementById('job-db-type').value = ds.db_type || 'mysql';
+      document.getElementById('job-host').value = ds.host || '';
+      document.getElementById('job-port').value = ds.port || '';
+      document.getElementById('job-user').value = ds.user || '';
+      document.getElementById('job-password').value = ds.password || '';
+      document.getElementById('job-database').value = ds.database || '';
+      document.getElementById('job-database-wrap').style.display = (ds.db_type === 'pg' || ds.db_type === 'sqlserver') ? 'block' : 'none';
+    }
+  }).catch(e => { toastError('加载数据源失败'); });
 }
 
 function updateCronPreview() {
@@ -2671,12 +3218,32 @@ function showAddJobForm() {
   document.getElementById('add-job-form').style.display = 'block';
   document.getElementById('job-form-title').textContent = i18n('webui.scheduler_job_form_title_new');
   document.getElementById('job-name').value = '';
+  document.getElementById('job-datasource').value = '';
+  document.getElementById('job-test-status').style.display = 'none';
+  document.getElementById('job-test-status').innerHTML = '';
+  // 填充数据库类型下拉
+  const dbTypeSel = document.getElementById('job-db-type');
+  if (!dbTypeSel.options.length) {
+    const dbTypes = [
+      {value:'mysql', label:'MySQL'},
+      {value:'pg', label:'PostgreSQL'},
+      {value:'oracle_full', label:'Oracle'},
+      {value:'dm', label:'达梦 DM8'},
+      {value:'sqlserver', label:'SQL Server'},
+      {value:'tidb', label:'TiDB'},
+    ];
+    dbTypes.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.value; opt.textContent = t.label;
+      dbTypeSel.appendChild(opt);
+    });
+  }
   document.getElementById('job-db-type').value = 'mysql';
-  document.getElementById('job-label').value = '';
   document.getElementById('job-host').value = '';
   document.getElementById('job-port').value = '3306';
   document.getElementById('job-user').value = '';
   document.getElementById('job-password').value = '';
+  document.getElementById('job-database').value = '';
   document.getElementById('job-notify').checked = true;
   document.getElementById('job-cron-hour').value = '2';
   document.getElementById('job-cron-minute').value = '0';
@@ -2692,14 +3259,46 @@ function hideAddJobForm() {
 async function saveJob() {
   const name = document.getElementById('job-name').value.trim();
   if (!name) { toastError(i18n('webui.scheduler_name_required')); return; }
-  
+
+  const dsId = document.getElementById('job-datasource').value;
   const host = document.getElementById('job-host').value.trim();
-  if (!host) { toastError(i18n('webui.scheduler_host_required')); return; }
-  
+  if (!dsId && !host) { toastError('请选择数据源或输入主机地址'); return; }
+
+  // 如果选择了数据源，优先使用 datasource_id
+  if (dsId) {
+    const jobData = {
+      name: name,
+      datasource_id: dsId,
+      label: name,
+      inspector_name: 'Jack',
+      notify_on_done: document.getElementById('job-notify').checked,
+      cron: {
+        hour: document.getElementById('job-cron-hour').value,
+        minute: document.getElementById('job-cron-minute').value,
+        day: document.getElementById('job-cron-day').value
+      }
+    };
+    const res = await fetch('/api/scheduler/jobs', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(jobData)
+    });
+    const data = await res.json();
+    if (data.ok) {
+      hideAddJobForm();
+      loadSchedulerJobs();
+      toastSuccess(i18n('webui.scheduler_job_saved'));
+    } else {
+      toastError(i18n('webui.scheduler_save_fail').replace('{}', data.error || '未知错误'));
+    }
+    return;
+  }
+
+  // 手动输入模式
   const jobData = {
     name: name,
     db_type: document.getElementById('job-db-type').value,
-    label: document.getElementById('job-label').value || host,
+    label: host,
     inspector_name: 'Jack',
     host: host,
     port: parseInt(document.getElementById('job-port').value) || 3306,
@@ -3023,21 +3622,6 @@ async function initApp() {
 }
 initApp();
 
-// ── Pro 专业版函数 ──────────────────────────────
-async function showProPage() {
-  await loadProStatus();
-  // 这里 isPro 判断改为用 class，不在依赖文字
-  const badge = document.getElementById('pro-license-status');
-  const isPro = badge.classList.contains('pro-active');
-  if (isPro) {
-    document.getElementById('pro-health-card').style.display = '';
-    document.getElementById('pro-instances-card').style.display = '';
-    document.getElementById('pro-groups-card').style.display = '';
-    document.getElementById('pro-history-card').style.display = '';
-    await Promise.all([loadProHealth(), loadProInstances(), loadProGroups(), loadProHistory()]);
-  }
-}
-
 async function loadProStatus() {
   try {
     const res = await fetch('/api/pro/status');
@@ -3083,10 +3667,6 @@ async function loadProStatus() {
       formEl.style.display = '';
       btnA.style.display = '';
       btnD.style.display = 'none';
-      document.getElementById('pro-health-card').style.display = 'none';
-      document.getElementById('pro-instances-card').style.display = 'none';
-      document.getElementById('pro-groups-card').style.display = 'none';
-      document.getElementById('pro-history-card').style.display = 'none';
       // 侧边栏徽章恢复社区版
       if (sidebarBadge) {
         sidebarBadge.textContent = i18n('webui.edition_badge');
@@ -3149,46 +3729,6 @@ async function loadProHealth() {
   } catch(e) {}
 }
 
-async function loadProInstances() {
-  try {
-    const res = await fetch('/api/pro/instances');
-    const data = await res.json();
-    if (!data.ok) return;
-    const listEl = document.getElementById('pro-instances-list');
-    document.getElementById('pro-instance-count').textContent = data.instances.length;
-    if (data.instances.length === 0) {
-      listEl.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">暂无实例，点击上方按钮添加</div>';
-      return;
-    }
-    const icons = {mysql:'🐬',postgresql:'🐘',oracle:'🔶',sqlserver:'🪟',dm:'🏛️',tidb:'🌱'};
-    listEl.innerHTML = data.instances.map(inst => `
-      <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--surface2);border-radius:8px;margin-bottom:8px;">
-        <span style="font-size:18px;">${icons[inst.db_type]||'🗄️'}</span>
-        <div style="flex:1;">
-          <div style="font-weight:500;">${escHtml(inst.name)}</div>
-          <div style="font-size:12px;color:var(--text-muted);">${escHtml(inst.host)}:${inst.port} · ${escHtml(inst.group||'default')}</div>
-        </div>
-        <button class="btn btn-ghost" style="font-size:12px;padding:4px 8px;" onclick="testInstance('${inst.id}')">测试</button>
-        <button class="btn btn-ghost" style="font-size:12px;padding:4px 8px;" onclick="editInstance('${inst.id}')">编辑</button>
-        <button class="btn btn-ghost" style="font-size:12px;padding:4px 8px;color:var(--danger);" onclick="deleteInstance('${inst.id}')">删除</button>
-      </div>`).join('');
-  } catch(e) {}
-}
-
-async function loadProGroups() {
-  try {
-    const res = await fetch('/api/pro/groups');
-    const data = await res.json();
-    if (!data.ok) return;
-    const listEl = document.getElementById('pro-groups-list');
-    listEl.innerHTML = data.groups.map(g => `
-      <span style="display:inline-block;padding:6px 14px;background:var(--surface2);border-radius:20px;font-size:13px;cursor:pointer;" onclick="loadProInstancesByGroup('${g.name}')">
-        <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${g.color||'#378ADD'};margin-right:6px;"></span>
-        ${escHtml(g.name)}
-      </span>`).join('');
-  } catch(e) {}
-}
-
 async function loadProHistory() {
   try {
     const res = await fetch('/api/pro/history?limit=20');
@@ -3212,22 +3752,6 @@ async function loadProHistory() {
     }).join('');
   } catch(e) {}
 }
-
-// 实例操作占位函数（后续扩展）
-window.testInstance = async function(id) { toast('测试连接中...', 'info'); };
-window.editInstance = function(id) { toast('编辑功能开发中...', 'info'); };
-window.deleteInstance = async function(id) {
-  if (!confirm('确定要删除此实例吗？')) return;
-  try {
-    const res = await fetch('/api/pro/instances/' + id, {method:'DELETE'});
-    const data = await res.json();
-    if (data.success) { toastSuccess('实例已删除'); await loadProInstances(); }
-    else toastError(data.message||'删除失败');
-  } catch(e) { toastError('删除失败: ' + e.message); }
-};
-window.showAddInstanceModal = function() { toast('添加实例功能开发中，当前可通过 API 添加', 'info'); };
-window.showAddGroupModal = function() { toast('分组管理功能开发中', 'info'); };
-window.loadProInstancesByGroup = function(groupName) { toast('按分组筛选: ' + groupName, 'info'); };
 
 </script>
 

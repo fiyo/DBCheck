@@ -1,0 +1,24 @@
+DBCheck Web UI 启动中: http://localhost:5003
+ * Serving Flask app 'web_ui'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5003
+ * Running on http://192.168.1.199:5003
+Press CTRL+C to quit
+192.168.1.199 - - [03/May/2026 00:37:53] "GET / HTTP/1.1" 200 -
+192.168.1.199 - - [03/May/2026 00:37:53] "GET /dbcheck_logo.png HTTP/1.1" 304 -
+192.168.1.199 - - [03/May/2026 00:37:53] "GET /oracle.png HTTP/1.1" 304 -
+192.168.1.199 - - [03/May/2026 00:37:53] "GET /sqlserver.png HTTP/1.1" 304 -
+192.168.1.199 - - [03/May/2026 00:37:53] "GET /dm.png HTTP/1.1" 304 -
+192.168.1.199 - - [03/May/2026 00:37:53] "GET /tidb.png HTTP/1.1" 304 -
+192.168.1.199 - - [03/May/2026 00:37:53] "GET /api/i18n HTTP/1.1" 200 -
+192.168.1.199 - - [03/May/2026 00:37:53] "GET /favicon.ico HTTP/1.1" 304 -
+192.168.1.199 - - [03/May/2026 00:37:53] "GET /api/pro/status HTTP/1.1" 200 -
+192.168.1.199 - - [03/May/2026 00:37:56] "GET /api/pro/status HTTP/1.1" 200 -
+192.168.1.199 - - [03/May/2026 00:37:56] "GET /api/pro/instances HTTP/1.1" 500 -
+192.168.1.199 - - [03/May/2026 00:37:56] "GET /api/pro/groups HTTP/1.1" 200 -
+192.168.1.199 - - [03/May/2026 00:37:56] "GET /api/pro/health-score HTTP/1.1" 200 -
+192.168.1.199 - - [03/May/2026 00:37:56] "GET /api/pro/history?limit=20 HTTP/1.1" 200 -
+192.168.1.199 - - [03/May/2026 00:37:56] "GET /api/pro/statistics HTTP/1.1" 200 -
+127.0.0.1 - - [03/May/2026 00:40:14] "GET /api/pro/datasources HTTP/1.1" 200 -

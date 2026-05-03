@@ -1,0 +1,212 @@
+# -*- coding: utf-8 -*-
+rules:
+  # ── 系统资源 ──
+  - id: sqlserver_mem_usage_high
+    name: 系统内存使用率过高
+    name_zh: 系统内存使用率过高
+    category: system
+    db_types: [sqlserver]
+    severity: high
+    priority: high
+    owner: 系统管理员
+    enabled: true
+    description: 系统内存使用率超过 90%
+    description_zh: 系统内存使用率超过 90%
+    condition: "mem_usage > 90"
+    params:
+      mem_usage: "${context.system_info.memory.usage_percent}"
+    message: "系统内存使用率 {mem_usage:.1f}%，超过 90% 可能触发 OOM"
+    message_zh: "系统内存使用率 {mem_usage:.1f}%，超过 90% 可能触发 OOM"
+    fix_sql: ""
+
+  - id: sqlserver_mem_usage_medium
+    name: 系统内存使用率预警
+    name_zh: 系统内存使用率预警
+    category: system
+    db_types: [sqlserver]
+    severity: medium
+    priority: medium
+    owner: 系统管理员
+    enabled: true
+    description: 系统内存使用率超过 80%
+    description_zh: 系统内存使用率超过 80%
+    condition: "mem_usage > 80 and mem_usage <= 90"
+    params:
+      mem_usage: "${context.system_info.memory.usage_percent}"
+    message: "系统内存使用率 {mem_usage:.1f}%，建议关注"
+    message_zh: "系统内存使用率 {mem_usage:.1f}%，建议关注"
+    fix_sql: ""
+
+  - id: sqlserver_disk_usage_high
+    name: 磁盘空间紧张
+    name_zh: 磁盘空间紧张
+    category: system
+    db_types: [sqlserver]
+    severity: high
+    priority: high
+    owner: 系统管理员
+    enabled: true
+    description: 磁盘使用率超过 90%
+    description_zh: 磁盘使用率超过 90%
+    condition: "any(disk.get('usage_percent', 0) > 90 for disk in disk_list)"
+    params:
+      disk_list: "${context.system_info.disk_list}"
+    message: "磁盘 {mountpoint} 使用率 {usage:.1f}%，可能导致数据库写入失败"
+    message_zh: "磁盘 {mountpoint} 使用率 {usage:.1f}%，可能导致数据库写入失败"
+    fix_sql: ""
+
+  # ── SQL Server 特有规则 ──
+  - id: sqlserver_conn_usage_high
+    name: 连接数使用率过高
+    name_zh: 连接数使用率过高
+    category: connection
+    db_types: [sqlserver]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 活动连接数超过最大连接的 90%
+    description_zh: 活动连接数超过最大连接的 90%
+    condition: "max_conn > 0 and (active_conn / max_conn * 100) > 90"
+    params:
+      max_conn: "${context.max_worker_count}"
+      active_conn: "${context.active_connections}"
+    message: "连接数使用率达 {pct:.1f}%，可能拒绝新连接"
+    message_zh: "连接数使用率达 {pct:.1f}%，可能拒绝新连接"
+    fix_sql: "-- 调整最大工作线程数：\nEXEC sp_configure 'max worker threads', 2000;\nRECONFIGURE;"
+    fix_params:
+      pct: "(active_conn / max_conn * 100) if max_conn > 0 else 0"
+
+  - id: sqlserver_long_running_query
+    name: 长时间运行的 SQL
+    name_zh: 长时间运行的 SQL
+    category: performance
+    db_types: [sqlserver]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 存在运行超过 60 秒的 SQL
+    description_zh: 存在运行超过 60 秒的 SQL
+    condition: "len(long_queries) > 0"
+    params:
+      long_queries: "${context._long_queries}"
+    message: "发现 {n} 个运行超过 60 秒的 SQL"
+    message_zh: "发现 {n} 个运行超过 60 秒的 SQL"
+    fix_sql: "-- 查看长时间运行查询：\nSELECT session_id, start_time, status, command FROM sys.dm_exec_requests WHERE status = 'running';\n-- 终止会话：\nKILL session_id;"
+    fix_params:
+      n: "len(long_queries)"
+
+  - id: sqlserver_fragmentation_high
+    name: 索引碎片率过高
+    name_zh: 索引碎片率过高
+    category: maintenance
+    db_types: [sqlserver]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: 索引碎片率超过 30%
+    description_zh: 索引碎片率超过 30%
+    condition: "frag_ratio > 30"
+    params:
+      frag_ratio: "${context.avg_fragmentation_percent}"
+    message: "索引碎片率达 {ratio:.1f}%，建议重建或重组索引"
+    message_zh: "索引碎片率达 {ratio:.1f}%，建议重建或重组索引"
+    fix_sql: "-- 重组碎片率 < 30% 的索引：\nALTER INDEX idx_name ON schema.table REORGANIZE;\n-- 重建碎片率 >= 30% 的索引：\nALTER INDEX idx_name ON schema.table REBUILD;"
+    fix_params:
+      ratio: "frag_ratio"
+
+  - id: sqlserver_log_regrowth
+    name: 事务日志文件频繁增长
+    name_zh: 事务日志文件频繁增长
+    category: storage
+    db_types: [sqlserver]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: 事务日志频繁自动增长
+    description_zh: 事务日志频繁自动增长
+    condition: "log_growth_count > 5"
+    params:
+      log_growth_count: "${context.log_file_growth_count}"
+    message: "事务日志在过去 {count} 次增长，建议设置合理的初始大小和增长增量"
+    message_zh: "事务日志在过去 {count} 次增长，建议设置合理的初始大小和增长增量"
+    fix_sql: "-- 调整日志文件大小：\nALTER DATABASE db_name MODIFY FILE (NAME=log_name, SIZE=10GB, MAXSIZE=50GB, FILEGROWTH=1GB);"
+    fix_params:
+      count: "log_growth_count"
+
+  - id: sqlserver_autoclose_on
+    name: 数据库自动关闭已开启
+    name_zh: 数据库自动关闭已开启
+    category: configuration
+    db_types: [sqlserver]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: AUTO_CLOSE 为 ON
+    description_zh: AUTO_CLOSE 为 ON
+    condition: "auto_close is not None and str(auto_close).upper() == 'ON'"
+    params:
+      auto_close: "${context.auto_close}"
+    message: "AUTO_CLOSE 为 ON 时，每次关闭/打开数据库会有额外开销，影响性能"
+    message_zh: "AUTO_CLOSE 为 ON 时，每次关闭/打开数据库会有额外开销，影响性能"
+    fix_sql: "ALTER DATABASE db_name SET AUTO_CLOSE OFF;"
+
+  - id: sqlserver_dbcc_off
+    name: 完整性检查未定期执行
+    name_zh: 完整性检查未定期执行
+    category: maintenance
+    db_types: [sqlserver]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 超过 7 天未执行 DBCC CHECKDB
+    description_zh: 超过 7 天未执行 DBCC CHECKDB
+    condition: "days_since_check > 7"
+    params:
+      days_since_check: "${context.days_since_checkdb}"
+    message: "已超过 {days} 天未执行 DBCC CHECKDB，数据损坏可能无法及时发现"
+    message_zh: "已超过 {days} 天未执行 DBCC CHECKDB，数据损坏可能无法及时发现"
+    fix_sql: "DBCC CHECKDB ('db_name');"
+    fix_params:
+      days: "days_since_check"
+
+  - id: sqlserver_backup_off
+    name: 备份策略缺失
+    name_zh: 备份策略缺失
+    category: backup
+    db_types: [sqlserver]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 数据库未配置备份
+    description_zh: 数据库未配置备份
+    condition: "False"
+    params: {}
+    message: "数据库未配置备份策略，存在数据丢失风险"
+    message_zh: "数据库未配置备份策略，存在数据丢失风险"
+    fix_sql: "-- 配置完整备份计划：\nBACKUP DATABASE db_name TO DISK='\\backup\\db_name_full.bak' WITH COMPRESSION, CHECKSUM;\n-- 配置差异备份和日志备份"
+    enabled: true
+
+  - id: sqlserver_empty_password
+    name: 用户空密码
+    name_zh: 用户空密码
+    category: security
+    db_types: [sqlserver]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 存在未设置密码的登录账户
+    description_zh: 存在未设置密码的登录账户
+    condition: "False"
+    params: {}
+    message: "数据库登录账户存在空密码，存在严重安全风险"
+    message_zh: "数据库登录账户存在空密码，存在严重安全风险"
+    fix_sql: "ALTER LOGIN login_name WITH PASSWORD = '强密码';"
+    enabled: true

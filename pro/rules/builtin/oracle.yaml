@@ -1,0 +1,215 @@
+# -*- coding: utf-8 -*-
+rules:
+  # ── 系统资源 ──
+  - id: oracle_mem_usage_high
+    name: 系统内存使用率过高
+    name_zh: 系统内存使用率过高
+    category: system
+    db_types: [oracle_full]
+    severity: high
+    priority: high
+    owner: 系统管理员
+    enabled: true
+    description: 系统内存使用率超过 90%
+    description_zh: 系统内存使用率超过 90%
+    condition: "mem_usage > 90"
+    params:
+      mem_usage: "${context.system_info.memory.usage_percent}"
+    message: "系统内存使用率 {mem_usage:.1f}%，超过 90% 可能触发 OOM"
+    message_zh: "系统内存使用率 {mem_usage:.1f}%，超过 90% 可能触发 OOM"
+    fix_sql: ""
+
+  - id: oracle_mem_usage_medium
+    name: 系统内存使用率预警
+    name_zh: 系统内存使用率预警
+    category: system
+    db_types: [oracle_full]
+    severity: medium
+    priority: medium
+    owner: 系统管理员
+    enabled: true
+    description: 系统内存使用率超过 80%
+    description_zh: 系统内存使用率超过 80%
+    condition: "mem_usage > 80 and mem_usage <= 90"
+    params:
+      mem_usage: "${context.system_info.memory.usage_percent}"
+    message: "系统内存使用率 {mem_usage:.1f}%，建议关注"
+    message_zh: "系统内存使用率 {mem_usage:.1f}%，建议关注"
+    fix_sql: ""
+
+  - id: oracle_disk_usage_high
+    name: 磁盘空间紧张
+    name_zh: 磁盘空间紧张
+    category: system
+    db_types: [oracle_full]
+    severity: high
+    priority: high
+    owner: 系统管理员
+    enabled: true
+    description: 磁盘使用率超过 90%
+    description_zh: 磁盘使用率超过 90%
+    condition: "any(disk.get('usage_percent', 0) > 90 for disk in disk_list)"
+    params:
+      disk_list: "${context.system_info.disk_list}"
+    message: "磁盘 {mountpoint} 使用率 {usage:.1f}%，可能导致数据库写入失败"
+    message_zh: "磁盘 {mountpoint} 使用率 {usage:.1f}%，可能导致数据库写入失败"
+    fix_sql: ""
+
+  # ── Oracle 特有规则 ──
+  - id: oracle_sga_pga_imbalance
+    name: SGA/PGA 内存分配失衡
+    name_zh: SGA/PGA 内存分配失衡
+    category: memory
+    db_types: [oracle_full]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: SGA 与 PGA 内存分配比例失衡
+    description_zh: SGA 与 PGA 内存分配比例失衡
+    condition: "sga_total > 0 and (pga_total / sga_total) > 2"
+    params:
+      sga_total: "${context.sga_total}"
+      pga_total: "${context.pga_total}"
+    message: "PGA 内存（{pga}）相对于 SGA（{sga}）过大，可能影响并发性能"
+    message_zh: "PGA 内存（{pga}）相对于 SGA（{sga}）过大，可能影响并发性能"
+    fix_sql: "ALTER SYSTEM SET pga_aggregate_target = '2G' SCOPE=SPFILE;"
+    fix_params:
+      pga: "pga_total"
+      sga: "sga_total"
+
+  - id: oracle_sga_cache_hit_low
+    name: 库缓存命中率低
+    name_zh: 库缓存命中率低
+    category: performance
+    db_types: [oracle_full]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 库缓存命中率低于 95%
+    description_zh: 库缓存命中率低于 95%
+    condition: "hit_ratio < 95"
+    params:
+      hit_ratio: "${context.library_cache_hit_ratio}"
+    message: "库缓存命中率 {hit:.1f}%，SQL 重复解析开销大"
+    message_zh: "库缓存命中率 {hit:.1f}%，SQL 重复解析开销大"
+    fix_sql: "-- 检查共享池大小：\nSELECT * FROM V$SGASTAT WHERE POOL = 'shared pool';\nALTER SYSTEM SET shared_pool_size = '1G' SCOPE=SPFILE;"
+
+  - id: oracle_long_running_query
+    name: 长时间运行的 SQL
+    name_zh: 长时间运行的 SQL
+    category: performance
+    db_types: [oracle_full]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 存在运行超过 60 秒的 SQL
+    description_zh: 存在运行超过 60 秒的 SQL
+    condition: "len(long_queries) > 0"
+    params:
+      long_queries: "${context._long_queries}"
+    message: "发现 {n} 个运行超过 60 秒的 SQL"
+    message_zh: "发现 {n} 个运行超过 60 秒的 SQL"
+    fix_sql: "SELECT SID, SERIAL#, SQL_ID FROM V$SESSION WHERE STATUS='ACTIVE' AND SECONDS_IN_WAIT > 60;\n-- 终止会话：\nALTER SYSTEM KILL SESSION 'sid,serial#' IMMEDIATE;"
+    fix_params:
+      n: "len(long_queries)"
+
+  - id: oracle_invalid_objects
+    name: 存在无效对象
+    name_zh: 存在无效对象
+    category: maintenance
+    db_types: [oracle_full]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: 数据库存在 INVALID 状态的对象
+    description_zh: 数据库存在 INVALID 状态的对象
+    condition: "invalid_count > 0"
+    params:
+      invalid_count: "${context.invalid_objects_count}"
+    message: "存在 {count} 个无效对象，可能导致引用错误"
+    message_zh: "存在 {count} 个无效对象，可能导致引用错误"
+    fix_sql: "SELECT OWNER, OBJECT_NAME, OBJECT_TYPE FROM DBA_OBJECTS WHERE STATUS='INVALID';\n-- 重新编译：\nALTER PACKAGE package_name COMPILE;"
+    fix_params:
+      count: "invalid_count"
+
+  - id: oracle_undo_retention_low
+    name: 撤销表空间保留时间不足
+    name_zh: 撤销表空间保留时间不足
+    category: durability
+    db_types: [oracle_full]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: UNDO_RETENTION 设置低于 900 秒
+    description_zh: UNDO_RETENTION 设置低于 900 秒
+    condition: "undo_retention < 900"
+    params:
+      undo_retention: "${context.undo_retention}"
+    message: "UNDO 保留时间仅 {val} 秒，可能无法支持 Flashback Query"
+    message_zh: "UNDO 保留时间仅 {val} 秒，可能无法支持 Flashback Query"
+    fix_sql: "ALTER SYSTEM SET UNDO_RETENTION = 900 SCOPE=SPFILE;"
+
+  - id: oracle_temp_space_low
+    name: 临时表空间空间不足
+    name_zh: 临时表空间空间不足
+    category: storage
+    db_types: [oracle_full]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 临时表空间使用率超过 90%
+    description_zh: 临时表空间使用率超过 90%
+    condition: "temp_usage_pct > 90"
+    params:
+      temp_usage_pct: "${context.temp_tablespace_usage}"
+    message: "临时表空间使用率 {pct:.1f}%，可能导致排序操作失败"
+    message_zh: "临时表空间使用率 {pct:.1f}%，可能导致排序操作失败"
+    fix_sql: "-- 添加临时数据文件：\nALTER TABLESPACE TEMP ADD TEMPFILE '/u01/oradata/temp02.dbf' SIZE 10G;"
+    fix_params:
+      pct: "temp_usage_pct"
+
+  - id: oracle_archive_dest_error
+    name: 归档日志目标错误
+    name_zh: 归档日志目标错误
+    category: backup
+    db_types: [oracle_full]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 归档进程出错
+    description_zh: 归档进程出错
+    condition: "archive_errors > 0"
+    params:
+      archive_errors: "${context.archive_errors}"
+    message: "发现 {count} 条归档错误，归档失败可能导致数据丢失"
+    message_zh: "发现 {count} 条归档错误，归档失败可能导致数据丢失"
+    fix_sql: "SELECT * FROM V$ARCHIVE_DEST WHERE STATUS != 'VALID';\n-- 检查归档目录磁盘空间"
+    fix_params:
+      count: "archive_errors"
+
+  - id: oracle_sysaux_space_high
+    name: SYSAUX 表空间使用率过高
+    name_zh: SYSAUX 表空间使用率过高
+    category: storage
+    db_types: [oracle_full]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: SYSAUX 表空间使用率超过 85%
+    description_zh: SYSAUX 表空间使用率超过 85%
+    condition: "sysaux_pct > 85"
+    params:
+      sysaux_pct: "${context.sysaux_usage_percent}"
+    message: "SYSAUX 表空间使用率 {pct:.1f}%，部分组件可能受影响"
+    message_zh: "SYSAUX 表空间使用率 {pct:.1f}%，部分组件可能受影响"
+    fix_sql: "-- 清理 AWR 快照：\nBEGIN DBMS_WORKLOAD_REPOSITORY.DROP_SNAPSHOT_RANGE(low_snap_id => 1, high_snap_id => 100); END;"
+    fix_params:
+      pct: "sysaux_pct"

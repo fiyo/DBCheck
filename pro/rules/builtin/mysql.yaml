@@ -1,0 +1,389 @@
+# -*- coding: utf-8 -*-
+rules:
+  - id: mysql_conn_usage_high
+    name: 连接数使用率
+    name_zh: 连接数使用率
+    category: connection
+    db_types: [mysql]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 历史最大连接数使用率超过 90%
+    description_zh: 历史最大连接数使用率超过 90%
+    condition: "max_conn > 0 and (max_used / max_conn * 100) > 90"
+    params:
+      max_conn: "${context.max_connections[0].Value}"
+      max_used: "${context.max_used_connections[0].Value}"
+    message: "历史最大连接数使用率高达 {pct:.1f}%（{max_used}/{max_conn}），极有可能出现拒绝连接"
+    message_zh: "历史最大连接数使用率高达 {pct:.1f}%（{max_used}/{max_conn}），极有可能出现拒绝连接"
+    fix_sql: "SET GLOBAL max_connections = {new_val};"
+    fix_params:
+      new_val: "min(max_conn * 2, 2000)"
+    _extra:
+      pct: "(max_used / max_conn * 100) if max_conn > 0 else 0"
+
+  - id: mysql_conn_usage_medium
+    name: 连接数使用率预警
+    name_zh: 连接数使用率预警
+    category: connection
+    db_types: [mysql]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: 历史最大连接数使用率超过 80%
+    description_zh: 历史最大连接数使用率超过 80%
+    condition: "max_conn > 0 and (max_used / max_conn * 100) > 80 and (max_used / max_conn * 100) <= 90"
+    params:
+      max_conn: "${context.max_connections[0].Value}"
+      max_used: "${context.max_used_connections[0].Value}"
+    message: "连接数使用率达 {pct:.1f}%（{max_used}/{max_conn}），建议提前关注"
+    message_zh: "连接数使用率达 {pct:.1f}%（{max_used}/{max_conn}），建议提前关注"
+    fix_sql: "SET GLOBAL max_connections = {new_val};"
+    fix_params:
+      new_val: "int(max_conn * 1.5)"
+    _extra:
+      pct: "(max_used / max_conn * 100) if max_conn > 0 else 0"
+
+  - id: mysql_long_query
+    name: 长时间运行的 SQL
+    name_zh: 长时间运行的 SQL
+    category: performance
+    db_types: [mysql]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 发现执行超过 60 秒的 SQL
+    description_zh: 发现执行超过 60 秒的 SQL
+    condition: "len(long_queries) > 0"
+    params:
+      long_queries: "${context._long_queries}"
+    message: "发现 {n} 个执行超过 60 秒的 SQL，可能导致锁等待和性能下降"
+    message_zh: "发现 {n} 个执行超过 60 秒的 SQL，可能导致锁等待和性能下降"
+    fix_sql: "${kill_sqls}"
+    fix_params:
+      n: "len(long_queries)"
+      kill_sqls: "scripts._generate_kill_sql(long_queries)"
+    note: "processlist 需要在 analyzer 中预计算 _long_queries"
+
+  - id: mysql_slow_log_off
+    name: 慢查询日志未开启
+    name_zh: 慢查询日志未开启
+    category: log
+    db_types: [mysql]
+    severity: info
+    priority: low
+    owner: DBA
+    enabled: true
+    description: slow_query_log 为 OFF
+    description_zh: 慢查询日志未开启
+    condition: "slow_log is not None and str(slow_log).upper() in ('OFF', '0')"
+    params:
+      slow_log: "${context.slow_query_log[0].Value}"
+    message: "慢查询日志已关闭，无法追踪性能问题，建议开启"
+    message_zh: "慢查询日志已关闭，无法追踪性能问题，建议开启"
+    fix_sql: "SET GLOBAL slow_query_log = 'ON';\nSET GLOBAL long_query_time = 1;"
+
+  - id: mysql_binlog_off
+    name: binlog 未开启
+    name_zh: binlog 未开启
+    category: backup
+    db_types: [mysql]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: log_bin 为 OFF
+    description_zh: binlog 未开启
+    condition: "log_bin is not None and str(log_bin).upper() in ('OFF', '0')"
+    params:
+      log_bin: "${context.log_bin[0].Value}"
+    message: "binlog 未开启，无法实现基于时间点的数据恢复，生产环境建议开启"
+    message_zh: "binlog 未开启，无法实现基于时间点的数据恢复，生产环境建议开启"
+    fix_sql: "-- 需在 my.cnf 中添加：\n-- log_bin = /var/log/mysql/mysql-bin.log\n-- server-id = 1\n-- 然后重启 MySQL"
+
+  - id: mysql_binlog_never_expire
+    name: binlog 永不过期
+    name_zh: binlog 永不过期
+    category: backup
+    db_types: [mysql]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: expire_logs_days = 0
+    description_zh: expire_logs_days = 0
+    condition: "expire_days == 0"
+    params:
+      expire_days: "${context.expire_logs_days[0].Value}"
+    message: "expire_logs_days=0 表示 binlog 永不自动清理，可能导致磁盘耗尽"
+    message_zh: "expire_logs_days=0 表示 binlog 永不自动清理，可能导致磁盘耗尽"
+    fix_sql: "SET GLOBAL expire_logs_days = 7;"
+
+  - id: mysql_innodb_buffer_small
+    name: InnoDB 缓冲池偏小
+    name_zh: InnoDB 缓冲池偏小
+    category: memory
+    db_types: [mysql]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: innodb_buffer_pool_size < 1GB
+    description_zh: InnoDB 缓冲池偏小
+    condition: "buf_gb > 0 and buf_gb < 1"
+    params:
+      buf_bytes: "${context.innodb_buffer_pool_size[0].Value}"
+    message: "innodb_buffer_pool_size 仅 {buf_val}，建议设置为物理内存的 50%~70%"
+    message_zh: "innodb_buffer_pool_size 仅 {buf_val}，建议设置为物理内存的 50%~70%"
+    fix_sql: "-- 建议修改 my.cnf：\n-- innodb_buffer_pool_size = 4G  # 根据实际内存调整\n-- 或在线调整（MySQL 5.7+）：\nSET GLOBAL innodb_buffer_pool_size = 4294967296;  -- 4G"
+    fix_params:
+      buf_val: "buf_bytes"
+      buf_gb: "buf_bytes / 1024**3 if isinstance(buf_bytes, (int, float)) else 0"
+
+  - id: mysql_query_cache_on
+    name: 查询缓存已开启（不建议）
+    name_zh: 查询缓存已开启（不建议）
+    category: performance
+    db_types: [mysql]
+    severity: info
+    priority: low
+    owner: DBA
+    enabled: true
+    description: query_cache_type = ON
+    description_zh: query_cache_type = ON
+    condition: "False"  # 占位，实际由 analyzer 处理
+    params: {}
+    message: "query_cache 在高并发场景下会造成严重锁竞争，MySQL 8.0 已彻底移除，建议关闭"
+    message_zh: "query_cache 在高并发场景下会造成严重锁竞争，MySQL 8.0 已彻底移除，建议关闭"
+    fix_sql: "SET GLOBAL query_cache_type = 0;\nSET GLOBAL query_cache_size = 0;"
+    enabled: false  # MySQL 8.0 已移除，默认禁用
+
+  - id: mysql_table_lock_waits
+    name: 表锁等待比例过高
+    name_zh: 表锁等待比例过高
+    category: lock
+    db_types: [mysql]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 表锁等待比例 > 5%
+    description_zh: 表锁等待比例 > 5%
+    condition: "immediate + waited > 0 and (waited / (immediate + waited) * 100) > 5"
+    params:
+      immediate: "${context.table_locks_immediate[0].Value}"
+      waited: "${context.table_locks_waited[0].Value}"
+    message: "表锁等待比例达 {lock_pct:.2f}%（等待次数 {waited}），存在大量锁竞争"
+    message_zh: "表锁等待比例达 {lock_pct:.2f}%（等待次数 {waited}），存在大量锁竞争"
+    fix_sql: "-- 排查锁等待来源：\nSHOW FULL PROCESSLIST;\nSHOW OPEN TABLES WHERE In_use > 0;\nSELECT * FROM information_schema.INNODB_LOCKS;"
+    fix_params:
+      lock_pct: "(waited / (immediate + waited) * 100) if (immediate + waited) > 0 else 0"
+
+  - id: mysql_aborted_connections
+    name: 异常中止连接数较多
+    name_zh: 异常中止连接数较多
+    category: connection
+    db_types: [mysql]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: aborted_connections > 100
+    description_zh: 异常中止连接数较多
+    condition: "aborted > 100"
+    params:
+      aborted: "${context.aborted_connections[0].Value}"
+    message: "累计中止连接数达 {aborted}，可能存在连接池配置异常或网络问题"
+    message_zh: "累计中止连接数达 {aborted}，可能存在连接池配置异常或网络问题"
+    fix_sql: "-- 查看详情：\nSHOW GLOBAL STATUS LIKE \"Aborted%\";\n-- 检查 timeout 设置：\nSHOW VARIABLES LIKE \"%timeout%\";"
+
+  - id: mysql_empty_password
+    name: 用户空密码
+    name_zh: 用户空密码
+    category: security
+    db_types: [mysql]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 数据库用户未设置密码
+    description_zh: 数据库用户未设置密码
+    condition: "False"  # 由 analyzer 中的循环处理，此处为占位
+    params: {}
+    message: "数据库用户存在空密码，存在严重安全风险"
+    message_zh: "数据库用户存在空密码，存在严重安全风险"
+    fix_sql: "ALTER USER 'user'@'host' IDENTIFIED BY '强密码请替换';"
+    enabled: true
+    note: "此规则需要在 analyzer 中以循环方式处理，引擎暂不支持循环规则"
+
+  - id: mysql_root_wildcard
+    name: root 用户允许所有主机连接
+    name_zh: root 用户允许所有主机连接
+    category: security
+    db_types: [mysql]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: root@'%' 存在
+    description_zh: root@'%' 存在
+    condition: "False"  # 同上，需要循环处理
+    params: {}
+    message: "root@'%' 允许从任意主机登录，存在严重安全风险，建议限制为本地"
+    message_zh: "root@'%' 允许从任意主机登录，存在严重安全风险，建议限制为本地"
+    fix_sql: "-- 删除 root@% 并仅保留 root@localhost：\nDROP USER 'root'@'%';\nCREATE USER 'root'@'localhost' IDENTIFIED BY '强密码请替换';\nGRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION;"
+    enabled: true
+
+  - id: mysql_slave_io_not_running
+    name: 复制 IO 线程异常
+    name_zh: 复制 IO 线程异常
+    category: replication
+    db_types: [mysql]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: Slave_IO_Running != YES
+    description_zh: 复制 IO 线程异常
+    condition: "slave_status and (io != 'YES' or sql != 'YES')"
+    params:
+      slave_status: "${context.slave_status}"
+      io: "${context.slave_status[0].Slave_IO_Running}"
+      sql: "${context.slave_status[0].Slave_SQL_Running}"
+    message: "复制状态异常：IO线程={io}，SQL线程={sql}"
+    message_zh: "复制状态异常：IO线程={io}，SQL线程={sql}"
+    fix_sql: "SHOW SLAVE STATUS\\G\n-- 如需重启复制：\nSTOP SLAVE; START SLAVE;"
+
+  - id: mysql_slave_delay
+    name: 主从复制延迟过高
+    name_zh: 主从复制延迟过高
+    category: replication
+    db_types: [mysql]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: Seconds_Behind_Master > 60
+    description_zh: 主从复制延迟过高
+    condition: "slave_ok and lag > 60"
+    params:
+      slave_status: "${context.slave_status}"
+      slave_ok: "len(context.get('slave_status', [])) > 0 and context['slave_status'][0]"
+      lag: "${context.slave_status[0].Seconds_Behind_Master}"
+    message: "从库延迟 {lag} 秒，数据同步滞后，读操作可能读到旧数据"
+    message_zh: "从库延迟 {lag} 秒，数据同步滞后，读操作可能读到旧数据"
+    fix_sql: "SHOW SLAVE STATUS\\G\nSHOW PROCESSLIST;"
+
+  - id: mysql_table_cache_low
+    name: 表缓存命中率低
+    name_zh: 表缓存命中率低
+    category: performance
+    db_types: [mysql]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: opened_tables > table_open_cache * 0.8
+    description_zh: 表缓存命中率低
+    condition: "opened > cache * 0.8"
+    params:
+      opened: "${context.opened_tables[0].Value}"
+      cache: "${context.table_open_cache[0].Value}"
+    message: "已打开表数({opened}) 接近 table_open_cache({cache})，可能频繁开关文件句柄"
+    message_zh: "已打开表数({opened}) 接近 table_open_cache({cache})，可能频繁开关文件句柄"
+    fix_sql: "SET GLOBAL table_open_cache = {new_val};"
+    fix_params:
+      new_val: "min(cache * 2, 8192)"
+
+  - id: mysql_mem_usage_high
+    name: 系统内存使用率
+    name_zh: 系统内存使用率
+    category: system
+    db_types: [mysql]
+    severity: high
+    priority: high
+    owner: 系统管理员
+    enabled: true
+    description: 系统内存使用率 > 90%
+    description_zh: 系统内存使用率 > 90%
+    condition: "mem_usage > 90"
+    params:
+      mem_usage: "${context.system_info.memory.usage_percent}"
+    message: "系统内存使用率 {mem_usage:.1f}%，超过 90% 可能触发 OOM Killer"
+    message_zh: "系统内存使用率 {mem_usage:.1f}%，超过 90% 可能触发 OOM Killer"
+    fix_sql: ""
+
+  - id: mysql_mem_usage_medium
+    name: 系统内存使用率预警
+    name_zh: 系统内存使用率预警
+    category: system
+    db_types: [mysql]
+    severity: medium
+    priority: medium
+    owner: 系统管理员
+    enabled: true
+    description: 系统内存使用率 > 80%
+    description_zh: 系统内存使用率 > 80%
+    condition: "mem_usage > 80 and mem_usage <= 90"
+    params:
+      mem_usage: "${context.system_info.memory.usage_percent}"
+    message: "系统内存使用率 {mem_usage:.1f}%，建议关注内存增长趋势"
+    message_zh: "系统内存使用率 {mem_usage:.1f}%，建议关注内存增长趋势"
+    fix_sql: ""
+
+  - id: mysql_disk_usage_high
+    name: 磁盘空间紧张
+    name_zh: 磁盘空间紧张
+    category: system
+    db_types: [mysql]
+    severity: high
+    priority: high
+    owner: 系统管理员
+    enabled: true
+    description: 磁盘使用率 > 90%
+    description_zh: 磁盘使用率 > 90%
+    condition: "any(disk.get('usage_percent', 0) > 90 for disk in disk_list)"
+    params:
+      disk_list: "${context.system_info.disk_list}"
+    message: "磁盘 {mountpoint} 使用率 {usage:.1f}%，可能导致数据库写入失败"
+    message_zh: "磁盘 {mountpoint} 使用率 {usage:.1f}%，可能导致数据库写入失败"
+    fix_sql: "-- 清理旧 binlog：\nPURGE BINARY LOGS BEFORE DATE_SUB(NOW(), INTERVAL 3 DAY);\n-- 查看数据库占用：\nSELECT table_schema, ROUND(SUM(data_length+index_length)/1024/1024,2) AS mb FROM information_schema.tables GROUP BY 1 ORDER BY 2 DESC LIMIT 10;"
+
+  - id: mysql_innodb_flush_0
+    name: innodb_flush_log_at_trx_commit=0
+    name_zh: innodb_flush_log_at_trx_commit=0
+    category: durability
+    db_types: [mysql]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: innodb_flush_log_at_trx_commit = 0
+    description_zh: innodb_flush_log_at_trx_commit = 0
+    condition: "flush_val is not None and str(flush_val) == '0'"
+    params:
+      flush_val: "${context.innodb_flush_log_at_trx_commit[0].Value}"
+    message: "设置为 0 时 MySQL 崩溃可能丢失最多 1 秒的事务，生产环境建议设为 1"
+    message_zh: "设置为 0 时 MySQL 崩溃可能丢失最多 1 秒的事务，生产环境建议设为 1"
+    fix_sql: "SET GLOBAL innodb_flush_log_at_trx_commit = 1;"
+
+  - id: mysql_charset_not_utf8
+    name: 数据库字符集非 UTF8
+    name_zh: 数据库字符集非 UTF8
+    category: charset
+    db_types: [mysql]
+    severity: info
+    priority: low
+    owner: DBA
+    enabled: true
+    description: character_set_database 不是 utf8mb4
+    description_zh: 数据库字符集非 UTF8
+    condition: "charset is not None and charset.lower() not in ('utf8mb4', 'utf8')"
+    params:
+      charset: "${context.character_set_database[0].Value}"
+    message: "当前字符集为 {charset}，建议统一使用 utf8mb4 以支持 emoji 和多语言"
+    message_zh: "当前字符集为 {charset}，建议统一使用 utf8mb4 以支持 emoji 和多语言"
+    fix_sql: "-- 修改 my.cnf：\n-- character-set-server = utf8mb4\n-- collation-server = utf8mb4_unicode_ci"

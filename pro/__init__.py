@@ -23,6 +23,10 @@ from .report_score import (
     InspectionDataScorer,
     format_score_report,
 )
+from .rule_engine import (
+    RuleEngine,
+    get_rule_engine,
+)
 
 __all__ = [
     # License
@@ -41,4 +45,7 @@ __all__ = [
     "ScoreItem",
     "InspectionDataScorer",
     "format_score_report",
+    # Rule Engine
+    "RuleEngine",
+    "get_rule_engine",
 ]

@@ -58,7 +58,7 @@ def _save_jobs(jobs):
 def _run_inspection(job_id, db_info, inspector_name, notify_on_done):
     """
     执行巡检并发送通知（在独立线程中运行）
-    
+
     参数:
         job_id:      任务ID（用于日志）
         db_info:     数据库连接信息字典
@@ -70,14 +70,30 @@ def _run_inspection(job_id, db_info, inspector_name, notify_on_done):
         run_dm, run_sqlserver, run_tidb
     )
     from notifier import EmailNotifier, WebhookNotifier
-    
+
+    # 如果指定了 datasource_id，从 Pro 模块获取完整连接信息（解密密码）
+    if db_info.get('datasource_id'):
+        try:
+            from pro import get_instance_manager
+            im = get_instance_manager()
+            ds = im.get_instance_decrypted(db_info['datasource_id'])
+            if ds:
+                db_info = ds.copy()
+                db_info['label'] = db_info.get('name', db_info.get('host', ''))
+            else:
+                raise ValueError('数据源不存在: ' + db_info['datasource_id'])
+        except ImportError:
+            raise ValueError('Pro 模块未安装，无法使用数据源')
+        except Exception as e:
+            raise ValueError('获取数据源失败: ' + str(e))
+
     db_type = db_info.get('db_type', 'mysql')
-    logger.info('[%s] 定时巡检开始: %s %s:%s', job_id, db_type, 
+    logger.info('[%s] 定时巡检开始: %s %s:%s', job_id, db_type,
                 db_info.get('host'), db_info.get('port'))
-    
+
     report_file = None
     error_msg = None
-    
+
     try:
         # SSH 信息（如果有）
         ssh_info = None
@@ -89,7 +105,7 @@ def _run_inspection(job_id, db_info, inspector_name, notify_on_done):
                 'ssh_password': db_info.get('ssh_password', ''),
                 'ssh_key_file': db_info.get('ssh_key_file', ''),
             }
-        
+
         # 执行巡检
         if db_type == 'mysql':
             report_file, _ = run_mysql(db_info, inspector_name, ssh_info)
@@ -105,13 +121,13 @@ def _run_inspection(job_id, db_info, inspector_name, notify_on_done):
             report_file, _ = run_tidb(db_info, inspector_name, ssh_info)
         else:
             raise ValueError('不支持的数据库类型: %s' % db_type)
-        
+
         logger.info('[%s] 巡检完成: %s', job_id, report_file)
-        
+
         # 发送通知
         if notify_on_done:
             _send_notifications(job_id, db_info, report_file, error=None)
-    
+
     except Exception as e:
         error_msg = str(e)
         logger.error('[%s] 巡检失败: %s', job_id, error_msg)
@@ -314,13 +330,13 @@ class SchedulerManager:
     def list_jobs(self):
         """
         列出所有定时任务
-        
+
         返回:
             list: 任务配置列表（包含调度器中的运行状态）
         """
         jobs = _load_jobs()
         scheduled_ids = {job.id for job in self.scheduler.get_jobs()}
-        
+
         result = []
         for job_cfg in jobs:
             job_cfg = dict(job_cfg)  # 拷贝
@@ -329,6 +345,21 @@ class SchedulerManager:
             if 'password' in job_cfg.get('db_info', {}):
                 job_cfg['db_info'] = dict(job_cfg['db_info'])
                 job_cfg['db_info']['password'] = '***'
+            # 如果使用了数据源，获取数据源名称用于显示
+            if job_cfg.get('db_info', {}).get('datasource_id'):
+                ds_id = job_cfg['db_info']['datasource_id']
+                try:
+                    from pro import get_instance_manager
+                    im = get_instance_manager()
+                    ds = im.get_instance(ds_id, mask_password=False)
+                    if ds:
+                        job_cfg['db_info']['host'] = ds.get('name') or ds.get('host', ds_id)
+                        job_cfg['db_info']['db_type'] = ds.get('db_type', '')
+                        job_cfg['db_info']['port'] = ds.get('port', '')
+                        job_cfg['db_info']['user'] = ds.get('user', '')
+                        job_cfg['db_info']['password'] = ''
+                except Exception:
+                    pass
             result.append(job_cfg)
         return result
     

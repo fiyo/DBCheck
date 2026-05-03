@@ -12,6 +12,47 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
 import hashlib
+import base64
+
+# Fernet 密码加密
+try:
+    from cryptography.fernet import Fernet
+    _FERNET_AVAILABLE = True
+except ImportError:
+    _FERNET_AVAILABLE = False
+    Fernet = None
+
+def _get_fernet():
+    if not _FERNET_AVAILABLE:
+        return None
+    key_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, '.db_key')
+    if not os.path.exists(key_file):
+        key = Fernet.generate_key()
+        with open(key_file, 'wb') as f:
+            f.write(key)
+    else:
+        with open(key_file, 'rb') as f:
+            key = f.read()
+    return Fernet(key)
+
+def _encrypt_pwd(password: str) -> str:
+    if not password:
+        return password
+    f = _get_fernet()
+    if f is None:
+        return password
+    return base64.b64encode(f.encrypt(password.encode())).decode()
+
+def _decrypt_pwd(encrypted: str) -> str:
+    if not encrypted:
+        return encrypted
+    f = _get_fernet()
+    if f is None:
+        return encrypted
+    try:
+        return f.decrypt(base64.b64decode(encrypted.encode())).decode()
+    except Exception:
+        return encrypted
 
 
 @dataclass
@@ -120,16 +161,16 @@ class InstanceManager:
 
     def _save_data(self):
         """保存数据"""
-        # 保存实例
+        # 保存实例（兼容对象和字典两种格式）
         instances_data = {
-            "instances": [inst.to_dict() for inst in self._instances.values()]
+            "instances": [inst.to_dict() if not isinstance(inst, dict) else inst for inst in self._instances.values()]
         }
         with open(self.instances_file, "w", encoding="utf-8") as f:
             json.dump(instances_data, f, indent=2, ensure_ascii=False)
 
-        # 保存分组
+        # 保存分组（兼容对象和字典两种格式）
         groups_data = {
-            "groups": [grp.to_dict() for grp in self._groups.values()]
+            "groups": [grp.to_dict() if not isinstance(grp, dict) else grp for grp in self._groups.values()]
         }
         with open(self.groups_file, "w", encoding="utf-8") as f:
             json.dump(groups_data, f, indent=2, ensure_ascii=False)
@@ -179,49 +220,183 @@ class InstanceManager:
         raw = f"{name}-{db_type}-{datetime.now().isoformat()}".encode()
         return hashlib.md5(raw).hexdigest()[:12]
 
+    def export_csv(self) -> str:
+        """导出所有实例为 CSV 格式（密码为空）"""
+        import csv
+        import io
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fieldnames=[
+            'name', 'db_type', 'host', 'port', 'user', 'password',
+            'service_name', 'group', 'tags', 'description'
+        ])
+        writer.writeheader()
+        for inst in self._instances.values():
+            row = {
+                'name': inst.name,
+                'db_type': inst.db_type,
+                'host': inst.host,
+                'port': inst.port,
+                'user': inst.user,
+                'password': '',  # 不导出明文密码
+                'service_name': inst.service_name,
+                'group': inst.group,
+                'tags': ','.join(inst.tags or []),
+                'description': inst.description,
+            }
+            writer.writerow(row)
+        return output.getvalue()
+
+    def test_connection(self, instance_id: str) -> dict:
+        """测试实例连接，返回 {'ok': bool, 'message': str}"""
+        inst = self._instances.get(instance_id)
+        if not inst:
+            return {'ok': False, 'message': '实例不存在'}
+
+        password = _decrypt_pwd(inst.password)
+        db_type = inst.db_type.lower()
+
+        try:
+            if db_type == 'mysql':
+                import pymysql
+                conn = pymysql.connect(
+                    host=inst.host, port=inst.port,
+                    user=inst.user, password=password,
+                    connect_timeout=10,
+                )
+                conn.close()
+                return {'ok': True, 'message': '连接成功 (MySQL %s:%d)' % (inst.host, inst.port)}
+
+            elif db_type == 'postgresql':
+                import psycopg2
+                conn = psycopg2.connect(
+                    host=inst.host, port=inst.port,
+                    user=inst.user, password=password,
+                    connect_timeout=10,
+                )
+                conn.close()
+                return {'ok': True, 'message': '连接成功 (PostgreSQL %s:%d)' % (inst.host, inst.port)}
+
+            elif db_type == 'oracle':
+                import oracledb
+                dsn = inst.service_name or '%s:%d/orcl' % (inst.host, inst.port)
+                conn = oracledb.connect(user=inst.user, password=password, dsn=dsn)
+                conn.close()
+                return {'ok': True, 'message': '连接成功 (Oracle %s)' % dsn}
+
+            elif db_type == 'sqlserver':
+                import pyodbc
+                driver = '{ODBC Driver 17 for SQL Server}'
+                dsn = 'DRIVER=%s;SERVER=%s,%d;DATABASE=master;UID=%s;PWD=%s' % (
+                    driver, inst.host, inst.port, inst.user, password)
+                conn = pyodbc.connect(dsn, timeout=10)
+                conn.close()
+                return {'ok': True, 'message': '连接成功 (SQL Server %s:%d)' % (inst.host, inst.port)}
+
+            elif db_type == 'dm':
+                try:
+                    import dmPython
+                    dsn = '%s:%d' % (inst.host, inst.port)
+                    conn = dmPython.connect(user=inst.user, password=password, server=dsn)
+                    conn.close()
+                    return {'ok': True, 'message': '连接成功 (DM %s:%d)' % (inst.host, inst.port)}
+                except ImportError:
+                    return {'ok': False, 'message': 'dmPython 驱动未安装'}
+
+            elif db_type == 'tidb':
+                import pymysql
+                conn = pymysql.connect(
+                    host=inst.host, port=inst.port,
+                    user=inst.user, password=password,
+                    connect_timeout=10,
+                )
+                conn.close()
+                return {'ok': True, 'message': '连接成功 (TiDB %s:%d)' % (inst.host, inst.port)}
+
+            else:
+                return {'ok': False, 'message': '不支持的数据库类型: %s' % db_type}
+
+        except ImportError as e:
+            return {'ok': False, 'message': '驱动未安装: %s' % str(e)}
+        except Exception as e:
+            return {'ok': False, 'message': '连接失败: %s' % str(e)}
+
     def add_instance(self, instance: DatabaseInstance) -> Dict[str, Any]:
-        """添加实例"""
+        """添加实例（密码自动加密）"""
         if not instance.id:
             instance.id = self._generate_id(instance.name, instance.db_type)
-
         if instance.id in self._instances:
-            return {"success": False, "message": "实例ID已存在"}
-
+            return {"ok": False, "message": "实例ID已存在"}
+        # 加密密码
+        instance.password = _encrypt_pwd(instance.password)
         self._instances[instance.id] = instance
         self._save_data()
-
-        return {"success": True, "message": "实例添加成功", "instance_id": instance.id}
+        return {"ok": True, "message": "实例添加成功", "instance_id": instance.id}
 
     def update_instance(self, instance_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
-        """更新实例"""
+        """更新实例（密码变更时自动加密）"""
         if instance_id not in self._instances:
-            return {"success": False, "message": "实例不存在"}
-
+            return {"ok": False, "message": "实例不存在"}
         instance = self._instances[instance_id]
         for key, value in updates.items():
             if hasattr(instance, key):
+                # 密码变更时加密
+                if key == 'password' and value:
+                    value = _encrypt_pwd(value)
                 setattr(instance, key, value)
         instance.updated_at = datetime.now().isoformat()
-
         self._save_data()
-        return {"success": True, "message": "实例更新成功"}
+        return {"ok": True, "message": "实例更新成功"}
 
     def delete_instance(self, instance_id: str) -> Dict[str, Any]:
         """删除实例"""
         if instance_id not in self._instances:
-            return {"success": False, "message": "实例不存在"}
-
+            return {"ok": False, "message": "实例不存在"}
         del self._instances[instance_id]
         self._save_data()
-        return {"success": True, "message": "实例删除成功"}
+        return {"ok": True, "message": "实例删除成功"}
 
-    def get_instance(self, instance_id: str) -> Optional[DatabaseInstance]:
-        """获取实例"""
-        return self._instances.get(instance_id)
+    def get_all_instances(self, mask_password: bool = True) -> List[Dict]:
+        """获取所有实例，密码脱敏"""
+        result = []
+        for inst in self._instances.values():
+            # 统一转为字典（兼容对象和字典两种存储格式）
+            if isinstance(inst, dict):
+                d = inst.copy()
+            else:
+                d = inst.to_dict()
+            if mask_password and d.get('password'):
+                d['password'] = '********'
+            result.append(d)
+        return result
 
-    def get_all_instances(self) -> List[DatabaseInstance]:
-        """获取所有实例"""
-        return list(self._instances.values())
+    def get_instance(self, instance_id: str, mask_password: bool = True) -> Optional[Dict]:
+        """获取单个实例，密码脱敏"""
+        inst = self._instances.get(instance_id)
+        if not inst:
+            return None
+        if isinstance(inst, dict):
+            d = inst.copy()
+        else:
+            d = inst.to_dict()
+        if mask_password and d.get('password'):
+            d['password'] = '********'
+        return d
+
+    def get_instance_decrypted(self, instance_id: str) -> Optional[Dict]:
+        """获取单个实例，密码解密（供巡检使用）"""
+        inst = self._instances.get(instance_id)
+        if not inst:
+            return None
+        if isinstance(inst, dict):
+            d = inst.copy()
+        else:
+            d = inst.to_dict()
+        if d.get('password'):
+            d['password'] = _decrypt_pwd(d['password'])
+        return d
+
+
+
 
     def get_instances_by_group(self, group: str) -> List[DatabaseInstance]:
         """按分组获取实例"""
@@ -243,16 +418,16 @@ class InstanceManager:
     def add_group(self, group: InstanceGroup) -> Dict[str, Any]:
         """添加分组"""
         if group.name in self._groups:
-            return {"success": False, "message": "分组已存在"}
+            return {"ok": False, "message": "分组已存在"}
 
         self._groups[group.name] = group
         self._save_data()
-        return {"success": True, "message": "分组添加成功"}
+        return {"ok": True, "message": "分组添加成功"}
 
     def delete_group(self, group_name: str) -> Dict[str, Any]:
         """删除分组"""
         if group_name == "default":
-            return {"success": False, "message": "默认分组不能删除"}
+            return {"ok": False, "message": "默认分组不能删除"}
 
         if group_name in self._groups:
             # 将该分组的实例移到默认分组
@@ -262,9 +437,9 @@ class InstanceManager:
 
             del self._groups[group_name]
             self._save_data()
-            return {"success": True, "message": "分组删除成功"}
+            return {"ok": True, "message": "分组删除成功"}
 
-        return {"success": False, "message": "分组不存在"}
+        return {"ok": False, "message": "分组不存在"}
 
     def get_all_groups(self) -> List[InstanceGroup]:
         """获取所有分组"""
@@ -331,11 +506,11 @@ class InstanceManager:
             """, (instance_id, today, health_score, risk_count))
 
             conn.commit()
-            return {"success": True, "message": "巡检记录已保存"}
+            return {"ok": True, "message": "巡检记录已保存"}
 
         except Exception as e:
             conn.rollback()
-            return {"success": False, "message": f"记录失败: {str(e)}"}
+            return {"ok": False, "message": f"记录失败: {str(e)}"}
         finally:
             conn.close()
 
@@ -433,7 +608,7 @@ class InstanceManager:
                     description=row.get("description", "")
                 )
                 result = self.add_instance(instance)
-                if result["success"]:
+                if result["ok"]:
                     added += 1
                 else:
                     errors.append(f"{row.get('name', 'unknown')}: {result['message']}")
@@ -441,7 +616,7 @@ class InstanceManager:
                 errors.append(f"{row.get('name', 'unknown')}: {str(e)}")
 
         return {
-            "success": True,
+            "ok": True,
             "added": added,
             "errors": errors,
             "message": f"成功导入 {added} 个实例"

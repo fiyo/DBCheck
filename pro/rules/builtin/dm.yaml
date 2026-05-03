@@ -1,0 +1,234 @@
+# -*- coding: utf-8 -*-
+rules:
+  # ── 系统资源 ──
+  - id: dm_mem_usage_high
+    name: 系统内存使用率过高
+    name_zh: 系统内存使用率过高
+    category: system
+    db_types: [dm]
+    severity: high
+    priority: high
+    owner: 系统管理员
+    enabled: true
+    description: 系统内存使用率超过 90%
+    description_zh: 系统内存使用率超过 90%
+    condition: "mem_usage > 90"
+    params:
+      mem_usage: "${context.system_info.memory.usage_percent}"
+    message: "系统内存使用率 {mem_usage:.1f}%，超过 90% 可能触发 OOM"
+    message_zh: "系统内存使用率 {mem_usage:.1f}%，超过 90% 可能触发 OOM"
+    fix_sql: ""
+
+  - id: dm_mem_usage_medium
+    name: 系统内存使用率预警
+    name_zh: 系统内存使用率预警
+    category: system
+    db_types: [dm]
+    severity: medium
+    priority: medium
+    owner: 系统管理员
+    enabled: true
+    description: 系统内存使用率超过 80%
+    description_zh: 系统内存使用率超过 80%
+    condition: "mem_usage > 80 and mem_usage <= 90"
+    params:
+      mem_usage: "${context.system_info.memory.usage_percent}"
+    message: "系统内存使用率 {mem_usage:.1f}%，建议关注"
+    message_zh: "系统内存使用率 {mem_usage:.1f}%，建议关注"
+    fix_sql: ""
+
+  - id: dm_disk_usage_high
+    name: 磁盘空间紧张
+    name_zh: 磁盘空间紧张
+    category: system
+    db_types: [dm]
+    severity: high
+    priority: high
+    owner: 系统管理员
+    enabled: true
+    description: 磁盘使用率超过 90%
+    description_zh: 磁盘使用率超过 90%
+    condition: "any(disk.get('usage_percent', 0) > 90 for disk in disk_list)"
+    params:
+      disk_list: "${context.system_info.disk_list}"
+    message: "磁盘 {mountpoint} 使用率 {usage:.1f}%，可能导致数据库写入失败"
+    message_zh: "磁盘 {mountpoint} 使用率 {usage:.1f}%，可能导致数据库写入失败"
+    fix_sql: ""
+
+  # ── DM8 特有规则 ──
+  - id: dm_conn_usage_high
+    name: 连接数使用率过高
+    name_zh: 连接数使用率过高
+    category: connection
+    db_types: [dm]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 活动连接数超过最大连接的 90%
+    description_zh: 活动连接数超过最大连接的 90%
+    condition: "max_conn > 0 and (active_conn / max_conn * 100) > 90"
+    params:
+      max_conn: "${context.max_connections[0].Value}"
+      active_conn: "${context.active_connections}"
+    message: "连接数使用率达 {pct:.1f}%（{active_conn}/{max_conn}），可能拒绝新连接"
+    message_zh: "连接数使用率达 {pct:.1f}%（{active_conn}/{max_conn}），可能拒绝新连接"
+    fix_sql: "-- 修改最大连接数（需重启）：\nSP_SET_PARA_VALUE(1, 'MAX_SESSIONS', 1000);"
+    fix_params:
+      pct: "(active_conn / max_conn * 100) if max_conn > 0 else 0"
+
+  - id: dm_conn_usage_medium
+    name: 连接数使用率预警
+    name_zh: 连接数使用率预警
+    category: connection
+    db_types: [dm]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: 活动连接数超过最大连接的 80%
+    description_zh: 活动连接数超过最大连接的 80%
+    condition: "max_conn > 0 and (active_conn / max_conn * 100) > 80 and (active_conn / max_conn * 100) <= 90"
+    params:
+      max_conn: "${context.max_connections[0].Value}"
+      active_conn: "${context.active_connections}"
+    message: "连接数使用率达 {pct:.1f}%，建议关注"
+    message_zh: "连接数使用率达 {pct:.1f}%，建议关注"
+    fix_sql: ""
+    fix_params:
+      pct: "(active_conn / max_conn * 100) if max_conn > 0 else 0"
+
+  - id: dm_long_running_query
+    name: 长时间运行的查询
+    name_zh: 长时间运行的查询
+    category: performance
+    db_types: [dm]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 存在运行超过 60 秒的 SQL
+    description_zh: 存在运行超过 60 秒的 SQL
+    condition: "len(long_queries) > 0"
+    params:
+      long_queries: "${context._long_queries}"
+    message: "发现 {n} 个运行超过 60 秒的 SQL"
+    message_zh: "发现 {n} 个运行超过 60 秒的 SQL"
+    fix_sql: "-- 查看长时间运行的会话：\nSELECT * FROM V$SESSIONS WHERE DATEDIFF(SF_GET_SESSION_TIME(SESS_ID), LAST_SEND_TIME) > 60;\n-- 终止会话：\nSP_CLOSE_SESSION(SESS_ID);"
+    fix_params:
+      n: "len(long_queries)"
+
+  - id: dm_archivelog_off
+    name: 归档日志未开启
+    name_zh: 归档日志未开启
+    category: backup
+    db_types: [dm]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 归档日志未开启
+    description_zh: 归档日志未开启
+    condition: "arch_mode is not None and str(arch_mode).upper() in ('OFF', 'NO')"
+    params:
+      arch_mode: "${context.archive_mode}"
+    message: "归档日志未开启，无法实现数据恢复"
+    message_zh: "归档日志未开启，无法实现数据恢复"
+    fix_sql: "-- 在 dm.ini 中设置：\n-- ARCH_INI = 1\n-- 然后配置 dmarch.ini"
+
+  - id: dm_tablespace_full
+    name: 表空间使用率过高
+    name_zh: 表空间使用率过高
+    category: storage
+    db_types: [dm]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 主表空间使用率超过 90%
+    description_zh: 主表空间使用率超过 90%
+    condition: "tablespace_pct > 90"
+    params:
+      tablespace_pct: "${context.main_tablespace_usage}"
+    message: "表空间使用率达 {pct:.1f}%，空间不足可能导致数据库异常"
+    message_zh: "表空间使用率达 {pct:.1f}%，空间不足可能导致数据库异常"
+    fix_sql: "-- 添加数据文件：\nALTER TABLESPACE MAIN ADD DATAFILE '/dm8/data/main02.dbf' SIZE 10G;"
+    fix_params:
+      pct: "tablespace_pct"
+
+  - id: dm_temp_space_full
+    name: 临时表空间不足
+    name_zh: 临时表空间不足
+    category: storage
+    db_types: [dm]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 临时表空间使用率超过 90%
+    description_zh: 临时表空间使用率超过 90%
+    condition: "temp_pct > 90"
+    params:
+      temp_pct: "${context.temp_tablespace_usage}"
+    message: "临时表空间使用率达 {pct:.1f}%，排序操作可能失败"
+    message_zh: "临时表空间使用率达 {pct:.1f}%，排序操作可能失败"
+    fix_sql: "-- 添加临时文件：\nALTER TABLESPACE TEMP ADD TEMPFILE '/dm8/data/temp02.dbf' SIZE 10G;"
+    fix_params:
+      pct: "temp_pct"
+
+  - id: dm_buffer_pool_small
+    name: 缓冲池配置偏小
+    name_zh: 缓冲池配置偏小
+    category: memory
+    db_types: [dm]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: 缓冲池总大小小于 1GB
+    description_zh: 缓冲池总大小小于 1GB
+    condition: "buf_gb > 0 and buf_gb < 1"
+    params:
+      buf_bytes: "${context.buffer_pool_size}"
+    message: "缓冲池大小仅 {buf_val}，建议适当增加以提升缓存命中率"
+    message_zh: "缓冲池大小仅 {buf_val}，建议适当增加以提升缓存命中率"
+    fix_sql: "-- 在 dm.ini 中调整（需重启）：\n-- BUFFER = 1000  # 缓冲池页数"
+    fix_params:
+      buf_val: "buf_bytes"
+      buf_gb: "buf_bytes / 1024**3 if isinstance(buf_bytes, (int, float)) else 0"
+
+  - id: dm_password_policy_off
+    name: 密码策略未开启
+    name_zh: 密码策略未开启
+    category: security
+    db_types: [dm]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 密码策略未启用
+    description_zh: 密码策略未启用
+    condition: "pwd_policy is not None and str(pwd_policy).upper() == 'OFF'"
+    params:
+      pwd_policy: "${context.password_policy}"
+    message: "密码策略未开启，存在安全风险"
+    message_zh: "密码策略未开启，存在安全风险"
+    fix_sql: "-- 开启密码策略：\nSP_SET_PARA_VALUE(1, 'PWD_POLICY', 2);"
+
+  - id: dm_empty_password
+    name: 用户空密码
+    name_zh: 用户空密码
+    category: security
+    db_types: [dm]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 存在未设置密码的用户
+    description_zh: 存在未设置密码的用户
+    condition: "False"
+    params: {}
+    message: "数据库用户存在空密码，存在严重安全风险"
+    message_zh: "数据库用户存在空密码，存在严重安全风险"
+    fix_sql: "ALTER USER username IDENTIFIED BY '强密码';"
+    enabled: true
