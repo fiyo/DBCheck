@@ -576,78 +576,140 @@ select option { background: var(--surface2); }
 }
 .home-hero p { color: var(--text-muted); font-size: 14px; max-width: 480px; margin: 0 auto 24px; }
 
-/* 首页统计概览 */
-.home-stats {
+/* 首页概览卡片 */
+.home-overview {
   width: 100%;
   max-width: 900px;
   margin: 0 auto 24px;
 }
-.stat-cards {
+.overview-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 16px;
 }
-.stat-card {
+.overview-card {
   background: var(--surface2);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 18px;
+  padding: 20px;
+  transition: all var(--trans);
+}
+.overview-card:hover {
+  border-color: var(--accent2);
+  transform: translateY(-2px);
+}
+.overview-card .card-header {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
+  margin-bottom: 16px;
 }
-.stat-icon {
-  width: 48px; height: 48px;
-  border-radius: 12px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 22px;
-  flex-shrink: 0;
-}
-.stat-content { flex: 1; }
-.stat-label { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
-.stat-value { font-size: 28px; font-weight: 700; line-height: 1.2; }
-.stat-badge {
-  display: inline-block;
-  padding: 2px 8px;
+.overview-card .card-icon {
+  width: 40px; height: 40px;
   border-radius: 10px;
-  font-size: 11px;
-  font-weight: 600;
-  margin-top: 4px;
-  background: var(--accent);
-  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+}
+.overview-card .card-title {
+  font-size: 14px; font-weight: 600;
+}
+.overview-card .card-subtitle {
+  font-size: 11px; color: var(--text-muted);
+}
+.overview-card .card-count {
+  font-size: 32px; font-weight: 700;
+  margin-bottom: 8px;
+}
+.overview-card .card-count-label {
+  font-size: 12px; color: var(--text-muted);
 }
 
-/* 首页最近历史 */
-.home-history {
-  width: 100%;
-  max-width: 900px;
-  margin: 0 auto 24px;
-}
-.section-header {
+/* 数据库类型分布 */
+.db-type-list {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 14px;
+  flex-direction: column;
+  gap: 8px;
 }
-.section-header h3 { font-size: 15px; font-weight: 600; margin: 0; }
-.history-list { display: flex; flex-direction: column; gap: 10px; }
-.history-item {
+.db-type-item {
   display: flex;
   align-items: center;
-  gap: 14px;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 12px 16px;
+  gap: 10px;
+  padding: 6px 10px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 8px;
 }
-.history-score {
+.db-type-item .db-icon { font-size: 16px; }
+.db-type-item .db-name { flex: 1; font-size: 13px; }
+.db-type-item .db-count {
+  font-size: 14px; font-weight: 600;
+  color: var(--accent2);
+}
+
+/* 定时任务列表 */
+.scheduler-summary {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.scheduler-stat {
+  flex: 1;
+  text-align: center;
+  padding: 10px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 8px;
+}
+.scheduler-stat .stat-num {
   font-size: 24px; font-weight: 700;
-  min-width: 48px; text-align: center;
 }
-.history-info { flex: 1; }
-.history-name { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
-.history-meta { font-size: 12px; color: var(--text-muted); }
-.history-risks { font-size: 13px; color: var(--text-muted); }
+.scheduler-stat .stat-lbl {
+  font-size: 11px; color: var(--text-muted);
+}
+.job-status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+.job-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 6px;
+  font-size: 12px;
+}
+.job-item .job-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.job-item .job-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.job-item .job-next { font-size: 11px; color: var(--text-muted); }
+
+/* 知识库卡片 */
+.kb-summary {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.kb-stat {
+  flex: 1;
+  text-align: center;
+  padding: 12px 8px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 8px;
+}
+.kb-stat .stat-num {
+  font-size: 28px; font-weight: 700;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.kb-stat .stat-lbl { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+.kb-hint { font-size: 12px; color: var(--text-muted); text-align: center; }
 
 .feature-grid {
   display: grid;
@@ -1376,42 +1438,68 @@ function formatBytes(bytes) {
 
       <!-- ══ Page: Home ══ -->
       <div class="page active" id="page-home">
-        <!-- 统计概览 -->
-        <div class="home-stats" id="home-stats-section" style="display:none;">
-          <div class="stat-cards">
-            <div class="stat-card" id="home-health-card">
-              <div class="stat-icon" style="background:linear-gradient(135deg,#667eea,#764ba2);">📊</div>
-              <div class="stat-content">
-                <div class="stat-label" data-i18n="webui.home_health_score">健康评分</div>
-                <div class="stat-value" id="home-health-score">--</div>
-                <div class="stat-badge" id="home-health-level">--</div>
+        <!-- 首页概览卡片 -->
+        <div class="home-overview" id="home-overview-section" style="display:none;">
+          <div class="overview-grid">
+            <!-- 实例分布 -->
+            <div class="overview-card">
+              <div class="card-header">
+                <div class="card-icon" style="background:linear-gradient(135deg,#667eea,#764ba2);">🗄️</div>
+                <div>
+                  <div class="card-title" data-i18n="webui.home_instance_dist">实例分布</div>
+                  <div class="card-subtitle" data-i18n="webui.home_instance_dist_sub">各类型数据库数量</div>
+                </div>
+              </div>
+              <div class="db-type-list" id="home-db-type-list">
+                <!-- 动态加载 -->
               </div>
             </div>
-            <div class="stat-card">
-              <div class="stat-icon" style="background:linear-gradient(135deg,#11998e,#38ef7d);">🗄️</div>
-              <div class="stat-content">
-                <div class="stat-label" data-i18n="webui.home_total_instances">总实例数</div>
-                <div class="stat-value" id="home-total-instances">--</div>
-              </div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-icon" style="background:linear-gradient(135deg,#eb3349,#f45c43);">⚠️</div>
-              <div class="stat-content">
-                <div class="stat-label" data-i18n="webui.home_total_risks">风险项总数</div>
-                <div class="stat-value" id="home-total-risks">--</div>
-              </div>
-            </div>
-          </div>
-        </div>
 
-        <!-- 最近巡检历史 -->
-        <div class="home-history" id="home-history-section" style="display:none;">
-          <div class="section-header">
-            <h3 data-i18n="webui.home_recent_history">📊 最近巡检历史</h3>
-            <button class="btn btn-ghost" onclick="showPage('reports')" data-i18n="webui.view_all_reports">查看全部 →</button>
-          </div>
-          <div id="home-history-list" class="history-list">
-            <!-- 动态加载 -->
+            <!-- 定时任务 -->
+            <div class="overview-card">
+              <div class="card-header">
+                <div class="card-icon" style="background:linear-gradient(135deg,#11998e,#38ef7d);">⏰</div>
+                <div>
+                  <div class="card-title" data-i18n="webui.home_scheduler">定时巡检</div>
+                  <div class="card-subtitle" data-i18n="webui.home_scheduler_sub">自动化调度任务</div>
+                </div>
+              </div>
+              <div class="scheduler-summary" id="home-scheduler-summary">
+                <div class="scheduler-stat">
+                  <div class="stat-num" id="home-job-total">--</div>
+                  <div class="stat-lbl" data-i18n="webui.home_job_total">总任务数</div>
+                </div>
+                <div class="scheduler-stat">
+                  <div class="stat-num" id="home-job-active">--</div>
+                  <div class="stat-lbl" data-i18n="webui.home_job_active">运行中</div>
+                </div>
+              </div>
+              <div class="job-status-list" id="home-job-list">
+                <!-- 动态加载 -->
+              </div>
+            </div>
+
+            <!-- 知识库 -->
+            <div class="overview-card">
+              <div class="card-header">
+                <div class="card-icon" style="background:linear-gradient(135deg,#eb3349,#f45c43);">📚</div>
+                <div>
+                  <div class="card-title" data-i18n="webui.home_knowledge_base">知识库</div>
+                  <div class="card-subtitle" data-i18n="webui.home_knowledge_base_sub">RAG 智能检索</div>
+                </div>
+              </div>
+              <div class="kb-summary" id="home-kb-summary">
+                <div class="kb-stat">
+                  <div class="stat-num" id="home-kb-docs">--</div>
+                  <div class="stat-lbl" data-i18n="webui.home_kb_docs">文档数</div>
+                </div>
+                <div class="kb-stat">
+                  <div class="stat-num" id="home-kb-chunks">--</div>
+                  <div class="stat-lbl" data-i18n="webui.home_kb_chunks">知识块</div>
+                </div>
+              </div>
+              <div class="kb-hint" id="home-kb-hint" data-i18n="webui.home_kb_hint">上传数据库文档，AI 诊断更精准</div>
+            </div>
           </div>
         </div>
 
@@ -3737,71 +3825,95 @@ initApp();
 
 async function loadHomeStats() {
   try {
-    // 1. 获取健康评分
-    const resScore = await fetch('/api/pro/health-score');
-    const dataScore = await resScore.json();
-    const statsSection = document.getElementById('home-stats-section');
-    const historySection = document.getElementById('home-history-section');
+    const overviewSection = document.getElementById('home-overview-section');
+    if (!overviewSection) return;
 
-    if (dataScore.ok) {
-      const score = dataScore.score || 0;
-      const level = dataScore.level || 'unknown';
-      const scoreEl = document.getElementById('home-health-score');
-      const levelEl = document.getElementById('home-health-level');
+    // 数据库类型映射
+    const dbTypeMap = {
+      'mysql': { icon: '🐬', name: 'MySQL' },
+      'pg': { icon: '🐘', name: 'PostgreSQL' },
+      'oracle_full': { icon: '🔴', name: 'Oracle' },
+      'dm': { icon: '🟡', name: '达梦 DM8' },
+      'sqlserver': { icon: '🟠', name: 'SQL Server' },
+      'tidb': { icon: '🟢', name: 'TiDB' }
+    };
 
-      if (scoreEl) scoreEl.textContent = score;
-      if (levelEl) {
-        const levelMap = {
-          'healthy': {'text': '优秀', 'bg': '#4caf50'},
-          'low': {'text': '良好', 'bg': '#8bc34a'},
-          'medium': {'text': '中等', 'bg': '#ff9800'},
-          'high': {'text': '较差', 'bg': '#ff5722'},
-          'critical': {'text': '危险', 'bg': '#f44336'}
-        };
-        const info = levelMap[level] || {'text': level, 'bg': '#9e9e9e'};
-        levelEl.textContent = info.text;
-        levelEl.style.background = info.bg;
-      }
-      if (statsSection) statsSection.style.display = '';
-    }
+    // 并行获取所有数据
+    const [resStats, resJobs, resRag] = await Promise.all([
+      fetch('/api/pro/statistics'),
+      fetch('/api/scheduler/jobs'),
+      fetch('/api/rag/documents')
+    ]);
 
-    // 2. 获取统计数据
-    const resStats = await fetch('/api/pro/statistics');
+    // 1. 处理统计数据 - 实例分布
     const dataStats = await resStats.json();
-    if (dataStats.ok) {
-      const stats = dataStats.statistics || {};
-      const totalEl = document.getElementById('home-total-instances');
-      const risksEl = document.getElementById('home-total-risks');
-      if (totalEl) totalEl.textContent = stats.total_instances || 0;
-      if (risksEl) risksEl.textContent = stats.total_risks || 0;
-    }
+    const dbTypeList = document.getElementById('home-db-type-list');
+    if (dataStats.ok && dataStats.statistics && dbTypeList) {
+      const byType = dataStats.statistics.by_type || {};
+      const totalInstances = dataStats.statistics.total_instances || 0;
 
-    // 3. 获取最近巡检历史
-    const resHistory = await fetch('/api/pro/history?limit=5');
-    const dataHistory = await resHistory.json();
-    const listEl = document.getElementById('home-history-list');
-    if (dataHistory.ok && dataHistory.history && dataHistory.history.length > 0) {
-      if (listEl) {
-        listEl.innerHTML = dataHistory.history.map(h => {
-          const d = new Date(h.inspect_time);
-          const dateStr = d.toLocaleString('zh-CN');
-          const scoreColor = h.health_score >= 86 ? '#4caf50' :
-                         h.health_score >= 70 ? '#8bc34a' :
-                         h.health_score >= 50 ? '#ff9800' : '#f44336';
-          return `<div class="history-item">
-            <div class="history-score" style="color:${scoreColor};">${h.health_score || '--'}</div>
-            <div class="history-info">
-              <div class="history-name">${escHtml(h.instance_name || h.instance_id || '')}</div>
-              <div class="history-meta">${dateStr} · ${escHtml(h.db_type || '')} · 风险项:${h.risk_count || 0}</div>
-            </div>
+      if (Object.keys(byType).length > 0) {
+        dbTypeList.innerHTML = Object.entries(byType).map(([type, count]) => {
+          const info = dbTypeMap[type] || { icon: '🗄️', name: type };
+          return `<div class="db-type-item">
+            <span class="db-icon">${info.icon}</span>
+            <span class="db-name">${info.name}</span>
+            <span class="db-count">${count}</span>
           </div>`;
         }).join('');
+      } else {
+        dbTypeList.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted);font-size:13px;">暂无实例</div>';
       }
-      if (historySection) historySection.style.display = '';
-    } else {
-      if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);" data-i18n="webui.home_no_history">暂无巡检记录</div>';
-      if (historySection) historySection.style.display = '';
     }
+
+    // 2. 处理定时任务
+    const dataJobs = await resJobs.json();
+    const jobList = document.getElementById('home-job-list');
+    const jobTotalEl = document.getElementById('home-job-total');
+    const jobActiveEl = document.getElementById('home-job-active');
+    if (dataJobs.ok && jobList) {
+      const jobs = dataJobs.jobs || [];
+      const activeCount = jobs.filter(j => j.enabled !== false).length;
+
+      if (jobTotalEl) jobTotalEl.textContent = jobs.length;
+      if (jobActiveEl) jobActiveEl.textContent = activeCount;
+
+      if (jobs.length > 0) {
+        jobList.innerHTML = jobs.slice(0, 5).map(job => {
+          const isActive = job.enabled !== false;
+          const nextRun = job.next_run || '--';
+          return `<div class="job-item">
+            <span class="job-dot" style="background:${isActive ? '#4caf50' : '#666'}"></span>
+            <span class="job-name">${escHtml(job.name || '定时巡检')}</span>
+            <span class="job-next">${isActive ? nextRun : '已暂停'}</span>
+          </div>`;
+        }).join('');
+      } else {
+        jobList.innerHTML = '<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:12px;">暂无定时任务</div>';
+      }
+    } else {
+      if (jobTotalEl) jobTotalEl.textContent = '0';
+      if (jobActiveEl) jobActiveEl.textContent = '0';
+      if (jobList) jobList.innerHTML = '<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:12px;">暂无定时任务</div>';
+    }
+
+    // 3. 处理知识库
+    const dataRag = await resRag.json();
+    const kbDocsEl = document.getElementById('home-kb-docs');
+    const kbChunksEl = document.getElementById('home-kb-chunks');
+    if (dataRag.ok && kbDocsEl) {
+      const docs = dataRag.documents || [];
+      const totalChunks = docs.reduce((sum, d) => sum + (d.chunk_count || 0), 0);
+      kbDocsEl.textContent = docs.length;
+      kbChunksEl.textContent = totalChunks;
+    } else {
+      if (kbDocsEl) kbDocsEl.textContent = '0';
+      if (kbChunksEl) kbChunksEl.textContent = '0';
+    }
+
+    // 显示概览区域
+    overviewSection.style.display = '';
+
   } catch(e) {
     console.error('Failed to load home stats:', e);
   }

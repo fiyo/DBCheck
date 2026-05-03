@@ -2041,11 +2041,16 @@ EN = {
     "webui.ds_connect_fail": "Connection failed: {}",
     "webui.ds_operation_fail": "Operation failed: {}",
     "webui.ds_load_fail": "Failed to load datasources",
-    # ── Home Page Stats ──
-    "webui.home_health_score": "Health Score",
-    "webui.home_total_instances": "Total Instances",
-    "webui.home_total_risks": "Total Risks",
-    "webui.home_recent_history": "📊 Recent Inspection History",
-    "webui.home_no_history": "No inspection records",
-    "webui.view_all_reports": "View All →",
+    # ── Home Overview ──
+    "webui.home_instance_dist": "Instance Distribution",
+    "webui.home_instance_dist_sub": "Database type counts",
+    "webui.home_scheduler": "Scheduled Inspection",
+    "webui.home_scheduler_sub": "Automated scheduling tasks",
+    "webui.home_job_total": "Total Jobs",
+    "webui.home_job_active": "Active",
+    "webui.home_knowledge_base": "Knowledge Base",
+    "webui.home_knowledge_base_sub": "RAG Smart Retrieval",
+    "webui.home_kb_docs": "Documents",
+    "webui.home_kb_chunks": "Chunks",
+    "webui.home_kb_hint": "Upload docs for smarter AI diagnosis",
 }
