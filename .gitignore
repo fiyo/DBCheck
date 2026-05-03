@@ -25,6 +25,7 @@ ai_config.json
 dbc_config.json
 .db_key
 flask.log
+dbcheck_article_v*.md
 
 # Pro license activation
 license.key

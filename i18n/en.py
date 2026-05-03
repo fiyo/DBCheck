@@ -2054,4 +2054,53 @@ EN = {
     "webui.home_kb_docs": "Documents",
     "webui.home_kb_chunks": "Chunks",
     "webui.home_kb_hint": "Upload docs for smarter AI diagnosis",
+
+    # ── Home Core Features ──
+    "webui.home_section_title": "Core Features",
+    "webui.home_section_desc": "One-stop Database Health Inspection Solution",
+    "webui.home_quick_inspect": "Quick Inspection",
+    "webui.home_quick_inspect_desc": "Select DB → Fill info → One-click inspect, report in 5 minutes",
+    "webui.home_quick_start": "Get Started",
+    "webui.home_multi_db": "Multi-Database Support",
+    "webui.home_multi_db_desc": "MySQL · PostgreSQL · Oracle · SQL Server · DM8 · TiDB",
+    "webui.home_metrics": "Comprehensive Metrics",
+    "webui.home_metrics_desc": "20+ core metrics: connections, memory, locks, replication, indexes, slow queries",
+    "webui.home_ai": "AI Smart Diagnosis",
+    "webui.home_ai_desc": "Auto-detect threshold anomalies with risk levels and fix suggestions",
+    "webui.home_report": "Professional Word Reports",
+    "webui.home_report_desc": "Standardized templates covering overview, config, performance, security and more",
+    "webui.home_scheduled": "Scheduled Inspection",
+    "webui.home_scheduled_desc": "Configure Cron expressions, auto-execute and push reports",
+
+    # ── Database Support Section ──
+    "webui.db_support_title": "Supported Databases",
+    "webui.db_support_desc": "Covering mainstream open-source and commercial databases",
+    "webui.db_mysql_ver": "5.6 / 5.7 / 8.0+",
+    "webui.db_pg_ver": "10+",
+    "webui.db_oracle_ver": "10g / 11g / 12c / 19c / 21c",
+    "webui.db_dm_ver": "DM8 and above",
+    "webui.db_sqlserver_ver": "2012+",
+    "webui.db_tidb_ver": "6.5+ / MySQL 8.0 compatible",
+
+    # ── Wizard ──
+    "webui.ds_select_saved": "Select saved datasource",
+    "webui.ds_select_saved_hint": "(Optional, auto-fill connection info)",
+    "webui.ssh_optional": "Configure SSH to include CPU, memory, disk system metrics in report. Skip to only collect DB metrics.",
+    "webui.ssh_host_hint": "Same as database host",
+
+    # ── Scheduler ──
+    "webui.scheduler_select_ds": "Select existing datasource",
+    "webui.scheduler_db_type": "Database Type",
+    "webui.scheduler_db_name": "Database Name",
+
+    # ── Other ──
+    "webui.pro_license_free": "Open source & free, no instance limit",
+    "webui.ds_manual_input": "-- Manual input --",
+    "webui.scheduler_job_name": "Job Name",
+    "webui.placeholder_job_name": "Job name (for report naming)",
+    "webui.label_password": "Password",
+    "webui.placeholder_database_pg": "Default postgres",
+    "webui.rag_doc_ready": "Ready",
+    "webui.delete": "Delete",
+    "webui.pro_edition_name": "Community Edition",
 }

@@ -1069,7 +1069,7 @@ async function loadRagDocuments() {
     if (data.ok && data.documents && data.documents.length > 0) {
       var docCount = data.documents.length || 0;
       countBadge.textContent = docCount + ' ' + i18n('webui.rag_doc_unit') + '，' + (data.total_chunks || 0) + ' ' + i18n('webui.rag_chunk_unit');
-      tbody.innerHTML = data.documents.map(doc => '<tr><td style="padding:8px 10px;border-bottom:1px solid var(--border)">' + escHtml(doc.title || doc.doc_id) + '</td><td style="padding:8px 10px;border-bottom:1px solid var(--border)">' + escHtml(doc.db_type || 'all') + '</td><td style="padding:8px 10px;border-bottom:1px solid var(--border)">' + formatBytes(doc.file_size || 0) + '</td><td style="padding:8px 10px;border-bottom:1px solid var(--border)">' + (doc.chunk_count || 0) + '</td><td style="padding:8px 10px;border-bottom:1px solid var(--border)"><span style="color:#4caf50">&#9679; 就绪</span></td><td style="padding:8px 10px;border-bottom:1px solid var(--border)"><button class="btn btn-ghost rag-del-btn" style="color:#f44336;font-size:12px;padding:4px 8px" data-doc-id="' + doc.doc_id + '" data-doc-title="' + escHtml(doc.title || doc.doc_id) + '">&#128465; 删除</button></td></tr>').join('');
+      tbody.innerHTML = data.documents.map(doc => '<tr><td style="padding:8px 10px;border-bottom:1px solid var(--border)">' + escHtml(doc.title || doc.doc_id) + '</td><td style="padding:8px 10px;border-bottom:1px solid var(--border)">' + escHtml(doc.db_type || 'all') + '</td><td style="padding:8px 10px;border-bottom:1px solid var(--border)">' + formatBytes(doc.file_size || 0) + '</td><td style="padding:8px 10px;border-bottom:1px solid var(--border)">' + (doc.chunk_count || 0) + '</td><td style="padding:8px 10px;border-bottom:1px solid var(--border)"><span style="color:#4caf50">&#9679; ' + i18n('webui.rag_doc_ready') + '</span></td><td style="padding:8px 10px;border-bottom:1px solid var(--border)"><button class="btn btn-ghost rag-del-btn" style="color:#f44336;font-size:12px;padding:4px 8px" data-doc-id="' + doc.doc_id + '" data-doc-title="' + escHtml(doc.title || doc.doc_id) + '">&#128465; ' + i18n('webui.delete') + '</button></tr>').join('');
     } else {
       countBadge.textContent = i18n('webui.rag_doc_count_zero');
       tbody.innerHTML = '<tr><td colspan="6" style="padding:16px;text-align:center;color:var(--text-muted)">' + (i18n('webui.rag_no_docs') || '暂无已加载文档，请上传。') + '</td></tr>';
@@ -1691,51 +1691,51 @@ function formatBytes(bytes) {
         <!-- 核心功能区 -->
         <div class="home-section">
           <div class="section-header">
-            <h2 class="section-title">核心功能</h2>
-            <p class="section-desc">一站式数据库健康巡检解决方案</p>
+            <h2 class="section-title" data-i18n="webui.home_section_title">核心功能</h2>
+            <p class="section-desc" data-i18n="webui.home_section_desc">一站式数据库健康巡检解决方案</p>
           </div>
           <div class="feature-grid-new">
             <div class="feature-card feature-primary">
               <div class="fc-icon">🚀</div>
               <div class="fc-content">
-                <h3>快速巡检</h3>
-                <p>选择数据库 → 填写连接 → 一键巡检，5 分钟生成完整报告</p>
+                <h3 data-i18n="webui.home_quick_inspect">快速巡检</h3>
+                <p data-i18n="webui.home_quick_inspect_desc">选择数据库 → 填写连接 → 一键巡检，5 分钟生成完整报告</p>
               </div>
-              <button class="btn btn-primary" onclick="showPage('wizard')">立即开始</button>
+              <button class="btn btn-primary" onclick="showPage('wizard')" data-i18n="webui.home_quick_start">立即开始</button>
             </div>
             <div class="feature-card">
               <div class="fc-icon">🗄️</div>
               <div class="fc-content">
-                <h3>多数据库支持</h3>
-                <p>MySQL · PostgreSQL · Oracle · SQL Server · DM8 · TiDB</p>
+                <h3 data-i18n="webui.home_multi_db">多数据库支持</h3>
+                <p data-i18n="webui.home_multi_db_desc">MySQL · PostgreSQL · Oracle · SQL Server · DM8 · TiDB</p>
               </div>
             </div>
             <div class="feature-card">
               <div class="fc-icon">📊</div>
               <div class="fc-content">
-                <h3>全面指标采集</h3>
-                <p>连接、内存、锁、复制、索引、慢查询等 20+ 项核心指标</p>
+                <h3 data-i18n="webui.home_metrics">全面指标采集</h3>
+                <p data-i18n="webui.home_metrics_desc">连接、内存、锁、复制、索引、慢查询等 20+ 项核心指标</p>
               </div>
             </div>
             <div class="feature-card">
               <div class="fc-icon">⚠️</div>
               <div class="fc-content">
-                <h3>AI 智能诊断</h3>
-                <p>自动识别阈值异常，给出风险等级与处理建议</p>
+                <h3 data-i18n="webui.home_ai">AI 智能诊断</h3>
+                <p data-i18n="webui.home_ai_desc">自动识别阈值异常，给出风险等级与处理建议</p>
               </div>
             </div>
             <div class="feature-card">
               <div class="fc-icon">📝</div>
               <div class="fc-content">
-                <h3>专业 Word 报告</h3>
-                <p>规范模板，覆盖封面、配置、性能、安全等完整章节</p>
+                <h3 data-i18n="webui.home_report">专业 Word 报告</h3>
+                <p data-i18n="webui.home_report_desc">规范模板，覆盖封面、配置、性能、安全等完整章节</p>
               </div>
             </div>
             <div class="feature-card">
               <div class="fc-icon">⏰</div>
               <div class="fc-content">
-                <h3>定时巡检</h3>
-                <p>配置 Cron 表达式，自动执行巡检并推送报告</p>
+                <h3 data-i18n="webui.home_scheduled">定时巡检</h3>
+                <p data-i18n="webui.home_scheduled_desc">配置 Cron 表达式，自动执行巡检并推送报告</p>
               </div>
             </div>
           </div>
@@ -1744,50 +1744,50 @@ function formatBytes(bytes) {
         <!-- 数据库支持展示 -->
         <div class="home-section">
           <div class="section-header">
-            <h2 class="section-title">支持的数据库</h2>
-            <p class="section-desc">覆盖主流开源与商业数据库</p>
+            <h2 class="section-title" data-i18n="webui.db_support_title">支持的数据库</h2>
+            <p class="section-desc" data-i18n="webui.db_support_desc">覆盖主流开源与商业数据库</p>
           </div>
           <div class="db-support-grid">
             <div class="db-support-card db-mysql">
               <div class="db-logo">🐬</div>
               <div class="db-info">
                 <h4>MySQL</h4>
-                <span>5.6 / 5.7 / 8.0+</span>
+                <span data-i18n="webui.db_mysql_ver">5.6 / 5.7 / 8.0+</span>
               </div>
             </div>
             <div class="db-support-card db-pg">
               <div class="db-logo">🐘</div>
               <div class="db-info">
                 <h4>PostgreSQL</h4>
-                <span>10+</span>
+                <span data-i18n="webui.db_pg_ver">10+</span>
               </div>
             </div>
             <div class="db-support-card db-oracle">
               <div class="db-logo">🔴</div>
               <div class="db-info">
                 <h4>Oracle</h4>
-                <span>10g / 11g / 12c / 19c / 21c</span>
+                <span data-i18n="webui.db_oracle_ver">10g / 11g / 12c / 19c / 21c</span>
               </div>
             </div>
             <div class="db-support-card db-dm">
               <div class="db-logo">🟡</div>
               <div class="db-info">
-                <h4>达梦 DM8</h4>
-                <span>DM8 及以上</span>
+                <h4 data-i18n="webui.db_dm_name">达梦 DM8</h4>
+                <span data-i18n="webui.db_dm_ver">DM8 及以上</span>
               </div>
             </div>
             <div class="db-support-card db-sqlserver">
               <div class="db-logo">🟠</div>
               <div class="db-info">
-                <h4>SQL Server</h4>
-                <span>2012+</span>
+                <h4 data-i18n="webui.db_sqlserver_name">SQL Server</h4>
+                <span data-i18n="webui.db_sqlserver_ver">2012+</span>
               </div>
             </div>
             <div class="db-support-card db-tidb">
               <div class="db-logo">🟢</div>
               <div class="db-info">
-                <h4>TiDB</h4>
-                <span>6.5+ / MySQL 8.0 兼容</span>
+                <h4 data-i18n="webui.db_tidb_name">TiDB</h4>
+                <span data-i18n="webui.db_tidb_ver">6.5+ / MySQL 8.0 兼容</span>
               </div>
             </div>
           </div>
@@ -1879,9 +1879,9 @@ function formatBytes(bytes) {
           </div>
           <!-- 选择已保存的数据源 -->
           <div class="field full" style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border)">
-            <label>📋 选择已保存的数据源 <span style="font-size:11px;color:var(--text-muted)">(可选，选择后将自动填充连接信息)</span></label>
+            <label>📋 <span data-i18n="webui.ds_select_saved">选择已保存的数据源</span> <span style="font-size:11px;color:var(--text-muted)" data-i18n="webui.ds_select_saved_hint">(可选，选择后将自动填充连接信息)</span></label>
             <select id="f-datasource" onchange="onDatasourceChange()" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text)">
-              <option value="">-- 手动输入连接信息 --</option>
+              <option value="" data-i18n="webui.ds_manual_input">-- 手动输入连接信息 --</option>
             </select>
           </div>
           <div class="form-grid">
@@ -2125,38 +2125,38 @@ function formatBytes(bytes) {
           </div>
           <div class="form-grid">
             <div class="field full">
-              <label>任务名称 <span class="req">*</span></label>
-              <input type="text" id="job-name" placeholder="任务名称（用于报告命名）" />
+              <label data-i18n="webui.scheduler_job_name">任务名称 <span class="req">*</span></label>
+              <input type="text" id="job-name" data-i18n="webui.placeholder_job_name" placeholder="任务名称（用于报告命名）" />
             </div>
             <div class="field full">
-              <label>选择已有数据源</label>
+              <label data-i18n="webui.scheduler_select_ds">选择已有数据源</label>
               <select id="job-datasource" onchange="onJobDatasourceChange()">
-                <option value="">-- 手动输入连接信息 --</option>
+                <option value="" data-i18n="webui.ds_manual_input">-- 手动输入连接信息 --</option>
               </select>
             </div>
             <div class="field">
-              <label>数据库类型 <span class="req">*</span></label>
+              <label data-i18n="webui.scheduler_db_type">数据库类型 <span class="req">*</span></label>
               <select id="job-db-type" onchange="onJobDbTypeChange()"></select>
             </div>
             <div class="field">
-              <label>主机地址 <span class="req">*</span></label>
-              <input type="text" id="job-host" placeholder="localhost" />
+              <label data-i18n="webui.label_host">主机地址 <span class="req">*</span></label>
+              <input type="text" id="job-host" data-i18n="webui.placeholder_host" placeholder="localhost" />
             </div>
             <div class="field">
-              <label>端口 <span class="req">*</span></label>
+              <label data-i18n="webui.label_port">端口 <span class="req">*</span></label>
               <input type="number" id="job-port" value="3306" />
             </div>
             <div class="field">
-              <label>用户名 <span class="req">*</span></label>
-              <input type="text" id="job-user" placeholder="root" autocomplete="off" />
+              <label data-i18n="webui.label_username">用户名 <span class="req">*</span></label>
+              <input type="text" id="job-user" data-i18n="webui.placeholder_username" placeholder="root" autocomplete="off" />
             </div>
             <div class="field">
-              <label>密码</label>
-              <input type="password" id="job-password" placeholder="数据库密码" autocomplete="new-password" />
+              <label data-i18n="webui.label_password">密码</label>
+              <input type="password" id="job-password" data-i18n="webui.placeholder_password" placeholder="数据库密码" autocomplete="new-password" />
             </div>
             <div class="field" id="job-database-wrap" style="display:none">
-              <label>数据库名</label>
-              <input type="text" id="job-database" placeholder="默认 postgres" />
+              <label data-i18n="webui.scheduler_db_name">数据库名</label>
+              <input type="text" id="job-database" data-i18n="webui.placeholder_database_pg" placeholder="默认 postgres" />
             </div>
           </div>
 
@@ -2304,8 +2304,8 @@ function formatBytes(bytes) {
             <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
               <span style="font-size:24px;" id="pro-edition-icon">🏠</span>
               <div>
-                <div style="font-weight:500;" id="pro-edition-name">社区版</div>
-                <div style="font-size:12px;color:var(--text-muted);" id="pro-license-detail">开源免费，无实例限制</div>
+                <div style="font-weight:500;" id="pro-edition-name" data-i18n="webui.pro_edition_name">社区版</div>
+                <div style="font-size:12px;color:var(--text-muted);" id="pro-license-detail" data-i18n="webui.pro_license_free">开源免费，无实例限制</div>
               </div>
             </div>
           </div>

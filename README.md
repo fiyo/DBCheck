@@ -987,6 +987,17 @@ The generated Word report contains the following chapters (Oracle inspection rep
 ![AI Diagnosis Configuration](snapshot/webui13-en.png)
 *Fig. 11: AI diagnosis configuration — fully local, no API key needed, data never leaves your machine*
 
+
+![Datasource Management](snapshot/webui15-en.png)
+*Datasource Management*
+
+![Rule Management](snapshot/webui16-en.png)
+*Rule Management*
+
+![RAG Knowledge Base](snapshot/webui17-en.png)
+*RAG Knowledge Base*
+
+
 ![ClawHub dbcheck Skill](snapshot/skill0.png)
 *Fig. 12: dbcheck published on ClawHub*
 

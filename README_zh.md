@@ -979,6 +979,16 @@ dbcheck.exe         # Windows
 ![AI 诊断配置](snapshot/webui13.png)
 *图 11：AI 诊断配置，可完全本地运行，无需 API Key，数据不出本机。*
 
+![数据源管理](snapshot/webui15.png)
+*数据源管理*
+
+![规则引擎](snapshot/webui16.png)
+*规则引擎*
+
+![RAG 知识库](snapshot/webui17.png)
+*RAG 知识库*
+
+
 ![Clawhub dbcheck skill](snapshot/skill0.png)
 *图 12：dbcheck 已发布到 Clawhub*
 

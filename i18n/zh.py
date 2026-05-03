@@ -2086,4 +2086,53 @@ ZI = {
     "webui.home_kb_docs": "文档数",
     "webui.home_kb_chunks": "知识块",
     "webui.home_kb_hint": "上传数据库文档，AI 诊断更精准",
+
+    # ── 首页核心功能区 ──
+    "webui.home_section_title": "核心功能",
+    "webui.home_section_desc": "一站式数据库健康巡检解决方案",
+    "webui.home_quick_inspect": "快速巡检",
+    "webui.home_quick_inspect_desc": "选择数据库 → 填写连接 → 一键巡检，5 分钟生成完整报告",
+    "webui.home_quick_start": "立即开始",
+    "webui.home_multi_db": "多数据库支持",
+    "webui.home_multi_db_desc": "MySQL · PostgreSQL · Oracle · SQL Server · DM8 · TiDB",
+    "webui.home_metrics": "全面指标采集",
+    "webui.home_metrics_desc": "连接、内存、锁、复制、索引、慢查询等 20+ 项核心指标",
+    "webui.home_ai": "AI 智能诊断",
+    "webui.home_ai_desc": "自动识别阈值异常，给出风险等级与处理建议",
+    "webui.home_report": "专业 Word 报告",
+    "webui.home_report_desc": "规范模板，覆盖封面、配置、性能、安全等完整章节",
+    "webui.home_scheduled": "定时巡检",
+    "webui.home_scheduled_desc": "配置 Cron 表达式，自动执行巡检并推送报告",
+
+    # ── 数据库支持区 ──
+    "webui.db_support_title": "支持的数据库",
+    "webui.db_support_desc": "覆盖主流开源与商业数据库",
+    "webui.db_mysql_ver": "5.6 / 5.7 / 8.0+",
+    "webui.db_pg_ver": "10+",
+    "webui.db_oracle_ver": "10g / 11g / 12c / 19c / 21c",
+    "webui.db_dm_ver": "DM8 及以上",
+    "webui.db_sqlserver_ver": "2012+",
+    "webui.db_tidb_ver": "6.5+ / MySQL 8.0 兼容",
+
+    # ── 新建巡检向导 ──
+    "webui.ds_select_saved": "选择已保存的数据源",
+    "webui.ds_select_saved_hint": "(可选，选择后将自动填充连接信息)",
+    "webui.ssh_optional": "配置 SSH 后，巡检报告将包含 CPU、内存、磁盘等系统资源信息。可跳过此步骤仅采集数据库指标。",
+    "webui.ssh_host_hint": "与数据库主机相同",
+
+    # ── 定时巡检 ──
+    "webui.scheduler_select_ds": "选择已有数据源",
+    "webui.scheduler_db_type": "数据库类型",
+    "webui.scheduler_db_name": "数据库名",
+
+    # ── 其他 ──
+    "webui.pro_license_free": "开源免费，无实例限制",
+    "webui.ds_manual_input": "-- 手动输入连接信息 --",
+    "webui.scheduler_job_name": "任务名称",
+    "webui.placeholder_job_name": "任务名称（用于报告命名）",
+    "webui.label_password": "密码",
+    "webui.placeholder_database_pg": "默认 postgres",
+    "webui.rag_doc_ready": "就绪",
+    "webui.delete": "删除",
+    "webui.pro_edition_name": "社区版",
 }
