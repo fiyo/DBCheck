@@ -21,6 +21,8 @@ a = Analysis(
         (os.path.join(project_root, 'i18n'), 'i18n'),
         # ── RAG 知识库模块 ───────────────────────────────────
         (os.path.join(project_root, 'rag'), 'rag'),
+        # ── Pro 插件目录（数据源管理、规则引擎）────────────
+        (os.path.join(project_root, 'pro'), 'pro'),
     ],
     hiddenimports=[
         # ── 数据库驱动 ───────────────────────────────────────
@@ -133,11 +135,17 @@ a = Analysis(
         'pytz',
         'pytz.exceptions',
         'pytz.tzinfo',
-        # ── i18n ──────────────────────────────────────────────
+        # ── Pro 插件模块（v2.4.0 新增）─────────────────────
+        'pro',
+        'pro.instance_manager',
+        'pro.rule_engine',
+        'pro.report_score',
+        'pro.version',
+        # ── i18n ─────────────────────────────────────────────
         'i18n',
         'i18n.zh',
         'i18n.en',
-        # ── RAG 知识库模块（v2.5.0 新增）─────────────────
+        # ── RAG 知识库模块（v2.4.0 新增）─────────────────
         'rag',
         'rag.manager',
         'rag.document_processor',

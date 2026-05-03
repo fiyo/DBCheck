@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 DBCheck Pro Module
-专业版核心模块（社区版合并后，无需许可证验证）
+专业版核心模块
 """
 
 # License removed - all Pro features are now free
