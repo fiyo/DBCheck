@@ -2041,4 +2041,11 @@ EN = {
     "webui.ds_connect_fail": "Connection failed: {}",
     "webui.ds_operation_fail": "Operation failed: {}",
     "webui.ds_load_fail": "Failed to load datasources",
+    # ── Home Page Stats ──
+    "webui.home_health_score": "Health Score",
+    "webui.home_total_instances": "Total Instances",
+    "webui.home_total_risks": "Total Risks",
+    "webui.home_recent_history": "📊 Recent Inspection History",
+    "webui.home_no_history": "No inspection records",
+    "webui.view_all_reports": "View All →",
 }

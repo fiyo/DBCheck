@@ -2073,4 +2073,11 @@ ZI = {
     "webui.ds_connect_fail": "连接失败：{}",
     "webui.ds_operation_fail": "操作失败：{}",
     "webui.ds_load_fail": "加载数据源失败",
+    # ── 首页统计 ──
+    "webui.home_health_score": "健康评分",
+    "webui.home_total_instances": "总实例数",
+    "webui.home_total_risks": "风险项总数",
+    "webui.home_recent_history": "📊 最近巡检历史",
+    "webui.home_no_history": "暂无巡检记录",
+    "webui.view_all_reports": "查看全部 →",
 }

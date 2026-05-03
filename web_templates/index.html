@@ -565,7 +565,7 @@ select option { background: var(--surface2); }
 
 /* ─── Home Page ─── */
 .home-hero {
-  padding: 48px 0 32px;
+  padding: 32px 0 24px;
   text-align: center;
 }
 .home-hero h2 {
@@ -574,7 +574,80 @@ select option { background: var(--surface2); }
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
   margin-bottom: 10px;
 }
-.home-hero p { color: var(--text-muted); font-size: 14px; max-width: 480px; margin: 0 auto 32px; }
+.home-hero p { color: var(--text-muted); font-size: 14px; max-width: 480px; margin: 0 auto 24px; }
+
+/* 首页统计概览 */
+.home-stats {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto 24px;
+}
+.stat-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.stat-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.stat-icon {
+  width: 48px; height: 48px;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+.stat-content { flex: 1; }
+.stat-label { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+.stat-value { font-size: 28px; font-weight: 700; line-height: 1.2; }
+.stat-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 4px;
+  background: var(--accent);
+  color: #fff;
+}
+
+/* 首页最近历史 */
+.home-history {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto 24px;
+}
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.section-header h3 { font-size: 15px; font-weight: 600; margin: 0; }
+.history-list { display: flex; flex-direction: column; gap: 10px; }
+.history-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 16px;
+}
+.history-score {
+  font-size: 24px; font-weight: 700;
+  min-width: 48px; text-align: center;
+}
+.history-info { flex: 1; }
+.history-name { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+.history-meta { font-size: 12px; color: var(--text-muted); }
+.history-risks { font-size: 13px; color: var(--text-muted); }
 
 .feature-grid {
   display: grid;
@@ -1303,6 +1376,46 @@ function formatBytes(bytes) {
 
       <!-- ══ Page: Home ══ -->
       <div class="page active" id="page-home">
+        <!-- 统计概览 -->
+        <div class="home-stats" id="home-stats-section" style="display:none;">
+          <div class="stat-cards">
+            <div class="stat-card" id="home-health-card">
+              <div class="stat-icon" style="background:linear-gradient(135deg,#667eea,#764ba2);">📊</div>
+              <div class="stat-content">
+                <div class="stat-label" data-i18n="webui.home_health_score">健康评分</div>
+                <div class="stat-value" id="home-health-score">--</div>
+                <div class="stat-badge" id="home-health-level">--</div>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon" style="background:linear-gradient(135deg,#11998e,#38ef7d);">🗄️</div>
+              <div class="stat-content">
+                <div class="stat-label" data-i18n="webui.home_total_instances">总实例数</div>
+                <div class="stat-value" id="home-total-instances">--</div>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon" style="background:linear-gradient(135deg,#eb3349,#f45c43);">⚠️</div>
+              <div class="stat-content">
+                <div class="stat-label" data-i18n="webui.home_total_risks">风险项总数</div>
+                <div class="stat-value" id="home-total-risks">--</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 最近巡检历史 -->
+        <div class="home-history" id="home-history-section" style="display:none;">
+          <div class="section-header">
+            <h3 data-i18n="webui.home_recent_history">📊 最近巡检历史</h3>
+            <button class="btn btn-ghost" onclick="showPage('reports')" data-i18n="webui.view_all_reports">查看全部 →</button>
+          </div>
+          <div id="home-history-list" class="history-list">
+            <!-- 动态加载 -->
+          </div>
+        </div>
+
+        <!-- Hero 区域 -->
         <div class="home-hero">
           <img src="/dbcheck_logo.png" alt="DBCheck" style="width:80px;height:80px;margin-bottom:16px;">
           <h2 data-i18n="webui.hero_title">数据库健康巡检</h2>
@@ -2174,7 +2287,7 @@ function showPage(name) {
   if (name === 'notifier') loadNotifierConfig();
   if (name === 'ai') loadAIConfig();
   if (name === 'rag') showRagPage();
-  if (name === 'license') loadProStatus();
+  if (name === 'home') loadHomeStats();
 }
 
 function startWizard() {
@@ -3621,6 +3734,78 @@ async function initApp() {
   showPage('home');
 }
 initApp();
+
+async function loadHomeStats() {
+  try {
+    // 1. 获取健康评分
+    const resScore = await fetch('/api/pro/health-score');
+    const dataScore = await resScore.json();
+    const statsSection = document.getElementById('home-stats-section');
+    const historySection = document.getElementById('home-history-section');
+
+    if (dataScore.ok) {
+      const score = dataScore.score || 0;
+      const level = dataScore.level || 'unknown';
+      const scoreEl = document.getElementById('home-health-score');
+      const levelEl = document.getElementById('home-health-level');
+
+      if (scoreEl) scoreEl.textContent = score;
+      if (levelEl) {
+        const levelMap = {
+          'healthy': {'text': '优秀', 'bg': '#4caf50'},
+          'low': {'text': '良好', 'bg': '#8bc34a'},
+          'medium': {'text': '中等', 'bg': '#ff9800'},
+          'high': {'text': '较差', 'bg': '#ff5722'},
+          'critical': {'text': '危险', 'bg': '#f44336'}
+        };
+        const info = levelMap[level] || {'text': level, 'bg': '#9e9e9e'};
+        levelEl.textContent = info.text;
+        levelEl.style.background = info.bg;
+      }
+      if (statsSection) statsSection.style.display = '';
+    }
+
+    // 2. 获取统计数据
+    const resStats = await fetch('/api/pro/statistics');
+    const dataStats = await resStats.json();
+    if (dataStats.ok) {
+      const stats = dataStats.statistics || {};
+      const totalEl = document.getElementById('home-total-instances');
+      const risksEl = document.getElementById('home-total-risks');
+      if (totalEl) totalEl.textContent = stats.total_instances || 0;
+      if (risksEl) risksEl.textContent = stats.total_risks || 0;
+    }
+
+    // 3. 获取最近巡检历史
+    const resHistory = await fetch('/api/pro/history?limit=5');
+    const dataHistory = await resHistory.json();
+    const listEl = document.getElementById('home-history-list');
+    if (dataHistory.ok && dataHistory.history && dataHistory.history.length > 0) {
+      if (listEl) {
+        listEl.innerHTML = dataHistory.history.map(h => {
+          const d = new Date(h.inspect_time);
+          const dateStr = d.toLocaleString('zh-CN');
+          const scoreColor = h.health_score >= 86 ? '#4caf50' :
+                         h.health_score >= 70 ? '#8bc34a' :
+                         h.health_score >= 50 ? '#ff9800' : '#f44336';
+          return `<div class="history-item">
+            <div class="history-score" style="color:${scoreColor};">${h.health_score || '--'}</div>
+            <div class="history-info">
+              <div class="history-name">${escHtml(h.instance_name || h.instance_id || '')}</div>
+              <div class="history-meta">${dateStr} · ${escHtml(h.db_type || '')} · 风险项:${h.risk_count || 0}</div>
+            </div>
+          </div>`;
+        }).join('');
+      }
+      if (historySection) historySection.style.display = '';
+    } else {
+      if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);" data-i18n="webui.home_no_history">暂无巡检记录</div>';
+      if (historySection) historySection.style.display = '';
+    }
+  } catch(e) {
+    console.error('Failed to load home stats:', e);
+  }
+}
 
 async function loadProStatus() {
     try {

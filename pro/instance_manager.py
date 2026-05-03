@@ -461,12 +461,26 @@ class InstanceManager:
         for inst in self._instances.values():
             by_group[inst.group] = by_group.get(inst.group, 0) + 1
 
+        # 计算风险项总数
+        total_risks = 0
+        try:
+            conn = sqlite3.connect(self.db_file)
+            cursor = conn.cursor()
+            cursor.execute("SELECT SUM(risk_count) FROM inspection_history")
+            result = cursor.fetchone()
+            if result and result[0]:
+                total_risks = result[0]
+            conn.close()
+        except Exception:
+            pass
+
         return {
             "total_instances": total,
             "enabled_instances": enabled,
             "by_type": by_type,
             "by_group": by_group,
-            "total_groups": len(self._groups)
+            "total_groups": len(self._groups),
+            "total_risks": total_risks,
         }
 
     # 巡检历史记录
