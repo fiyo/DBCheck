@@ -356,8 +356,8 @@ pyinstaller dbcheck.spec
 
 特别感谢以下项目：
 
-- Zhh9126/MySQLDBCHECK
-- Zhh9126/SQL-SERVER-CHECK
+- [Zhh9126/MySQLDBCHECK](https://github.com/Zhh9126/MySQLDBCHECK.git)
+- [Zhh9126/SQL-SERVER-CHECK](https://github.com/Zhh9126/SQL-SERVER-CHECK.git)
 
 ---
 
