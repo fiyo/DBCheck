@@ -1,842 +1,835 @@
-# DBCheck - Database Inspection Tool
+# 数据库巡检工具 - DBCheck
 
-DBCheck is an open-source, cross-platform automated database health check tool that supports six mainstream relational databases: **MySQL**, **PostgreSQL**, **Oracle**, **SQL Server**, **DM8**, and **TiDB**. The tool automatically generates standardized Microsoft Word inspection reports by executing predefined SQL checks and collecting system resources. It also provides advanced features such as historical trend analysis, AI-powered intelligent diagnostics, configuration baseline compliance checks, index health analysis, in-depth slow query analysis, and data-masked export. DBCheck aims to free DBAs from repetitive and time-consuming manual inspection work, improving database operation and maintenance efficiency and risk detection capabilities.
+DBCheck 是一款开源、跨平台的数据库自动化健康巡检工具，支持 MySQL、PostgreSQL、Oracle、SQL Server、达梦 DM8 及 TiDB 六种主流关系型数据库。工具通过执行预定义的 SQL 检查项与系统资源采集，自动生成格式规范的 Microsoft Word 巡检报告，并提供历史趋势分析、AI 智能诊断、配置基线合规检查、索引健康分析、慢查询深度分析、脱敏导出等高级功能。DBCheck 旨在将 DBA 从重复、耗时的手工巡检工作中解放出来，提升数据库运维效率与风险发现能力。
+> 官方网站：https://dbcheck.top
 
 
-[![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)]()
-[![MySQL](https://img.shields.io/badge/database-MySQL-blue.svg)]()
+[![Version](https://img.shields.io/badge/版本-2.4.0-blue.svg)]()
+[![MySQL](https://img.shields.io/badge/支持的数据库-MySQL-blue.svg)]()
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-gray.svg)]()
 [![Oracle](https://img.shields.io/badge/Oracle-red.svg)]()
 [![SQL Server](https://img.shields.io/badge/SQL%20Server-orange.svg)]()
 [![DM](https://img.shields.io/badge/DM-yellow.svg)]()
 [![TiDB](https://img.shields.io/badge/TiDB-green.svg)]()
-[![License](https://img.shields.io/badge/license-MIT-green.svg)]()
-[![Donors](https://img.shields.io/badge/donors-2-blue.svg)]()
+[![License](https://img.shields.io/badge/开源协议-MIT-green.svg)]()
+[![捐赠者](https://img.shields.io/badge/捐赠者-2-blue.svg)]()
 
-> Language: [English](./README.md) | [中文](./README_zh.md)
+> Language: [English](./README_en.md) | [中文](./README.md)
 
-## 🌍 Multi-Language Support
+## 🌍 多语言支持
 
-DBCheck supports **Chinese (default)** and **English**. All interface text updates automatically when you switch languages.
+DBCheck 支持**中文（默认）**和**英文**两种语言，界面文本随语言切换自动更新。
 
-### CLI Language Switch
+### 命令行语言切换
 
 ```bash
-python main.py                    # Default: Chinese
-python main.py --lang en         # Switch to English
-python main.py --lang zh         # Switch to Chinese (explicit)
+python main.py                    # 默认中文
+python main.py --lang en         # 切换为英文
+python main.py --lang zh         # 切换为中文（显式指定）
 ```
 
-> The Web UI also has a 🌐 toggle button in the top-right corner. Clicking it switches between Chinese and English. The setting is automatically saved and will be loaded on the next Web UI startup.
+> Web UI 右上角也有 🌐 切换按钮，点击即可中英文切换，切换结果自动保存。
 
-### Language Reference
+### 语言说明
 
-| Parameter | Language | Notes |
-|-----------|----------|-------|
-| `--lang zh` | Chinese | Default language |
-| `--lang en` | English | English interface |
-| (not specified) | Chinese | Uses the last saved language; falls back to Chinese if no record exists |
+| 参数 | 语言 | 说明 |
+|------|------|------|
+| `--lang zh` | 中文 | 默认语言 |
+| `--lang en` | English | 英文界面 |
+| 不指定 | 中文 | 默认使用上一次保存的语言，无保存记录时默认为中文 |
 
-> **Note**: The `--lang` parameter only takes effect for the current session and does not overwrite any saved language setting. Switching language in the Web UI persists to `dbc_config.json` and loads automatically on the next startup.
+> **注意**：`--lang` 参数仅在当前会话临时生效，不会覆盖已保存的语言设置。Web UI 中切换语言会持久化到 `dbc_config.json`，下次启动 Web UI 时自动加载。
 
-### Manually Modify Default Language
+### 手动修改默认语言
 
-To change the default language without using CLI flags or Web UI, edit the configuration file directly:
+如需在不启动程序的情况下修改默认语言，可直接编辑配置文件：
 
 ```json
 // dbc_config.json
 {
-    "language": "zh"   // "zh" = Chinese, "en" = English
+    "language": "zh"   // "zh" = 中文, "en" = English
 }
 ```
 
-The config file is located in the same directory as `main.py`.
+配置文件位于 `main.py` 同级目录下。
 
-## AI-Assisted - Detect and Resolve Issues
+## AI 辅助 · 问题发现即处理
 
-### AI-Powered Intelligent Diagnosis
+### 🤖 AI 智能诊断
 
-Leveraging a fully offline, local **Ollama** deployment, DBCheck analyzes inspection metrics (connection counts, cache hit ratios, slow queries, security risks, etc.) and automatically generates structured optimization recommendations. AI insights are rendered as a dedicated chapter in the report — Markdown content is automatically styled into Word format (bold, code blocks, lists, numbered headings), ready to share with your team or leadership.
+调用本地 **Ollama**（完全离线），基于当次巡检的指标数据（连接数、缓存命中率、慢查询数、安全风险等），自动生成结构化的优化建议。报告独立成章，Markdown 格式内容自动渲染为 Word 样式（加粗、代码块、列表、标题序号），方便直接转发给团队或领导审阅。
 
-| Backend | Characteristics | Use Case |
-|---------|----------------|----------|
-| `ollama` | Local-only, zero cost, no network dependency | Air-gapped environments, high data-security requirements |
-| `disabled` | AI disabled (default) | Offline environments / AI not required |
+| 后端 | 特点 | 适用场景 |
+|------|------|---------|
+| `ollama` | 本地运行，零成本，无网络依赖 | 内网环境、数据安全要求高 |
+| `disabled` | 不调用 AI（默认） | 离线环境 / 无需 AI |
 
-> **Security Notice**: AI diagnosis is strictly limited to local Ollama (localhost:11434). Inspection data is never sent to any third-party service. This is enforced at the code level — even if the configuration file is tampered with to use a remote address, the system will automatically fall back to the disabled state.
+> ⚠️ **安全说明**：AI 诊断功能仅支持本地 Ollama（localhost:11434），巡检数据不会发送到任何第三方服务。代码层已做硬性限制，即使配置文件被篡改为远程地址也会自动降级为禁用状态。
 
-### Risk Detection and Recommendations
+### 🔍 风险与建议
 
-Each risk is presented as a card: **Risk Level (High/Medium/Low) → Issue Description → Remediation SQL (copy-paste ready) → Priority & Owner**. The report automatically aggregates all findings so you can see every pending item at a glance.
+每条风险对应一张卡片，包含：**风险等级（高/中/低）→ 问题描述 → 修复 SQL（可直接复制执行）→ 优先级与负责人**。报告自动汇总，一眼看清全部待处理项。
 
-| Dimension | MySQL | PostgreSQL | Oracle | SQL Server | DM8 | TiDB |
-|-----------|:-----:|:----------:|:------:|:-----------:|:---:|:----:|
-| Connection Resources | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Cache Performance | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Query Efficiency | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Logs and Alerts | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Security Audit | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Replication / DG | ✅ | ✅ | — | — | — | ✅ |
-| Configuration Tuning | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Tablespaces | — | — | ✅ | ✅ | ✅ | — |
-| SGA / PGA Memory | — | — | ✅ | — | ✅ | — |
-| Redo Logs | — | — | ✅ | — | ✅ | — |
-| Backup and Archiving | — | — | ✅ | ✅ | ✅ | — |
-| RAC Cluster | — | — | ✅ | — | — | — |
-| ASM Disk Groups | — | — | ✅ | — | — | — |
-| Undo Management | — | — | ✅ | — | ✅ | — |
+| 维度 | MySQL | PostgreSQL | Oracle | SQL Server | DM8 | TiDB |
+|------|:-----:|:----------:|:-----------:|:-----------:|:----:|:----:|
+| 连接资源 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 缓存性能 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 查询效率 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 日志告警 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 安全审计 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 复制/DG | ✅ | ✅ | — | — | — | ✅ |
+| 配置优化 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 表空间 | — | — | ✅ | ✅ | ✅ | — |
+| SGA/PGA 内存 | — | — | ✅ | — | ✅ | — |
+| Redo 日志 | — | — | ✅ | — | ✅ | — |
+| 备份与归档 | — | — | ✅ | ✅ | ✅ | — |
+| RAC 集群 | — | — | ✅ | — | — | — |
+| ASM 磁盘组 | — | — | ✅ | — | — | — |
+| Undo 管理 | — | — | ✅ | — | ✅ | — |
 | Data Guard | — | — | ✅ | — | — | — |
-| Wait Events | — | — | ✅ | ✅ | ✅ | — |
-| Locks and Blocking | — | — | — | ✅ | — | — |
-| DM8-Specific Views | — | — | — | — | ✅ | — |
-| Placement & Affinity | — | — | — | — | — | ✅ |
+| 等待事件 | — | — | ✅ | ✅ | ✅ | — |
+| 锁与阻塞 | — | — | — | ✅ | — | — |
+| DM8 特有视图 | — | — | — | — | ✅ | — |
+| 调度与亲和性 | — | — | — | — | — | ✅ |
 
 ---
 
-## Four Core Capabilities
+## 四大核心能力
 
-| Capability | Description |
-|-----------|-------------|
-| 🗄️ Centralized Datasource Management | Unified management of all database instances with grouping, batch inspection, connection testing, and CSV import/export |
-| 📊 Historical Trend Analysis | Automatically aggregates data from multiple inspection runs on the same database, generates metric trend line charts, and compares against previous results to surface changes |
-| 🤖 AI-Powered Diagnosis | Calls local Ollama based on inspection metrics to generate personalized optimization recommendations |
-| 🔍 130+ Enhanced Rules | Full-dimensional risk detection across six databases (MySQL 35+, PG 27+, Oracle 20+, SQL Server 15+, DM8 16+, TiDB 18+) — including 28 new slow query deep analysis rules |
-
----
-
-## Four Ways to Use DBCheck
-
-| Method | Description |
-|--------|-------------|
-| 🖥️ Command-Line | `python main.py` — terminal interaction, ideal for CLI-familiar users |
-| 🌐 Web UI | `python web_ui.py` — browser-based GUI with trend charts and AI configuration |
-| 🤖 OpenClaw Skill | Tell your AI assistant "inspect the Oracle Database" — fully automated |
-| 📦 Packaged Distribution | PyInstaller bundles everything into a single executable for team distribution |
+| 能力 | 说明 |
+|------|------|
+| 🗄️ 数据源集中管理 | 多数据库实例统一管理，支持分组、批量巡检、连接测试、CSV 导入导出 |
+| 📊 历史趋势分析 | 同一数据库多次巡检数据自动汇聚，生成指标趋势折线图，与上次对比发现变化 |
+| 🤖 AI 智能诊断 | 基于巡检指标调用本地 Ollama，生成个性化优化建议 |
+| 🔍 130+ 条增强规则 | 覆盖六种数据库全维度风险检测（MySQL 35+条 / PG 27+条 / Oracle 20+条 / SQL Server 15+条 / DM8 16+条 / TiDB 18+条）——含新增 28 条慢查询深度分析规则 |
 
 ---
 
-## Features
+## 四种使用方式
 
-### Database Inspection
+| 方式 | 说明 |
+|------|------|
+| 🖥️ 命令行 | `python main.py`，终端交互，适合熟悉命令行的用户 |
+| 🌐 Web UI | `python web_ui.py`，浏览器图形界面，支持趋势图和 AI 诊断配置 |
+| 🤖 OpenClaw Skill | 告诉 AI 助手"帮我巡检 XX 库"，零操作自动完成 |
+| 📦 打包部署 | PyInstaller 打包成分发版，给团队成员使用 |
 
-| Dimension | MySQL | PostgreSQL | Oracle | SQL Server | DM8 | TiDB |
-|-----------|:-----:|:----------:|:------:|:-----------:|:---:|:----:|
-| Basic Info (version / instance / database) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Session and Connection Status | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Memory and Cache Configuration | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Tablespace Usage | — | — | ✅ | ✅ | ✅ | — |
-| SGA / PGA Memory Analysis | — | — | ✅ | — | ✅ | — |
-| Redo Log Status | — | — | ✅ | — | ✅ | — |
-| Archiving and Backup Checks | — | — | ✅ | ✅ | ✅ | — |
-| Key Parameter Configuration | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Invalid Object Detection | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| User Security Audit | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Top SQL / Slow Queries | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Master-Slave Replication / Data Guard | ✅ | ✅ | — | — | — | ✅ |
-| RAC Cluster Information | — | — | ✅ | — | — | — |
-| ASM Disk Groups | — | — | ✅ | — | — | — |
-| Undo Tablespace Management | — | — | ✅ | — | ✅ | — |
-| Recycle Bin / Flashback Recovery Area | — | — | ✅ | — | ✅ | — |
-| Profile Password Policy | — | — | ✅ | — | — | — |
-| Top Wait Events | — | — | ✅ | ✅ | ✅ | — |
-| Locks and Blocking Detection | — | — | — | ✅ | — | — |
-| Stale Statistics Detection | — | — | ✅ | ✅ | ✅ | ✅ |
-| Partitioned Table Information | — | — | ✅ | ✅ | ✅ | ✅ |
-| Datafile Status | — | — | ✅ | ✅ | ✅ | — |
-| DM8 Buffer Pool Details | — | — | — | — | ✅ | — |
-| Placement & Affinity Policy | — | — | — | — | — | ✅ |
+---
 
-### Datasource Management 🗄️
+## 功能特性
 
-> Unified management of all database instances with grouping, batch inspection, and connection testing — significantly improving operational efficiency.
+### 数据库巡检
 
-#### Core Features
+| 维度 | MySQL | PostgreSQL | Oracle | SQL Server | DM8 | TiDB |
+|------|:-----:|:----------:|:-----------:|:-----------:|:----:|:----:|
+| 基本信息（版本/实例/数据库） | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 会话与连接状态 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 内存与缓存配置 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 表空间使用情况 | — | — | ✅ | ✅ | ✅ | — |
+| SGA / PGA 内存分析 | — | — | ✅ | — | ✅ | — |
+| Redo 日志与状态 | — | — | ✅ | — | ✅ | — |
+| 归档与备份检查 | — | — | ✅ | ✅ | ✅ | — |
+| 关键参数配置 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 无效对象检测 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 用户安全审计 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Top SQL / 慢查询 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 主从复制 / Data Guard | ✅ | ✅ | — | — | — | ✅ |
+| RAC 集群信息 | — | — | ✅ | — | — | — |
+| ASM 磁盘组 | — | — | ✅ | — | — | — |
+| Undo 表空间管理 | — | — | ✅ | — | ✅ | — |
+| 回收站 / 闪回恢复区 | — | — | ✅ | — | ✅ | — |
+| Profile 密码策略 | — | — | ✅ | — | — | — |
+| 等待事件 TOP | — | — | ✅ | ✅ | ✅ | — |
+| 锁与阻塞检测 | — | — | — | ✅ | — | — |
+| 统计信息陈旧检测 | — | — | ✅ | ✅ | ✅ | ✅ |
+| 分区表信息 | — | — | ✅ | ✅ | ✅ | ✅ |
+| 数据文件状态 | — | — | ✅ | ✅ | ✅ | — |
+| DM8 缓冲池详情 | — | — | — | — | ✅ | — |
+| 调度与亲和性策略 | — | — | — | — | — | ✅ |
 
-| Feature | Description |
-|---------|-------------|
-| Multi-Database Support | MySQL / PostgreSQL / Oracle / SQL Server / DM8 / TiDB |
-| Instance Info | Customizable labels, groups, ports, usernames |
-| Oracle-Specific | Service Name/SID configuration, SYSDBA privileged connection |
-| Connection Testing | One-click database connection test with real-time results |
-| Group Management | Organize by business/environment with custom color tags |
-| CSV Import/Export | Batch import/export datasource configurations |
+### 数据源管理 🗄️
 
-#### Web UI Datasource Management
+> 统一管理所有数据库实例，支持分组管理、批量巡检、连接测试，大幅提升运维效率。
 
-| Feature | Description |
-|---------|-------------|
-| Add Datasource | Select database type → fill connection info → save |
-| Edit Datasource | Modify any field, password optional update |
-| Delete Datasource | With confirmation dialog to prevent accidental deletion |
-| Connection Test | Test saved datasources with real-time results |
-| Group Filtering | Filter by group to quickly locate target instances |
-| Batch Import | Import datasources from CSV file |
-| Batch Export | Export all datasources to CSV with one click |
+#### 核心功能
 
-#### Group Management
+| 功能 | 说明 |
+|------|------|
+| 多数据库支持 | MySQL / PostgreSQL / Oracle / SQL Server / DM8 / TiDB |
+| 实例信息 | 支持自定义标签、分组、端口、用户名 |
+| Oracle 专属 | 服务名/SID 配置、SYSDBA 特权连接 |
+| 连接测试 | 一键测试数据库连接，实时返回结果 |
+| 分组管理 | 按业务/环境分组，支持自定义颜色标签 |
+| CSV 导入导出 | 批量导入/导出数据源配置 |
 
-| Feature | Description |
-|---------|-------------|
-| Create Group | Custom name and color support |
-| Edit Group | Modify name and color |
-| Delete Group | Non-default groups can be deleted |
-| Color Tags | Each group can have different colors for easy identification |
+#### Web UI 数据源管理
 
-### Configuration Baseline Checks
+| 功能 | 说明 |
+|------|------|
+| 添加数据源 | 选择数据库类型 → 填写连接信息 → 保存 |
+| 编辑数据源 | 修改任意字段，密码可选择性更新 |
+| 删除数据源 | 支持二次确认，防止误删 |
+| 连接测试 | 对已保存的数据源进行连接验证 |
+| 分组筛选 | 按分组过滤显示，快速定位目标实例 |
+| 批量导入 | CSV 文件批量导入数据源 |
+| 批量导出 | 一键导出所有数据源为 CSV |
 
-> Automatically compares current configuration values against recommended baselines based on database size, memory, and workload — helping identify misconfigurations before they cause problems.
+#### 分组管理
 
-#### MySQL (22 parameters)
+| 功能 | 说明 |
+|------|------|
+| 创建分组 | 支持自定义名称和颜色 |
+| 编辑分组 | 修改名称和颜色 |
+| 删除分组 | 非 default 分组可删除 |
+| 颜色标签 | 每个分组可设置不同颜色，便于区分 |
 
-| Parameter | Description | Recommended Value Basis |
-|-----------|-------------|------------------------|
-| innodb_buffer_pool_size | InnoDB buffer pool size | 60–80% of total memory |
-| max_connections | Maximum connections | 1.5× historical peak usage |
-| tmp_table_size / max_heap_table_size | Temp & memory table size | 64MB; should match each other |
-| innodb_log_file_size | Redo log file size | 256MB–1GB based on DB size |
-| innodb_log_buffer_size | Log buffer size | 16MB |
-| sync_binlog | Binlog sync frequency | 1 for high-write workloads |
-| innodb_flush_log_at_trx_commit | Transaction log flush policy | 1 (strictest, safest) |
-| table_open_cache / table_definition_cache | Table & definition cache | 2× table count / threads |
-| thread_cache_size | Thread cache size | 50+ or 2–4× CPU cores |
-| innodb_thread_concurrency | InnoDB concurrency | 2× CPU cores |
-| innodb_io_capacity / io_capacity_max | I/O capacity (SSD/HDD) | 20000 / 200 |
-| max_allowed_packet | Max packet size | 16MB–64MB |
-| wait_timeout / interactive_timeout | Connection idle timeout | 300–600 seconds |
-| sort_buffer_size / join_buffer_size | Sort & join buffer | 2–4MB / 1–2MB |
-| long_query_time | Slow query threshold | 1–2 seconds |
+### 配置基线检查
 
-#### PostgreSQL (21 parameters)
+> 根据数据库规模、内存和负载自动计算推荐配置值，与当前值对比，识别配置偏差。
 
-| Parameter | Description | Recommended Value Basis |
-|-----------|-------------|------------------------|
-| shared_buffers | Shared buffer size | 25% of total memory |
-| effective_cache_size | Effective cache size | 75% of total memory |
-| maintenance_work_mem | Maintenance memory | 256MB–1GB |
-| work_mem | Work memory | (total_mem × 0.25) / max_connections |
-| max_connections | Maximum connections | 200–1000 |
-| temp_buffers / wal_buffers | Temp & WAL buffers | 8MB / 16MB |
-| checkpoint_completion_target | Checkpoint completion target | 0.9 |
-| max_wal_size / min_wal_size | WAL size bounds | 2GB / 256MB |
-| random_page_cost | Random page cost | 1.1 (SSD) / 4.0 (HDD) |
-| effective_io_concurrency | I/O concurrency | 200 (SSD) |
-| shared_preload_libraries | Preloaded libraries | Should include pg_stat_statements |
-| track_activities / track_counts | Statistics tracking | on |
-| track_io_timing / track_functions | I/O & function tracking | on / pl |
-| autovacuum | Auto vacuum | on |
-| log_min_duration_statement | Slow query threshold | 1000–3000ms |
+#### MySQL（22 个参数）
 
-#### Oracle (12 parameters)
+| 参数 | 说明 | 推荐值依据 |
+|------|------|-----------|
+| innodb_buffer_pool_size | InnoDB 缓冲池大小 | 总内存的 60–80% |
+| max_connections | 最大连接数 | 历史峰值的 1.5 倍 |
+| tmp_table_size / max_heap_table_size | 临时表/内存表大小 | 64MB；两者应保持一致 |
+| innodb_log_file_size | Redo 日志文件大小 | 256MB–1GB（按数据量）|
+| innodb_log_buffer_size | 日志缓冲区大小 | 16MB |
+| sync_binlog | Binlog 同步频率 | 高并发写入建议设为 1 |
+| innodb_flush_log_at_trx_commit | 事务提交日志刷盘策略 | 1（最严格、最安全）|
+| table_open_cache / table_definition_cache | 表缓存/表定义缓存 | 2× 表数量 / 线程数 |
+| thread_cache_size | 线程缓存大小 | 50+ 或 CPU 核心数的 2–4 倍 |
+| innodb_thread_concurrency | InnoDB 线程并发数 | CPU 核心数的 2 倍 |
+| innodb_io_capacity / io_capacity_max | I/O 容量（SSD/HDD）| 20000 / 200 |
+| max_allowed_packet | 最大数据包大小 | 16MB–64MB |
+| wait_timeout / interactive_timeout | 空闲连接超时 | 300–600 秒 |
+| sort_buffer_size / join_buffer_size | 排序/join 缓冲区 | 2–4MB / 1–2MB |
+| long_query_time | 慢查询阈值 | 1–2 秒 |
 
-| Parameter | Description | Recommended Value Basis |
-|-----------|-------------|------------------------|
-| memory_target | Memory target (SGA+PGA) | 85% of physical memory |
-| sga_target / pga_aggregate_target | SGA / PGA targets | 60% / 25% of total memory |
-| processes | Maximum processes | 150 or CPU cores × 50 |
-| open_cursors / session_cached_cursors | Cursor settings | 300–500 / 50 |
-| log_buffer | Log buffer size | 8–64MB |
-| undo_retention | Undo retention time | 3600 seconds |
-| fast_start_mttr_target | MTTR target | 300 seconds |
-| db_file_multiblock_read_count | Multiblock read count | 128 |
-| statistics_level | Statistics level | TYPICAL |
-| control_file_record_keep_time | Control file record retention | 7 days |
+#### PostgreSQL（21 个参数）
 
-#### SQL Server (6 parameters)
+| 参数 | 说明 | 推荐值依据 |
+|------|------|-----------|
+| shared_buffers | 共享缓冲区大小 | 总内存的 25% |
+| effective_cache_size | 有效缓存大小 | 总内存的 75% |
+| maintenance_work_mem | 维护操作内存 | 256MB–1GB |
+| work_mem | 工作内存 | (总内存 × 0.25) / max_connections |
+| max_connections | 最大连接数 | 200–1000 |
+| temp_buffers / wal_buffers | 临时/WAL 缓冲区 | 8MB / 16MB |
+| checkpoint_completion_target | 检查点完成目标 | 0.9 |
+| max_wal_size / min_wal_size | WAL 大小边界 | 2GB / 256MB |
+| random_page_cost | 随机页成本 | 1.1（SSD）/ 4.0（HDD）|
+| effective_io_concurrency | 有效 I/O 并发数 | 200（SSD）|
+| shared_preload_libraries | 预加载库 | 建议包含 pg_stat_statements |
+| track_activities / track_counts | 统计追踪 | on |
+| track_io_timing / track_functions | I/O/函数追踪 | on / pl |
+| autovacuum | 自动清理 | on |
+| log_min_duration_statement | 慢查询日志阈值 | 1000–3000ms |
 
-| Parameter | Description | Recommended Value Basis |
-|-----------|-------------|------------------------|
-| max server memory (MB) | Max server memory | 85% of physical memory |
-| cost threshold for parallelism | Parallelism cost threshold | 25–50 |
-| max degree of parallelism | Max DOP | CPU cores / 2 |
-| fill factor (%) | Fill factor | 80–90% |
-| recovery interval (min) | Recovery interval | 60 minutes |
-| backup compression default | Backup compression | 1 (enabled) |
+#### Oracle（12 个参数）
 
-#### DM8 (7 parameters)
+| 参数 | 说明 | 推荐值依据 |
+|------|------|-----------|
+| memory_target | 内存目标（SGA+PGA）| 物理内存的 85% |
+| sga_target / pga_aggregate_target | SGA / PGA 目标 | 总内存的 60% / 25% |
+| processes | 最大进程数 | 150 或 CPU 核心数 × 50 |
+| open_cursors / session_cached_cursors | 游标设置 | 300–500 / 50 |
+| log_buffer | 日志缓冲区大小 | 8–64MB |
+| undo_retention | Undo 保留时间 | 3600 秒 |
+| fast_start_mttr_target | MTTR 目标 | 300 秒 |
+| db_file_multiblock_read_count | 多块读计数 | 128 |
+| statistics_level | 统计级别 | TYPICAL |
+| control_file_record_keep_time | 控制文件记录保留天数 | 7 天 |
 
-| Parameter | Description | Recommended Value Basis |
-|-----------|-------------|------------------------|
-| MEMORY_TARGET | Memory target | 85% of physical memory |
-| SGA_TARGET / PGA_TARGET | SGA / PGA targets | 60% / 25% of total memory |
-| MAX_SESSIONS / OPEN_CURSORS | Session & cursor limits | 1000 / 500 |
-| UNDO_RETENTION | Undo retention time | 3600 seconds |
-| BUFFER | Buffer pool size | 30% of DB size |
+#### SQL Server（6 个参数）
 
-#### TiDB (9 parameters)
+| 参数 | 说明 | 推荐值依据 |
+|------|------|-----------|
+| max server memory (MB) | 最大服务器内存 | 物理内存的 85% |
+| cost threshold for parallelism | 并行开销阈值 | 25–50 |
+| max degree of parallelism | 最大并行度 | CPU 核心数的一半 |
+| fill factor (%) | 填充因子 | 80–90% |
+| recovery interval (min) | 恢复间隔 | 60 分钟 |
+| backup compression default | 备份压缩默认 | 1（开启）|
 
-| Parameter | Description | Recommended Value Basis |
-|-----------|-------------|------------------------|
-| innodb_buffer_pool_size | InnoDB buffer pool size | 70% of total memory |
-| max_connections | Maximum connections | 3000 |
-| tmp_table_size / max_heap_table_size | Temp & memory table size | 256MB; should match |
-| innodb_log_file_size / innodb_log_buffer_size | Log file & buffer | 256MB / 64MB |
-| max_allowed_packet | Max packet size | 64MB |
-| tidb_hash_join_concurrency / tidb_index_lookup_concurrency | Operator concurrency | 5 each |
+#### DM8（7 个参数）
 
-### Index Health Analysis
+| 参数 | 说明 | 推荐值依据 |
+|------|------|-----------|
+| MEMORY_TARGET | 内存目标 | 物理内存的 85% |
+| SGA_TARGET / PGA_TARGET | SGA / PGA 目标 | 总内存的 60% / 25% |
+| MAX_SESSIONS / OPEN_CURSORS | 会话/游标限制 | 1000 / 500 |
+| UNDO_RETENTION | Undo 保留时间 | 3600 秒 |
+| BUFFER | 缓冲池大小 | 数据库大小的 30% |
 
-> Detects three types of index issues across all supported databases — missing indexes, redundant/duplicate indexes, and long-unused indexes — then generates actionable remediation recommendations.
+#### TiDB（9 个参数）
+
+| 参数 | 说明 | 推荐值依据 |
+|------|------|-----------|
+| innodb_buffer_pool_size | InnoDB 缓冲池大小 | 总内存的 70% |
+| max_connections | 最大连接数 | 3000 |
+| tmp_table_size / max_heap_table_size | 临时/内存表大小 | 256MB；两者应保持一致 |
+| innodb_log_file_size / innodb_log_buffer_size | 日志文件/缓冲区 | 256MB / 64MB |
+| max_allowed_packet | 最大包大小 | 64MB |
+| tidb_hash_join_concurrency / tidb_index_lookup_concurrency | 算子并发数 | 均为 5 |
+
+### 索引健康分析
+
+> 对所有支持的数据库进行三类索引问题检测——缺失索引、冗余/重复索引、长期未使用索引，并生成可操作的修复建议。
 
 #### MySQL
 
-| Analysis Type | Data Source | Description |
-|---------------|-------------|-------------|
-| Missing indexes | performance_schema.events_statements_summary_by_digest + table_statistics | Identifies high-scan queries and tables lacking primary keys |
-| Redundant indexes | information_schema.STATISTICS | Finds duplicate indexes on the same column(s) |
-| Unused indexes | performance_schema.table_statistics | Detects indexes with zero read/write activity |
+| 分析类型 | 数据来源 | 说明 |
+|---------|---------|------|
+| 缺失索引 | performance_schema.events_statements_summary_by_digest + table_statistics | 识别高扫描查询和缺少主键的表 |
+| 冗余索引 | information_schema.STATISTICS | 查找同列的重复索引 |
+| 未使用索引 | performance_schema.table_statistics | 检测读写均为 0 的索引 |
 
 #### PostgreSQL
 
-| Analysis Type | Data Source | Description |
-|---------------|-------------|-------------|
-| Missing indexes | pg_stat_statements | Identifies high-row-scan queries needing indexes |
-| Redundant indexes | pg_indexes (indexdef parsing) | Finds identical or left-prefix-matching index pairs |
-| Unused indexes | pg_stat_user_indexes (idx_scan=0) | Detects never-scanned indexes |
+| 分析类型 | 数据来源 | 说明 |
+|---------|---------|------|
+| 缺失索引 | pg_stat_statements | 识别高行扫描查询 |
+| 冗余索引 | pg_indexes（indexdef 解析）| 查找相同或左前缀匹配的索引对 |
+| 未使用索引 | pg_stat_user_indexes（idx_scan=0）| 检测从未扫描的索引 |
 
 #### Oracle
 
-| Analysis Type | Data Source | Description |
-|---------------|-------------|-------------|
-| Unused indexes | v$object_usage (MONITORING USAGE) | Detects indexes that have never been used |
-| Redundant indexes | dba_ind_columns | Finds same-column-at-position-1 index pairs |
+| 分析类型 | 数据来源 | 说明 |
+|---------|---------|------|
+| 未使用索引 | v$object_usage（MONITORING USAGE）| 检测从未使用的索引 |
+| 冗余索引 | dba_ind_columns | 查找首列相同的索引对 |
 
 #### SQL Server
 
-| Analysis Type | Data Source | Description |
-|---------------|-------------|-------------|
-| Unused indexes | sys.dm_db_index_usage_stats | Detects indexes with zero user_seeks + user_scans |
-| Redundant indexes | sys.indexes + sys.index_columns | Finds same-leading-column index pairs |
+| 分析类型 | 数据来源 | 说明 |
+|---------|---------|------|
+| 未使用索引 | sys.dm_db_index_usage_stats | 检测 user_seeks+user_scans 为 0 的索引 |
+| 冗余索引 | sys.indexes + sys.index_columns | 查找首列相同的索引对 |
 
 #### DM8
 
-| Analysis Type | Data Source | Description |
-|---------------|-------------|-------------|
-| Redundant indexes | USER_IND_COLUMNS | Finds identical or containing column index pairs |
+| 分析类型 | 数据来源 | 说明 |
+|---------|---------|------|
+| 冗余索引 | USER_IND_COLUMNS | 查找相同或包含列的索引对 |
 
 #### TiDB
 
-| Analysis Type | Data Source | Description |
-|---------------|-------------|-------------|
-| Redundant indexes | information_schema.STATISTICS | Finds identical or left-prefix-matching index pairs |
+| 分析类型 | 数据来源 | 说明 |
+|---------|---------|------|
+| 冗余索引 | information_schema.STATISTICS | 查找相同或左前缀匹配的索引对 |
 
-### System Resource Monitoring
+### 系统资源监控
 
-- **CPU**: utilization, core count, clock speed
-- **Memory**: total, used, available, utilization rate
-- **Disk**: capacity and utilization per mount point
-- **Collection**: local collection or SSH remote collection (password/key auth supported, default port 22); Dameng DM8 supports SSH collection with automatic fallback to local collector on failure
+- **CPU**：使用率、核心数、频率
+- **内存**：总量、使用量、可用量、使用率
+- **磁盘**：各挂载点容量及使用率
+- **采集方式**：本地直采或 SSH 远程采集（支持密码/密钥认证，默认端口 22）；达梦 DM8 支持 SSH 采集（失败时自动降级为本地采集器）
 
-### Intelligent Risk Analysis
+### 智能风险分析
 
-Automatically detects potential database risks — **each risk includes an executable remediation SQL** ready to copy and run:
+自动检测数据库潜在风险，**每条风险附可执行的修复 SQL**，可直接复制到数据库执行：
 
-#### MySQL (18+ rules)
+#### MySQL（18+ 条规则）
 
-| Dimension | Example Rules |
-|-----------|--------------|
-| Connections | Usage >90% = critical / >80% = warning |
-| Memory | InnoDB buffer pool too small (< 60% of data size) |
-| Disk | Usage >85% = warning / >95% = critical |
-| Queries | Long-running SQL (>60s), slow query log disabled |
-| Locks | High lock wait ratio |
-| Security | Empty password users, root@% exposure, non-UTF8 charset |
-| Replication | Master-slave lag >30s, replication errors |
-| Other | binlog disabled, query cache remnants, excessive aborted connections |
+| 维度 | 规则示例 |
+|------|---------|
+| 连接数 | 使用率 >90% 高危 / >80% 中危 |
+| 内存 | InnoDB 缓冲池偏小（<数据总量 60%）|
+| 磁盘 | 使用率 >85% 警告 / >95% 高危 |
+| 查询 | 长时间运行 SQL（>60s）、慢查询日志未开启 |
+| 锁 | 锁等待比例偏高 |
+| 安全 | 用户空密码、root@% 暴露、字符集非 UTF8 |
+| 复制 | 主从延迟 >30s、复制状态异常 |
+| 其他 | binlog 未开启、查询缓存残留、异常中止连接过多 |
 
-#### PostgreSQL (16+ rules)
+#### PostgreSQL（16+ 条规则）
 
-| Dimension | Example Rules |
-|-----------|--------------|
-| Connections | Near limit, too many superusers |
-| Cache | Low hit ratio (<80%), undersized shared_buffers |
-| Performance | Large accumulation of dead tuples, long-running SQL |
-| Security | Overly permissive public schema permissions |
-| Archiving | Archiving mode disabled |
-| Other | Disk / memory / CPU resource alerts |
+| 维度 | 规则示例 |
+|------|---------|
+| 连接 | 连接数接近上限、超级用户过多 |
+| 缓存 | 缓存命中率偏低（<80%）、shared_buffers 偏小 |
+| 性能 | dead tuples 大量累积、长时间运行 SQL |
+| 安全 | 公开 schema 权限过宽 |
+| 归档 | 归档模式未开启 |
+| 其他 | 磁盘/内存/CPU 资源告警 |
 
-#### Oracle (20+ rules)
+#### Oracle（20+ 条规则）
 
-| Dimension | Example Rules |
-|-----------|--------------|
-| Tablespace | Usage >90% (including autoextend calculation) |
-| TEMP | Temp tablespace usage too high |
-| Sessions | Near limit / process overflow / lock blocking |
-| Memory | SGA too large relative to physical memory |
-| Redo | Redo log group issues / frequent switches |
-| Backup | Archiving disabled / missing RMAN backups |
-| DG | MRP not running / protection mode too low |
-| ASM | Disk group space insufficient / offline disks |
-| FRA | Flashback Recovery Area usage too high |
-| Objects | Too many invalid objects / stale statistics |
-| Security | Permissive Profile password policy / auditing disabled |
-| Other | open_cursors too small / recycle bin bloat / datafiles offline |
+| 维度 | 规则示例 |
+|------|---------|
+| 表空间 | 使用率 >90%（含自动扩展计算）|
+| TEMP | 临时表空间使用率偏高 |
+| 会话 | 数接近上限 / 进程超限 / 锁阻塞 |
+| 内存 | SGA 占物理内存比例过高 |
+| Redo | Redo 日志组异常 / 切换频繁 |
+| 备份 | 归档模式未开启 / RMAN 备份缺失 |
+| DG | MRP 未运行 / 保护模式偏低 |
+| ASM | 磁盘组空间不足 / 离线磁盘 |
+| FRA | 闪回恢复区使用率偏高 |
+| 对象 | 无效对象过多 / 统计信息陈旧 |
+| 安全 | Profile 密码策略宽松 / 审计未开启 |
+| 其他 | open_cursors 偏小 / 回收站占用 / 数据文件脱机 |
 
-#### DM8 (16+ rules)
+#### DM8（16+ 条规则）
 
-| Dimension | Example Rules |
-|-----------|--------------|
-| Tablespace | Usage >90% (including autoextend calculation) |
-| Memory | Pool misconfigurations (KEEP/RECYCLE/FAST/NORMAL/ROLL) |
-| Sessions | Near connection limit / long-running sessions |
-| Transactions | Blocking transaction detection / waits |
-| Backup | Missing backup sets / backup timeouts |
-| Parameters | Key parameters (INSTANCE_MODE, COMPATIBLE_VERSION, etc.) |
-| Security | Empty passwords / overly broad permissions / auditing disabled |
-| Objects | Invalid objects / stale statistics / partitioned table info |
-| Archiving | Archiving disabled / log accumulation |
+| 维度 | 规则示例 |
+|------|---------|
+| 表空间 | 使用率 >90%（含自动扩展计算）|
+| 内存 | 各缓冲池（KEEP/RECYCLE/FAST/NORMAL/ROLL）配置异常 |
+| 会话 | 连接数接近上限 / 长时间运行会话 |
+| 事务 | 阻塞事务检测 / 事务等待 |
+| 备份 | 备份集缺失 / 备份超时 |
+| 参数 | 关键参数（INSTANCE_MODE, COMPATIBLE_VERSION 等）配置检查 |
+| 安全 | 用户空密码 / 权限过宽 / 审计未开启 |
+| 对象 | 无效对象 / 统计信息陈旧 / 分区表信息 |
+| 归档 | 归档模式未开启 / 归档日志堆积 |
 
-#### SQL Server (15+ rules)
+#### SQL Server（15+ 条规则）
 
-| Dimension | Example Rules |
-|-----------|--------------|
-| Connections | Current connections near maximum limit |
-| Sessions | Active sessions anomalies / long-running sessions |
-| Waits | Wait statistics TOP10 / wait type analysis |
-| Locks | Current lock info / lock waits and blocking chains |
-| Deadlocks | Deadlock history detection / blocking process analysis |
-| Backups | Recent backup missing / backup type check |
-| Database | Database status / recovery model / file sizes |
-| Memory | Memory clerk usage / buffer pool hit ratio |
-| Performance | Top SQL sorted by CPU / IO / execution time |
+| 维度 | 规则示例 |
+|------|---------|
+| 连接数 | 当前连接数接近最大连接数上限 |
+| 会话 | 活动会话数异常 / 长时间运行会话 |
+| 等待 | 等待统计 TOP10 / 等待类型分析 |
+| 锁 | 当前锁信息 / 锁等待与阻塞链 |
+| 死锁 | 死锁历史检测 / 阻塞进程分析 |
+| 备份 | 最近备份缺失 / 备份类型检查 |
+| 数据库 | 数据库状态 / 恢复模式 / 文件大小 |
+| 内存 | 内存 clerk 使用 / 缓冲池命中率 |
+| 性能 | Top SQL 按 CPU/IO/执行时间排序 |
 
-#### TiDB (18+ rules)
+#### TiDB（18+ 条规则）
 
-| Dimension | Example Rules |
-|-----------|--------------|
-| Connections | Usage >90% = critical / >80% = warning |
-| Memory | TiDB memory configuration anomalies |
-| Disk | Usage >85% = warning / >95% = critical |
-| Queries | Long-running SQL (>60s), slow query log disabled |
-| Locks | Lock wait events / deadlock detection |
-| Security | Empty password users, root@% exposure, non-UTF8 charset |
-| Replication | TiCDC/PD heartbeat anomalies / follower lag |
-| Placement | Placement rules misconfiguration / affinity policy |
-| Stats | Stale statistics / auto-analyze disabled |
-| Other | binlog disabled, excessive aborted connections, system CPU/memory pressure |
+| 维度 | 规则示例 |
+|------|---------|
+| 连接数 | 使用率 >90% 高危 / >80% 中危 |
+| 内存 | TiDB 内存配置异常 |
+| 磁盘 | 使用率 >85% 警告 / >95% 高危 |
+| 查询 | 长时间运行 SQL（>60s）、慢查询日志未开启 |
+| 锁 | 锁等待事件 / 死锁检测 |
+| 安全 | 用户空密码、root@% 暴露、字符集非 UTF8 |
+| 复制 | TiCDC/PD 心跳异常 / Follower 延迟 |
+| 调度 | Placement Rules 配置异常 / 亲和性策略 |
+| 统计 | 统计信息陈旧 / 自动分析未开启 |
+| 其他 | binlog 未开启、异常中止连接过多、系统 CPU/内存压力 |
 
-### Historical Trend Analysis
+### 历史趋势分析 📊
 
-> Run multiple inspections on the same database, and DBCheck automatically aggregates the data to generate trend charts — spotting gradual changes before they become incidents.
+> 多次巡检同一个数据库，自动汇聚指标数据，生成趋势图，发现悄然发生的变化。
 
-- After each inspection, key metrics (memory utilization, connections, QPS, CPU, etc.) are written to a local **SQLite database** (`db_history.db`), surviving process restarts
-- Data is aggregated per database (IP + port + type), retaining up to 30 historical snapshots per instance
-- SQLite storage is wrapped by `SQLiteHistoryManager`; the original `HistoryManager` API is fully preserved — no migration needed for existing code
-- Graceful degradation: if SQLite is unavailable (permissions, locking), the system automatically falls back to in-memory mode without blocking inspections
-- The Web UI provides a **trend analysis page** with line charts and threshold lines
-- Side-by-side comparison with the previous run: changes shown with colored arrows (↑ deteriorating / ↓ improving)
+- 每次巡检后，关键指标（内存使用率、连接数、QPS、CPU 等）自动写入本地 **SQLite 数据库**（`db_history.db`），进程重启后历史记录不丢失
+- 同一数据库（IP + 端口 + 类型）多次巡检数据聚合保留，每个实例最多 30 条历史快照
+- SQLite 存储封装在 `SQLiteHistoryManager` 中；原有 `HistoryManager` API 完全保留，调用方无需任何改动
+- 自动降级：SQLite 不可用时（权限、文件锁定等）自动回退到内存模式，不阻塞巡检流程
+- Web UI 提供**趋势分析页面**，绘制指标折线图，带警戒线标注
+- 与上次巡检逐项对比：变化量带颜色箭头（↑ 变差 / ↓ 好转）
 
-### AI-Powered Diagnosis
+### AI 智能诊断 🤖
 
-> Leveraging inspection data, DBCheck calls a local Ollama LLM to generate personalized optimization recommendations — evolving from "problem detection" to "problem resolution".
+> 基于巡检数据，调用本地 Ollama 大模型生成个性化优化建议，从"发现问题"升级到"解决问题"。
 
-Comparison of Intelligent Analysis vs. AI Diagnosis:
+AI 诊断与智能分析的关系：
 
-| | Intelligent Analysis | AI Diagnosis |
+| | 智能分析 | AI 诊断 |
 |---|---|---|
-| Principle | Fixed rules, deterministic offline judgment | Local LLM inference, personalized output |
-| Speed | Milliseconds | Depends on model response time |
-| Output | Deterministic conclusions + remediation SQL | Natural language recommendations, Markdown auto-rendered to Word |
-| Invocation | Runs automatically on every inspection | On-demand (can be disabled) |
+| 原理 | 固定规则，离线判断 | 本地大模型推理，个性化输出 |
+| 速度 | 毫秒级 | 取决于模型响应时间 |
+| 结果 | 确定性结论 + 修复 SQL | 自然语言优化建议，Markdown 自动渲染为 Word 格式 |
+| 调用 | 每次巡检自动执行 | 按需调用（可关闭） |
 
-**AI Backend Configuration (Web UI Settings):**
+**AI 后端配置（Web UI 可视化设置）：**
 
-| Parameter | Description |
-|-----------|-------------|
-| Backend Type | `ollama` or `disabled` |
-| API Address | Default `http://localhost:11434` (localhost only) |
-| Model Name | e.g. `qwen3:30b`, `qwen3:8b`, `llama3`, etc. |
-| Timeout | Default 600 seconds (LLM cold start can be slow) |
+| 参数 | 说明 |
+|------|------|
+| 后端类型 | `ollama` 或 `disabled` |
+| API 地址 | 默认 `http://localhost:11434`（仅允许 localhost）|
+| 模型名称 | 如 `qwen3:30b`、`qwen3:8b`、`llama3` 等 |
+| 超时时间 | 默认 600 秒（大模型冷启动较慢）|
 
-> For security reasons, any non-localhost API address is automatically rejected by the code to prevent data leakage.
+> ⚠️ 出于安全考虑，非 localhost 的 API 地址会被代码自动拒绝，防止敏感数据外传。
 
-### Slow Query Deep Analysis 🔍
+### 慢查询深度分析 🔍
 
-> Beyond basic slow query detection, DBCheck performs multi-dimensional deep analysis — correlating execution plans, I/O patterns, lock waits, and temporary table usage — then feeds the results directly into AI diagnostics for intelligent root cause analysis.
+> 不仅检测慢查询，DBCheck 还从执行计划、I/O 模式、锁等待、临时表使用等多个维度进行深度剖析，并将结果注入 AI 诊断，生成精准的根因分析优化建议。
 
-#### What It Does
+#### 功能概述
 
-When a database exhibits slow query symptoms, DBCheck collects the Top N worst-performing queries across multiple performance dimensions, performs automated risk rule analysis, and then invokes the AI advisor to generate targeted optimization recommendations.
+当数据库出现慢查询症状时，DBCheck 会跨多个性能维度采集 Top N 最差性能语句，执行自动化风险规则分析，然后调用 AI advisor 生成针对性的优化建议。
 
-#### Data Collection Dimensions
+#### 各数据库采集维度
 
-Each database has its own optimized query for capturing the most expensive statements:
+每种数据库都有针对其性能模型优化的查询语句：
 
-| Database | Data Source | Collection Dimensions |
-|----------|-------------|------------------------|
-| **MySQL** | `performance_schema.events_statements_summary_by_digest` | Execution latency, full table scans, lock waits, temporary tables, sort operations |
-| **PostgreSQL** | `pg_stat_statements` | Total time, avg time, I/O time, temp blocks, current long-running queries |
-| **Oracle** | `v$sql` | Buffer Gets, Disk Reads, Elapsed Time |
-| **SQL Server** | `sys.dm_exec_query_stats` | CPU usage, logical reads, elapsed time, physical reads |
-| **DM8** | `V$SQL` | Execution time, disk reads |
-| **TiDB** | `information_schema.cluster_slow_query` | Query time, memory usage, scan rows, Coprocessor tasks |
+| 数据库 | 数据来源 | 采集维度 |
+|--------|----------|----------|
+| **MySQL** | `performance_schema.events_statements_summary_by_digest` | 执行延迟、全表扫描、锁等待、临时表、排序操作 |
+| **PostgreSQL** | `pg_stat_statements` | 总时间、平均时间、I/O 时间、临时块、当前长查询 |
+| **Oracle** | `v$sql` | Buffer Gets、Disk Reads、Elapsed Time（解析时间+执行时间）|
+| **SQL Server** | `sys.dm_exec_query_stats` | CPU 使用率、逻辑读、Elapsed Time、物理读 |
+| **DM8** | `V$SQL` | 执行时间、磁盘读 |
+| **TiDB** | `information_schema.cluster_slow_query` | 查询时间、内存使用量、扫描行数、Coprocessor 任务数 |
 
-#### Integration with Inspection Flow
+#### 与巡检流程的集成
 
 ```
-checkdb() execution order:
-1. getData() → SQL inspection queries
-2. checkdb() → Intelligent risk analysis
-3. Slow Query Deep Analysis ← NEW (auto-executed after AI diagnosis)
-4. context['slow_query_result'] → smart_analyze_* for risk rule evaluation
-5. AI Advisor → injects slow_query_top3 + slow_query_count metrics
+checkdb() 执行顺序：
+1. getData() → 执行 SQL 巡检查询
+2. checkdb() → 智能风险分析
+3. 慢查询深度分析 ← 新增（AI 诊断之后自动执行）
+4. context['slow_query_result'] → smart_analyze_* 执行风险规则评估
+5. AI Advisor → 注入 slow_query_top3 + slow_query_count 指标
 ```
 
-The `SlowQueryResult` container standardizes the output from all database analyzers, ensuring consistent downstream processing regardless of database type.
+`SlowQueryResult` 标准化容器统一了各数据库分析器的输出格式，确保下游处理逻辑与数据库类型无关。
 
-#### Enhanced Risk Rules
+#### 增强的风险规则
 
-The inspection engine adds database-specific slow query rules:
+巡检引擎新增了针对慢查询的数据库特定规则：
 
-**MySQL (new rules 17+):**
-- `performance_schema` not enabled
-- Full table scan detection
-- Lock wait ratio threshold
-- AI diagnosis injection of slow query findings
+**MySQL（新增规则 17+ 条）：**
+- `performance_schema` 未开启检测
+- 全表扫描语句检测
+- 锁等待比例阈值检测
+- AI 诊断注入慢查询发现结果
 
-**PostgreSQL (new rules 11+):**
-- `pg_stat_statements` extension not enabled
-- High-latency query detection
-- High I/O query detection
-- Long-running query threshold
-- AI diagnosis injection of slow query findings
+**PostgreSQL（新增规则 11+ 条）：**
+- `pg_stat_statements` 扩展未开启检测
+- 高延迟语句检测
+- 高 I/O 语句检测
+- 长查询阈值检测
+- AI 诊断注入慢查询发现结果
 
-#### AI Diagnosis Enhancement
+#### AI 诊断增强
 
-A dedicated `build_slow_query_ai_prompt()` function generates a targeted diagnostic prompt. The AI advisor receives:
+`build_slow_query_ai_prompt()` 函数生成专项诊断 Prompt，AI advisor 接收到：
 
-- **slow_query_top3**: The three most impactful slow queries (by latency, I/O, or execution frequency)
-- **slow_query_count**: Total number of slow queries captured
+- **slow_query_top3**：影响最大的三条慢查询（按延迟/I/O/执行频率排序）
+- **slow_query_count**：采集到的慢查询总数
 
-This enables the AI to provide precise, query-level optimization advice rather than generic recommendations.
+使 AI 能够提供精确到单条语句的优化建议，而非泛泛而谈。
 
-#### Output in Report
+#### 报告中的呈现
 
-Slow query analysis results appear in the report's risk chapter, tagged with severity levels (🔴 High / 🟡 Medium / 🟢 Low) and paired with actionable remediation SQL.
+慢查询分析结果以风险卡片形式出现在报告的风险建议章节，每条风险标注严重等级（🔴 高危 / 🟡 中危 / 🟢 低危），并附带可直接执行的修复 SQL。
 
 ---
 
-## Scheduled Inspection & Auto-Notification ⏰📧🔔
+## 定时巡检与自动通知 ⏰📧🔔
 
-> Configure recurring inspection tasks with cron expressions — DBCheck runs automatically and sends reports to your team via email or Webhook the moment each run completes.
+> 通过 Cron 表达式配置周期巡检任务，DBCheck 自动执行并在完成后即时向团队推送邮件报告或 Webhook 告警。
 
-### Scheduling
+### 定时调度
 
-The Web UI provides a dedicated **⏰ Scheduled Inspection** page:
+Web UI 提供独立的 **⏰ 定时巡检** 页面：
 
-| Feature | Description |
-|---------|-------------|
-| Cron Expression | Configurable second/minute/hour/day/month/weekday schedule |
-| Quick Presets | Daily (2 AM), Weekdays (9 AM), Weekly (Monday 9 AM), Monthly (1st 3 AM) |
-| Per-Task Notification Toggle | Each task independently controls whether to send a notification on completion |
-| One-Click Run | Trigger any scheduled task immediately without waiting for the next run |
-| Persistent Jobs | Task configs saved to `scheduler_jobs.json` — survive restarts |
+| 功能 | 说明 |
+|------|------|
+| Cron 表达式 | 自由配置秒/分/时/日/月/周 |
+| 快捷预设 | 每天凌晨2点 / 工作日上午9点 / 每周一9点 / 每月1号3点 |
+| 单任务通知开关 | 每个任务独立控制完成后是否发送通知 |
+| 一键立即执行 | 不等待定时器，随时手动触发任务 |
+| 持久化任务配置 | 任务保存到 `scheduler_jobs.json`，服务重启后自动恢复 |
 
-### Notifications
+### 通知推送
 
-The Web UI provides a dedicated **📧🔔 Notification Settings** page:
+Web UI 提供独立的 **📧🔔 通知设置** 页面：
 
-#### Email Report (SMTP)
+#### 邮件报告（SMTP）
 
-| Feature | Description |
-|---------|-------------|
-| SMTP Server | Supports 126, 163, QQ, corporate mail, and other SMTP services |
-| Port | 465 (SSL implicit) or 587 (TLS explicit) |
-| TLS | Auto-detected by port; configurable |
-| Recipients | Multiple comma-separated addresses |
-| Trigger | Automatically sent after every successful scheduled inspection |
-| Attachment | Word inspection report attached directly |
+| 功能 | 说明 |
+|------|------|
+| SMTP 服务器 | 支持 126、163、QQ、企业邮箱等 |
+| 端口 | 465（SSL 隐式）或 587（TLS 明文）|
+| TLS | 根据端口自动检测，可手动配置 |
+| 收件人 | 支持多个，逗号分隔 |
+| 触发时机 | 每次定时巡检成功后自动发送 |
+| 附件 | Word 巡检报告作为附件直接发送 |
 
-#### Webhook Alert
+#### Webhook 告警
 
-| Feature | Description |
-|---------|-------------|
-| Types | Enterprise WeChat (markdown), DingTalk (markdown + @), Custom JSON |
-| Trigger | Sent after every scheduled inspection — both success and failure |
-| Failure Alert | Includes error message; report file included on success |
-| Custom Payload | Template variables: `{label}`, `{db_type}`, `{status}`, `{error}`, `{report_file}` |
+| 功能 | 说明 |
+|------|------|
+| 类型 | 企业微信（Markdown）、钉钉（Markdown + @）、自定义 JSON |
+| 触发时机 | 每次定时巡检完成后发送，成功失败均推送 |
+| 失败告警 | 包含错误信息，成功时附带报告文件 |
+| 自定义模板 | 支持变量：`{label}`、`{db_type}`、`{status}`、`{error}`、`{report_file}` |
 
-#### Environment Variable Override
+#### 环境变量覆盖
 
-Sensitive credentials can be loaded from environment variables instead of the config file:
+敏感信息可通过环境变量注入，无需写入配置文件：
 
-| Variable | Description |
-|----------|-------------|
-| `SMTP_HOST` | SMTP server address |
-| `SMTP_PORT` | SMTP port |
-| `SMTP_USER` | Username / email |
-| `SMTP_PASSWORD` | Password or authorization code |
-| `SMTP_USE_TLS` | Enable TLS (`true`/`false`) |
-| `SMTP_FROM_NAME` | Display name in From field |
-| `WEBHOOK_URL` | Webhook URL |
+| 变量 | 说明 |
+|------|------|
+| `SMTP_HOST` | SMTP 服务器地址 |
+| `SMTP_PORT` | SMTP 端口 |
+| `SMTP_USER` | 用户名 / 邮箱 |
+| `SMTP_PASSWORD` | 密码或授权码 |
+| `SMTP_USE_TLS` | 启用 TLS（`true`/`false`）|
+| `SMTP_FROM_NAME` | 发件人显示名称 |
+| `WEBHOOK_URL` | Webhook 地址 |
 | `WEBHOOK_TYPE` | `wecom` / `dingtalk` / `custom` |
 
-> Environment variables take precedence over values in `notifier_config.json`, enabling secure deployments without storing credentials in config files.
+> 环境变量优先于 `notifier_config.json`，适合安全部署场景，无需在磁盘存储明文凭证。
 
 ---
 
-## RAG Knowledge Base 📚
+## RAG 知识库 📚
 
-> Upload your database documentation and operational manuals — DBCheck automatically vectorizes the content and retrieves relevant knowledge during AI diagnostics to generate more accurate optimization recommendations.
+> 上传数据库官方文档和运维手册，DBCheck 自动将内容向量化，AI 诊断时自动检索相关知识，生成更精准的优化建议。
 
-### Overview
+### 功能概述
 
-The RAG Knowledge Base enables AI-powered diagnostics to reference your own documentation:
+RAG 知识库让 AI 诊断能够参考你自己的文档资料：
 
-- **Upload documents**: Support for PDF, Word (.docx), Markdown (.md), TXT, and HTML formats
-- **Automatic chunking**: Intelligent semantic segmentation with configurable chunk size and overlap
-- **Vector storage**: SQLite-based vector store, queries run locally
-- **Ollama integration**: Uses `nomic-embed-text` for embedding generation
-- **AI-enhanced diagnosis**: During AI diagnostics, automatically retrieves relevant knowledge base content and injects it into the prompt
+- **上传文档**：支持 PDF、Word（.docx）、Markdown（.md）、TXT、HTML 等格式
+- **智能分块**：按段落语义分割，可配置分块大小和重叠字符数
+- **向量存储**：基于 SQLite 的向量库，查询全本地运行
+- **Ollama 集成**：使用 `nomic-embed-text` 生成向量嵌入
+- **AI 增强诊断**：AI 诊断时自动检索知识库相关内容，注入 Prompt 提升诊断准确率
 
-### Supported Document Formats
+### 支持的文档格式
 
-| Format | Extension | Notes |
-|--------|-----------|-------|
-| PDF | `.pdf` | PyPDF2 based extraction |
-| Word | `.docx` | python-docx based extraction |
-| Markdown | `.md` | Plain text with structure preserved |
-| Text | `.txt` | Plain text |
-| HTML | `.html` / `.htm` | BeautifulSoup based extraction |
+| 格式 | 扩展名 | 说明 |
+|------|--------|------|
+| PDF | `.pdf` | PyPDF2 提取文本 |
+| Word | `.docx` | python-docx 提取文本 |
+| Markdown | `.md` | 保留结构纯文本 |
+| 文本 | `.txt` | 纯文本文件 |
+| HTML | `.html` / `.htm` | BeautifulSoup 提取文本 |
 
-### How It Works
+### 工作原理
 
 ```
-Document Upload → Semantic Chunking → Ollama Embedding → Vector Storage
+文档上传 → 语义分块 → Ollama 向量化 → 向量存储
                                     ↓
-        AI Diagnosis ← Knowledge Retrieval ← Top-K Similarity Search
+        AI 诊断 ← 知识检索 ← Top-K 相似度搜索
 ```
 
-### Web UI Integration
+### Web UI 集成
 
-The **📚 RAG Knowledge Base** page in Web UI provides:
+Web UI 中的 **📚 RAG 知识库** 页面提供：
 
-- **Ollama Status Detection**: Shows connection status on page load
-- **Document Upload**: Select file + database type + title → automatic chunking and vectorization
-- **Document List**: Displays uploaded documents with title, database type, file size, chunk count, and status
-- **Document Deletion**: One-click delete with toast confirmation dialog
+- **Ollama 状态检测**：页面加载时自动检测连接状态
+- **上传文档**：选择文件 + 数据库类型 + 标题，上传后自动分块并向量化
+- **文档列表**：展示已上传文档（标题、数据库类型、文件大小、分块数、状态）
+- **删除文档**：一键删除，使用 toast 确认弹窗
 
-### API Endpoints
+### API 接口
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/rag/documents` | GET | List all uploaded documents |
-| `/api/rag/documents` | POST | Upload and vectorize a document |
-| `/api/rag/documents/<doc_id>` | DELETE | Delete a document |
-| `/api/rag/ollama-status` | GET | Check Ollama connection status |
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/rag/documents` | GET | 列出所有已上传文档 |
+| `/api/rag/documents` | POST | 上传文档并向量化 |
+| `/api/rag/documents/<doc_id>` | DELETE | 删除文档 |
+| `/api/rag/ollama-status` | GET | 检测 Ollama 连接状态 |
 
-### Getting Started
+### 快速上手
 
-1. **Pull Ollama Embedding Model**
+1. **拉取 Ollama Embedding 模型**
    ```bash
    ollama pull nomic-embed-text
    ```
 
-2. **Start Ollama** (if not already running)
+2. **启动 Ollama**（如果尚未运行）
    ```bash
    ollama serve
    ```
 
-3. **Open Web UI** → Navigate to **📚 RAG Knowledge Base**
+3. **打开 Web UI** → 进入 **📚 RAG 知识库** 页面
    ```bash
    python web_ui.py
    ```
 
-4. **Upload Documents**: Select your database documentation (Oracle Admin Guide, MySQL Reference Manual, etc.) and select the appropriate database type
+4. **上传文档**：选择数据库官方文档（Oracle 管理手册、MySQL 参考手册等），选择对应的数据库类型
 
-5. **Run AI Diagnosis**: The system automatically retrieves relevant knowledge base content during diagnostics
+5. **执行 AI 诊断**：诊断时系统自动检索知识库相关内容
 
-### Ollama Models Required
+### Ollama 依赖模型
 
-| Model | Purpose | Command |
-|-------|---------|---------|
-| `nomic-embed-text` | Document embedding | `ollama pull nomic-embed-text` |
-| `qwen3:30b` (or similar) | AI diagnosis LLM | `ollama pull qwen3:30b` |
+| 模型 | 用途 | 命令 |
+|------|------|------|
+| `nomic-embed-text` | 文档向量化 | `ollama pull nomic-embed-text` |
+| `qwen3:30b`（或类似） | AI 诊断大模型 | `ollama pull qwen3:30b` |
 
 ---
 
-## Environment Requirements
+## 环境要求
 
-- **Operating System**: Linux / macOS / Windows
-- **Python**: 3.6+
-- **General Dependencies**: pymysql, psycopg2-binary, python-docx, docxtpl, paramiko, psutil, openpyxl, pandas, flask, flask_socketio, apscheduler
-- **Oracle Dependencies**: `oracledb` (recommended, pure Python, no Instant Client needed) or `cx_Oracle` (requires Oracle Instant Client)
-- **DM8 Dependencies**: `dmpython` (pip install dmpython)
-- **SQL Server Dependencies**: `pyodbc` + ODBC Driver 17 (supported on Windows and Linux)
-- **MySQL Privileges**: Read-only access to information_schema, performance_schema, and mysql databases
-- **PostgreSQL Privileges**: Read-only access to pg_stat_* series views and pg_roles
-- **Oracle Privileges**: Read-only access to v$* and dba_* views; SYSDBA privileged connections supported (Web UI checkbox for one-click enablement)
-- **SQL Server Privileges**: Read-only access to sys.databases, sys.master_files, and sys.dm_* dynamic management views
-- **DM8 Privileges**: Read-only access to V$* system views and DBA_* admin views; default port 5236; connecting user equals Schema (no `database` parameter needed)
-- **TiDB Dependencies**: `pymysql` (same as MySQL — TiDB uses the MySQL protocol; default port **4000**)
-- **TiDB Privileges**: Read-only access to information_schema, performance_schema, and mysql databases (identical to MySQL)
+- **操作系统**：Linux / macOS / Windows
+- **Python**：3.6 及以上
+- **通用依赖**：pymysql、psycopg2-binary、python-docx、docxtpl、paramiko、psutil、openpyxl、pandas、flask、flask_socketio
+- **Oracle 依赖**：`oracledb`（推荐）或 `cx_Oracle`（需要 Oracle Instant Client）
+- **DM8 依赖**：`dmpython`（pip install dmpython）
+- **SQL Server 依赖**：`pyodbc` + ODBC Driver 17（Windows/Linux 均支持）
+- **MySQL 权限**：查询 information_schema、performance_schema、mysql 库的只读权限
+- **PostgreSQL 权限**：查询 pg_stat_* 系列系统视图及 pg_roles 的只读权限
+- **Oracle 权限**：查询 v$* 视图 / dba_* 视图的只读权限；支持 SYSDBA 特权连接（Web UI 复选框一键启用）
+- **SQL Server 权限**：查询 sys.databases、sys.master_files、sys.dm_* 系列动态管理视图的只读权限
+- **DM8 权限**：查询 V$* 系统视图 / DBA_* 管理视图的只读权限；默认端口 5236；连接用户即 Schema（无需 database 参数）
+- **TiDB 依赖**：`pymysql`（与 MySQL 相同——TiDB 使用 MySQL 协议；默认端口 **4000**）
+- **TiDB 权限**：查询 information_schema、performance_schema、mysql 库的只读权限（与 MySQL 完全一致）
+- **SSH（可选）**：用于远程采集系统资源（MySQL / PostgreSQL / Oracle / DM8）；默认端口 22；DM8 SSH 采集失败时自动降级为本地采集器
 
-### Installing Dependencies
+### 安装依赖
 
 ```bash
 pip install -r requirements.txt
 ```
 
-> 💡 **Database Driver Notes:**
+> 💡 **数据库驱动说明：**
 >
-> - **Oracle**: `oracledb` (recommended, pure Python, no Instant Client needed)
-> - **DM8**: `dmpython` (Dameng official driver)
-> - **SQL Server**: Requires [ODBC Driver 17](https://docs.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server) installed separately
-
-> DM8 Driver Notes:
-> - `dmpython`: Pure Python driver provided by Dameng (pip install dmpython), recommended
-> - Connection parameters: host + port (default 5236) + username (no `database` parameter — the user is the Schema)
-> - DM8's V$ view column names differ significantly from Oracle; the tool includes targeted adaptations for DM8
-
-> Oracle Driver Notes:
-> - `oracledb`: Pure Python implementation, no Instant Client required, recommended
-> - `cx_Oracle`: Requires downloading [Oracle Instant Client](https://www.oracle.com/database/technologies/instant-client.html) and configuring environment variables
+> - **Oracle**：`oracledb`（推荐，纯 Python 实现，无需 Instant Client）
+> - **DM8**：`dmpython`（达梦官方驱动）
+> - **SQL Server**：需额外安装 [ODBC Driver 17](https://docs.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server)
 
 ---
 
-## Quick Start
+## 快速开始
 
 ```bash
 python main.py
 ```
 
-The main menu offers nine options:
+主入口菜单提供八个选项：
 
 ```
 ==================================================
-  🗄️  Database Automation Inspector  v2.3  Main Menu
+  🗄️  数据库自动化巡检工具  v2.3  统一入口
 ==================================================
-    🐬  1 │ MySQL           MySQL Health Inspection & Report
-    🐘  2 │ PostgreSQL      PostgreSQL Health Inspection & Report
-    🔴  3 │ Oracle          Oracle Deep Health Inspection (20+ Checks)
-    🟠  4 │ SQL Server      SQL Server Health Inspection & Report
-    🟡  5 │ DM8             Dameng DM8 Health Inspection & Report
-    🐬  6 │ TiDB            TiDB Health Inspection & Report (MySQL 8.0 Compatible)
+    🐬  1 │ MySQL           MySQL 数据库健康巡检与报告生成
+    🐘  2 │ PostgreSQL      PostgreSQL 数据库健康巡检与报告生成
+    🔴  3 │ Oracle          Oracle 数据库深度健康巡检（20+ 巡检项）
+    🟠  4 │ SQL Server      SQL Server 数据库健康巡检与报告生成
+    🟡  5 │ DM8             达梦 DM8 数据库健康巡检与报告生成
+    🐬  6 │ TiDB            TiDB 数据库健康巡检与报告生成（MySQL 8.0+ 兼容）
 
-    🌐  7 │ Launch Web UI   Browser-based GUI
-    📋  8 │ Batch Template  Generate Batch Inspection Excel Template
-    ❌  0 │ Exit
+    🌐  7 │ 启动 Web UI     浏览器可视化操作界面
+    📋  8 │ 批量生成巡检模板  生成批量巡检 Excel 模板
+    ❌  0 │ 退出
 ==================================================
 ```
 
-1. Enter **1–5** to enter the inspection menu for the corresponding database type
-2. Enter **6** to enter the TiDB inspection menu
-3. Enter **7** to launch the Web UI
-4. Enter **8** to select a template type to generate (MySQL / PostgreSQL / Oracle / SQL Server / DM8 / TiDB)
-5. Enter **0** to exit
+1. 输入 **1~5**，进入对应数据库类型的巡检功能菜单
+2. 输入 **6**，进入 TiDB 巡检功能菜单
+3. 输入 **7**，启动 Web UI 服务
+4. 输入 **8**，选择要生成的模板类型（MySQL / PostgreSQL / Oracle / SQL Server / DM8 / TiDB）
+5. 输入 **0** 退出工具
 
-#### Single Instance Inspection (Oracle as Example)
+#### 单机巡检流程（以 Oracle 全面巡检为例）
 
-1. Select **3** to enter the Oracle inspection menu
-2. Select **1** for single-instance inspection
-3. Fill in as prompted:
-   - Inspection name
-   - Database IP / port (default 1521) / service name or SID
-   - Username (SYSDBA supported — Web UI checkbox, CLI accepts `sys as sysdba` syntax) / password
-   - SSH info (optional, default port 22, used for system resource collection)
-4. The tool runs 42 SQL checks → collects system info → runs intelligent risk analysis → AI diagnosis (optional)
-5. A Word inspection report is generated
+1. 选择 **3** 进入 Oracle 巡检菜单
+2. 选择 **1** 进行单机巡检
+3. 根据提示填写：
+   - 巡检名称
+   - 数据库 IP / 端口（默认 1521）/ 服务名或 SID
+   - 用户名（支持 SYSDBA 身份，Web UI 提供复选框，CLI 支持 `sys as sysdba` 语法）/ 密码
+   - SSH 信息（可选，默认端口 22，用于采集系统资源）
+4. 工具自动执行 42 项 SQL 检查 → 采集系统信息 → 智能风险分析 → AI 诊断（可选）
+5. 生成 Word 巡检报告
 
-#### Batch Inspection
+#### 批量巡检
 
-1. Generate the corresponding Excel batch inspection template via option **4**
-2. Fill in connection information for multiple database instances in the template
-3. Select **2** for batch inspection — the program automatically runs through all instances
+1. 先通过选项 **4** 生成对应的 Excel 批量巡检模板
+2. 在模板中填写多个数据库实例的连接信息
+3. 选择 **2** 批量巡检，程序自动依次巡检所有实例
 
-### Web UI
+### Web UI（可视化界面）
 
-Start the web service and visit **http://localhost:5003** in your browser to perform all inspections via the GUI.
+启动 Web 服务后，在浏览器访问 **http://localhost:5003** 即可通过图形界面完成所有巡检操作。
 
 ```bash
 python web_ui.py
 ```
 
-**Web UI Workflow:**
+**Web UI 操作步骤：**
 
-| Step | Function |
-|:---:|---------|
-| 1 | 🗄️ Datasource Management: Add, edit, delete, test database connections with group management |
-| 2 | Select database type (🐬 MySQL / 🐘 PostgreSQL / 🔴 Oracle / 🟠 SQL Server / 🟡 DM8 / 🐬 TiDB) |
-| 3 | Fill in connection info — Oracle requires service name/SID; DM8 does not need a database name |
-| 4 | Online connection testing (SYSDBA privileged verification via checkbox) |
-| 5 | Configure SSH for system resource collection (optional, default port 22; DM8 supports SSH with auto-fallback) |
-| 6 | Inspector name (default: dbcheck), optionally check "🔒 Desensitize Report" to mask sensitive info |
-| 7 | Confirm and execute with one click — real-time log streaming (SSE) |
-| 8 | Upon completion, preview intelligent analysis + AI diagnosis results online |
-| 9 | 📊 History & Trends | View trend charts and historical inspection reports |
-| 10 | ⏰ Scheduled Inspection | Configure cron-based recurring inspections |
-| 11 | 📧🔔 Notification Settings | Email and Webhook alerting configuration |
-| 12 | 📚 RAG Knowledge Base | Upload and manage database documentation for AI-enhanced diagnostics |
+| 步骤 | 功能 |
+|:---:|------|
+| 1 | 🗄️ 数据源管理：添加、编辑、删除、测试数据库连接，支持分组管理 |
+| 2 | 选择数据库类型（🐬 MySQL / 🐘 PostgreSQL / 🔴 Oracle / 🟠 SQL Server / 🟡 DM8 / 🐬 TiDB）|
+| 3 | 填写连接信息，Oracle 需额外填写服务名/SID，DM8 无需填写 database 名 |
+| 4 | 支持在线测试数据库连接（含 SYSDBA 特权验证，Web UI 复选框一键启用）|
+| 5 | 配置 SSH 采集系统资源（可选，默认端口 22；DM8 支持 SSH 采集，失败时自动降级）|
+| 6 | 填写巡检人员姓名（默认为 dbcheck），如需脱敏导出可勾选「🔒 脱敏导出报告」选项 |
+| 7 | 确认信息后一键执行，实时查看日志进度（SSE 推送）|
+| 8 | 巡检完成，在线预览智能分析 + AI 诊断结果 |
+| 9 | 📊 历史趋势分析：查看同一数据库多次巡检的指标趋势 |
+| 10 | ⏰ 定时巡检：配置 Cron 表达式实现自动周期巡检 |
+| 11 | 📧🔔 通知设置：配置邮件 / Webhook 告警推送 |
+| 12 | 📚 RAG 知识库：上传和管理数据库文档，增强 AI 诊断能力 |
 
-### OpenClaw Skill
+### OpenClaw Skill（AI 助手直连）
 
-DBCheck is published as an OpenClaw Skill on [ClawHub](https://clawhub.ai/skills/dbcheck). Once installed in your AI assistant, you can trigger inspections via natural language — no CLI or Web UI needed.
+本项目已发布为 [ClawHub](https://clawhub.ai/skills/dbcheck) 上的 OpenClaw Skill，接入 AI 助手后可通过自然语言直接触发巡检，无需手动操作命令行或 Web UI。
 
-#### Installation
+#### 安装方式
 
-Run in your OpenClaw client:
+在 OpenClaw 客户端执行：
 
 ```bash
 clawhub install dbcheck
 ```
 
-#### Usage
+#### 使用方式
 
-After installation, simply tell your AI assistant what you need, for example:
+安装后，直接告诉 AI 助手你想做的事，例如：
 
-> "Inspect the Oracle Database at IP localhost, username sys as sysdba"
+> "帮我巡检一下 Oracle 生产库，IP 是 localhost，用户名 sys as sysdba"
 
-The AI assistant will load the Skill, ask for missing information step by step (port, service name, inspector name, etc.), then invoke the inspection script to generate a Word report.
+AI 助手会自动加载 Skill，按步骤询问缺少的信息（端口、服务名、巡检人员姓名等），然后调用巡检脚本生成 Word 报告。
 
-#### Supported Commands
+#### 支持的指令
 
-| Example Command | Description |
-|---------------|-------------|
-| Help me inspect a MySQL Database | Single-instance MySQL inspection |
-| Help me inspect a PostgreSQL Database | Single-instance PG inspection |
-| Help me inspect an Oracle Database | Single-instance Oracle inspection |
-| Inspect Oracle at localhost | Quick inspection targeting a specific IP |
-| Generate a database inspection report | Trigger the full inspection workflow |
+| 指令示例 | 说明 |
+|---------|------|
+| 帮我巡检一下 MySQL 库 | 单机 MySQL 巡检 |
+| 帮我巡检一下 PostgreSQL 库 | 单机 PG 巡检 |
+| 帮我巡检一下 Oracle 库 | 单机 Oracle 巡检 |
+| 巡检 localhost 的 Oracle | 指定 IP 的快速巡检 |
+| 生成一份数据库巡检报告 | 触发完整巡检流程 |
 
-#### Skill File Structure
+#### Skill 文件结构
 
 ```
 dbcheck/skill/dbcheck/
-├── SKILL.md               # Skill documentation
-├── security.md            # Security notes
+├── SKILL.md           # Skill 说明
+├── security.md        # 安全说明
 └── scripts/
-    ├── run_inspection.py       # Non-interactive entry point
-    ├── main_mysql.py           # MySQL inspection logic
-    ├── main_pg.py              # PostgreSQL inspection logic
-    ├── main_oracle_full.py     # Oracle inspection logic (20+ checks)
-    ├── main_sqlserver.py       # SQL Server inspection logic
-    ├── main_dm.py              # Dameng DM8 inspection logic
-    ├── main_tidb.py             # TiDB inspection logic
-    ├── analyzer.py             # Intelligent risk analysis engine
-    ├── slow_query_analyzer.py   # Slow query deep analysis engine (MySQL/PG/Oracle/SQLServer/DM8)
-    └── main.py                 # Unified menu entry
+    ├── run_inspection.py   # 非交互式入口
+    ├── main_mysql.py       # MySQL 巡检逻辑
+    ├── main_pg.py         # PostgreSQL 巡检逻辑
+    ├── main_oracle_full.py # Oracle 巡检逻辑（20+ 巡检项）
+    ├── main_sqlserver.py   # SQL Server 巡检逻辑
+    ├── main_dm.py         # 达梦 DM8 巡检逻辑
+    ├── main_tidb.py        # TiDB 巡检逻辑
+    ├── analyzer.py        # 智能风险分析引擎
+    ├── slow_query_analyzer.py  # 慢查询深度分析引擎（MySQL/PG/Oracle/SQLServer/DM8）
+    └── main.py             # 统一菜单入口
 ```
 
-> **Security Notice**: Skill credentials are used only to establish local connections and are never sent to any third party. AI diagnosis uses local Ollama exclusively.
+> ⚠️ **安全提示**：Skill 凭据仅用于建立本地连接，不会发送到任何第三方。AI 诊断仅使用本地 Ollama。
 
 ---
 
-## Packaging and Distribution
+## 打包部署
 
-Use the PyInstaller configuration file `dbcheck.spec` to bundle everything into a single executable containing all dependencies, templates, and project modules:
+使用 PyInstaller 配置文件 `dbcheck.spec` 进行打包，将所有依赖、模板文件、项目模块全部打入单个 exe 文件：
 
 ```bash
 cd D:\DBCheck
 
-# Clean old build (Windows)
+# 清理旧构建（Windows）
 rd /s /q build dist __pycache__ 2>nul
 
-# Package
+# 打包
 pyinstaller dbcheck.spec
 ```
 
-> On Linux/macOS, use `rm -rf build dist __pycache__` to clean.
+> Linux/macOS 上请使用 `rm -rf build dist __pycache__` 清理。
 
-Run the packaged version:
+打包后执行：
 
 ```bash
 cd dist
@@ -844,200 +837,199 @@ dbcheck.exe         # Windows
 ./dbcheck           # Linux/macOS
 ```
 
-Double-click to run the full-featured program with all database drivers, Word templates, and Web UI templates included — no Python environment installation required.
+双击即可运行完整版程序，包含所有数据库驱动、Word 模板、Web UI 页面模板，无需安装 Python 环境。
 
 ---
 
-## Report Structure
+## 报告结构
 
-The generated Word report contains the following chapters (Oracle inspection report example):
+生成的 Word 报告包含以下章节（Oracle 巡检报告示例）：
 
-| Chapter | Content (Oracle Inspection) |
-|---------|----------------------------|
-| Cover | Database name, server address, version, hostname, uptime, inspector, platform, report timestamp |
-| Chapter 1 | OS Host Information (CPU / Memory / Disk) |
-| Chapter 2 | Database Basic Information (version / instance name / database name) |
-| Chapter 3 | Tablespaces (permanent + temporary, including autoextend) |
-| Chapter 4 | SGA / PGA Memory Analysis |
-| Chapter 5 | Key Parameter Configuration |
-| Chapter 6 | Undo Tablespace Management |
-| Chapter 7 | Redo Logs |
-| Chapter 8 | Archiving and Backup |
-| Chapter 9 | Data Guard Status |
-| Chapter 10 | RAC Cluster Information |
-| Chapter 11 | ASM Disk Groups |
-| Chapter 12 | Sessions and Connections (including Top 5 Wait Events) |
-| Chapter 13 | Performance Metrics (including AWR snapshot analysis) |
-| Chapter 14 | Alert Log Analysis |
-| Chapter 15 | Users and Security |
-| Chapter 16 | Invalid Objects and Statistics |
-| Chapter 17 | Partitioned Table Information |
-| Chapter 18 | FRA Flashback Recovery Area |
-| Chapter 19 | Recycle Bin |
-| Chapter 20 | Risks and Recommendations (intelligent analysis details + remediation SQL quick reference) |
-| Chapter 21 | AI Diagnosis Recommendations (Markdown auto-rendered to Word with numbered headings, code blocks, lists) |
-| Chapter 22 | Report Notes |
+| 章节 | 内容（Oracle 巡检）|
+|------|------|
+| 封面 | 数据库名称、服务器地址、版本、主机名、启动时间、巡检人员、平台、报告时间 |
+| 第1章 | OS 主机信息（CPU/内存/磁盘）|
+| 第2章 | 数据库基本信息（版本/实例名/数据库名）|
+| 第3章 | 表空间（永久 + 临时，含自动扩展）|
+| 第4章 | SGA / PGA 内存分析 |
+| 第5章 | 关键参数配置 |
+| 第6章 | Undo 表空间管理 |
+| 第7章 | 重做日志（Redo）|
+| 第8章 | 归档与备份 |
+| 第9章 | Data Guard 状态 |
+| 第10章 | RAC 集群信息 |
+| 第11章 | ASM 磁盘组 |
+| 第12章 | 会话与连接（含等待事件 TOP5）|
+| 第13章 | 性能指标（含 AWR 快照分析）|
+| 第14章 | Alert 日志分析 |
+| 第15章 | 用户与安全 |
+| 第16章 | 无效对象与统计信息 |
+| 第17章 | 分区表信息 |
+| 第18章 | FRA 闪回恢复区 |
+| 第19章 | 回收站 |
+| 第20章 | 风险与建议（智能分析问题明细 + 修复 SQL 速查表）|
+| 第21章 | AI 诊断建议（Markdown 自动渲染为 Word 格式，含序号标题、代码块、列表）|
+| 第22章 | 报告说明 |
 
-> Report structure varies slightly by database type, but all include the six core modules: cover, basic information, performance analysis, risk recommendations, AI diagnosis, and report notes.
-
----
-
-## FAQ
-
-### General
-
-1. **Some content is empty or missing**
-   When template rendering encounters compatibility issues, the program automatically switches to a fallback rendering mode and still produces a complete report with all key data — usage is unaffected.
-
-2. **Connection failure**
-   Verify that the database allows remote access, the user has sufficient privileges, and the firewall permits the relevant port.
-
-3. **SSH collection failure**
-   Confirm the SSH service is running (default port 22) and authentication credentials are correct. Some stripped-down Linux distributions lack commands like `lscpu`, causing CPU information to show "not obtained" — this is normal.
-
-4. **AI diagnosis not working**
-   - Confirm a valid configuration is saved in Web UI → AI Diagnosis Settings
-   - Ensure Ollama is running: `ollama serve`
-   - Ensure the model is downloaded: `ollama pull qwen3:30b` (larger models recommended; cold start is slow)
-
-5. **Risk recommendations are for reference only**
-   Built-in thresholds are based on general best practices. Evaluate them in the context of your actual workload.
-
-### Oracle-Specific
-
-6. **ORA-01017 invalid username/password**
-   - For SYSDBA access: check the "SYSDBA" box in Web UI; in CLI, enter `sys as sysdba` (full format) — the tool automatically parses and uses the correct privileged mode
-   - Verify the password is correct (case-sensitive)
-
-7. **ORA-00904 / ORA-00942 invalid identifier**
-   Some advanced views/columns may not exist in certain Oracle versions (e.g., 11g vs 19c). The tool handles compatibility gracefully; incompatible items are marked with ⚠️ and skipped without affecting the overall inspection.
-
-8. **Do I need to install an Oracle client?**
-   - Using `oracledb` driver (recommended): No — pure Python implementation
-   - Using `cx_Oracle` driver: Yes — download [Oracle Instant Client](https://www.oracle.com/database/technologies/instant-client.html)
-
-9. **Oracle version support**
-   Supports **11g R2, 12c, 19c, 21c** and above. SQL templates are cross-version compatible.
-
-### DM8-Specific
-
-10. **Connection failure (returned a result with an exception set)**
-    - dmPython uses lazy connections — a successful connection object creation does not mean the connection is actually established; a probe SQL must be executed via cursor to confirm
-    - The tool includes built-in auto-probe logic. If it still fails, check: correct port (default 5236), correct user password, and whether the server allows access from your IP
-
-11. **"Invalid column name" error**
-    - DM8's V$ view column names differ significantly from Oracle; the tool has been adapted for DM8实测 column names. If errors persist, please send a screenshot so we can add support.
-
-12. **SSH collection not available**
-    - Limited by the Dameng server's OpenSSH version (port 2022), SSH collection is temporarily disabled. System resource information will use the local collector. Local and Dameng server information being inconsistent is expected.
-
-13. **"Server hostname/platform" in the report shows local machine info**
-    - A known limitation when SSH collection is disabled; Dameng server system info collection depends on the SSH channel and will be addressed in a future version.
-
-### SQL Server-Specific
-
-14. **Connection failure**
-    - Confirm SQL Server allows remote connections (SQL Server Configuration Manager → Network Configuration → TCP/IP enabled)
-    - Confirm firewall allows port 1433 (or custom port)
-    - Confirm correct authentication mode (Windows Authentication or Mixed Mode)
-
-15. **pyodbc installed but connection fails**
-    - ODBC Driver 17 required: install via `curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add -` then install mssql-server
-    - On Linux: `curl https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list | tee /etc/apt/sources.list.d/mssql-release.list`
-
-16. **SQL Server version support**
-    - Supports **SQL Server 2012, 2014, 2016, 2017, 2019, 2022** and above
+> 不同数据库类型的报告结构略有差异，但均包含封面、基本信息、性能分析、风险建议、AI 诊断、报告说明六大模块。
 
 ---
 
-## Screenshots
+## 常见问题
 
-![Home](snapshot/webui0-en.png)
+### 通用问题
 
-![Step 1: Select Database Type](snapshot/webui1-en.png)
-*Fig. 1: Select database type (MySQL 🐬 / PostgreSQL 🐘 / Oracle 🔴 / DM8 🟡)*
+1. **部分内容为空或缺失**
+   模板渲染出现兼容性问题时，程序会自动切换至备用渲染模式，仍可生成包含所有关键数据的完整报告，不影响使用。
 
-![Step 2: Fill in Connection Info](snapshot/webui2-en.png)
-*Fig. 2: Fill in database connection information*
+2. **连接失败**
+   检查数据库是否允许远程访问、用户权限是否充足、防火墙是否放行对应端口。
 
-![Step 3: Test Connection Online](snapshot/webui3-en.png)
-*Fig. 3: Online connection testing*
+3. **SSH 采集失败**
+   确认 SSH 服务正常运行（默认端口 22）、认证信息正确。部分精简版 Linux 可能缺少 `lscpu` 等命令，导致部分 CPU 信息显示为"未获取"，属正常现象。
 
-![Step 4: SSH Configuration](snapshot/webui5-en.png)
-*Fig. 4: SSH configuration (optional, default port 22)*
+4. **AI 诊断不生效**
+   - 确认已在 Web UI「AI 诊断设置」中保存了有效配置
+   - 确保 Ollama 已启动：`ollama serve`
+   - 确保模型已下载：`ollama pull qwen3:30b`（建议大模型，冷启动慢）
 
-![Step 5: Inspector Name](snapshot/webui6-en.png)
-*Fig. 5: Inspector name configuration (default: dbcheck)*
+5. **风险建议仅供参考**
+   内置阈值基于通用最佳实践，实际场景中请结合业务负载综合评估。
 
-![Step 6: Confirm Inspection Info](snapshot/webui7-en.png)
-*Fig. 6: Confirm inspection information*
+### Oracle 专项
 
-![Step 7: Run Inspection](snapshot/webui8-en.png)
-*Fig. 7: One-click inspection with real-time log streaming*
+6. **ORA-01017 用户名/口令无效**
+   - 如果使用 SYSDBA 身份，Web UI 请勾选「SYSDBA」复选框；CLI 请输入 `sys as sysdba`（完整格式），工具会自动解析并使用正确的特权模式连接
+   - 确认密码正确（注意大小写）
 
-![Report Download](snapshot/webui9-en.png)
-*Fig. 8: Download Word report directly after inspection*
+7. **ORA-00904 / ORA-00942 标识符无效**
+   部分高级视图/列在不同 Oracle 版本中可能不存在（如 11g vs 19c）。工具已做兼容处理，少数不兼容的项目会标记为⚠跳过，不影响整体巡检。
 
-![Historical Reports](snapshot/webui10-en.png)
-*Fig. 9: Historical report list, browsable by name, size, and time*
+8. **需要安装 Oracle 客户端吗？**
+   - 使用 `oracledb` 驱动（推荐）：不需要，纯 Python 实现
+   - 使用 `cx_Oracle` 驱动：需要下载 [Oracle Instant Client](https://www.oracle.com/database/technologies/instant-client.html)
 
-![Historical Trend Analysis](snapshot/webui12.png)
-*Fig. 10: Historical trend analysis*
+9. **Oracle 版本支持**
+   支持 **11g R2、12c、19c、21c** 及以上版本。SQL 模板已做跨版本兼容处理。
 
-![AI Diagnosis Configuration](snapshot/webui13-en.png)
-*Fig. 11: AI diagnosis configuration — fully local, no API key needed, data never leaves your machine*
+### DM8 专项
+
+10. **连接失败（returned a result with an exception set）**
+    - dmPython 为惰性连接，连接对象创建成功不代表真正连通，需通过游标执行探测 SQL 才能确认
+    - 工具已内置自动探测逻辑，如仍失败请检查：端口是否正确（默认 5236）、用户密码是否正确、服务器是否允许该 IP 访问
+
+11. **提示"无效的列名"**
+    - DM8 的 V$ 视图列名与 Oracle 有较大差异，工具已针对 DM8 实测列名做过适配，如仍有报错请截图发给我们补充
+
+12. **SSH 采集功能不可用**
+    - 受限于达梦服务器 OpenSSH 版本（端口 2022），SSH 采集暂时禁用。系统资源信息将使用本地采集器，本地与达梦服务器信息不一致属正常现象。
+
+13. **报告中的"服务器主机名/平台"是本机信息**
+    - SSH 采集禁用后的已知限制，达梦服务器系统信息采集依赖 SSH 通道，后续版本将尝试修复
+
+### SQL Server 专项
+
+14. **连接失败**
+    - 确认 SQL Server 服务允许远程连接（SQL Server Configuration Manager → Network Configuration → TCP/IP 已启用）
+    - 确认防火墙已放行 1433 端口（或自定义端口）
+    - 确认使用了正确的认证方式（Windows 认证或 SQL Server 混合认证）
+
+15. **pyodbc 安装成功但连接失败**
+    - 需要安装 ODBC Driver 17：`curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add -` 后安装对应版本的 mssql-server
+    - Linux 上可能需要：`curl https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list | tee /etc/apt/sources.list.d/mssql-release.list`
+
+16. **SQL Server 版本支持**
+    - 支持 **SQL Server 2012、2014、2016、2017、2019、2022** 及以上版本
+
+---
+
+## 界面截图
+
+![首页](snapshot/webui0.png)
+
+![步骤一：选择数据库类型](snapshot/webui1.png)
+*图 1：选择数据库类型（MySQL 🐬 / PostgreSQL 🐘 / Oracle 🔴 / SQL Server 🟠 / DM8 🟡 / TiDB 🐬）*
+
+![步骤二：填写连接信息](snapshot/webui2.png)
+*图 2：填写数据库连接信息*
+
+![步骤三：在线连接测试数据库连接](snapshot/webui3.png)
+*图 3：在线连接测试数据库连接*
+
+![步骤四：SSH 连接配置](snapshot/webui5.png)
+*图 4：SSH 连接配置（可选，默认端口 22）*
+
+![步骤五：巡检人员](snapshot/webui6.png)
+*图 5：巡检人员配置（默认为 dbcheck）*
+
+![步骤六：确认巡检信息](snapshot/webui7.png)
+*图 6：确认巡检信息*
+
+![步骤七：执行巡检](snapshot/webui8.png)
+*图 7：一键巡检，实时预览巡检进度*
+
+![报告下载](snapshot/webui9.png)
+*图 8：巡检完成后直接下载 Word 报告*
+
+![历史报告](snapshot/webui10.png)
+*图 9：历史报告列表页，支持按名称、大小、时间浏览*
+
+![历史趋势分析](snapshot/webui12.png)
+*图 10：历史趋势分析*
+
+![AI 诊断配置](snapshot/webui13.png)
+*图 11：AI 诊断配置，可完全本地运行，无需 API Key，数据不出本机。*
+
+![数据源管理](snapshot/webui15.png)
+*数据源管理*
+
+![规则引擎](snapshot/webui16.png)
+*规则引擎*
+
+![RAG 知识库](snapshot/webui17.png)
+*RAG 知识库*
 
 
-![Datasource Management](snapshot/webui15-en.png)
-*Datasource Management*
-
-![Rule Management](snapshot/webui16-en.png)
-*Rule Management*
-
-![RAG Knowledge Base](snapshot/webui17-en.png)
-*RAG Knowledge Base*
-
-
-![ClawHub dbcheck Skill](snapshot/skill0.png)
-*Fig. 12: dbcheck published on ClawHub*
+![Clawhub dbcheck skill](snapshot/skill0.png)
+*图 12：dbcheck 已发布到 Clawhub*
 
 ![QClaw](snapshot/skill1.png)
-*Fig. 13: Using dbcheck in QClaw and other OpenClaw-compatible applications*
+*图 13：在 QClaw 等支持 OpenClaw Skills 的软件中使用 dbcheck。*
 
-![Reports](snapshot/report-en.png)
-*Fig. 14: AI diagnosis report (Markdown auto-rendered to Word format)*
-
+![Reports](snapshot/report.png)
+*图 14：AI 诊断报告（Markdown 自动渲染为 Word 格式）。*
 ---
+## 鸣谢
 
-## Acknowledgments
-
->This project referred to the following projects, and we would like to thank the original project author for their efforts:
+> 本项目参考了以下项目，感谢原项目作者的付出：
 
 * [Zhh9126/MySQLDBCHECK](https://github.com/Zhh9126/MySQLDBCHECK.git)
 * [Zhh9126/SQL-SERVER-CHECK](https://github.com/Zhh9126/SQL-SERVER-CHECK.git)
 
-Some features are still undergoing rapid iteration, and more database types will be added in the future to enhance their own functionality. We welcome joint participation in feature development and feedback on issues and suggestions.
+部分功能仍在快速迭代中，将来会增加更多的数据库类型，也会增强自身功能，欢迎共同参与功能开发以及反馈问题与建议。
 
 ---
 
-## Support the Project
+## 捐赠支持
 
-DBCheck has undergone extensive iteration and real-world testing to reach its current state. If this tool has been helpful to you, consider supporting the project's continued development:
+DBCheck 从初版到功能完善，历经了大量版本迭代和实测打磨。如果这个工具对你的工作有帮助，欢迎通过以下方式支持项目持续迭代：
 
-<img src="snapshot/pay-en.png" alt="PayPal donation QR code" width="500" />
+<img src="snapshot/pay.png" alt="PayPal 捐赠二维码" width="500" />
 
-> When donating, please include your name or nickname so we know who supports us ❤️
->
-> Contact: sdfiyon@gmail.com
+> 捐赠时备注你的名字或昵称，让我们知道谁在支持这个项目 ❤️
+> 
+> 官方网站：https://dbcheck.top
+> 
+> 联系邮箱：sdfiyon@gmail.com
 
-## Donor List
+## 捐赠者名单
 
-Thank you to everyone who has supported this project! ❤️
+感谢每一位支持者的信任与鼓励！❤️
 
-| Date | Name / Nickname | Message |
-|------|------------------|---------|
+| 日期 | 姓名/昵称 | 留言 |
+|------|-----------|------|
 | 2026-4-28 | *ck | |
 | 2026-4-29 | *嵘 | |
-| *Looking forward to your support!* | | |
+| *期待你的支持！* | | |
 
-> If you've donated but don't see your name here, please contact us at sdfiyon@gmail.com to have it added.
+> 如已捐赠但未出现在此名单中，请联系 sdfiyon@gmail.com 补充。
