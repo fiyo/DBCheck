@@ -31,7 +31,7 @@
 
 ---
 
-# 🌍 多语言支持
+# 🌍 详细介绍（多语言支持）
 
 - [中文](README_zh.md)
 - [English](README_en.md)
