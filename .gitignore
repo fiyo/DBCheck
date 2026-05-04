@@ -26,6 +26,7 @@ dbc_config.json
 .db_key
 flask.log
 dbcheck_article_v*.md
+history.db
 
 # Pro license activation
 license.key

@@ -68,6 +68,12 @@ DBCheck 可以自动完成：
 
 ---
 
+# 🎬 演示动画
+<p align="center">
+  <img src="snapshot/demo.gif" alt="DBCheck Demo">
+</p>
+---
+
 # ✨ 为什么开发 DBCheck？
 
 传统数据库巡检通常存在以下问题：
