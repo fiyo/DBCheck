@@ -699,6 +699,29 @@
       50% { opacity: 1; transform: translateX(5px); }
     }
 
+    /* Architecture Image - Handle white background for dark theme */
+    .arch-container {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(6, 182, 212, 0.05));
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 2rem;
+      margin-top: 2rem;
+      text-align: center;
+    }
+    .arch-img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+      /* 让白色背景融入深色主题 */
+      filter: brightness(0.95) contrast(1.05);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .arch-img:hover {
+      transform: scale(1.01);
+      box-shadow: 0 25px 70px rgba(0, 0, 0, 0.5);
+    }
+
     /* ==================== Quick Start Section ==================== */
     .quickstart {
       background: var(--bg-card);
@@ -1355,6 +1378,25 @@
             支持 Cron 表达式定时任务，巡检完成后自动发送邮件/Webhook 告警。
           </p>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Architecture Section -->
+  <section id="architecture">
+    <div class="container">
+      <div class="section-header reveal">
+        <div class="section-label">
+          <i class="fas fa-diagram-project"></i> 系统架构
+        </div>
+        <h2 class="section-title">简洁高效的模块化设计</h2>
+        <p class="section-desc">
+          清晰的架构层次，轻松集成到现有运维体系
+        </p>
+      </div>
+
+      <div class="arch-container reveal">
+        <img src="./architecture.png" alt="DBCheck 系统架构图" class="arch-img">
       </div>
     </div>
   </section>
