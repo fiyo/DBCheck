@@ -1,7 +1,7 @@
 # DBCheck
 
 <p align="center">
-  <img src="snapshot/logo.png" width="180" alt="DBCheck Logo">
+  <img src="snapshot/dbcheck_logo.png" width="180" alt="DBCheck Logo">
 </p>
 
 <p align="center">
@@ -33,7 +33,7 @@
 
 # 🌍 多语言支持
 
-- [中文](README.md)
+- [中文](README_zh.md)
 - [English](README_en.md)
 
 ---
