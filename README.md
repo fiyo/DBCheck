@@ -72,6 +72,7 @@ DBCheck 可以自动完成：
 <p align="center">
   <img src="snapshot/demo.gif" alt="DBCheck Demo">
 </p>
+
 ---
 
 # ✨ 为什么开发 DBCheck？
