@@ -1,7 +1,7 @@
 # DBCheck
 
 <p align="center">
-  <img src="snapshot/dbcheck_logo_info.png" width="180" alt="DBCheck Logo">
+  <img src="snapshot/dbcheck_logo_info.png" width="500" alt="DBCheck Logo">
 </p>
 
 <p align="center">
