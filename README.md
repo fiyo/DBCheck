@@ -1014,7 +1014,7 @@ dbcheck.exe         # Windows
 
 DBCheck 从初版到功能完善，历经了大量版本迭代和实测打磨。如果这个工具对你的工作有帮助，欢迎通过以下方式支持项目持续迭代：
 
-<img src="snapshot/pay.png" alt="PayPal 捐赠二维码" width="500" />
+<img src="snapshot/pay.png" alt="PayPal 捐赠二维码" width="600" />
 
 > 捐赠时备注你的名字或昵称，让我们知道谁在支持这个项目 ❤️
 > 
