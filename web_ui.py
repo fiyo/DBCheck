@@ -1122,6 +1122,23 @@ def api_download_file():
         return "File not found", 404
     return send_file(fp, as_attachment=True, download_name=name)
 
+@app.route('/api/delete_report', methods=['POST'])
+def api_delete_report():
+    """删除指定报告文件"""
+    try:
+        data = request.get_json() or {}
+        name = data.get('name', '')
+        if not name:
+            return jsonify({'ok': False, 'error': _t('webui.reports_delete_name_required')}), 400
+        reports_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reports')
+        fp = os.path.join(reports_dir, name)
+        if not os.path.isfile(fp):
+            return jsonify({'ok': False, 'error': _t('webui.reports_file_not_found')}), 404
+        os.remove(fp)
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
 @app.route('/api/history_instances', methods=['GET'])
 def api_history_instances():
     """返回所有有历史记录的数据库实例列表"""

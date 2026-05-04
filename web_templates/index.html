@@ -3162,12 +3162,36 @@ async function loadReports() {
             <div class="ri-name">${escHtml(f.name)} ${tagHtml}</div>
             <div class="ri-meta">${dt} · ${size}</div>
           </div>
-          <a class="btn btn-ghost" style="font-size:12px;padding:7px 14px"
-             href="/api/download_file?name=${encodeURIComponent(f.name)}" download>${i18n('webui.btn_download_report')}</a>
+          <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+            <a class="btn btn-ghost" style="font-size:12px;padding:7px 14px"
+               href="/api/download_file?name=${encodeURIComponent(f.name)}" download>${i18n('webui.btn_download_report')}</a>
+            <button class="btn btn-danger" style="font-size:12px;padding:7px 12px" onclick="deleteReport('${escHtml(f.name).replace(/'/g, "\\'")}')">${i18n('webui.btn_delete_report')}</button>
+          </div>
         </div>`;
     }).join('');
   } catch(e) {
     list.innerHTML = `<div class="status-banner err">${i18n('webui.reports_load_fail')}: ${escHtml(e.message)}</div>`;
+  }
+}
+
+async function deleteReport(name) {
+  const msg = i18n('webui.reports_delete_confirm').replace('{}', name);
+  if (!await toastConfirm(msg)) return;
+  try {
+    const res = await fetch('/api/delete_report', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name: name})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      toastSuccess(i18n('webui.reports_delete_ok'));
+      loadReports();
+    } else {
+      toastError(i18n('webui.reports_delete_fail').replace('{}', data.error || ''));
+    }
+  } catch(e) {
+    toastError(i18n('webui.reports_delete_fail').replace('{}', e.message));
   }
 }
 
