@@ -16,3 +16,6 @@ scheduler_jobs.json
 scheduler.log
 snapshot/
 docs/README.md
+20260409082251/
+dbcheck_article_v*.md
+pro_data/
