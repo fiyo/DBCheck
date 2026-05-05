@@ -1,13 +1,17 @@
-MIT License
+MIT License with Attribution Requirements
 
-Copyright (c) 2026 fiyo <sdfiyon@gmail.com>
+Copyright (c) 2025-2026 fiyo (Rita) <sdfiyon@gmail.com>
+Original Project: DBCheck — https://github.com/fiyo/DBCheck
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights
 to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+copies of the Software, and to permit persons to whom the following conditions:
+
+───────────────────────────────────────────────
+STANDARD MIT CONDITIONS
+───────────────────────────────────────────────
 
 The above copyright notice and this permission notice shall be included in all
 copies or substantial portions of the Software.
@@ -19,3 +23,86 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+───────────────────────────────────────────────
+ADDITIONAL TERMS (permitted under MIT §Additional Terms)
+───────────────────────────────────────────────
+
+The following additional terms supplement the MIT License above. By using,
+copying, modifying, or distributing the Software, you agree to comply with
+these additional requirements:
+
+1. ATTRIBUTION — PROMINENT DISPLAY OF ORIGINAL AUTHORSHIP
+
+   Any product, service, or derivative work that incorporates or is derived
+   from this Software must include a clearly visible attribution statement in
+   at least one of the following locations:
+
+     (a) An "About" screen, "Credits" section, or equivalent user-facing page;
+     (b) The product's official documentation or README file;
+     (c) The software's splash screen or startup interface (if applicable).
+
+   The attribution must read substantially as follows:
+
+     "Powered by DBCheck, originally developed by fiyo (Rita).
+      Source: https://github.com/fiyo/DBCheck"
+
+   The attribution must not be hidden, rendered in a font size smaller than
+   the surrounding text, or placed in a location that a typical user would
+   not reasonably encounter.
+
+2. MODIFIED VERSION NOTICE
+
+   If you distribute a modified version of the Software, you must:
+
+     (a) Clearly state in your documentation, README, and user interface that
+         your version is a fork or modified derivative of DBCheck;
+     (b) Include a notice such as: "This is a modified version of DBCheck.
+         The original project is maintained by fiyo at
+         https://github.com/fiyo/DBCheck";
+     (c) Not represent your modified version as the official DBCheck release.
+
+   You may not use the name "DBCheck" as the primary product name of your
+   modified distribution in a manner that could cause confusion about the
+   origin of the software.
+
+3. TRADEMARK AND BRAND PROTECTION
+
+   The name "DBCheck", the DBCheck logo, and associated branding are the
+   trademarks of fiyo (Rita). These terms do not grant you any right to use
+   such trademarks except as required for reasonable and customary use in
+   describing the origin of the Software and reproducing the content of the
+   attribution notice.
+
+   You may not:
+
+     (a) Use "DBCheck" as the product name for a competing commercial product
+         without prior written permission from the copyright holder;
+     (b) Represent that your product is officially endorsed, certified, or
+         maintained by the original author(s) without written permission.
+
+4. NO IMPERSONATION
+
+   You may not claim to be the original author of this Software. You may not
+   remove, alter, or obscure the original copyright notice, author information,
+   or any indication of origin from any source files, documentation, or
+   user-facing materials.
+
+5. COMMERCIAL USE — NOTIFICATION ENCOURAGED
+
+   Commercial use (including SaaS, embedded use in commercial products, and
+   enterprise deployments) is permitted under this license. However, the
+   copyright holder kindly requests that commercial users notify the original
+   author via email at sdfiyon@gmail.com. This is a courtesy request, not a
+   legal requirement.
+
+───────────────────────────────────────────────
+CONTACT
+───────────────────────────────────────────────
+
+For licensing inquiries, commercial partnerships, or attribution questions:
+
+  Author : fiyo (Rita)
+  Email  : sdfiyon@gmail.com
+  Project: https://github.com/fiyo/DBCheck
+  Website: https://dbcheck.top
