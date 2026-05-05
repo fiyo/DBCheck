@@ -373,8 +373,27 @@ pyinstaller dbcheck.spec
 如果 DBCheck 对你的工作有所帮助，欢迎支持项目持续迭代。
 
 <p align="center">
-  <img src="snapshot/pay.png" width="400">
+  <img src="snapshot/pay.png" width="500">
 </p>
+
+> 捐赠时备注你的名字或昵称，让我们知道谁在支持这个项目 ❤️
+> 
+> 官方网站：https://dbcheck.top
+> 
+> 联系邮箱：sdfiyon@gmail.com
+
+## 捐赠者名单
+
+感谢每一位支持者的信任与鼓励！❤️
+
+| 日期 | 姓名/昵称 | 留言 |
+|------|-----------|------|
+| 2026-4-28 | *ck | |
+| 2026-4-29 | *嵘 | |
+| 2026-5-4 | **政 | |
+| *期待你的支持！* | | |
+
+> 如已捐赠但未出现在此名单中，请联系 sdfiyon@gmail.com 补充。
 
 ---
 
