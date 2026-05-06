@@ -2012,6 +2012,7 @@ ZI = {
     "webui.rules_disabled": "已禁用",
     "webui.rules_enable_btn": "启用",
     "webui.rules_disable_btn": "禁用",
+    "webui.rules_status_updated": "规则状态已更新",
     "webui.rules_severity_high": "高风险",
     "webui.rules_severity_medium": "中风险",
     "webui.rules_severity_low": "低风险",

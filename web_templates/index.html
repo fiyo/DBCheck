@@ -1432,7 +1432,7 @@ async function deleteRagDocument(docId, title) {
   try {
     const res = await fetch('/api/rag/documents/' + encodeURIComponent(docId), { method: 'DELETE' });
     const data = await res.json();
-    if (data.ok) { toastSuccess('删除成功'); loadRagDocuments(); } else { toastError((i18n('webui.rag_delete_fail') || '删除失败') + ': ' + (data.error || '')); }
+    if (data.ok) { toastSuccess(i18n('webui.rag_delete_ok')); loadRagDocuments(); } else { toastError((i18n('webui.rag_delete_fail') || 'Delete failed') + ': ' + (data.error || '')); }
   } catch(e) { toastError(i18n('webui.rag_delete_fail').replace('{}', e.message)); }
 }
 
@@ -1829,7 +1829,7 @@ function formatBytes(bytes) {
                     '<div style="font-weight:600;font-size:13px">' + escHtml(r.id) + '</div>' +
                     '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;max-width:500px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(r.condition || '') + '</div>' +
                   '</div>' +
-                  '<button class="btn btn-ghost" style="font-size:12px;padding:4px 10px" onclick="toggleRule(\'' + r.id + '\')">' + (isDisabled ? (i18n('webui.rules_enable_btn') || '✅ 启用') : (i18n('webui.rules_disable_btn') || '⛔ 禁用')) + '</button>' +
+                  '<button class="btn btn-ghost" style="font-size:12px;padding:4px 10px" onclick="toggleRule(\'' + r.id + '\')">' + (isDisabled ? i18n('webui.rules_enable_btn') : i18n('webui.rules_disable_btn')) + '</button>' +
                 '</div>';
               }).join('') + '</div>';
           } else {
@@ -1847,7 +1847,7 @@ function formatBytes(bytes) {
             body: '{}'
           });
           const data = await res.json();
-          if (data.ok) { toastSuccess('规则状态已更新'); loadRules(); }
+          if (data.ok) { toastSuccess(i18n('webui.rules_status_updated')); loadRules(); }
           else { toastError(i18n('webui.ds_operation_fail').replace('{}', data.error || '')); }
         } catch(e) { toastError(e.message); }
       }
