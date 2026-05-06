@@ -105,12 +105,13 @@ Each risk is presented as a card: **Risk Level (High/Medium/Low) → Issue Descr
 
 ---
 
-## Four Ways to Use DBCheck
+## Five Ways to Use DBCheck
 
 | Method | Description |
 |--------|-------------|
 | 🖥️ Command-Line | `python main.py` — terminal interaction, ideal for CLI-familiar users |
 | 🌐 Web UI | `python web_ui.py` — browser-based GUI with trend charts and AI configuration |
+| 💬 AI Chat Inspection | Open the AI panel in the bottom-right corner of Web UI, use natural language to start inspection, zero manual steps |
 | 🤖 OpenClaw Skill | Tell your AI assistant "inspect the Oracle Database" — fully automated |
 | 📦 Packaged Distribution | PyInstaller bundles everything into a single executable for team distribution |
 
@@ -449,6 +450,30 @@ Comparison of Intelligent Analysis vs. AI Diagnosis:
 | Timeout | Default 600 seconds (LLM cold start can be slow) |
 
 > For security reasons, any non-localhost API address is automatically rejected by the code to prevent data leakage.
+
+## AI Chat Inspection 💬
+
+DBCheck supports natural language interaction — start an inspection without manual steps.
+
+Open the **AI Assistant panel** in the bottom-right corner and type:
+
+```
+inspect MySQL-primary
+run full inspection on Oracle
+check PostgreSQL lock waits
+```
+
+The system will automatically:
+
+- Parse intent and match the datasource
+- Kick off the inspection task with a clean animated progress indicator
+- Push the Word report download link when complete
+
+<p align="center">
+  <img src="snapshot/chat_demo.png" width="600" alt="AI Chat Demo">
+</p>
+
+---
 
 ### Slow Query Deep Analysis 🔍
 

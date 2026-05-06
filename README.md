@@ -184,6 +184,7 @@ http://localhost:5003
 
 | 功能 | 说明 |
 |---|---|
+| 💬 AI 对话巡检 | 自然语言一键发起巡检，无需手动操作 |
 | 🗄️ 多数据库支持 | MySQL / PostgreSQL / Oracle / SQL Server / DM8 / TiDB |
 | 📊 历史趋势分析 | 自动汇总多次巡检数据并生成趋势图 |
 | 🤖 AI 智能诊断 | 基于 Ollama 本地大模型分析 |
@@ -219,6 +220,31 @@ ollama pull llama3
 
 ollama pull nomic-embed-text
 ```
+
+---
+
+# 💬 AI 对话巡检
+
+DBCheck 支持自然语言交互，无需手动操作即可发起巡检。
+
+打开右下角 AI 助手面板，直接输入：
+
+```
+巡检 MySQL-主库
+对 Oracle 做完整巡检
+查看 PostgreSQL 的锁等待
+```
+
+系统会自动：
+
+- 解析意图，匹配数据源
+- 启动巡检任务
+- 实时显示简洁动画进度
+- 完成后推送 Word 报告下载链接
+
+<p align="center">
+  <img src="snapshot/chat_demo.png" width="600" alt="AI Chat Demo">
+</p>
 
 ---
 
@@ -331,6 +357,7 @@ pyinstaller dbcheck.spec
 - [x] RAG 知识库
 - [x] 定时任务
 - [x] Webhook 通知
+- [x] AI 对话巡检（自然语言交互）
 
 ## 下一步计划
 
