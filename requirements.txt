@@ -5,6 +5,8 @@
 python-docx>=0.8.10
 docxtpl>=0.16.0
 psutil>=5.9.0
+PyYAML>=6.0.0            # Rule engine YAML parsing (required by pro/rule_engine.py)
+cryptography>=41.0.0     # Password encryption for data source manager
 
 # ── Web UI ───────────────────────────────────────────────────────────────────
 flask>=2.0.0
