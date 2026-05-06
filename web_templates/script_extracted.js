@@ -13,7 +13,7 @@ function showPage(name) {
   document.getElementById('page-' + name).classList.add('active');
   document.getElementById('nav-' + name).classList.add('active');
   const titles = {
-    home:    ['首页',     '欢迎使用数据库巡检工具'],
+    home:    ['首页',     '欢迎使用 DBCheck 数据库巡检工具'],
     wizard:  ['新建巡检', '逐步配置，一键生成报告'],
     reports: ['历史报告', '所有已生成的巡检报告'],
     trend:   ['趋势分析', '同一数据库多次巡检的历史指标趋势'],

@@ -172,7 +172,7 @@ ZI = {
 
     # Web UI - 页面
     "webui.home_title": "首页",
-    "webui.home_subtitle": "欢迎使用数据库巡检工具",
+    "webui.home_subtitle": "欢迎使用 DBCheck 数据库巡检工具",
     "webui.select_db_type": "选择数据库类型",
     "webui.fill_connection_info": "数据库连接信息",
     "webui.step_badge": "第 {} 步 / 共 {} 步",

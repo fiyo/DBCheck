@@ -141,8 +141,9 @@ body {
   transition: all 0.3s ease;
 }
 .sidebar-logo h1 .edition-badge.community {
-  background: rgba(107, 114, 128, 0.25);
-  color: #9ca3af;
+  background: rgba(56, 139, 253, 0.25);
+  color: var(--accent2);
+  border: 1px solid rgba(56, 139, 253, 0.3);
 }
 .sidebar-logo h1 .edition-badge.pro {
   background: linear-gradient(135deg, #f97316, #ea580c);
@@ -1846,7 +1847,7 @@ function formatBytes(bytes) {
   <aside class="sidebar">
     <div class="sidebar-logo">
       <img src="/dbcheck_logo.png" alt="DBCheck" style="width:40px;height:40px;margin-bottom:10px;">
-      <h1>DBCheck <span class="edition-badge" id="sidebar-edition-badge" data-i18n="webui.edition_badge">社区版</span></h1>
+      <h1>DBCheck <span class="edition-badge community" id="sidebar-edition-badge" data-i18n="webui.edition_badge">社区版</span></h1>
       <p data-i18n="webui.logo_subtitle">基于 AI 的智能数据库巡检工具</p>
     </div>
 
@@ -1899,7 +1900,7 @@ function formatBytes(bytes) {
   <div class="main">
     <div class="topbar">
       <span class="topbar-title" id="topbar-title">首页</span>
-      <span class="topbar-sub" id="topbar-sub">欢迎使用数据库巡检工具</span>
+      <span class="topbar-sub" id="topbar-sub">欢迎使用 DBCheck 数据库巡检工具</span>
       <button class="btn btn-ghost" id="lang-toggle" onclick="toggleLang()" style="margin-left:auto;font-size:12px;padding:4px 10px;border-radius:6px;cursor:pointer;">
         🌐 <span id="lang-label">EN</span>
       </button>
@@ -2869,7 +2870,7 @@ function applyI18N() {
   const title = document.getElementById('topbar-title');
   if (title) title.textContent = i18n('webui.home_title') || '首页';
   const subtitle = document.getElementById('topbar-sub');
-  if (subtitle) subtitle.textContent = i18n('webui.home_subtitle') || '欢迎使用数据库巡检工具';
+  if (subtitle) subtitle.textContent = i18n('webui.home_subtitle') || '欢迎使用 DBCheck 数据库巡检工具';
 
   // 应用 data-i18n 属性的元素
   document.querySelectorAll('[data-i18n]').forEach(el => {
