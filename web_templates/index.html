@@ -1189,6 +1189,116 @@ select option { background: var(--surface2); }
     right: -100%;
   }
 }
+/* 健康评分仪表盘卡片 */
+.health-dashboard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0 0;
+  gap: 12px;
+}
+.health-ring-wrap {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  flex-shrink: 0;
+}
+.health-ring-wrap svg {
+  transform: rotate(-90deg);
+}
+.health-score-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.health-score-num {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text);
+}
+.health-score-unit {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.health-level-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 4px;
+  letter-spacing: 0.5px;
+}
+.health-level-badge.healthy  { background: rgba(46,160,67,.18);  color: #4caf50; }
+.health-level-badge.low      { background: rgba(76,175,80,.15);   color: #81c784; }
+.health-level-badge.medium   { background: rgba(227,179,65,.18);  color: var(--warn); }
+.health-level-badge.high     { background: rgba(249,115,22,.18);  color: #ff9800; }
+.health-level-badge.critical { background: rgba(248,81,73,.18);   color: var(--danger); }
+.health-level-badge.unknown  { background: rgba(139,148,158,.15); color: var(--text-muted); }
+
+.health-categories {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.health-cat-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.health-cat-icon { font-size: 13px; flex-shrink: 0; width: 16px; text-align: center; }
+.health-cat-label { width: 46px; color: var(--text-muted); flex-shrink: 0; font-size: 12px; }
+.health-cat-bar-wrap {
+  flex: 1;
+  height: 6px;
+  background: var(--surface);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.health-cat-bar {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.8s ease;
+}
+.health-cat-score {
+  width: 28px;
+  text-align: right;
+  font-weight: 600;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.health-no-data {
+  text-align: center;
+  padding: 16px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.health-risk-row {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+.health-risk-chip {
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+}
+.health-risk-chip.critical { background: rgba(248,81,73,.2); color: #f85149; }
+.health-risk-chip.high     { background: rgba(249,115,22,.2); color: #ff9800; }
+.health-risk-chip.medium   { background: rgba(227,179,65,.2); color: var(--warn); }
+.health-risk-chip.low      { background: rgba(76,175,80,.15); color: #81c784; }
+.health-risk-chip.healthy  { background: rgba(46,160,67,.15); color: #4caf50; }
 </style>
 </head>
 <body>
@@ -1831,6 +1941,20 @@ function formatBytes(bytes) {
             <p class="section-desc">运行状态实时监控</p>
           </div>
           <div class="overview-grid">
+            <!-- 健康评分仪表盘 -->
+            <div class="overview-card">
+              <div class="card-header">
+                <div class="card-icon" style="background:linear-gradient(135deg,#f97316,#ea580c);">📊</div>
+                <div>
+                  <div class="card-title" data-i18n="webui.home_health_score">健康评分</div>
+                  <div class="card-subtitle" data-i18n="webui.home_health_score_sub">综合健康状态</div>
+                </div>
+              </div>
+              <div id="home-health-dashboard">
+                <div class="health-no-data">暂无巡检数据</div>
+              </div>
+            </div>
+
             <!-- 实例分布 -->
             <div class="overview-card">
               <div class="card-header">
@@ -4313,14 +4437,110 @@ async function loadHomeStats() {
       'tidb': { icon: '🟢', name: 'TiDB' }
     };
 
+    // 颜色配置
+    const levelColors = {
+      healthy:  '#4caf50',
+      low:      '#81c784',
+      medium:   '#e3b341',
+      high:     '#ff9800',
+      critical: '#f85149',
+    };
+    const catColors = {
+      performance:   '#388bfd',
+      security:      '#f85149',
+      configuration: '#a371f7',
+      capacity:      '#e3b341',
+      availability:  '#4caf50',
+    };
+    const catIcons = {
+      performance:   '🚀',
+      security:      '🔒',
+      configuration: '⚙️',
+      capacity:      '💾',
+      availability:  '✅',
+    };
+    const levelLabels = {
+      healthy:  '健康',
+      low:      '良好',
+      medium:   '一般',
+      high:     '高危',
+      critical: '危险',
+      unknown:  '暂无数据',
+    };
+
     // 并行获取所有数据
-    const [resStats, resJobs, resRag] = await Promise.all([
+    const [resDashboard, resStats, resJobs, resRag] = await Promise.all([
+      fetch('/api/pro/dashboard'),
       fetch('/api/pro/statistics'),
       fetch('/api/scheduler/jobs'),
       fetch('/api/rag/documents')
     ]);
 
-    // 1. 处理统计数据 - 实例分布
+    // 1. 健康评分仪表盘
+    const dashEl = document.getElementById('home-health-dashboard');
+    if (dashEl) {
+      try {
+        const dash = await resDashboard.json();
+        if (dash.ok && dash.has_history) {
+          const level = dash.level || 'unknown';
+          const color = levelColors[level] || '#8b949e';
+          const total = dash.total_score || 0;
+          // SVG 环形图参数
+          const R = 52;
+          const C = 2 * Math.PI * R;
+          const dashOffset = C * (1 - total / 100);
+
+          const catRows = (dash.categories || []).map(cat => {
+            const catColor = catColors[cat.key] || '#8b949e';
+            const catIcon = catIcons[cat.key] || '📊';
+            return `<div class="health-cat-row">
+              <span class="health-cat-icon">${catIcon}</span>
+              <span class="health-cat-label">${cat.name}</span>
+              <div class="health-cat-bar-wrap">
+                <div class="health-cat-bar" style="width:${cat.score}%;background:${catColor}"></div>
+              </div>
+              <span class="health-cat-score" style="color:${cat.score >= 70 ? '#4caf50' : cat.score >= 50 ? '#e3b341' : '#f85149'}">${cat.score}</span>
+            </div>`;
+          }).join('');
+
+          // 风险分布 chips
+          const riskChips = [];
+          const riskB = dash.risk_breakdown || {};
+          if (riskB.critical > 0) riskChips.push(`<span class="health-risk-chip critical">严重 ${riskB.critical}</span>`);
+          if (riskB.high > 0)     riskChips.push(`<span class="health-risk-chip high">高危 ${riskB.high}</span>`);
+          if (riskB.medium > 0)   riskChips.push(`<span class="health-risk-chip medium">中危 ${riskB.medium}</span>`);
+          if (riskB.low > 0)     riskChips.push(`<span class="health-risk-chip low">低危 ${riskB.low}</span>`);
+          if (riskB.healthy > 0) riskChips.push(`<span class="health-risk-chip healthy">正常 ${riskB.healthy}</span>`);
+
+          dashEl.innerHTML = `
+            <div class="health-dashboard">
+              <div class="health-ring-wrap">
+                <svg width="120" height="120" viewBox="0 0 120 120">
+                  <!-- 背景圆环 -->
+                  <circle cx="60" cy="60" r="${R}" fill="none" stroke="var(--border)" stroke-width="10"/>
+                  <!-- 得分圆环 -->
+                  <circle cx="60" cy="60" r="${R}" fill="none" stroke="${color}" stroke-width="10"
+                    stroke-dasharray="${C}" stroke-dashoffset="${dashOffset}"
+                    stroke-linecap="round"/>
+                </svg>
+                <div class="health-score-text">
+                  <span class="health-score-num">${total}</span>
+                  <span class="health-score-unit">分</span>
+                  <span class="health-level-badge ${level}">${levelLabels[level] || level}</span>
+                </div>
+              </div>
+              <div class="health-categories">${catRows}</div>
+              ${riskChips.length ? '<div class="health-risk-row">' + riskChips.join('') + '</div>' : ''}
+            </div>`;
+        } else {
+          dashEl.innerHTML = `<div class="health-no-data">暂无巡检数据<br><span style="font-size:12px">开始一次巡检即可看到评分</span></div>`;
+        }
+      } catch(e) {
+        dashEl.innerHTML = `<div class="health-no-data">暂无巡检数据</div>`;
+      }
+    }
+
+    // 2. 处理统计数据 - 实例分布
     const dataStats = await resStats.json();
     const dbTypeList = document.getElementById('home-db-type-list');
     if (dataStats.ok && dataStats.statistics && dbTypeList) {
@@ -4341,7 +4561,7 @@ async function loadHomeStats() {
       }
     }
 
-    // 2. 处理定时任务
+    // 3. 处理定时任务
     const dataJobs = await resJobs.json();
     const jobList = document.getElementById('home-job-list');
     const jobTotalEl = document.getElementById('home-job-total');
@@ -4372,7 +4592,7 @@ async function loadHomeStats() {
       if (jobList) jobList.innerHTML = '<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:12px;">暂无定时任务</div>';
     }
 
-    // 3. 处理知识库
+    // 4. 处理知识库
     const dataRag = await resRag.json();
     const kbDocsEl = document.getElementById('home-kb-docs');
     const kbChunksEl = document.getElementById('home-kb-chunks');

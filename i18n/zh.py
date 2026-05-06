@@ -173,6 +173,8 @@ ZI = {
     # Web UI - 页面
     "webui.home_title": "首页",
     "webui.home_subtitle": "欢迎使用数据库巡检工具",
+    "webui.home_health_score": "健康评分",
+    "webui.home_health_score_sub": "综合健康状态",
     "webui.select_db_type": "选择数据库类型",
     "webui.no_matching_datasource": "没有匹配的 {} 数据源",
     "webui.fill_connection_info": "数据库连接信息",

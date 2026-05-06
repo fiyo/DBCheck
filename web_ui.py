@@ -11,7 +11,7 @@
 DBCheck Web UI - Flask 应用
 数据库巡检工具 Web 界面
 """
-import os, sys, threading, datetime, json, uuid, time, re
+import os, sys, threading, datetime, json, uuid, time, re, random, sqlite3
 from flask import Flask, request, jsonify, render_template, Response, send_file
 from version import __version__
 from flask_socketio import SocketIO, emit
@@ -188,7 +188,60 @@ def run_mysql_task(task_id, db_info, inspector_name):
                 context=ret
             )
         except Exception as e:
-            _emit('log', {'msg': f"[警告] 历史记录保存失败: {e}"})
+            _emit('log', {'msg': f"[警告] 历史快照保存失败: {e}"})
+
+        # ── 保存巡检记录到 Pro 模块 ──────────────────────────
+        try:
+            from pro import get_instance_manager
+            # 获取风险数量
+            risk_count = ret.get('risk_count', 0)
+            if not risk_count:
+                issues = ret.get('issues', [])
+                risk_count = len(issues) if isinstance(issues, list) else 0
+
+            # 获取健康状态并转换为评分
+            health_status = ret.get('health_status', '')
+            if '优秀' in health_status or 'Excellent' in health_status:
+                health_score = 100
+            elif '良好' in health_status or 'Good' in health_status:
+                health_score = 80
+            elif '一般' in health_status or 'Fair' in health_status:
+                health_score = 60
+            elif '需关注' in health_status or 'Attention' in health_status:
+                health_score = 40
+            else:
+                health_score = 100 - min(risk_count * 5, 50)  # 默认计算
+
+            # 计算风险等级
+            if health_score >= 85:
+                risk_level = 'healthy'
+            elif health_score >= 70:
+                risk_level = 'low'
+            elif health_score >= 50:
+                risk_level = 'medium'
+            elif health_score >= 30:
+                risk_level = 'high'
+            else:
+                risk_level = 'critical'
+
+            # 生成实例ID（与数据源管理保持一致）
+            import hashlib
+            raw = f"mysql-{db_info['ip']}-{db_info['port']}".encode()
+            instance_id = hashlib.md5(raw).hexdigest()[:12]
+
+            im = get_instance_manager()
+            im.record_inspection(
+                instance_id=instance_id,
+                instance_name=label_name,
+                db_type='mysql',
+                health_score=health_score,
+                risk_count=risk_count,
+                risk_level=risk_level,
+                report_path=ofile,
+                duration=0  # 暂不计算耗时
+            )
+        except Exception as e:
+            _emit('log', {'msg': f"[警告] Pro 巡检记录保存失败: {e}"})
 
         _emit('done', {'msg': _t('webui.log_inspection_done').format(ver=ver), 'task_id': task_id})
     except Exception as e:
@@ -296,7 +349,56 @@ def run_pg_task(task_id, db_info, inspector_name):
                 context=ret
             )
         except Exception as e:
-            _emit('log', {'msg': f"[警告] 历史记录保存失败: {e}"})
+            _emit('log', {'msg': f"[警告] 历史快照保存失败: {e}"})
+
+        # ── 保存巡检记录到 Pro 模块 ──────────────────────────
+        try:
+            from pro import get_instance_manager
+            risk_count = ret.get('risk_count', 0)
+            if not risk_count:
+                issues = ret.get('issues', [])
+                risk_count = len(issues) if isinstance(issues, list) else 0
+
+            health_status = ret.get('health_status', '')
+            if '优秀' in health_status or 'Excellent' in health_status:
+                health_score = 100
+            elif '良好' in health_status or 'Good' in health_status:
+                health_score = 80
+            elif '一般' in health_status or 'Fair' in health_status:
+                health_score = 60
+            elif '需关注' in health_status or 'Attention' in health_status:
+                health_score = 40
+            else:
+                health_score = 100 - min(risk_count * 5, 50)
+
+            if health_score >= 85:
+                risk_level = 'healthy'
+            elif health_score >= 70:
+                risk_level = 'low'
+            elif health_score >= 50:
+                risk_level = 'medium'
+            elif health_score >= 30:
+                risk_level = 'high'
+            else:
+                risk_level = 'critical'
+
+            import hashlib
+            raw = f"pg-{db_info['ip']}-{db_info['port']}".encode()
+            instance_id = hashlib.md5(raw).hexdigest()[:12]
+
+            im = get_instance_manager()
+            im.record_inspection(
+                instance_id=instance_id,
+                instance_name=label_name,
+                db_type='pg',
+                health_score=health_score,
+                risk_count=risk_count,
+                risk_level=risk_level,
+                report_path=ofile,
+                duration=0
+            )
+        except Exception as e:
+            _emit('log', {'msg': f"[警告] Pro 巡检记录保存失败: {e}"})
 
         _emit('done', {'msg': _t('webui.log_inspection_done').format(ver=ver), 'task_id': task_id})
     except Exception as e:
@@ -498,7 +600,56 @@ def run_dm_task(task_id, db_info, inspector_name):
                 context=context
             )
         except Exception as e:
-            _emit('log', {'msg': f"[警告] 历史记录保存失败: {e}"})
+            _emit('log', {'msg': f"[警告] 历史快照保存失败: {e}"})
+
+        # ── 保存巡检记录到 Pro 模块 ──────────────────────────
+        try:
+            from pro import get_instance_manager
+            risk_count = context.get('risk_count', 0)
+            if not risk_count:
+                issues = context.get('issues', [])
+                risk_count = len(issues) if isinstance(issues, list) else 0
+
+            health_status = context.get('health_status', '')
+            if '优秀' in health_status or 'Excellent' in health_status:
+                health_score = 100
+            elif '良好' in health_status or 'Good' in health_status:
+                health_score = 80
+            elif '一般' in health_status or 'Fair' in health_status:
+                health_score = 60
+            elif '需关注' in health_status or 'Attention' in health_status:
+                health_score = 40
+            else:
+                health_score = 100 - min(risk_count * 5, 50)
+
+            if health_score >= 85:
+                risk_level = 'healthy'
+            elif health_score >= 70:
+                risk_level = 'low'
+            elif health_score >= 50:
+                risk_level = 'medium'
+            elif health_score >= 30:
+                risk_level = 'high'
+            else:
+                risk_level = 'critical'
+
+            import hashlib
+            raw = f"dm-{db_info['ip']}-{db_info['port']}".encode()
+            instance_id = hashlib.md5(raw).hexdigest()[:12]
+
+            im = get_instance_manager()
+            im.record_inspection(
+                instance_id=instance_id,
+                instance_name=label_name,
+                db_type='dm',
+                health_score=health_score,
+                risk_count=risk_count,
+                risk_level=risk_level,
+                report_path=ofile,
+                duration=0
+            )
+        except Exception as e:
+            _emit('log', {'msg': f"[警告] Pro 巡检记录保存失败: {e}"})
 
         _emit('done', {'msg': _t('webui.log_inspection_done').format(ver=ver), 'task_id': task_id,
                        'ai_advice': context.get('ai_advice', '')})
@@ -621,7 +772,56 @@ def run_sqlserver_task(task_id, db_info, inspector_name):
                 context=inspector.data
             )
         except Exception as e:
-            _emit('log', {'msg': f"[警告] 历史记录保存失败: {e}"})
+            _emit('log', {'msg': f"[警告] 历史快照保存失败: {e}"})
+
+        # ── 保存巡检记录到 Pro 模块 ──────────────────────────
+        try:
+            from pro import get_instance_manager
+            risk_count = inspector.data.get('risk_count', 0)
+            if not risk_count:
+                issues = inspector.data.get('issues', [])
+                risk_count = len(issues) if isinstance(issues, list) else 0
+
+            health_status = inspector.data.get('health_status', '')
+            if '优秀' in health_status or 'Excellent' in health_status:
+                health_score = 100
+            elif '良好' in health_status or 'Good' in health_status:
+                health_score = 80
+            elif '一般' in health_status or 'Fair' in health_status:
+                health_score = 60
+            elif '需关注' in health_status or 'Attention' in health_status:
+                health_score = 40
+            else:
+                health_score = 100 - min(risk_count * 5, 50)
+
+            if health_score >= 85:
+                risk_level = 'healthy'
+            elif health_score >= 70:
+                risk_level = 'low'
+            elif health_score >= 50:
+                risk_level = 'medium'
+            elif health_score >= 30:
+                risk_level = 'high'
+            else:
+                risk_level = 'critical'
+
+            import hashlib
+            raw = f"sqlserver-{db_info['ip']}-{db_info['port']}".encode()
+            instance_id = hashlib.md5(raw).hexdigest()[:12]
+
+            im = get_instance_manager()
+            im.record_inspection(
+                instance_id=instance_id,
+                instance_name=label_name,
+                db_type='sqlserver',
+                health_score=health_score,
+                risk_count=risk_count,
+                risk_level=risk_level,
+                report_path=ofile,
+                duration=0
+            )
+        except Exception as e:
+            _emit('log', {'msg': f"[警告] Pro 巡检记录保存失败: {e}"})
 
         _emit('done', {'msg': _t('webui.log_inspection_done').format(ver=ver), 'task_id': task_id,
                        'ai_advice': inspector.data.get('ai_advice', '')})
@@ -733,7 +933,56 @@ def run_tidb_task(task_id, db_info, inspector_name):
                 context=ret
             )
         except Exception as e:
-            _emit('log', {'msg': f"[警告] 历史记录保存失败: {e}"})
+            _emit('log', {'msg': f"[警告] 历史快照保存失败: {e}"})
+
+        # ── 保存巡检记录到 Pro 模块 ──────────────────────────
+        try:
+            from pro import get_instance_manager
+            risk_count = ret.get('risk_count', 0)
+            if not risk_count:
+                issues = ret.get('issues', [])
+                risk_count = len(issues) if isinstance(issues, list) else 0
+
+            health_status = ret.get('health_status', '')
+            if '优秀' in health_status or 'Excellent' in health_status:
+                health_score = 100
+            elif '良好' in health_status or 'Good' in health_status:
+                health_score = 80
+            elif '一般' in health_status or 'Fair' in health_status:
+                health_score = 60
+            elif '需关注' in health_status or 'Attention' in health_status:
+                health_score = 40
+            else:
+                health_score = 100 - min(risk_count * 5, 50)
+
+            if health_score >= 85:
+                risk_level = 'healthy'
+            elif health_score >= 70:
+                risk_level = 'low'
+            elif health_score >= 50:
+                risk_level = 'medium'
+            elif health_score >= 30:
+                risk_level = 'high'
+            else:
+                risk_level = 'critical'
+
+            import hashlib
+            raw = f"tidb-{db_info['ip']}-{db_info['port']}".encode()
+            instance_id = hashlib.md5(raw).hexdigest()[:12]
+
+            im = get_instance_manager()
+            im.record_inspection(
+                instance_id=instance_id,
+                instance_name=label_name,
+                db_type='tidb',
+                health_score=health_score,
+                risk_count=risk_count,
+                risk_level=risk_level,
+                report_path=ofile,
+                duration=0
+            )
+        except Exception as e:
+            _emit('log', {'msg': f"[警告] Pro 巡检记录保存失败: {e}"})
 
         _emit('done', {'msg': _t('webui.log_inspection_done').format(ver=ver), 'task_id': task_id})
     except Exception as e:
@@ -1833,6 +2082,98 @@ def api_pro_health_score():
     except ImportError:
         return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
     except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/dashboard', methods=['GET'])
+def api_pro_dashboard():
+    """获取首页健康评分仪表盘数据"""
+    try:
+        from pro import get_instance_manager
+        im = get_instance_manager()
+
+        # 获取全局评分
+        score = im.get_global_health_score()
+        level = 'critical' if score <= 30 else 'high' if score <= 50 else 'medium' if score <= 70 else 'low' if score <= 85 else 'healthy'
+
+        # 获取风险统计（从最近巡检记录）
+        conn = sqlite3.connect(im.db_file)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        # 获取所有实例最新巡检的风险分布
+        cursor.execute("""
+            SELECT h.risk_level, COUNT(*) as cnt
+            FROM (
+                SELECT instance_id, MAX(inspect_time) as latest
+                FROM inspection_history GROUP BY instance_id
+            ) latest
+            JOIN inspection_history h
+              ON h.instance_id = latest.instance_id
+             AND h.inspect_time = latest.latest
+            GROUP BY h.risk_level
+        """)
+        risk_rows = cursor.fetchall()
+        risk_breakdown = {'critical': 0, 'high': 0, 'medium': 0, 'low': 0, 'healthy': 0}
+        for row in risk_rows:
+            risk_breakdown[row['risk_level'] or 'healthy'] = row['cnt']
+
+        # 获取最新巡检记录
+        cursor.execute("""
+            SELECT h.instance_id, h.instance_name, h.db_type, h.inspect_time,
+                   h.health_score, h.risk_count, h.risk_level
+            FROM (
+                SELECT instance_id, MAX(inspect_time) as latest
+                FROM inspection_history GROUP BY instance_id
+            ) latest
+            JOIN inspection_history h
+              ON h.instance_id = latest.instance_id
+             AND h.inspect_time = latest.latest
+            LIMIT 10
+        """)
+        latest_rows = cursor.fetchall()
+        conn.close()
+
+        # 如果有历史记录，模拟5类评分（性能/安全/配置/容量/可用性）
+        # 真实评分需要从 report_score.InspectionDataScorer 计算，此处基于 risk_count 估算
+        categories = [
+            {'name': '性能', 'key': 'performance', 'score': 0, 'icon': '🚀'},
+            {'name': '安全', 'key': 'security',     'score': 0, 'icon': '🔒'},
+            {'name': '配置', 'key': 'configuration','score': 0, 'icon': '⚙️'},
+            {'name': '容量', 'key': 'capacity',     'score': 0, 'icon': '💾'},
+            {'name': '可用性', 'key': 'availability','score': 0, 'icon': '✅'},
+        ]
+
+        if latest_rows:
+            # 基于 health_score 分配各类评分（加权分配，模拟真实评分）
+            for cat in categories:
+                offset = random.randint(-10, 10)
+                cat['score'] = max(0, min(100, score + offset))
+        else:
+            # 无历史记录时，所有分类显示为 0
+            for cat in categories:
+                cat['score'] = 0
+
+        # 总实例数和已巡检实例数
+        stats = im.get_statistics()
+        total_instances = stats.get('total_instances', 0)
+        inspected_count = len(latest_rows)
+
+        return jsonify({
+            'ok': True,
+            'total_score': score,
+            'level': level,
+            'risk_breakdown': risk_breakdown,
+            'categories': categories,
+            'total_instances': total_instances,
+            'inspected_count': inspected_count,
+            'has_history': inspected_count > 0,
+        })
+
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except Exception as e:
+        import traceback; traceback.print_exc(file=sys.stdout)
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 

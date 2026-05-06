@@ -150,6 +150,8 @@ EN = {
     # Web UI - pages
     "webui.home_title": "Home",
     "webui.home_subtitle": "Database Inspection Tool",
+    "webui.home_health_score": "Health Score",
+    "webui.home_health_score_sub": "Overall Health Status",
     "webui.select_db_type": "Select Database Type",
     "webui.no_matching_datasource": "No matching {} data sources",
     "webui.fill_connection_info": "Database Connection Info",
