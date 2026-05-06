@@ -615,7 +615,7 @@ select option { background: var(--surface2); }
 /* 功能卡片网格 */
 .feature-grid-new {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(5, 1fr);
   gap: 16px;
 }
 .feature-card {
@@ -624,21 +624,15 @@ select option { background: var(--surface2); }
   border-radius: 16px;
   padding: 20px;
   display: flex;
-  align-items: flex-start;
-  gap: 16px;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
   transition: all var(--trans);
 }
 .feature-card:hover {
   border-color: var(--accent2);
   transform: translateY(-2px);
-}
-.feature-card.feature-primary {
-  grid-column: 1 / -1;
-  background: linear-gradient(135deg, rgba(46,160,67,0.15), rgba(56,139,253,0.15));
-  border-color: rgba(46,160,67,0.3);
-}
-.feature-card.feature-primary:hover {
-  border-color: var(--accent);
 }
 .feature-card .fc-icon {
   font-size: 28px;
@@ -649,13 +643,9 @@ select option { background: var(--surface2); }
   justify-content: center;
   background: rgba(255,255,255,0.05);
   border-radius: 12px;
-  flex-shrink: 0;
-}
-.feature-card.feature-primary .fc-icon {
-  background: rgba(46,160,67,0.2);
 }
 .feature-card .fc-content {
-  flex: 1;
+  text-align: center;
 }
 .feature-card .fc-content h3 {
   font-size: 15px;
@@ -667,10 +657,6 @@ select option { background: var(--surface2); }
   font-size: 12px;
   color: var(--text-muted);
   line-height: 1.5;
-}
-.feature-card .btn {
-  flex-shrink: 0;
-  align-self: center;
 }
 
 /* 数据库支持网格 */
@@ -718,7 +704,7 @@ select option { background: var(--surface2); }
 }
 .overview-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 16px;
 }
 .overview-card {
@@ -2024,14 +2010,6 @@ function formatBytes(bytes) {
             <p class="section-desc" data-i18n="webui.home_section_desc">一站式数据库健康巡检解决方案</p>
           </div>
           <div class="feature-grid-new">
-            <div class="feature-card feature-primary">
-              <div class="fc-icon">🚀</div>
-              <div class="fc-content">
-                <h3 data-i18n="webui.home_quick_inspect">快速巡检</h3>
-                <p data-i18n="webui.home_quick_inspect_desc">选择数据库 → 填写连接 → 一键巡检，5 分钟生成完整报告</p>
-              </div>
-              <button class="btn btn-primary" onclick="showPage('wizard')" data-i18n="webui.home_quick_start">立即开始</button>
-            </div>
             <div class="feature-card">
               <div class="fc-icon">🗄️</div>
               <div class="fc-content">
