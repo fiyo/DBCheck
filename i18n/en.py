@@ -2109,4 +2109,23 @@ EN = {
     "webui.rag_doc_ready": "Ready",
     "webui.delete": "Delete",
     "webui.pro_edition_name": "Community Edition",
+
+    # ── AI Chat ──
+    "webui.chat_title": "AI Inspection Assistant",
+    "webui.chat_fab_title": "AI Inspection Assistant",
+    "webui.chat_placeholder": "Enter inspection request...",
+    "webui.chat_welcome": "Hello! I'm the DBCheck AI Inspection Assistant. Tell me which database you want to inspect, for example:<br>• <strong>Inspect connection count for MySQL-01</strong><br>• <strong>Check PostgreSQL lock waits</strong><br>• <strong>Full inspection for Oracle</strong>",
+    "webui.chat_inspecting": "Executing inspection, please wait...",
+    "webui.chat_error_prefix": "❌ ",
+    "webui.chat_hint_datasource": "💡 Hint: Please add this database in \"Datasource Management\" first, or tell me the connection parameters directly (host, port, user, password)",
+    "webui.chat_request_failed": "Request failed: ",
+    "webui.chat_unknown_error": "Unknown error",
+    "webui.chat_network_error": "Network error: ",
+    "webui.chat_inspection_done": "✅ Inspection complete!",
+    "webui.chat_download_report": "📥 Click to download inspection report",
+    "webui.chat_inspection_error": "❌ Error during inspection",
+    "webui.chat_ai_label": "AI",
+    "webui.chat_ask_multiple": "You mentioned a {db_type} database but didn't specify which one. You have {count} {db_type} datasources: {names}. Please tell me which one you want to inspect?",
+    "webui.chat_ask_not_found": "Cannot find a {db_type} datasource named \"{db_name}\". Your {db_type} datasources are: {names}. Please select or tell me the correct name.",
+    "webui.chat_ask_no_name": "Please tell me the name of the database you want to inspect (e.g., MySQL-01), or provide connection parameters (host, port, user, password).",
 }

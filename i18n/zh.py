@@ -2141,4 +2141,23 @@ ZI = {
     "webui.rag_doc_ready": "就绪",
     "webui.delete": "删除",
     "webui.pro_edition_name": "社区版",
+
+    # ── AI Chat ──
+    "webui.chat_title": "AI 巡检助手",
+    "webui.chat_fab_title": "AI 巡检助手",
+    "webui.chat_placeholder": "输入巡检需求...",
+    "webui.chat_welcome": "您好！我是 DBCheck AI 巡检助手。请告诉我您想巡检哪个数据库，例如：<br>• <strong>巡检 MySQL-01 的连接数</strong><br>• <strong>查看 PostgreSQL 的锁等待</strong><br>• <strong>对 Oracle 做完整巡检</strong>",
+    "webui.chat_inspecting": "正在执行巡检，请稍候...",
+    "webui.chat_error_prefix": "❌ ",
+    "webui.chat_hint_datasource": "💡 提示：请先在「数据源管理」中添加该数据库，或直接告诉我连接参数（host、port、user、password）",
+    "webui.chat_request_failed": "请求失败: ",
+    "webui.chat_unknown_error": "未知错误",
+    "webui.chat_network_error": "网络错误: ",
+    "webui.chat_inspection_done": "✅ 巡检完成！",
+    "webui.chat_download_report": "📥 点击下载巡检报告",
+    "webui.chat_inspection_error": "❌ 巡检过程中出现错误",
+    "webui.chat_ai_label": "AI",
+    "webui.chat_ask_multiple": "您提到了 {db_type} 数据库，但未指定具体名称。您有 {count} 个 {db_type} 数据源：{names}。请告诉我具体要巡检哪个？",
+    "webui.chat_ask_not_found": "未找到名为「{db_name}」的 {db_type} 数据源。您有以下 {db_type} 数据源：{names}，请选择或告诉我正确的名称。",
+    "webui.chat_ask_no_name": "请告诉我您要巡检的数据库名称（如 MySQL-01），或者提供连接参数（host、port、user、password）。",
 }

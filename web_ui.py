@@ -195,6 +195,7 @@ def run_mysql_task(task_id, db_info, inspector_name):
         _emit('error', {'msg': _t('webui.err_inspection').format(task='MySQL', e=e)})
         if task:
             task['status'] = 'error'
+            task['error_msg'] = str(e)
 
 def run_pg_task(task_id, db_info, inspector_name):
     emit = socketio.emit
@@ -302,6 +303,7 @@ def run_pg_task(task_id, db_info, inspector_name):
         _emit('error', {'msg': _t('webui.err_inspection').format(task='PostgreSQL', e=e)})
         if task:
             task['status'] = 'error'
+            task['error_msg'] = str(e)
 
 def run_oracle_full_task(task_id, db_info, inspector_name):
     """Oracle 全面巡检（增强版）Web UI 任务"""
@@ -392,6 +394,7 @@ def run_oracle_full_task(task_id, db_info, inspector_name):
         _emit('error', {'msg': _t('webui.err_inspection').format(task='Oracle 全面巡检', e=e)})
         if task:
             task['status'] = 'error'
+            task['error_msg'] = str(e)
 
 
 def run_dm_task(task_id, db_info, inspector_name):
@@ -505,6 +508,7 @@ def run_dm_task(task_id, db_info, inspector_name):
         _emit('error', {'msg': _t('webui.err_inspection').format(task='DM8', e=f"{e}\n{traceback.format_exc()}")})
         if task:
             task['status'] = 'error'
+            task['error_msg'] = str(e)
 
 
 def run_sqlserver_task(task_id, db_info, inspector_name):
@@ -627,6 +631,7 @@ def run_sqlserver_task(task_id, db_info, inspector_name):
         _emit('error', {'msg': _t('webui.err_inspection').format(task='SQL Server', e=f"{e}\n{traceback.format_exc()}")})
         if task:
             task['status'] = 'error'
+            task['error_msg'] = str(e)
 
 # ── TiDB 巡检任务 ──────────────────────────────────────────
 def run_tidb_task(task_id, db_info, inspector_name):
@@ -737,6 +742,7 @@ def run_tidb_task(task_id, db_info, inspector_name):
         _emit('error', {'msg': _t('webui.err_inspection').format(task='TiDB', e=f"{e}\n{traceback.format_exc()}")})
         if task:
             task['status'] = 'error'
+            task['error_msg'] = str(e)
 
 
 # ── 配置基线检查任务 ────────────────────────────────────────
@@ -2109,6 +2115,579 @@ def api_pro_rules_toggle(rule_id):
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
+
+
+# ══════════════════════════════════════════════════════════════
+#  AI 聊天巡检 API
+# ══════════════════════════════════════════════════════════════
+
+def _load_ai_config():
+    """加载 AI 配置"""
+    cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_config.json')
+    if os.path.exists(cfg_path):
+        with open(cfg_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {'backend': 'ollama', 'api_url': 'http://localhost:11434', 'model': 'qwen3:8b', 'timeout': 600}
+
+
+def _call_ollama(prompt: str, system: str = '') -> str:
+    """调用 Ollama API 生成文本"""
+    cfg = _load_ai_config()
+    api_url = cfg.get('api_url', 'http://localhost:11434').rstrip('/')
+    model = cfg.get('model', 'qwen3:8b')
+    timeout = int(cfg.get('timeout', 600))
+
+    url = api_url + '/api/generate'
+    payload = {
+        'model': model,
+        'prompt': prompt,
+        'system': system,
+        'stream': False,
+    }
+    if system:
+        payload['system'] = system
+
+    try:
+        import urllib.request
+        req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'),
+                                    headers={'Content-Type': 'application/json'})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            result = json.loads(resp.read().decode('utf-8'))
+            return result.get('response', '').strip()
+    except Exception as e:
+        return f'[Ollama 调用失败: {e}]'
+
+
+def parse_intent(user_message: str) -> dict:
+    """解析用户意图，返回结构化信息"""
+    system_prompt = """你是一个数据库巡检助手。用户会用自然语言描述巡检需求。
+请从用户输入中提取以下字段，以 JSON 格式输出：
+{
+  "db_type": "mysql|pg|oracle|dm|sqlserver|tidb|unknown",
+  "db_name": "数据源名称（如 MySQL-01）或空字符串",
+  "scope": "connection_count|lock_wait|slow_queries|all",
+  "need_report": true或false
+}
+只输出 JSON，不要输出其他内容。"""
+
+    prompt = f'输入："{user_message}"'
+    response = _call_ollama(prompt, system_prompt)
+
+    # 解析 JSON
+    try:
+        # 尝试提取 JSON
+        import re
+        match = re.search(r'\{[^{}]*\}', response, re.DOTALL)
+        if match:
+            data = json.loads(match.group())
+        else:
+            data = json.loads(response)
+
+        # 标准化返回值
+        db_type = data.get('db_type', 'unknown')
+        if db_type == 'postgresql':
+            db_type = 'pg'
+        elif db_type == 'sqlserver':
+            db_type = 'sqlserver'
+
+        scope = data.get('scope', 'all')
+        need_report = data.get('need_report', scope == 'all')
+
+        return {
+            'db_type': db_type,
+            'db_name': data.get('db_name', ''),
+            'scope': scope,
+            'need_report': need_report,
+            'raw': data,
+        }
+    except Exception:
+        # 解析失败，返回默认值
+        return {
+            'db_type': 'unknown',
+            'db_name': '',
+            'scope': 'all',
+            'need_report': True,
+            'raw': {},
+        }
+
+
+def list_instances_by_type(db_type: str):
+    """列出指定 db_type 的所有数据源（名称列表）"""
+    try:
+        from pro import get_instance_manager
+        im = get_instance_manager()
+        instances = im.get_all_instances(mask_password=False)
+        return [inst.get('name', '') for inst in instances if inst.get('db_type') == db_type]
+    except Exception:
+        return []
+
+
+def match_datasource(db_name: str):
+    """从 Pro InstanceManager 按名称匹配数据源，返回解密后的连接信息"""
+    try:
+        from pro import get_instance_manager
+        im = get_instance_manager()
+        instances = im.get_all_instances(mask_password=False)
+
+        if not db_name:
+            return None
+
+        # 模糊匹配（忽略大小写）
+        db_name_lower = db_name.lower()
+        matched_inst = None
+        for inst in instances:
+            if inst.get('name', '').lower() == db_name_lower:
+                matched_inst = inst
+                break
+            if db_name_lower in inst.get('name', '').lower():
+                matched_inst = inst
+                break
+
+        if not matched_inst:
+            return None
+
+        # 通过 ID 获取解密后的完整信息（包含解密后的密码）
+        inst_id = matched_inst.get('id')
+        if inst_id:
+            decrypted = im.get_instance_decrypted(inst_id)
+            if decrypted:
+                return decrypted
+
+        return matched_inst
+    except Exception:
+        return None
+
+
+def execute_simple_query(db_info: dict, db_type: str, scope: str) -> str:
+    """执行简单查询，返回格式化文本"""
+    results = []
+
+    try:
+        if db_type == 'mysql':
+            import pymysql
+            conn = pymysql.connect(
+                host=db_info.get('host', ''),
+                port=int(db_info.get('port', 3306)),
+                user=db_info.get('user', ''),
+                password=db_info.get('password', ''),
+                charset='utf8mb4',
+                connect_timeout=10
+            )
+            cur = conn.cursor()
+
+            if scope == 'connection_count':
+                cur.execute("SHOW STATUS LIKE 'Threads_connected'")
+                row = cur.fetchone()
+                results.append(f'当前连接数: {row[1] if row else "未知"}')
+
+                cur.execute("SHOW STATUS LIKE 'Max_used_connections'")
+                row = cur.fetchone()
+                results.append(f'历史最大连接数: {row[1] if row else "未知"}')
+
+                cur.execute("SHOW VARIABLES LIKE 'max_connections'")
+                row = cur.fetchone()
+                results.append(f'最大连接数限制: {row[1] if row else "未知"}')
+
+            elif scope == 'slow_queries':
+                cur.execute("SHOW GLOBAL VARIABLES LIKE 'slow_query_log'")
+                row = cur.fetchone()
+                results.append(f'慢查询日志: {"开启" if row and row[1] == "ON" else "关闭"}')
+
+                cur.execute("SHOW GLOBAL STATUS LIKE 'Slow_queries'")
+                row = cur.fetchone()
+                results.append(f'慢查询数量: {row[1] if row else "0"}')
+
+                cur.execute("SHOW GLOBAL VARIABLES LIKE 'long_query_time'")
+                row = cur.fetchone()
+                results.append(f'慢查询阈值: {row[1] if row else "10"} 秒')
+
+            elif scope == 'lock_wait':
+                cur.execute("SHOW ENGINE INNODB STATUS")
+                row = cur.fetchone()
+                if row:
+                    status = row[2] if len(row) > 2 else ''
+                    # 提取锁等待信息
+                    import re
+                    lock_match = re.search(r'(\d+) lock struct.*?(\d+) row lock', status, re.I)
+                    if lock_match:
+                        results.append(f'InnoDB 锁结构数: {lock_match.group(1)}')
+                        results.append(f'InnoDB 行锁数: {lock_match.group(2)}')
+                    else:
+                        results.append('未检测到锁等待')
+
+            cur.close()
+            conn.close()
+
+        elif db_type == 'pg':
+            import psycopg2
+            conn = psycopg2.connect(
+                host=db_info.get('host', ''),
+                port=int(db_info.get('port', 5432)),
+                user=db_info.get('user', ''),
+                password=db_info.get('password', ''),
+                database=db_info.get('database', 'postgres'),
+                connect_timeout=10
+            )
+            cur = conn.cursor()
+
+            if scope == 'connection_count':
+                cur.execute("SELECT count(*) FROM pg_stat_activity WHERE state = 'active'")
+                row = cur.fetchone()
+                results.append(f'当前活跃连接数: {row[0] if row else 0}')
+
+                cur.execute("SELECT setting FROM pg_settings WHERE name = 'max_connections'")
+                row = cur.fetchone()
+                results.append(f'最大连接数限制: {row[0] if row else "未知"}')
+
+                cur.execute("SELECT count(*) FROM pg_stat_activity")
+                row = cur.fetchone()
+                results.append(f'总连接数: {row[0] if row else 0}')
+
+            elif scope == 'slow_queries':
+                cur.execute("SHOW log_min_duration_statement")
+                row = cur.fetchone()
+                results.append(f'慢查询阈值: {row[0] if row else "未设置"}')
+
+            elif scope == 'lock_wait':
+                cur.execute("""SELECT l.pid, l.mode, l.granted, a.datname, a.query
+                                FROM pg_locks l
+                                JOIN pg_stat_activity a ON l.pid = a.pid
+                                WHERE NOT l.granted""")
+                rows = cur.fetchall()
+                if rows:
+                    results.append(f'等待中的锁: {len(rows)} 个')
+                    for row in rows[:5]:
+                        results.append(f'  PID {row[0]}: {row[1]} - {row[3]}')
+                else:
+                    results.append('未检测到锁等待')
+
+            cur.close()
+            conn.close()
+
+        elif db_type == 'oracle':
+            try:
+                import oracledb
+                conn = oracledb.connect(
+                    user=db_info.get('user', ''),
+                    password=db_info.get('password', ''),
+                    host=db_info.get('host', ''),
+                    port=int(db_info.get('port', 1521)),
+                    service_name=db_info.get('service_name') or db_info.get('sid', 'orcl')
+                )
+                cur = conn.cursor()
+
+                if scope == 'connection_count':
+                    cur.execute("SELECT count(*) FROM v$session WHERE status = 'ACTIVE'")
+                    row = cur.fetchone()
+                    results.append(f'当前活跃会话数: {row[0] if row else 0}')
+
+                    cur.execute("SELECT value FROM v$parameter WHERE name = 'sessions'")
+                    row = cur.fetchone()
+                    results.append(f'最大会话数限制: {row[0] if row else "未知"}')
+
+                elif scope == 'lock_wait':
+                    cur.execute("""SELECT s.sid, s.serial#, l.type, l.lmode, l.request
+                                    FROM v$session s, v$lock l
+                                    WHERE s.sid = l.sid AND l.request > 0""")
+                    rows = cur.fetchall()
+                    if rows:
+                        results.append(f'等待中的锁: {len(rows)} 个')
+                        for row in rows[:5]:
+                            results.append(f'  SID {row[0]}: {row[2]} (mode={row[3]})')
+                    else:
+                        results.append('未检测到锁等待')
+
+                cur.close()
+                conn.close()
+            except Exception as e:
+                results.append(f'Oracle 连接失败: {e}')
+
+        elif db_type == 'dm':
+            try:
+                import dmPython
+                conn = dmPython.connect(
+                    user=db_info.get('user', ''),
+                    password=db_info.get('password', ''),
+                    server=db_info.get('host', ''),
+                    port=int(db_info.get('port', 5236))
+                )
+                cur = conn.cursor()
+
+                if scope == 'connection_count':
+                    cur.execute("SELECT COUNT(*) FROM V$INSTANCE")
+                    row = cur.fetchone()
+                    results.append(f'达梦实例: {"正常" if row and row[0] > 0 else "异常"}')
+
+                    cur.execute("SELECT COUNT(*) FROM V$SESSIONS")
+                    row = cur.fetchone()
+                    results.append(f'当前会话数: {row[0] if row else 0}')
+
+                cur.close()
+                conn.close()
+            except Exception as e:
+                results.append(f'达梦连接失败: {e}')
+
+        elif db_type == 'sqlserver':
+            try:
+                import pyodbc
+                conn_str = (
+                    f"DRIVER={{ODBC Driver 17 for SQL Server}};"
+                    f"SERVER={db_info.get('host')},{db_info.get('port', 1433)};"
+                    f"UID={db_info.get('user', '')};"
+                    f"PWD={db_info.get('password', '')};"
+                    f"TrustServerCertificate=yes;Encrypt=yes;"
+                )
+                conn = pyodbc.connect(conn_str, timeout=10)
+                cur = conn.cursor()
+
+                if scope == 'connection_count':
+                    cur.execute("SELECT count(*) FROM sys.dm_exec_sessions WHERE is_user_process = 1")
+                    row = cur.fetchone()
+                    results.append(f'当前用户会话数: {row[0] if row else 0}')
+
+                    cur.execute("SELECT value FROM sys.configurations WHERE name = 'user connections'")
+                    row = cur.fetchone()
+                    results.append(f'最大连接数配置: {row[0] if row else "动态"}')
+
+                elif scope == 'lock_wait':
+                    cur.execute("""SELECT r.session_id, r.blocking_session_id, t.text
+                                    FROM sys.dm_exec_requests r
+                                    CROSS APPLY sys.dm_exec_sql_text(r.sql_handle) t
+                                    WHERE r.blocking_session_id > 0""")
+                    rows = cur.fetchall()
+                    if rows:
+                        results.append(f'阻塞会话: {len(rows)} 个')
+                        for row in rows[:5]:
+                            results.append(f'  Session {row[0]} 被 {row[1]} 阻塞')
+                    else:
+                        results.append('未检测到阻塞')
+
+                cur.close()
+                conn.close()
+            except Exception as e:
+                results.append(f'SQL Server 连接失败: {e}')
+
+        elif db_type == 'tidb':
+            import pymysql
+            conn = pymysql.connect(
+                host=db_info.get('host', ''),
+                port=int(db_info.get('port', 4000)),
+                user=db_info.get('user', ''),
+                password=db_info.get('password', ''),
+                charset='utf8mb4',
+                connect_timeout=10
+            )
+            cur = conn.cursor()
+
+            if scope == 'connection_count':
+                cur.execute("SHOW STATUS LIKE 'Threads_connected'")
+                row = cur.fetchone()
+                results.append(f'当前连接数: {row[1] if row else "未知"}')
+
+            cur.close()
+            conn.close()
+
+    except Exception as e:
+        results.append(f'查询执行失败: {e}')
+
+    if not results:
+        return '未获取到数据'
+
+    return '\n'.join(results)
+
+
+@app.route('/api/chat', methods=['POST'])
+def api_chat():
+    """处理自然语言巡检请求"""
+    try:
+        data = request.get_json() or {}
+        message = data.get('message', '')
+
+        if not message:
+            return jsonify({'ok': False, 'type': 'error', 'message': '请输入巡检需求'})
+
+        # 1. 解析意图
+        intent = parse_intent(message)
+        db_type = intent.get('db_type', 'unknown')
+        db_name = intent.get('db_name', '')
+        scope = intent.get('scope', 'all')
+        need_report = intent.get('need_report', scope == 'all')
+
+        # 2. 匹配数据源
+        ds = None
+        matched_name = None  # 记录实际匹配到的数据源名称
+
+        if db_name:
+            ds = match_datasource(db_name)
+            matched_name = db_name
+
+        # 如果名称匹配失败，尝试按 db_type 筛选
+        if not ds and db_type != 'unknown' and db_type:
+            candidates = list_instances_by_type(db_type)
+            if len(candidates) == 1:
+                # 只有一个，直接选
+                ds = match_datasource(candidates[0])
+                matched_name = candidates[0]
+            elif len(candidates) > 1:
+                # 多个候选，询问用户
+                names_str = '、'.join(candidates)
+                return jsonify({
+                    'ok': False,
+                    'type': 'ask',
+                    'message': _t('webui.chat_ask_multiple').format(
+                        db_type=db_type.upper(), count=len(candidates), names=names_str),
+                    'intent': intent,
+                    'candidates': candidates,
+                    'db_type': db_type,
+                })
+
+        if not ds:
+            # 尝试从请求体获取连接参数
+            ds = {
+                'host': data.get('host', ''),
+                'port': data.get('port', 3306),
+                'user': data.get('user', ''),
+                'password': data.get('password', ''),
+                'database': data.get('database', ''),
+                'service_name': data.get('service_name', ''),
+                'sid': data.get('sid', ''),
+            }
+
+        # 如果既没有匹配到数据源，也没有提供连接信息，返回提示
+        if not ds or not ds.get('host'):
+            # 如果 db_name 不为空但匹配失败，列出同类型数据源
+            if db_name and db_type != 'unknown' and db_type:
+                candidates = list_instances_by_type(db_type)
+                if candidates:
+                    names_str = '、'.join(candidates)
+                    return jsonify({
+                        'ok': False,
+                        'type': 'ask',
+                        'message': _t('webui.chat_ask_not_found').format(
+                            db_name=db_name, db_type=db_type.upper(), names=names_str),
+                        'intent': intent,
+                        'candidates': candidates,
+                        'db_type': db_type,
+                    })
+            return jsonify({
+                'ok': False,
+                'type': 'error',
+                'message': _t('webui.chat_ask_no_name'),
+                'intent': intent,
+            })
+
+        # 3. 根据 scope 执行查询或启动巡检
+        if scope in ('connection_count', 'lock_wait', 'slow_queries') and not need_report:
+            # 简单查询，直接返回文本
+            result = execute_simple_query(ds, db_type, scope)
+            return jsonify({
+                'ok': True,
+                'type': 'text',
+                'message': result,
+                'intent': intent,
+            })
+        else:
+            # 全库巡检，启动任务
+            task_id = str(uuid.uuid4())
+
+            # 构建 db_info 格式（与现有逻辑一致）
+            db_info = {
+                'ip': ds.get('host', ''),
+                'port': int(ds.get('port', 3306)),
+                'user': ds.get('user', ''),
+                'password': ds.get('password', ''),
+                'database': ds.get('database') or ('postgres' if db_type == 'pg' else ('DAMENG' if db_type == 'dm' else '')),
+                'service_name': ds.get('service_name') or ds.get('sid'),
+                'name': ds.get('name', db_name or ds.get('host', '')),
+            }
+
+            inspector_name = data.get('inspector_name', 'Jack')
+
+            tasks[task_id] = {
+                'id': task_id,
+                'db_type': db_type,
+                'db_info': db_info,
+                'inspector': inspector_name,
+                'status': 'running',
+                'started_at': datetime.datetime.now().isoformat(),
+            }
+
+            # 启动巡检线程
+            task_func_map = {
+                'mysql': run_mysql_task,
+                'pg': run_pg_task,
+                'oracle_full': run_oracle_full_task,
+                'dm': run_dm_task,
+                'sqlserver': run_sqlserver_task,
+                'tidb': run_tidb_task,
+            }
+            task_func = task_func_map.get(db_type, run_mysql_task)
+            t = threading.Thread(target=task_func, args=(task_id, db_info, inspector_name))
+            t.daemon = True
+            t.start()
+
+            return jsonify({
+                'ok': True,
+                'type': 'report',
+                'task_id': task_id,
+                'message': f'已启动 {db_name or db_type} 的巡检任务，请稍候...',
+                'intent': intent,
+                'matched_datasource': {
+                    'name': ds.get('name', ''),
+                    'host': ds.get('host', ''),
+                    'port': ds.get('port', ''),
+                    'db_type': db_type,
+                },
+            })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc(file=sys.stdout)
+        return jsonify({'ok': False, 'type': 'error', 'message': f'处理失败: {e}'})
+
+
+@app.route('/api/chat/task/<task_id>')
+def api_chat_task_status(task_id):
+    """查询聊天巡检任务状态"""
+    task = tasks.get(task_id)
+    if not task:
+        return jsonify({'ok': False, 'error': '任务不存在'}), 404
+
+    offset = int(request.args.get('offset', 0))
+    log_list = task.get('log', [])
+
+    result = {
+        'ok': True,
+        'status': task.get('status', 'running'),
+        'log': log_list[offset:],
+        'offset': len(log_list),
+    }
+
+    # 如果任务完成，添加报告信息
+    if task.get('status') == 'done' and task.get('report_file'):
+        result['report_file'] = task.get('report_file')
+        result['report_name'] = task.get('report_name', 'report.docx')
+
+    # 如果任务出错，附加错误信息
+    if task.get('status') == 'error' and task.get('error_msg'):
+        result['error_msg'] = task.get('error_msg')
+
+    return jsonify(result)
+
+
+# ══════════════════════════════════════════════════════════════
+#  SocketIO 事件
+# ══════════════════════════════════════════════════════════════
+
+@socketio.on('connect')
+def on_connect():
+    pass
+
+@socketio.on('join')
+def on_join(data):
+    task_id = data.get('task_id')
+    if task_id:
+        socketio.emit('log', {'msg': _t('webui.ws_connected_waiting').format(ts=_ts())})
 
 
 if __name__ == '__main__':
