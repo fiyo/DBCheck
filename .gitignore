@@ -27,7 +27,8 @@ dbc_config.json
 flask.log
 dbcheck_article_v*.md
 history.db
-
+RELEASE_*.md
+article_*.md
 # Pro license activation
 license.key
 license.key.bak
