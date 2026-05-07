@@ -119,7 +119,7 @@ a = Analysis(
         'main_dm',
         'main_tidb',
         'web_ui',
-        # ── 定时巡检 & 通知（v2.4.0 新增）────────────────────
+        # ── 定时巡检 & 通知（v2.4.0+ 新增）────────────────────
         'scheduler',
         'notifier',
         'run_inspection',
@@ -135,7 +135,7 @@ a = Analysis(
         'pytz',
         'pytz.exceptions',
         'pytz.tzinfo',
-        # ── Pro 插件模块（v2.4.0 新增）─────────────────────
+        # ── Pro 插件模块（v2.4.0+ 新增）─────────────────────
         'pro',
         'pro.instance_manager',
         'pro.rule_engine',
@@ -145,7 +145,7 @@ a = Analysis(
         'i18n',
         'i18n.zh',
         'i18n.en',
-        # ── RAG 知识库模块（v2.4.0 新增）─────────────────
+        # ── RAG 知识库模块（v2.4.0+ 新增）─────────────────
         'rag',
         'rag.manager',
         'rag.document_processor',
