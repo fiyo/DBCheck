@@ -194,6 +194,7 @@ class InstanceManager:
                 risk_level TEXT,
                 report_path TEXT,
                 duration REAL,
+                auto_analyze TEXT,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -497,22 +498,32 @@ class InstanceManager:
         risk_count: int,
         risk_level: str,
         report_path: str,
-        duration: float
+        duration: float,
+        auto_analyze: Optional[List[Dict]] = None
     ) -> Dict[str, Any]:
         """记录巡检历史"""
         conn = sqlite3.connect(self.db_file)
         cursor = conn.cursor()
 
+        # 确保 auto_analyze 字段存在
         try:
+            cursor.execute("ALTER TABLE inspection_history ADD COLUMN auto_analyze TEXT")
+        except Exception:
+            pass
+
+        try:
+            auto_analyze_json = json.dumps(auto_analyze, ensure_ascii=False) if auto_analyze else None
+
             # 插入历史记录
             cursor.execute("""
                 INSERT INTO inspection_history
                 (instance_id, instance_name, db_type, inspect_time, health_score,
-                 risk_count, risk_level, report_path, duration)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 risk_count, risk_level, report_path, duration, auto_analyze)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 instance_id, instance_name, db_type, datetime.now().isoformat(),
-                health_score, risk_count, risk_level, report_path, duration
+                health_score, risk_count, risk_level, report_path, duration,
+                auto_analyze_json
             ))
 
             # 更新趋势数据

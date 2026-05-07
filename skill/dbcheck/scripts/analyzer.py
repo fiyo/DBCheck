@@ -58,6 +58,16 @@ def smart_analyze_mysql(context: dict) -> list:
             return data[0].get(sub, default)
         return default
 
+    def _mysql_version() -> int:
+        """返回 MySQL 主版本号（5 或 8），用于版本差异化处理"""
+        ver_str = _val('myversion', 'version', '')
+        if not ver_str or ver_str == 'Unknown':
+            return 5  # 默认保守假设
+        try:
+            return int(ver_str.split('.')[0])
+        except Exception:
+            return 5
+
     def _int(v, default=0):
         try:
             return int(str(v).replace(',', ''))
@@ -122,14 +132,35 @@ def smart_analyze_mysql(context: dict) -> list:
         })
 
     # ── 5. binlog 过期时间 ───────────────────────────────
+    mysql_ver = _mysql_version()
     expire_days = _int(_val('expire_logs_days'), -1)
-    if expire_days == 0:
-        issues.append({
-            'col1': 'binlog 永不过期', 'col2': '中风险',
-            'col3': 'expire_logs_days=0 表示 binlog 永不自动清理，可能导致磁盘耗尽',
-            'col4': '中', 'col5': 'DBA',
-            'fix_sql': "SET GLOBAL expire_logs_days = 7;"
-        })
+    expire_seconds = _int(_val('binlog_expire_logs_seconds'), -1)
+
+    if mysql_ver >= 8:
+        # MySQL 8.x: expire_logs_days 已移除，使用 binlog_expire_logs_seconds（单位：秒）
+        if expire_seconds <= 0:
+            issues.append({
+                'col1': 'binlog 永不过期', 'col2': '中风险',
+                'col3': 'binlog_expire_logs_seconds 未设置或为 0，binlog 永不自动清理，可能导致磁盘耗尽',
+                'col4': '中', 'col5': 'DBA',
+                'fix_sql': "SET GLOBAL binlog_expire_logs_seconds = 604800;  -- 7天 = 604800秒"
+            })
+    else:
+        # MySQL 5.x: 使用 expire_logs_days（单位：天）
+        if expire_days == 0:
+            issues.append({
+                'col1': 'binlog 永不过期', 'col2': '中风险',
+                'col3': 'expire_logs_days=0 表示 binlog 永不自动清理，可能导致磁盘耗尽',
+                'col4': '中', 'col5': 'DBA',
+                'fix_sql': "SET GLOBAL expire_logs_days = 7;  -- MySQL 5.x"
+            })
+        elif expire_days < 0:
+            issues.append({
+                'col1': 'binlog 过期未配置', 'col2': '中风险',
+                'col3': 'expire_logs_days 未设置，binlog 将永不清理，建议设置合理的保留天数',
+                'col4': '中', 'col5': 'DBA',
+                'fix_sql': "SET GLOBAL expire_logs_days = 7;  -- MySQL 5.x"
+            })
 
     # ── 6. InnoDB 缓冲池大小 ─────────────────────────────
     buf_val = _val('innodb_buffer_pool_size')
@@ -151,17 +182,18 @@ def smart_analyze_mysql(context: dict) -> list:
                 'fix_sql': '-- 建议修改 my.cnf：\n-- innodb_buffer_pool_size = 4G  # 根据实际内存调整\n-- 或在线调整（MySQL 5.7+）：\nSET GLOBAL innodb_buffer_pool_size = 4294967296;  -- 4G'
             })
 
-    # ── 7. 查询缓存（MySQL 8.0 已废弃） ─────────────────
-    query_cache = context.get('query_cache', [])
-    for row in query_cache:
-        if row.get('Variable_name') == 'query_cache_type' and str(row.get('Value', '')).upper() == 'ON':
-            issues.append({
-                'col1': '查询缓存已开启（不建议）', 'col2': '建议',
-                'col3': 'query_cache 在高并发场景下会造成严重锁竞争，MySQL 8.0 已彻底移除，建议关闭',
-                'col4': '低', 'col5': 'DBA',
-                'fix_sql': "SET GLOBAL query_cache_type = 0;\nSET GLOBAL query_cache_size = 0;"
-            })
-            break
+    # ── 7. 查询缓存（仅 MySQL 5.x，MySQL 8.0 已彻底移除） ──
+    if mysql_ver < 8:
+        query_cache = context.get('query_cache', [])
+        for row in query_cache:
+            if row.get('Variable_name') == 'query_cache_type' and str(row.get('Value', '')).upper() == 'ON':
+                issues.append({
+                    'col1': '查询缓存已开启（不建议）', 'col2': '建议',
+                    'col3': 'query_cache 在高并发场景下会造成严重锁竞争，MySQL 8.0 已彻底移除该特性，建议关闭',
+                    'col4': '低', 'col5': 'DBA',
+                    'fix_sql': "SET GLOBAL query_cache_type = 0;\nSET GLOBAL query_cache_size = 0;"
+                })
+                break
 
     # ── 8. 表锁等待比例 ──────────────────────────────────
     immediate = _int(_val('table_locks_immediate'))

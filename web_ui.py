@@ -12,6 +12,12 @@ DBCheck Web UI - Flask 应用
 数据库巡检工具 Web 界面
 """
 import os, sys, threading, datetime, json, uuid, time, re, random, sqlite3
+
+# ── 确保项目根目录在 sys.path（支持各种启动方式）──────────────────
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+if _script_dir not in sys.path:
+    sys.path.insert(0, _script_dir)
+
 from flask import Flask, request, jsonify, render_template, Response, send_file
 from version import __version__
 from flask_socketio import SocketIO, emit
@@ -56,6 +62,10 @@ def escHtml(s):
         .replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
         .replace('"','&quot;').replace("'",'&#39;'))
 
+def get_task(task_id: str) -> dict:
+    """获取任务信息"""
+    return tasks.get(task_id)
+
 def format_bytes(n):
     try:
         n = int(n)
@@ -68,6 +78,46 @@ def format_bytes(n):
 def get_reports():
     reports_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reports')
     reports = []
+    # 读取 pro_history.db 中的风险统计，key 为报告文件名
+    risk_map = {}
+    try:
+        import sqlite3
+        pro_db = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pro_data', 'pro_history.db')
+        if os.path.isfile(pro_db):
+            conn = sqlite3.connect(pro_db)
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='inspection_history'")
+            if cursor.fetchone():
+                cursor.execute("SELECT report_path, auto_analyze, health_score, risk_count, risk_level FROM inspection_history")
+                for row in cursor.fetchall():
+                    report_path, auto_analyze_json, health_score, risk_count, risk_level = row
+                    if report_path:
+                        fname = os.path.basename(report_path)
+                        high = mid = low = 0
+                        if auto_analyze_json:
+                            try:
+                                import json as _json
+                                items = _json.loads(auto_analyze_json)
+                                for it in items:
+                                    lvl = str(it.get('col4', '') or it.get('col2', ''))
+                                    if '高' in lvl or 'high' in lvl.lower():
+                                        high += 1
+                                    elif '中' in lvl or 'mid' in lvl.lower():
+                                        mid += 1
+                                    else:
+                                        low += 1
+                            except Exception:
+                                pass
+                        risk_map[fname] = {
+                            'high': high, 'mid': mid, 'low': low,
+                            'health_score': health_score,
+                            'risk_level': risk_level,
+                            'auto_analyze': auto_analyze_json
+                        }
+            conn.close()
+    except Exception:
+        pass
+
     if os.path.isdir(reports_dir):
         try:
             files = [f for f in os.listdir(reports_dir)
@@ -78,13 +128,22 @@ def get_reports():
             fp = os.path.join(reports_dir, f)
             try:
                 size = os.path.getsize(fp)
-                mtime = os.path.getmtime(fp)   # Unix 时间戳（秒），前端负责格式化
+                mtime = os.path.getmtime(fp)
             except Exception:
                 continue
             db_type = 'DM8' if 'DM8' in f or '达梦' in f else \
                       'Oracle' if 'Oracle' in f else \
                       'PostgreSQL' if 'PG' in f or 'PostgreSQL' in f else 'MySQL'
-            reports.append({'name': f, 'size': size, 'mtime': mtime, 'db_type': db_type})
+            stats = risk_map.get(f, {})
+            reports.append({
+                'name': f, 'size': size, 'mtime': mtime, 'db_type': db_type,
+                'high': stats.get('high', 0),
+                'mid': stats.get('mid', 0),
+                'low': stats.get('low', 0),
+                'health_score': stats.get('health_score'),
+                'risk_level': stats.get('risk_level', ''),
+                'auto_analyze': stats.get('auto_analyze', '')
+            })
     return {'files': reports}
 
 # ── 巡检任务 ───────────────────────────────────────────────
@@ -171,6 +230,17 @@ def run_mysql_task(task_id, db_info, inspector_name):
             raise RuntimeError(_t('webui.err_report_generate'))
         _emit('log', {'msg': _t('webui.log_report_ok').format(fname=file_name)})
 
+        # ── 智能分析（生成修复建议）────────────────────────────
+        try:
+            from analyzer import smart_analyze_mysql
+            auto_analyze = smart_analyze_mysql(ret)
+            if task:
+                task['auto_analyze'] = auto_analyze
+            _emit('log', {'msg': f"[智能分析] 完成，发现 {len(auto_analyze)} 个可优化项"})
+        except Exception as e:
+            auto_analyze = []
+            _emit('log', {'msg': f"[警告] 智能分析失败: {e}"})
+
         if task:
             task['status'] = 'done'
             task['report_file'] = ofile
@@ -238,7 +308,8 @@ def run_mysql_task(task_id, db_info, inspector_name):
                 risk_count=risk_count,
                 risk_level=risk_level,
                 report_path=ofile,
-                duration=0  # 暂不计算耗时
+                duration=0,  # 暂不计算耗时
+                auto_analyze=auto_analyze if auto_analyze else []
             )
         except Exception as e:
             _emit('log', {'msg': f"[警告] Pro 巡检记录保存失败: {e}"})
@@ -332,6 +403,17 @@ def run_pg_task(task_id, db_info, inspector_name):
             raise RuntimeError(_t('webui.err_report_generate'))
         _emit('log', {'msg': _t('webui.log_report_ok').format(fname=file_name)})
 
+        # ── 智能分析（生成修复建议）────────────────────────────
+        try:
+            from analyzer import smart_analyze_pg
+            auto_analyze = smart_analyze_pg(ret)
+            if task:
+                task['auto_analyze'] = auto_analyze
+            _emit('log', {'msg': f"[智能分析] 完成，发现 {len(auto_analyze)} 个可优化项"})
+        except Exception as e:
+            auto_analyze = []
+            _emit('log', {'msg': f"[警告] 智能分析失败: {e}"})
+
         if task:
             task['status'] = 'done'
             task['report_file'] = ofile
@@ -395,7 +477,8 @@ def run_pg_task(task_id, db_info, inspector_name):
                 risk_count=risk_count,
                 risk_level=risk_level,
                 report_path=ofile,
-                duration=0
+                duration=0,
+                auto_analyze=auto_analyze if auto_analyze else []
             )
         except Exception as e:
             _emit('log', {'msg': f"[警告] Pro 巡检记录保存失败: {e}"})
@@ -485,9 +568,63 @@ def run_oracle_full_task(task_id, db_info, inspector_name):
 
         builtins.print = _web_print
         try:
-            mod.single_inspection(args)
+            context = mod.single_inspection(args)
         finally:
             builtins.print = _orig_print
+        # ── 智能分析 ────────────────────────────────────────
+        try:
+            from analyzer import smart_analyze_oracle
+            auto_analyze = smart_analyze_oracle(context) if context else []
+            if task:
+                task['auto_analyze'] = auto_analyze
+            _emit('log', {'msg': "[智能分析] 完成，发现 %d 个可优化项" % len(auto_analyze)})
+        except Exception as e:
+            auto_analyze = []
+            _emit('log', {'msg': "[警告] 智能分析失败: %s" % str(e)})
+
+        # ── 保存巡检记录到 Pro 模块 ──────────────────────
+        try:
+            from pro import get_instance_manager
+            health_score = 85
+            risk_count = len(auto_analyze) if auto_analyze else 0
+            for a in auto_analyze:
+                if '高风险' in str(a.get('col2', '')):
+                    health_score -= 20
+                elif '中风险' in str(a.get('col2', '')):
+                    health_score -= 10
+            health_score = max(0, min(100, health_score))
+            # 计算风险等级
+            if health_score >= 85:
+                risk_level = 'healthy'
+            elif health_score >= 70:
+                risk_level = 'low'
+            elif health_score >= 50:
+                risk_level = 'medium'
+            elif health_score >= 30:
+                risk_level = 'high'
+            else:
+                risk_level = 'critical'
+
+            im = get_instance_manager()
+            db_label = db_info.get('name') or "Oracle_%s" % db_info['ip']
+            # 生成实例ID
+            import hashlib
+            raw = f"oracle-{db_info.get('host', db_info['ip'])}-{db_info.get('port', 1521)}".encode()
+            instance_id = hashlib.md5(raw).hexdigest()[:12]
+            im.record_inspection(
+                instance_id=instance_id,
+                instance_name=db_label,
+                db_type='oracle_full',
+                health_score=health_score,
+                risk_count=risk_count,
+                risk_level=risk_level,
+                report_path='',
+                duration=0,
+                auto_analyze=auto_analyze if auto_analyze else []
+            )
+            _emit('log', {'msg': "[记录] 巡检记录已保存"})
+        except Exception as e:
+            _emit('log', {'msg': "[警告] 巡检记录保存失败: %s" % str(e)})
 
         if task:
             task['status'] = 'done'
@@ -583,6 +720,17 @@ def run_dm_task(task_id, db_info, inspector_name):
             raise RuntimeError(_t('webui.err_report_failed'))
         _emit('log', {'msg': _t('webui.log_report_done').format(ts=_ts(), fname=os.path.basename(ofile))})
 
+        # ── 智能分析（生成修复建议）────────────────────────────
+        try:
+            from analyzer import smart_analyze_dm
+            auto_analyze = smart_analyze_dm(context)
+            if task:
+                task['auto_analyze'] = auto_analyze
+            _emit('log', {'msg': f"[智能分析] 完成，发现 {len(auto_analyze)} 个可优化项"})
+        except Exception as e:
+            auto_analyze = []
+            _emit('log', {'msg': f"[警告] 智能分析失败: {e}"})
+
         if task:
             task['status'] = 'done'
             task['report_name'] = os.path.basename(ofile)
@@ -646,7 +794,8 @@ def run_dm_task(task_id, db_info, inspector_name):
                 risk_count=risk_count,
                 risk_level=risk_level,
                 report_path=ofile,
-                duration=0
+                duration=0,
+                auto_analyze=auto_analyze if auto_analyze else []
             )
         except Exception as e:
             _emit('log', {'msg': f"[警告] Pro 巡检记录保存失败: {e}"})
@@ -755,6 +904,17 @@ def run_sqlserver_task(task_id, db_info, inspector_name):
 
         _emit('log', {'msg': _t('webui.log_report_done').format(ts=_ts(), fname=os.path.basename(ofile))})
 
+        # ── 智能分析（生成修复建议）────────────────────────────
+        try:
+            from analyzer import smart_analyze_sqlserver
+            auto_analyze = smart_analyze_sqlserver(inspector.data)
+            if task:
+                task['auto_analyze'] = auto_analyze
+            _emit('log', {'msg': f"[智能分析] 完成，发现 {len(auto_analyze)} 个可优化项"})
+        except Exception as e:
+            auto_analyze = []
+            _emit('log', {'msg': f"[警告] 智能分析失败: {e}"})
+
         if task:
             task['status'] = 'done'
             task['report_name'] = os.path.basename(ofile)
@@ -818,7 +978,8 @@ def run_sqlserver_task(task_id, db_info, inspector_name):
                 risk_count=risk_count,
                 risk_level=risk_level,
                 report_path=ofile,
-                duration=0
+                duration=0,
+                auto_analyze=auto_analyze if auto_analyze else []
             )
         except Exception as e:
             _emit('log', {'msg': f"[警告] Pro 巡检记录保存失败: {e}"})
@@ -915,6 +1076,16 @@ def run_tidb_task(task_id, db_info, inspector_name):
         if not savedoc.contextsave():
             raise RuntimeError(_t('webui.err_report_generate'))
         _emit('log', {'msg': _t('webui.log_report_ok').format(fname=file_name)})
+
+        # ── 智能分析（生成修复建议）────────────────────────────
+        try:
+            from analyzer import smart_analyze_tidb
+            auto_analyze = smart_analyze_tidb(ret)
+            if task:
+                task['auto_analyze'] = auto_analyze
+            _emit('log', {'msg': f"[智能分析] 完成，发现 {len(auto_analyze)} 个可优化项"})
+        except Exception as e:
+            _emit('log', {'msg': f"[警告] 智能分析失败: {e}"})
 
         if task:
             task['status'] = 'done'
@@ -1574,12 +1745,13 @@ def api_start_inspection():
 
         task_id = str(uuid.uuid4())
         tasks[task_id] = {
-            'id':          task_id,
-            'db_type':     db_type,
-            'db_info':     db_info,
-            'inspector':   inspector_name,
-            'status':      'running',
-            'started_at':  datetime.datetime.now().isoformat()
+            'id':            task_id,
+            'db_type':       db_type,
+            'db_info':       db_info,
+            'datasource_id': data.get('datasource_id') or None,
+            'inspector':     inspector_name,
+            'status':        'running',
+            'started_at':    datetime.datetime.now().isoformat()
         }
         t = threading.Thread(target={
             'mysql':      run_mysql_task,
@@ -1688,6 +1860,7 @@ def api_task_status(task_id):
         'status': task.get('status', 'running'),
         'log': log_list[offset:],
         'offset': len(log_list),
+        'auto_analyze': task.get('auto_analyze', []),
     })
 
 
@@ -1730,9 +1903,14 @@ def api_scheduler_add():
         if not cron:
             return jsonify({'ok': False, 'error': 'Cron expression required'}), 400
 
-        # 如果指定了数据源，只保存 datasource_id（密码在执行时解密）
+        # 如果指定了数据源，检查 Pro 模块是否可用
         datasource_id = data.get('datasource_id')
         if datasource_id:
+            try:
+                from pro import get_instance_manager
+            except ImportError:
+                return jsonify({'ok': False, 'error': '使用数据源需要安装 Pro 模块，请先安装 Pro 版本'}), 400
+
             job_cfg = {
                 'id': job_id,
                 'name': data.get('name', '定时巡检'),
@@ -2457,6 +2635,399 @@ def api_pro_rules_toggle(rule_id):
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
+# ══════════════════════════════════════════════════════════════
+#  SQL 执行 API（一键修复）
+# ══════════════════════════════════════════════════════════════
+
+# SQL 执行日志表（记录所有执行操作）
+_SQL_EXEC_LOG_TABLE_CREATED = False
+
+def _ensure_sql_exec_log_table():
+    """确保 SQL 执行日志表存在"""
+    global _SQL_EXEC_LOG_TABLE_CREATED
+    if _SQL_EXEC_LOG_TABLE_CREATED:
+        return
+
+    try:
+        from pro import get_instance_manager
+        im = get_instance_manager()
+        # 使用 pro.db
+        db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pro_data', 'pro.db')
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS sql_execution_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                datasource_id TEXT NOT NULL,
+                datasource_name TEXT,
+                sql_text TEXT NOT NULL,
+                affected_rows INTEGER DEFAULT 0,
+                execution_time REAL,
+                status TEXT DEFAULT 'success',
+                error_message TEXT,
+                executed_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                client_ip TEXT
+            )
+        """)
+        conn.commit()
+        conn.close()
+        _SQL_EXEC_LOG_TABLE_CREATED = True
+    except Exception as e:
+        print(f"[SQL Exec Log] 创建日志表失败: {e}")
+
+
+def _log_sql_execution(datasource_id: str, datasource_name: str, sql: str,
+                       affected: int, exec_time: float, status: str,
+                       error: str = None):
+    """记录 SQL 执行日志"""
+    _ensure_sql_exec_log_table()
+
+    try:
+        db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pro_data', 'pro.db')
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO sql_execution_log
+            (datasource_id, datasource_name, sql_text, affected_rows,
+             execution_time, status, error_message, client_ip)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (datasource_id, datasource_name, sql, affected, exec_time,
+              status, error, request.remote_addr if request else 'unknown'))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[SQL Exec Log] 记录日志失败: {e}")
+
+
+def _translate_error(error_msg: str, db_type: str) -> str:
+    """
+    将数据库原始错误转换为友好中文提示
+    """
+    error_lower = error_msg.lower()
+
+    # MySQL 常见错误
+    if db_type in ('mysql', 'tidb'):
+        # Unknown thread id
+        if 'unknown thread id' in error_lower:
+            return '该线程不存在或已结束，无需 KILL'
+        # 外键约束
+        if 'cannot delete' in error_lower or 'foreign key constraint' in error_lower:
+            return '无法删除：该记录被其他数据引用，请先删除关联数据'
+        if 'cannot add' in error_lower and 'foreign key constraint' in error_lower:
+            return '无法添加：关联数据不存在'
+        # 权限不足
+        if 'access denied' in error_lower:
+            return '权限不足，请使用有权限的用户连接'
+        # 连接错误
+        if 'connect' in error_lower and ('timeout' in error_lower or 'refused' in error_lower):
+            return '无法连接到数据库，请检查连接信息'
+        # 语法错误
+        if 'syntax' in error_lower:
+            return f'SQL 语法错误：{error_msg}'
+
+    # PostgreSQL 常见错误
+    elif db_type in ('postgresql', 'pg'):
+        if 'permission denied' in error_lower:
+            return '权限不足，请使用有权限的用户操作'
+        if 'connection' in error_lower and ('timeout' in error_lower or 'refused' in error_lower):
+            return '无法连接到数据库，请检查连接信息'
+        if 'syntax error' in error_lower:
+            return f'SQL 语法错误：{error_msg}'
+        if 'foreign key constraint' in error_lower:
+            return '无法操作：该记录被其他数据引用'
+
+    # Oracle 常见错误
+    elif db_type in ('oracle', 'oracle_full'):
+        if 'ora-00054' in error_lower:
+            return '资源正忙，该对象被锁定了'
+        if 'ora-00001' in error_lower:
+            return '唯一约束冲突，数据已存在'
+        if 'ora-00942' in error_lower:
+            return '表或视图不存在'
+        if 'ora-01031' in error_lower:
+            return '权限不足'
+        if 'connection' in error_lower:
+            return '无法连接到数据库，请检查连接信息'
+
+    # SQL Server 常见错误
+    elif db_type == 'sqlserver':
+        if 'permission' in error_lower:
+            return '权限不足，请使用有权限的用户操作'
+        if 'connection' in error_lower:
+            return '无法连接到数据库，请检查连接信息'
+        if 'syntax' in error_lower:
+            return f'SQL 语法错误：{error_msg}'
+
+    # DM 达梦数据库
+    elif db_type == 'dm':
+        if 'permission denied' in error_lower:
+            return '权限不足，请使用有权限的用户操作'
+        if 'connection' in error_lower:
+            return '无法连接到数据库，请检查连接信息'
+        if 'syntax error' in error_lower:
+            return f'SQL 语法错误：{error_msg}'
+
+    # 默认返回原始错误
+    return error_msg
+
+
+def _detect_dangerous_sql(sql: str) -> tuple:
+    """
+    检测危险 SQL 操作
+    返回: (is_dangerous: bool, warning_message: str)
+    """
+    sql_upper = sql.upper().strip()
+
+    # 危险操作关键词
+    dangerous_keywords = {
+        'DROP': '删除对象（表/库/索引等）',
+        'TRUNCATE': '清空表数据',
+        'DELETE': '删除数据',
+        'GRANT': '授权操作',
+        'REVOKE': '撤销权限',
+        'ALTER USER': '修改用户',
+        'DROP USER': '删除用户',
+        'SHUTDOWN': '关闭数据库',
+    }
+
+    for keyword, desc in dangerous_keywords.items():
+        # 检查是否包含关键词（避免误判，要求前面不是字母）
+        pattern = r'(^|\W)' + keyword.replace(' ', r'\s+') + r'(\W|$)'
+        if re.search(pattern, sql_upper):
+            return True, f'检测到危险操作: {keyword}（{desc}）'
+
+    return False, ''
+
+
+@app.route('/api/inspection/execute-sql', methods=['POST'])
+def api_inspection_execute_sql():
+    """
+    执行修复 SQL
+    参数:
+        - datasource_id: 数据源 ID
+        - sql: 要执行的 SQL
+        - confirm: 是否已确认危险操作（可选）
+    """
+    try:
+        from pro import get_instance_manager
+        im = get_instance_manager()
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+
+    data = request.get_json()
+    datasource_id = data.get('datasource_id', '')
+    sql = data.get('sql', '').strip()
+    confirm = data.get('confirm', False)
+
+    # 1. 参数校验
+    if not datasource_id:
+        return jsonify({'ok': False, 'error': '数据源 ID 不能为空'})
+    if not sql:
+        return jsonify({'ok': False, 'error': 'SQL 不能为空'})
+
+    # 2. 危险操作检测
+    is_dangerous, warning_msg = _detect_dangerous_sql(sql)
+    if is_dangerous and not confirm:
+        return jsonify({
+            'ok': False,
+            'need_confirm': True,
+            'warning': warning_msg + '，请确认是否继续执行。'
+        })
+
+    # 3. 获取数据源连接信息
+    db_info = im.get_instance_decrypted(datasource_id)
+    if not db_info:
+        return jsonify({'ok': False, 'error': '数据源不存在'})
+
+    db_type = db_info.get('db_type', '').lower()
+    datasource_name = db_info.get('name', datasource_id)
+
+    # 4. 执行 SQL
+    start_time = time.time()
+    affected = 0
+    status = 'success'
+    error_msg = None
+
+    try:
+        def _split_sql(sql_str):
+            """按分号拆分为单条语句，跳过空语句"""
+            parts = sql_str.split(';')
+            result = []
+            for p in parts:
+                p = p.strip()
+                if p:
+                    result.append(p)
+            return result
+
+        if db_type == 'mysql' or db_type == 'tidb':
+            import pymysql
+            conn = pymysql.connect(
+                host=db_info.get('host', ''),
+                port=int(db_info.get('port', 3306)),
+                user=db_info.get('user', ''),
+                password=db_info.get('password', ''),
+                charset='utf8mb4',
+                connect_timeout=10
+            )
+            cursor = conn.cursor()
+            statements = _split_sql(sql)
+            total_affected = 0
+            for stmt in statements:
+                cursor.execute(stmt)
+                total_affected += cursor.rowcount
+            conn.commit()
+            affected = total_affected
+            cursor.close()
+            conn.close()
+
+        elif db_type == 'postgresql' or db_type == 'pg':
+            import psycopg2
+            conn = psycopg2.connect(
+                host=db_info.get('host', ''),
+                port=int(db_info.get('port', 5432)),
+                user=db_info.get('user', ''),
+                password=db_info.get('password', ''),
+                database=db_info.get('database', 'postgres'),
+                connect_timeout=10
+            )
+            cursor = conn.cursor()
+            statements = _split_sql(sql)
+            total_affected = 0
+            for stmt in statements:
+                cursor.execute(stmt)
+                total_affected += cursor.rowcount
+            conn.commit()
+            affected = total_affected
+            cursor.close()
+            conn.close()
+
+        elif db_type == 'oracle' or db_type == 'oracle_full':
+            import oracledb
+            dsn = db_info.get('service_name') or f"{db_info.get('host')}:{db_info.get('port')}/orcl"
+            mode = oracledb.SYSDBA if db_info.get('sysdba') else oracledb.DEFAULT_MODE
+            conn = oracledb.connect(
+                user=db_info.get('user', ''),
+                password=db_info.get('password', ''),
+                dsn=dsn,
+                mode=mode
+            )
+            cursor = conn.cursor()
+            statements = _split_sql(sql)
+            total_affected = 0
+            for stmt in statements:
+                cursor.execute(stmt)
+                total_affected += cursor.rowcount
+            conn.commit()
+            affected = total_affected
+            cursor.close()
+            conn.close()
+
+        elif db_type == 'sqlserver':
+            import pyodbc
+            driver = '{ODBC Driver 17 for SQL Server}'
+            dsn_str = f"DRIVER={driver};SERVER={db_info.get('host')},{db_info.get('port')};DATABASE=master;UID={db_info.get('user')};PWD={db_info.get('password')}"
+            conn = pyodbc.connect(dsn_str, timeout=30)
+            cursor = conn.cursor()
+            statements = _split_sql(sql)
+            total_affected = 0
+            for stmt in statements:
+                cursor.execute(stmt)
+                total_affected += cursor.rowcount
+            conn.commit()
+            affected = total_affected
+            cursor.close()
+            conn.close()
+
+        elif db_type == 'dm':
+            import dmPython
+            conn = dmPython.connect(
+                user=db_info.get('user', ''),
+                password=db_info.get('password', ''),
+                server=db_info.get('host', ''),
+                port=int(db_info.get('port', 5236))
+            )
+            cursor = conn.cursor()
+            statements = _split_sql(sql)
+            total_affected = 0
+            for stmt in statements:
+                cursor.execute(stmt)
+                total_affected += cursor.rowcount
+            conn.commit()
+            affected = total_affected
+            cursor.close()
+            conn.close()
+
+        else:
+            return jsonify({'ok': False, 'error': f'不支持的数据库类型: {db_type}'})
+
+        exec_time = time.time() - start_time
+
+        # 5. 记录执行日志
+        _log_sql_execution(datasource_id, datasource_name, sql, affected, exec_time, status)
+
+        return jsonify({
+            'ok': True,
+            'affected': affected,
+            'exec_time': round(exec_time, 2),
+            'message': f'执行成功，影响 {affected} 行'
+        })
+
+    except Exception as e:
+        exec_time = time.time() - start_time
+        status = 'failed'
+        error_msg = str(e)
+
+        # 转换为友好错误提示
+        friendly_msg = _translate_error(error_msg, db_type)
+
+        # 记录失败日志
+        _log_sql_execution(datasource_id, datasource_name, sql, affected, exec_time, status, error_msg)
+
+        return jsonify({'ok': False, 'error': friendly_msg})
+
+
+@app.route('/api/inspection/sql-logs', methods=['GET'])
+def api_inspection_sql_logs():
+    """获取 SQL 执行日志"""
+    try:
+        db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pro_data', 'pro.db')
+        if not os.path.exists(db_path):
+            return jsonify({'ok': True, 'logs': []})
+
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, datasource_id, datasource_name, sql_text, affected_rows,
+                   execution_time, status, error_message, executed_at, client_ip
+            FROM sql_execution_log
+            ORDER BY executed_at DESC
+            LIMIT 100
+        """)
+        rows = cursor.fetchall()
+        conn.close()
+
+        logs = []
+        for row in rows:
+            logs.append({
+                'id': row[0],
+                'datasource_id': row[1],
+                'datasource_name': row[2],
+                'sql_text': row[3],
+                'affected_rows': row[4],
+                'execution_time': row[5],
+                'status': row[6],
+                'error_message': row[7],
+                'executed_at': row[8],
+                'client_ip': row[9]
+            })
+
+        return jsonify({'ok': True, 'logs': logs})
+
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)})
+
 
 # ══════════════════════════════════════════════════════════════
 #  AI 聊天巡检 API
@@ -3014,6 +3585,64 @@ def api_chat_task_status(task_id):
         result['error_msg'] = task.get('error_msg')
 
     return jsonify(result)
+
+
+# ══════════════════════════════════════════════════════════════
+#  巡检结果 API
+# ══════════════════════════════════════════════════════════════
+
+@app.route('/api/inspection/<task_id>/datasource', methods=['GET'])
+def api_inspection_datasource(task_id):
+    """获取巡检任务的数据源信息"""
+    try:
+        from pro import get_instance_manager
+        im = get_instance_manager()
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+
+    # 获取任务信息
+    task = get_task(task_id)
+    if not task:
+        return jsonify({'ok': False, 'error': '任务不存在'})
+
+    datasource_id = task.get('datasource_id')
+    if not datasource_id:
+        return jsonify({'ok': False, 'error': '任务无数据源信息'})
+
+    # 获取数据源详情
+    datasource = im.get_instance_decrypted(datasource_id)
+    if not datasource:
+        return jsonify({'ok': False, 'error': '数据源不存在'})
+
+    return jsonify({
+        'ok': True,
+        'datasource_id': datasource_id,
+        'datasource': {
+            'name': datasource.get('name', ''),
+            'db_type': datasource.get('db_type', ''),
+            'host': datasource.get('host', ''),
+            'port': datasource.get('port', 0)
+        }
+    })
+
+
+@app.route('/api/inspection/<task_id>/issues', methods=['GET'])
+def api_inspection_issues(task_id):
+    """获取巡检发现的问题列表（含 fix_sql）"""
+    try:
+        from pro import get_instance_manager
+        im = get_instance_manager()
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+
+    # 获取任务信息
+    task = get_task(task_id)
+    if not task:
+        return jsonify({'ok': False, 'error': '任务不存在'})
+
+    # 从任务上下文中获取 issues
+    issues = task.get('auto_analyze', [])
+    return jsonify({'ok': True, 'issues': issues})
 
 
 # ══════════════════════════════════════════════════════════════

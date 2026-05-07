@@ -72,6 +72,69 @@ body {
   100% { width: 200px; height: 200px; opacity: 0; }
 }
 
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
+
 /* 水印字样 */
 @keyframes watermarkFade {
   0%   { opacity: 0; }
@@ -79,6 +142,69 @@ body {
   60% { opacity: 1; }
   100%{ opacity: 0; }
 }
+
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
 
 .watermark {
   position: absolute;
@@ -889,9 +1015,220 @@ select option { background: var(--surface2); }
   #confirm-panel > div[style*="1fr 1fr"] { grid-template-columns: 1fr 1fr; }
 }
 
+/* ─── 问题列表样式 ─── */
+.issues-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+.issue-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  transition: border-color var(--trans);
+}
+.issue-card:hover {
+  border-color: var(--accent2);
+}
+.issue-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.severity-tag {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.severity-high { background: rgba(248,81,73,.15); color: #f85149; }
+.severity-mid  { background: rgba(255,193,7,.15); color: #e3b341; }
+.severity-low  { background: rgba(46,160,67,.15); color: #2ea043; }
+.issue-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  flex: 1;
+}
+.issue-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin-top: 4px;
+  margin-bottom: 8px;
+}
+.fix-sql-box {
+  margin-top: 10px;
+  background: rgba(56,139,253,.06);
+  border: 1px solid rgba(56,139,253,.2);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.fix-sql-header {
+  padding: 8px 12px;
+  background: rgba(56,139,253,.1);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent2);
+  border-bottom: 1px solid rgba(56,139,253,.15);
+}
+.fix-sql-code {
+  margin: 0;
+  padding: 12px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+  background: transparent;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.fix-sql-actions {
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid rgba(56,139,253,.1);
+}
+.fix-sql-actions .btn {
+  padding: 6px 14px;
+  font-size: 12px;
+}
+
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
+
 @media (max-width: 900px) {
   #confirm-panel > div[style*="1fr 1fr"] { grid-template-columns: 1fr; }
 }
+
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
 
 @media (max-width: 760px) {
   .sidebar { width: 200px; }
@@ -905,12 +1242,75 @@ select option { background: var(--surface2); }
   .report-list { grid-template-columns: 1fr; }
 }
 
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
+
 /* ── Toast 通知 ──────────────────────────────── */
 #toast-container {
   position: fixed;
   top: 20px;
   right: 20px;
-  z-index: 9999;
+  z-index: 999999;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -944,10 +1344,136 @@ select option { background: var(--surface2); }
   from { transform: translateX(110%); opacity: 0; }
   to   { transform: translateX(0);   opacity: 1; }
 }
+
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
 @keyframes toastOut {
   from { transform: translateX(0);   opacity: 1; }
   to   { transform: translateX(110%); opacity: 0; }
 }
+
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
 
 /* 响应式布局 */
 @media (max-width: 900px) {
@@ -958,6 +1484,69 @@ select option { background: var(--surface2); }
     grid-template-columns: repeat(3, 1fr);
   }
 }
+
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
 @media (max-width: 600px) {
   .db-support-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -972,22 +1561,85 @@ select option { background: var(--surface2); }
   }
 }
 
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
+
 /* ─── AI Chat Sidebar ─── */
 #ai-chat-sidebar {
-  position: fixed;
-  right: -420px;
-  top: 0;
-  width: 400px;
-  height: 100vh;
-  background: var(--surface);
-  border-left: 1px solid var(--border);
-  z-index: 200;
-  display: flex;
-  flex-direction: column;
-  transition: right 0.3s ease;
-  box-shadow: -4px 0 20px rgba(0,0,0,0.3);
+  position: fixed !important;
+  right: -420px !important;
+  top: 0 !important;
+  width: 400px !important;
+  height: 100vh !important;
+  background: var(--surface) !important;
+  border-left: 1px solid var(--border) !important;
+  z-index: 99999 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  transition: right 0.3s ease !important;
+  box-shadow: -4px 0 20px rgba(0,0,0,0.3) !important;
 }
-#ai-chat-sidebar.open { right: 0; }
+#ai-chat-sidebar.open { right: 0 !important; }
 
 /* 聊天头部 */
 .chat-header {
@@ -1128,7 +1780,7 @@ select option { background: var(--surface2); }
   color: #fff;
   font-size: 24px;
   cursor: pointer;
-  z-index: 150;
+  z-index: 99998;
   box-shadow: 0 4px 16px rgba(46,160,67,0.4);
   display: flex;
   align-items: center;
@@ -1169,13 +1821,142 @@ select option { background: var(--surface2); }
   30% { transform: translateY(-6px); opacity: 1; }
 }
 
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
+
 /* 移动端适配 */
 @media (max-width: 500px) {
   #ai-chat-sidebar {
     width: 100%;
     right: -100%;
   }
+  #ai-chat-sidebar.open {
+    right: 0;
+  }
 }
+
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
 /* 健康评分仪表盘卡片 */
 .health-dashboard {
   display: flex;
@@ -1301,7 +2082,7 @@ select option { background: var(--surface2); }
 (function(){
 var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
   var el = document.createElement('div');
-  el.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:1;overflow:hidden';
+  el.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:1;overflow:hidden';
   document.body.appendChild(el);
 
   // 创建水波纹（HTML + CSS 动画，位置与水印重合）
@@ -1379,6 +2160,69 @@ async function loadRagDocuments() {
   } catch(e) { console.error('loadRagDocuments failed', e); }
 }
 
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
+
 
 
 async function uploadRagDocument() {
@@ -1414,6 +2258,69 @@ async function uploadRagDocument() {
   } catch(e) { status.style.background = '#ffebee'; status.style.color = '#c62828'; status.textContent = (i18n('webui.rag_upload_fail') || '上传失败：{}').replace('{}', e.message); }
 }
 
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
+
 async function deleteRagDocument(docId, title) {
   if (!await toastConfirm((i18n('webui.rag_delete_confirm') || '确定删除「{}」？').replace('{}', title))) return;
   try {
@@ -1422,6 +2329,69 @@ async function deleteRagDocument(docId, title) {
     if (data.ok) { toastSuccess(i18n('webui.rag_delete_ok')); loadRagDocuments(); } else { toastError((i18n('webui.rag_delete_fail') || 'Delete failed') + ': ' + (data.error || '')); }
   } catch(e) { toastError(i18n('webui.rag_delete_fail').replace('{}', e.message)); }
 }
+
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
 
 async function checkRagOllama() {
   const status = document.getElementById('rag-ollama-status');
@@ -1441,6 +2411,69 @@ async function checkRagOllama() {
     }
   } catch(e) { status.style.background = '#ffebee'; status.style.color = '#c62828'; status.textContent = '检查失败: ' + e.message; }
 }
+
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
 
 function formatBytes(bytes) {
   if (bytes === 0) return '0 B';
@@ -1518,8 +2551,8 @@ function formatBytes(bytes) {
       function showConfirmModal(title, message, onConfirm) {
         document.getElementById('confirm-modal-backdrop')?.remove();
         window._confirmCallback = onConfirm;
-        const html = '<div id="confirm-modal-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9998;display:flex;align-items:center;justify-content:center">' +
-          '<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;min-width:320px;max-width:400px;z-index:9999">' +
+        const html = '<div id="confirm-modal-backdrop" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:999999;display:flex;align-items:center;justify-content:center">' +
+          '<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;min-width:320px;max-width:400px;z-index:999999">' +
             '<div style="font-size:15px;font-weight:600;margin-bottom:12px">' + title + '</div>' +
             '<div style="font-size:13px;color:var(--text-muted);margin-bottom:20px">' + message + '</div>' +
             '<div style="display:flex;justify-content:flex-end;gap:10px">' +
@@ -1562,8 +2595,8 @@ function formatBytes(bytes) {
 
       async function showAddGroupModalFromDatasource() {
         document.getElementById('group-modal-backdrop')?.remove();
-        const html = '<div id="group-modal-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9998;display:flex;align-items:center;justify-content:center">' +
-          '<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;min-width:320px;max-width:400px;z-index:9999">' +
+        const html = '<div id="group-modal-backdrop" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:999999;display:flex;align-items:center;justify-content:center">' +
+          '<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;min-width:320px;max-width:400px;z-index:999999">' +
             '<div style="font-size:15px;font-weight:600;margin-bottom:16px">' + i18n('webui.group_create_title') + '</div>' +
             '<div style="display:grid;gap:12px">' +
               '<div><label style="font-size:12px;color:var(--text-muted)">' + i18n('webui.group_name_label') + '</label>' +
@@ -1613,8 +2646,8 @@ function formatBytes(bytes) {
         const isEdit = !!existingDs;
         const modalTitle = isEdit ? i18n('webui.pro_datasource_edit_title') : i18n('webui.pro_datasource_add_title');
         const saveBtnText = isEdit ? i18n('webui.pro_datasource_save_update') : i18n('webui.pro_datasource_save_create');
-        const html = '<div id="datasource-modal-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9998;display:flex;align-items:center;justify-content:center">' +
-          '<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;min-width:420px;max-width:520px;z-index:9999">' +
+        const html = '<div id="datasource-modal-backdrop" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:999999;display:flex;align-items:center;justify-content:center">' +
+          '<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;min-width:420px;max-width:520px;z-index:999999">' +
             '<div style="font-size:15px;font-weight:600;margin-bottom:16px">' + modalTitle + '</div>' +
             '<div style="display:grid;gap:12px">' +
               '<div><label style="font-size:12px;color:var(--text-muted)">' + i18n('webui.pro_ds_db_type_req') + '</label>' +
@@ -2857,6 +3890,69 @@ async function initI18N() {
   } catch(e) { console.error('i18n load failed', e); }
 }
 
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
+
 function i18n(key) {
   return I18N[key] || key;
 }
@@ -2897,6 +3993,69 @@ async function toggleLang() {
     toastError('Language switch failed: ' + e.message);
   }
 }
+
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
 
 // ─── Page Navigation ───
 function showPage(name) {
@@ -3026,6 +4185,69 @@ async function loadDatasourcesForSelect() {
   } catch (e) { console.error('loadDatasourcesForSelect failed', e); }
 }
 
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
+
 function onDatasourceChange() {
   const dsId = document.getElementById('f-datasource').value;
   if (!dsId) { resetFormFromDatasource(); return; }
@@ -3140,6 +4362,69 @@ async function testDb() {
   }
 }
 
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
+
 // ─── Test DB (定时巡检页) ───
 async function testJobDb() {
   const el = document.getElementById('job-test-status');
@@ -3171,6 +4456,69 @@ async function testJobDb() {
   }
 }
 
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
+
 // ─── SSH Toggle ───
 function toggleSsh() {
   sshEnabled = !sshEnabled;
@@ -3182,6 +4530,69 @@ function toggleSsh() {
     document.getElementById('f-ssh-host').value = document.getElementById('f-host').value;
   }
 }
+
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
 
 function onSshAuthChange() {
   const mode = document.getElementById('f-ssh-auth').value;
@@ -3213,6 +4624,69 @@ async function testSsh() {
     el.innerHTML = `<div class="status-banner err">${i18n('webui.ssh_test_fail')} ${escHtml(e.message)}</div>`;
   }
 }
+
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
 
 // ─── Confirm Panel ───
 function fillConfirmPanel() {
@@ -3293,6 +4767,86 @@ async function startInspection() {
   }
 }
 
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
+
+// ─── Utility Functions ───
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+}
+
+function escapeJs(str) {
+  if (!str) return '';
+  return str.replace(/\\/g, '\\\\')
+            .replace(/`/g, '\\`')
+            .replace(/\${/g, '\\${');
+}
+
 // ─── Poll Status ───
 function pollStatus() {
   if (pollTimer) clearTimeout(pollTimer);
@@ -3333,17 +4887,49 @@ function pollStatus() {
 
         // 智能分析摘要
         let analyzeHtml = '';
-        const issues = data.auto_analyze || [];
-        const highRisk = issues.filter(i => i.col2 === i18n('webui.risk_high')).length;
-        const midRisk  = issues.filter(i => i.col2 === i18n('webui.risk_mid')).length;
+        let issues = data.auto_analyze || [];
+        // 如果 auto_analyze 是 JSON 字符串，则解析它
+        if (typeof issues === 'string') {
+          try { issues = JSON.parse(issues); } catch(e) { issues = []; }
+        }
         if (issues.length > 0) {
+          // 统计风险等级
+          let highCnt = 0, midCnt = 0;
+          for (let i=0; i < issues.length; i++) {
+            const c = (issues[i].col2||'');
+            if (c.indexOf('高')>=0 || c.toLowerCase().indexOf('high')>=0) highCnt++;
+            else if (c.indexOf('中')>=0 || c.toLowerCase().indexOf('mid')>=0) midCnt++;
+          }
           analyzeHtml = `
-          <div class="result-card" style="border-left:3px solid ${highRisk > 0 ? '#f44336' : midRisk > 0 ? '#ff9800' : '#4caf50'}">
-            <div class="ri">${highRisk > 0 ? '🔴' : midRisk > 0 ? '🟡' : '🟢'}</div>
+          <div class="result-card" style="border-left:3px solid ${highCnt>0?'#f44336':midCnt>0?'#ff9800':'#4caf50'}">
+            <div class="ri">${highCnt>0?'🔴':midCnt>0?'🟡':'🟢'}</div>
             <div class="rd">
               <h3>${i18n('webui.analyze_issues').replace('{}', issues.length)}</h3>
-              <p>${i18n('webui.risk_high')} ${highRisk} · ${i18n('webui.risk_mid')} ${midRisk} · ${i18n('webui.risk_low')} ${issues.length - highRisk - midRisk}</p>
+              <p>高风险 ${highCnt} · 中风险 ${midCnt} · 低风险 ${issues.length-highCnt-midCnt}</p>
             </div>
+          </div>
+          <div class="issues-list" style="margin-top:16px">
+            ${issues.map(issue => {
+              const c2 = (issue.col2||'');
+              const cls = c2.indexOf('高')>=0||c2.toLowerCase().indexOf('high')>=0?'severity-high':c2.indexOf('中')>=0||c2.toLowerCase().indexOf('mid')>=0?'severity-mid':'severity-low';
+              return `
+              <div class="issue-card">
+                <div class="issue-header">
+                  <span class="severity-tag ${cls}">${c2}</span>
+                  <span class="issue-title">${issue.col1||''}</span>
+                </div>
+                <div class="issue-desc">${issue.col3||''}</div>
+                ${(issue.fix_sql||'').trim()?`
+                  <div class="fix-sql-box">
+                    <div class="fix-sql-header"><span>修复建议 SQL：</span></div>
+                    <pre class="fix-sql-code">${escapeHtml(issue.fix_sql)}</pre>
+                    <div class="fix-sql-actions">
+                      <button class="btn btn-ghost btn-sm" data-sql="${encodeURIComponent(issue.fix_sql||'')}" onclick="copyFixSql(decodeURIComponent(this.dataset.sql))">📋 复制 SQL</button>
+                      <button class="btn btn-primary btn-sm" data-task="${currentTaskId}" data-sql="${encodeURIComponent(issue.fix_sql||'')}" onclick="executeFixSql(this.dataset.task, decodeURIComponent(this.dataset.sql))">▶ 在线执行</button>
+                    </div>
+                  </div>`:''}
+              </div>`;
+            }).join('')}
           </div>`;
         }
 
@@ -3356,12 +4942,12 @@ function pollStatus() {
           if (isError) {
             aiHtml = `<div style="padding:12px 16px;background:#fff3cd;border:1px solid #ffc107;border-radius:8px;font-size:13px;color:#856404">
               🤖 ${i18n('webui.ai_error_title')}<br>
-              <span style="font-size:12px;color:#85640499">${escHtml(ai.trim().split('\n').slice(-3).join(' '))}</span>
+              <span style="font-size:12px;color:#85640499">${escapeHtml(ai.trim().split('\n').slice(-3).join(' '))}</span>
               <div style="margin-top:8px;font-size:12px;color:#85640499">${i18n('webui.ai_error_hint')}</div>
             </div>`;
           } else {
           // 正常渲染内容：处理段落、bullet 列表、编号列表、标题
-          const lines = escHtml(ai).split('\n');
+          const lines = escapeHtml(ai).split('\n');
           let inUl = false, inOl = false;
           let html = '';
           for (let line of lines) {
@@ -3463,14 +5049,27 @@ async function loadReports() {
       const tagHtml = isMySQL ? '<span class="tag tag-mysql">' + i18n('webui.db_type_mysql') + '</span>' : isPG ? '<span class="tag tag-pg">' + i18n('webui.db_type_pg') + '</span>' : isOracle ? '<span class="tag tag-oracle">' + i18n('webui.db_type_oracle') + '</span>' : isDM ? '<span class="tag tag-dm">' + i18n('webui.db_type_dm') + '</span>' : isSQLServer ? '<span class="tag tag-sqlserver">' + i18n('webui.db_type_sqlserver') + '</span>' : isTiDB ? '<span class="tag tag-tidb">' + i18n('webui.db_type_tidb') + '</span>' : '';
       const size = f.size > 1024*1024 ? (f.size/1024/1024).toFixed(1)+' MB' : (f.size/1024).toFixed(1)+' KB';
       const dt = new Date(f.mtime*1000).toLocaleString('zh-CN');
+      const high = f.high || 0;
+      const mid = f.mid || 0;
+      const low = f.low || 0;
+      const total = high + mid + low;
+      const riskBadges = total > 0
+        ? '<span class="severity-tag severity-high" style="margin-left:8px;font-size:11px;padding:2px 7px">🔴 高 '+high+'</span><span class="severity-tag severity-mid" style="margin-left:4px;font-size:11px;padding:2px 7px">🟡 中 '+mid+'</span><span class="severity-tag severity-low" style="margin-left:4px;font-size:11px;padding:2px 7px">🟢 低 '+low+'</span>'
+        : '<span style="margin-left:8px;font-size:12px;color:var(--text-muted)">— 无问题</span>';
+      // auto_analyze 使用 base64 编码传递，避免 JSON 特殊字符破坏 HTML
+      const autoAnalyzeB64 = btoa(unescape(encodeURIComponent(f.auto_analyze || '[]')));
+      const issueBtn = total > 0
+        ? '<button class="btn btn-ghost" style="font-size:12px;padding:6px 12px;margin-left:4px" onclick="showReportIssues(\'' + escHtml(f.name).replace(/'/g, "\\'") + '\', \'' + autoAnalyzeB64 + '\')">📋 问题列表</button>'
+        : '';
       return `
         <div class="report-item">
           <div class="ri-icon">📄</div>
           <div class="ri-info">
-            <div class="ri-name">${escHtml(f.name)} ${tagHtml}</div>
+            <div class="ri-name">${escHtml(f.name)} ${tagHtml} ${riskBadges}</div>
             <div class="ri-meta">${dt} · ${size}</div>
           </div>
-          <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+          <div style="display:flex;gap:4px;align-items:center;flex-shrink:0">
+            ${issueBtn}
             <a class="btn btn-ghost" style="font-size:12px;padding:7px 14px"
                href="/api/download_file?name=${encodeURIComponent(f.name)}" download>${i18n('webui.btn_download_report')}</a>
             <button class="btn btn-danger" style="font-size:12px;padding:7px 12px" onclick="deleteReport('${escHtml(f.name).replace(/'/g, "\\'")}')">${i18n('webui.btn_delete_report')}</button>
@@ -3481,6 +5080,119 @@ async function loadReports() {
     list.innerHTML = `<div class="status-banner err">${i18n('webui.reports_load_fail')}: ${escHtml(e.message)}</div>`;
   }
 }
+
+// ─── 历史报告问题列表弹窗 ───────────────────────────────────
+function showReportIssues(filename, autoAnalyzeB64) {
+  document.getElementById('report-issues-modal')?.remove();
+  let issues = [];
+  try {
+    // 解码 base64
+    const autoAnalyzeJson = decodeURIComponent(escape(atob(autoAnalyzeB64)));
+    issues = JSON.parse(autoAnalyzeJson);
+  } catch(e) {
+    issues = [];
+  }
+  if (!issues || issues.length === 0) {
+    showConfirmModal('📋 问题列表', '<p style="color:var(--text-muted);text-align:center;padding:20px">该报告暂无问题数据</p>', () => {});
+    return;
+  }
+  const html = `
+  <div id="report-issues-modal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:999999;display:flex;align-items:center;justify-content:center" onclick="if(event.target===this)this.remove()">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;min-width:700px;max-width:900px;max-height:80vh;display:flex;flex-direction:column">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="font-size:15px;font-weight:600">📋 ${escHtml(filename)} — 问题列表（共 ${issues.length} 项）</div>
+        <button onclick="document.getElementById('report-issues-modal').remove()" style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;padding:4px">✕</button>
+      </div>
+      <div class="issues-list" style="overflow-y:auto;flex:1">
+        ${issues.map((issue) => {
+          const c2 = issue.col2 || '';
+          const c4 = issue.col4 || '';
+          const cls = (c2+c4).indexOf('高')>=0||(c2+c4).toLowerCase().indexOf('high')>=0?'severity-high':(c2+c4).indexOf('中')>=0||(c2+c4).toLowerCase().indexOf('mid')>=0?'severity-mid':'severity-low';
+          return `
+          <div class="issue-card" style="margin-bottom:12px">
+            <div class="issue-header">
+              <span class="severity-tag ${cls}">${issue.col2||issue.col4||''}</span>
+              <span class="issue-title">${issue.col1||''}</span>
+            </div>
+            <div class="issue-desc">${issue.col3||''}</div>
+            ${(issue.fix_sql||'').trim()?
+              '<div class="fix-sql-box" style="margin-top:8px">'+
+                '<div class="fix-sql-header"><span>修复建议 SQL：</span></div>'+
+                '<pre class="fix-sql-code">'+escapeHtml(issue.fix_sql)+'</pre>'+
+                '<div class="fix-sql-actions">'+
+                  '<button class="btn btn-ghost btn-sm" onclick="copyFixSql(decodeURIComponent(\''+encodeURIComponent(issue.fix_sql)+'\')))">📋 复制 SQL</button>'+
+                '</div>'+
+              '</div>':''}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
 
 async function deleteReport(name) {
   const msg = i18n('webui.reports_delete_confirm').replace('{}', name);
@@ -3502,6 +5214,69 @@ async function deleteReport(name) {
     toastError(i18n('webui.reports_delete_fail').replace('{}', e.message));
   }
 }
+
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
 
 
 // ─── Trend Analysis ───────────────────────────────────────────────
@@ -3528,6 +5303,69 @@ async function loadTrendInstances() {
     sel.innerHTML = '<option value="">' + i18n('webui.trend_load_fail') + '</option>';
   }
 }
+
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
 
 function onTrendInstanceChange() {
   document.getElementById('trend-chart-card').style.display = 'none';
@@ -3561,6 +5399,69 @@ async function loadTrendData() {
     console.error(e);
   }
 }
+
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
 
 function renderComparison(cmp, inst) {
   const el = document.getElementById('trend-comparison');
@@ -3755,6 +5656,69 @@ async function loadAIConfig() {
   } catch(e) { console.error(e); }
 }
 
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
+
 function onAIBackendChange() {
   const b = document.getElementById('ai-backend').value;
   document.getElementById('ai-openai-fields').style.display  = b === 'openai'  ? 'block' : 'none';
@@ -3802,6 +5766,69 @@ async function saveAIConfig() {
   }
 }
 
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
+
 
 // ─── Utils ───
 function escHtml(s) {
@@ -3836,6 +5863,69 @@ async function testOllama() {
   }
 }
 
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
+
 // ─── Scheduler ───────────────────────────────────────────────────
 async function loadSchedulerJobs() {
   try {
@@ -3846,6 +5936,69 @@ async function loadSchedulerJobs() {
     }
   } catch(e) { console.error(e); }
 }
+
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
 
 function renderJobList(jobs) {
   const container = document.getElementById('scheduler-job-list');
@@ -3948,6 +6101,69 @@ async function loadJobDatasources(dbType) {
     }
   } catch(e) { console.error('loadJobDatasources failed', e); }
 }
+
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
 
 function onJobDatasourceChange() {
   const dsId = document.getElementById('job-datasource').value;
@@ -4111,6 +6327,69 @@ async function saveJob() {
   }
 }
 
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
+
 async function toggleJob(jobId, enabled) {
   try {
     await fetch(`/api/scheduler/jobs/${jobId}/toggle`, {
@@ -4121,6 +6400,69 @@ async function toggleJob(jobId, enabled) {
     loadSchedulerJobs();
   } catch(e) { console.error(e); }
 }
+
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
 
 async function runJobNow(jobId) {
   if (!await toastConfirm(i18n('webui.scheduler_run_confirm'))) return;
@@ -4135,6 +6477,69 @@ async function runJobNow(jobId) {
   } catch(e) { toastError('触发失败: ' + e.message); }
 }
 
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
+
 async function deleteJob(jobId) {
   if (!await toastConfirm(i18n('webui.scheduler_delete_confirm'))) return;
   try {
@@ -4148,6 +6553,69 @@ async function deleteJob(jobId) {
     }
   } catch(e) { toastError(i18n('webui.rag_delete_fail').replace('{}', e.message)); }
 }
+
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
 
 // ─── Notifier ───────────────────────────────────────────────────
 async function loadNotifierConfig() {
@@ -4182,6 +6650,69 @@ async function loadNotifierConfig() {
     }
   } catch(e) { console.error(e); }
 }
+
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
 
 function onWebhookTypeChange() {
   const type = document.getElementById('webhook-type').value;
@@ -4223,6 +6754,69 @@ async function saveEmailConfig() {
   }
 }
 
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
+
 async function testEmailConfig() {
   const cfg = {
     host: document.getElementById('smtp-host').value,
@@ -4257,6 +6851,69 @@ async function testEmailConfig() {
   }
 }
 
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
+
 async function saveWebhookConfig() {
   const phones = document.getElementById('dingtalk-phones').value
     .split(',').map(s => s.trim()).filter(Boolean);
@@ -4289,6 +6946,69 @@ async function saveWebhookConfig() {
     document.getElementById('webhook-msg').textContent = '❌ ' + i18n('webui.webhook_save_fail').replace('{}', e.message);
   }
 }
+
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
 
 async function testWebhookConfig() {
   const phones = document.getElementById('dingtalk-phones').value
@@ -4325,6 +7045,69 @@ async function testWebhookConfig() {
     msg.style.color = '#f44336';
   }
 }
+
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
 </script>
 
 <!-- AI 诊断展开/收起 -->
@@ -4341,10 +7124,73 @@ function toggleAiAdvice() {
     btn.textContent = i18n('webui.ai_expand');
   }
 }
+
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
 </script>
 
 <!-- Toast 通知容器 -->
-<div id="toast-container"></div>
+<div id="toast-container" style="position:fixed;top:20px;right:20px;z-index:999999;display:flex;flex-direction:column;gap:10px;pointer-events:none"></div>
 
 <script>
 /* ── Toast 通知系统 ─────────────────────────── */
@@ -4593,6 +7439,69 @@ async function loadHomeStats() {
   }
 }
 
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
+
 async function loadProStatus() {
     try {
         const res = await fetch('/api/pro/status');
@@ -4613,6 +7522,69 @@ async function loadProStatus() {
         console.error('Failed to load Pro status:', e);
     }
 }
+
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
 /* (已禁用 - 无需许可证) async function activateProLicense() {
   const key = document.getElementById('pro-license-key').value.trim();
   if (!key) { toastError('请输入许可证密钥'); return; }
@@ -4636,6 +7608,69 @@ async function loadProStatus() {
     }
   } catch(e) { toastError('激活请求失败: ' + e.message); }
 }
+
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
 */
 
 /* (已禁用 - 无需许可证) async function deactivateProLicense() {
@@ -4646,6 +7681,69 @@ async function loadProStatus() {
     if (data.success) { toastSuccess('许可证已注销'); await loadProStatus(); }
   } catch(e) { toastError('注销失败: ' + e.message); }
 }
+
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
 */
 
 async function loadProHealth() {
@@ -4667,6 +7765,69 @@ async function loadProHealth() {
     }
   } catch(e) {}
 }
+
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  i18n 初始化
+// ══════════════════════════════════════════════════════════════
 
 async function loadProHistory() {
   try {
@@ -4692,34 +7853,68 @@ async function loadProHistory() {
   } catch(e) {}
 }
 
-</script>
+// ─── 一键修复建议功能 ───────────────────────────────────────
 
-<!-- AI Chat Sidebar -->
-<button id="ai-chat-fab" onclick="toggleAiChat()" title="AI 巡检助手">💬</button>
+function copyFixSql(sql) {
+  navigator.clipboard.writeText(sql).then(() => {
+    toastSuccess('SQL 已复制到剪贴板');
+  }).catch(err => {
+    toastError('复制失败: ' + err.message);
+  });
+}
 
-<div id="ai-chat-sidebar">
-  <div class="chat-header">
-    <span style="font-size:20px">🤖</span>
-    <span class="chat-title" data-i18n="webui.chat_title">AI 巡检助手</span>
-    <button class="chat-close" onclick="toggleAiChat()">✕</button>
-  </div>
-  <div class="chat-messages" id="chat-messages">
-    <div class="chat-msg ai" id="chat-welcome">
-      您好！我是 DBCheck AI 巡检助手。请告诉我您想巡检哪个数据库，例如：
-      <br>• <strong>巡检 MySQL-01 的连接数</strong>
-      <br>• <strong>查看 PostgreSQL 的锁等待</strong>
-      <br>• <strong>对 Oracle 做完整巡检</strong>
-    </div>
-  </div>
-  <div class="chat-input-area">
-    <input type="text" class="chat-input" id="chat-input" data-i18n="webui.chat_placeholder"
-           placeholder="输入巡检需求..." onkeypress="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();sendChatMessage()}">
-    <button class="chat-send-btn" id="chat-send-btn" onclick="sendChatMessage()">➤</button>
-  </div>
-</div>
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(kw => sql.toUpperCase().includes(kw));
+  
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      `该 SQL 包含危险操作，可能造成数据丢失！\n\n${sql}\n\n确定要执行吗？`
+    );
+    if (!confirmed) return;
+  }
+  
+  // 获取当前任务的数据源信息
+  try {
+    const res = await fetch(`/api/inspection/${taskId}/datasource`);
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+    
+    // 执行 SQL
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+    
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || `执行成功，影响 ${execData.affected} 行`);
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql); // 递归，带 confirm=true
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
 
-<script>
-/* ─── AI Chat Functions ─── */
+// ══════════════════════════════════════════════════════════════
+//  AI Chat Functions
+// ══════════════════════════════════════════════════════════════
 let currentChatTaskId = null;
 let chatLogOffset = 0;
 let chatSpinnerDiv = null;   // 单个旋转动画 div
@@ -4842,10 +8037,7 @@ async function sendChatMessage() {
   input.value = '';
   setInputEnabled(false);
 
-  // 添加用户消息
   addChatMessage(message, 'user', false);
-
-  // 显示加载状态
   showTypingIndicator();
 
   try {
@@ -4859,12 +8051,9 @@ async function sendChatMessage() {
     hideTypingIndicator();
 
     if (data.type === 'text') {
-      // 简单查询结果，直接显示文本
       addChatMessage(data.message, 'ai', false);
     } else if (data.type === 'ask') {
-      // 需要用户确认/选择数据源
       addChatMessage(data.message, 'ai', false);
-      // 显示候选数据源快捷按钮
       if (data.candidates && data.candidates.length > 0) {
         const container = document.getElementById('chat-messages');
         const wrapper = document.createElement('div');
@@ -4887,25 +8076,16 @@ async function sendChatMessage() {
         container.scrollTop = container.scrollHeight;
       }
     } else if (data.type === 'report') {
-      // 巡检任务已启动
       addChatMessage(data.message, 'ai', false);
-      // 显示匹配到的数据源信息
       if (data.matched_datasource) {
         var ds = data.matched_datasource;
         addChatMessage('[已选择数据源] ' + (ds.name || ds.host) + ' (' + ds.host + ':' + ds.port + ')', 'system', false);
       }
       currentChatTaskId = data.task_id;
-
-      // 添加巡检动画
       showChatSpinner();
-
-      // 开始轮询任务状态
       pollChatTaskStatus(data.task_id);
     } else if (data.type === 'error') {
-      // 错误消息
       addChatMessage(i18n('webui.chat_error_prefix') + data.message, 'ai', false);
-
-      // 如果是数据源未找到，提示用户可以手动输入
       if (data.message && data.message.includes('未找到')) {
         setTimeout(() => {
           addChatMessage(i18n('webui.chat_hint_datasource'), 'ai', false);
@@ -4925,7 +8105,6 @@ async function sendChatMessage() {
 async function pollChatTaskStatus(taskId) {
   if (!taskId) return;
 
-  // 每次轮询检查是否是新一轮任务，若是则重置
   if (currentChatTaskId !== taskId) {
     currentChatTaskId = taskId;
     chatLogOffset = 0;
@@ -4937,11 +8116,9 @@ async function pollChatTaskStatus(taskId) {
     const data = await res.json();
 
     if (data.ok) {
-      // 显示新增日志（跳过进度条行）
       if (data.log && data.log.length > 0) {
         data.log.forEach(log => {
           if (log && log.trim()) {
-            // 跳过进度条行（包含 █ 和 %），只显示重要状态
             if (!(/[█░▓|]/.test(log) && /%/.test(log))) {
               addChatMessage(log, 'system', false);
             }
@@ -4979,6 +8156,83 @@ async function pollChatTaskStatus(taskId) {
   }
 }
 
+// ─── 一键修复建议功能 ───────────────────────────────────────
+
+function copyFixSql(sql) {
+  // 兼容非安全上下文（HTTP）或不支持 Clipboard API 的浏览器
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(sql).then(() => {
+      toastSuccess('SQL 已复制到剪贴板');
+    }).catch(function() {
+      fallbackCopy(sql);
+    });
+  } else {
+    fallbackCopy(sql);
+  }
+}
+
+function fallbackCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand('copy');
+    toastSuccess('SQL 已复制到剪贴板');
+  } catch(err) {
+    toastError('复制失败，请手动选择复制');
+  }
+  document.body.removeChild(ta);
+}
+
+async function executeFixSql(taskId, sql) {
+  // 检测危险操作
+  const dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+  const isDangerous = dangerous.some(function(kw) { return sql.toUpperCase().includes(kw); });
+
+  if (isDangerous) {
+    const confirmed = await showConfirmDialog(
+      '⚠️ 危险操作警告',
+      '该 SQL 包含危险操作，可能造成数据丢失！\n\n' + sql + '\n\n确定要执行吗？'
+    );
+    if (!confirmed) return;
+  }
+
+  try {
+    const res = await fetch('/api/inspection/' + taskId + '/datasource');
+    const data = await res.json();
+    if (!data.ok || !data.datasource_id) {
+      toastError('无法获取数据源信息');
+      return;
+    }
+
+    const execRes = await fetch('/api/inspection/execute-sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        datasource_id: data.datasource_id,
+        sql: sql,
+        confirm: isDangerous
+      })
+    });
+
+    const execData = await execRes.json();
+    if (execData.ok) {
+      toastSuccess(execData.message || '执行成功，影响 ' + execData.affected + ' 行');
+    } else if (execData.need_confirm) {
+      const confirmed = await showConfirmDialog('⚠️ 确认执行', execData.warning);
+      if (confirmed) {
+        executeFixSql(taskId, sql);
+      }
+    } else {
+      toastError(execData.error || '执行失败');
+    }
+  } catch(e) {
+    toastError('执行失败: ' + e.message);
+  }
+}
+
 /** 显示单个巡检动画 spinner */
 function showChatSpinner() {
   hideChatSpinner();
@@ -4991,7 +8245,7 @@ function showChatSpinner() {
   container.appendChild(chatSpinnerDiv);
   container.scrollTop = container.scrollHeight;
   chatSpinnerIdx = 0;
-  chatSpinnerInterval = setInterval(() => {
+  chatSpinnerInterval = setInterval(function() {
     chatSpinnerIdx = (chatSpinnerIdx + 1) % chatSpinnerTexts.length;
     if (chatSpinnerDiv) chatSpinnerDiv.textContent = chatSpinnerTexts[chatSpinnerIdx];
   }, 500);
@@ -5025,7 +8279,32 @@ if (typeof socket !== 'undefined') {
     }
   });
 }
+
 </script>
+
+<!-- AI Chat Sidebar -->
+<button id="ai-chat-fab" onclick="toggleAiChat()" title="AI 巡检助手" style="position:fixed;bottom:24px;right:24px;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#4caf50,#2196f3);border:none;color:#fff;font-size:24px;cursor:pointer;z-index:99998;box-shadow:0 4px 16px rgba(46,160,67,0.4);display:flex;align-items:center;justify-content:center;transition:all 0.3s ease">💬</button>
+
+<div id="ai-chat-sidebar" style="position:fixed;right:-420px;top:0;width:400px;height:100vh;background:var(--surface);border-left:1px solid var(--border);z-index:99999;display:flex;flex-direction:column;transition:right 0.3s ease;box-shadow:-4px 0 20px rgba(0,0,0,0.3)">
+  <div class="chat-header">
+    <span style="font-size:20px">🤖</span>
+    <span class="chat-title" data-i18n="webui.chat_title">AI 巡检助手</span>
+    <button class="chat-close" onclick="toggleAiChat()">✕</button>
+  </div>
+  <div class="chat-messages" id="chat-messages">
+    <div class="chat-msg ai" id="chat-welcome">
+      您好！我是 DBCheck AI 巡检助手。请告诉我您想巡检哪个数据库，例如：
+      <br>• <strong>巡检 MySQL-01 的连接数</strong>
+      <br>• <strong>查看 PostgreSQL 的锁等待</strong>
+      <br>• <strong>对 Oracle 做完整巡检</strong>
+    </div>
+  </div>
+  <div class="chat-input-area">
+    <input type="text" class="chat-input" id="chat-input" data-i18n="webui.chat_placeholder"
+           placeholder="输入巡检需求..." onkeypress="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();sendChatMessage()}">
+    <button class="chat-send-btn" id="chat-send-btn" onclick="sendChatMessage()">➤</button>
+  </div>
+</div>
 
 </body>
 </html>

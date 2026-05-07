@@ -58,6 +58,16 @@ def smart_analyze_mysql(context: dict) -> list:
             return data[0].get(sub, default)
         return default
 
+    def _mysql_version() -> int:
+        """返回 MySQL 主版本号（5 或 8），用于版本差异化处理"""
+        ver_str = _val('myversion', 'version', '')
+        if not ver_str or ver_str == 'Unknown':
+            return 5  # 默认保守假设
+        try:
+            return int(ver_str.split('.')[0])
+        except Exception:
+            return 5
+
     def _int(v, default=0):
         try:
             return int(str(v).replace(',', ''))
@@ -122,14 +132,36 @@ def smart_analyze_mysql(context: dict) -> list:
         })
 
     # ── 5. binlog 过期时间 ───────────────────────────────
+    mysql_ver = _mysql_version()
     expire_days = _int(_val('expire_logs_days'), -1)
-    if expire_days == 0:
-        issues.append({
-            'col1': 'binlog 永不过期', 'col2': '中风险',
-            'col3': 'expire_logs_days=0 表示 binlog 永不自动清理，可能导致磁盘耗尽',
-            'col4': '中', 'col5': 'DBA',
-            'fix_sql': "SET GLOBAL expire_logs_days = 7;"
-        })
+    expire_seconds = _int(_val('binlog_expire_logs_seconds'), -1)
+
+    if mysql_ver >= 8:
+        # MySQL 8.x: expire_logs_days 已移除，使用 binlog_expire_logs_seconds（单位：秒）
+        if expire_seconds <= 0:
+            issues.append({
+                'col1': 'binlog 永不过期', 'col2': '中风险',
+                'col3': 'binlog_expire_logs_seconds 未设置或为 0，binlog 永不自动清理，可能导致磁盘耗尽',
+                'col4': '中', 'col5': 'DBA',
+                'fix_sql': "SET GLOBAL binlog_expire_logs_seconds = 604800;  -- 7天 = 604800秒"
+            })
+    else:
+        # MySQL 5.x: 使用 expire_logs_days（单位：天）
+        if expire_days == 0:
+            issues.append({
+                'col1': 'binlog 永不过期', 'col2': '中风险',
+                'col3': 'expire_logs_days=0 表示 binlog 永不自动清理，可能导致磁盘耗尽',
+                'col4': '中', 'col5': 'DBA',
+                'fix_sql': "SET GLOBAL expire_logs_days = 7;  -- MySQL 5.x"
+            })
+        elif expire_days < 0:
+            # MySQL 5.x 也可能查询不到 expire_logs_days（旧版本或未配置）
+            issues.append({
+                'col1': 'binlog 过期未配置', 'col2': '中风险',
+                'col3': 'expire_logs_days 未设置，binlog 将永不清理，建议设置合理的保留天数',
+                'col4': '中', 'col5': 'DBA',
+                'fix_sql': "SET GLOBAL expire_logs_days = 7;  -- MySQL 5.x"
+            })
 
     # ── 6. InnoDB 缓冲池大小 ─────────────────────────────
     buf_val = _val('innodb_buffer_pool_size')
@@ -151,17 +183,18 @@ def smart_analyze_mysql(context: dict) -> list:
                 'fix_sql': '-- 建议修改 my.cnf：\n-- innodb_buffer_pool_size = 4G  # 根据实际内存调整\n-- 或在线调整（MySQL 5.7+）：\nSET GLOBAL innodb_buffer_pool_size = 4294967296;  -- 4G'
             })
 
-    # ── 7. 查询缓存（MySQL 8.0 已废弃） ─────────────────
-    query_cache = context.get('query_cache', [])
-    for row in query_cache:
-        if row.get('Variable_name') == 'query_cache_type' and str(row.get('Value', '')).upper() == 'ON':
-            issues.append({
-                'col1': '查询缓存已开启（不建议）', 'col2': '建议',
-                'col3': 'query_cache 在高并发场景下会造成严重锁竞争，MySQL 8.0 已彻底移除，建议关闭',
-                'col4': '低', 'col5': 'DBA',
-                'fix_sql': "SET GLOBAL query_cache_type = 0;\nSET GLOBAL query_cache_size = 0;"
-            })
-            break
+    # ── 7. 查询缓存（仅 MySQL 5.x，MySQL 8.0 已彻底移除） ──
+    if mysql_ver < 8:
+        query_cache = context.get('query_cache', [])
+        for row in query_cache:
+            if row.get('Variable_name') == 'query_cache_type' and str(row.get('Value', '')).upper() == 'ON':
+                issues.append({
+                    'col1': '查询缓存已开启（不建议）', 'col2': '建议',
+                    'col3': 'query_cache 在高并发场景下会造成严重锁竞争，MySQL 8.0 已彻底移除该特性，建议关闭',
+                    'col4': '低', 'col5': 'DBA',
+                    'fix_sql': "SET GLOBAL query_cache_type = 0;\nSET GLOBAL query_cache_size = 0;"
+                })
+                break
 
     # ── 8. 表锁等待比例 ──────────────────────────────────
     immediate = _int(_val('table_locks_immediate'))
@@ -1457,6 +1490,66 @@ Format requirement (output Markdown directly, no prefixes like "Here are"):
 
 
 # ═══════════════════════════════════════════════════════
+#  4. 智能风险分析（DM8、SQL Server、TiDB）
+# ═══════════════════════════════════════════════════════
+
+def smart_analyze_dm(context: dict) -> list:
+    """
+    对 DM8 巡检结果执行基础风险规则分析。
+    DM8 与 Oracle 类似，支持表空间、内存、参数等检查。
+    """
+    issues = []
+
+    def _val(key, sub="Value", default=None):
+        data = context.get(key, [])
+        if data and isinstance(data, list) and data[0]:
+            return data[0].get(sub, default)
+        return default
+
+    def _int(v, default=0):
+        try:
+            return int(str(v).replace(",", ""))
+        except Exception:
+            return default
+
+    # ── 1. 表空间使用率 ──────────────────────────────────
+    tablespaces = context.get("tablespace", [])
+    for ts in tablespaces:
+        usage = _int(ts.get("USAGE_PCT", 0))
+        if usage > 85:
+            issues.append({
+                'col1': f"表空间使用率 - {ts.get('TABLESPACE_NAME', '')}",
+                'col2': '高风险' if usage > 95 else '中风险',
+                'col3': f"表空间 {ts.get('TABLESPACE_NAME', '')} 使用率 {usage}%，可能导致数据无法写入",
+                'col4': '高' if usage > 95 else '中',
+                'col5': 'DBA',
+                'fix_sql': f"-- 请联系 DBA 扩展表空间 {ts.get('TABLESPACE_NAME', '')}"
+            })
+
+    return issues
+
+
+def smart_analyze_sqlserver(context: dict) -> list:
+    """
+    对 SQL Server 巡检结果执行基础风险规则分析。
+    """
+    issues = []
+    # TODO: 添加完整的 SQL Server 风险规则
+    return issues
+
+
+def smart_analyze_tidb(context: dict) -> list:
+    """
+    对 TiDB 巡检结果执行风险规则分析。
+    TiDB 兼容 MySQL 协议，可复用部分 MySQL 规则。
+    """
+    issues = []
+    # 复用 MySQL 的部分规则
+    # TODO: 添加 TiDB 特有的风险规则
+    return issues
+
+
+# ═══════════════════════════════════════════════════════
 #  5. 综合分析入口（供 main_mysql.py / main_pg.py 调用）
 # ═══════════════════════════════════════════════════════
 
@@ -1486,8 +1579,16 @@ def run_full_analysis(db_type: str, host: str, port, label: str,
         issues = smart_analyze_mysql(context)
     elif db_type == 'pg':
         issues = smart_analyze_pg(context)
-    else:
+    elif db_type == 'oracle':
         issues = smart_analyze_oracle(context)
+    elif db_type == 'dm':
+        issues = smart_analyze_dm(context)
+    elif db_type == 'sqlserver':
+        issues = smart_analyze_sqlserver(context)
+    elif db_type == 'tidb':
+        issues = smart_analyze_tidb(context)
+    else:
+        issues = []  # 未知类型，返回空列表
 
     # 2. 保存历史并获取趋势
     hm = HistoryManager(base_dir)

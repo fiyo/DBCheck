@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2024 DBCheck Contributors
 # sdfiyon@gmail.com
@@ -2576,6 +2576,8 @@ def single_inspection(args):
     """单机巡检主流程"""
     import paramiko
 
+    # 返回值：供 Web UI 调用 run_full_analysis 使用
+    context = {}
     # Get language and local _t for this function
     try:
         from i18n import get_lang
@@ -2979,6 +2981,7 @@ def single_inspection(args):
     if ssh_client:
         ssh_client.close()
 
+    return context
 
 def _input(prompt, default=''):
     """统一输入函数，带默认值显示"""
