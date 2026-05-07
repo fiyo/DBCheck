@@ -2190,9 +2190,13 @@ def api_pro_groups():
             'ok': True,
             'groups': result,
         })
-    except ImportError:
-        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except ImportError as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': 'Pro 模块加载失败: ' + str(e)})
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
@@ -2210,9 +2214,13 @@ def api_pro_add_group():
         im = get_instance_manager()
         result = im.add_group(group)
         return jsonify(result)
-    except ImportError:
-        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except ImportError as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': 'Pro 模块加载失败: ' + str(e)})
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
@@ -2224,9 +2232,14 @@ def api_pro_delete_group(group_name):
         im = get_instance_manager()
         result = im.delete_group(group_name)
         return jsonify(result)
-    except ImportError:
-        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except ImportError as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': 'Pro 模块加载失败: ' + str(e)})
     except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e)}), 500
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
@@ -2239,9 +2252,13 @@ def api_pro_statistics():
         stats = im.get_statistics()
         stats['global_health_score'] = im.get_global_health_score()
         return jsonify({'ok': True, 'statistics': stats})
-    except ImportError:
-        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except ImportError as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': 'Pro 模块加载失败: ' + str(e)})
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
@@ -2257,9 +2274,13 @@ def api_pro_health_score():
             'score': score,
             'level': 'critical' if score <= 30 else 'high' if score <= 50 else 'medium' if score <= 70 else 'low' if score <= 85 else 'healthy',
         })
-    except ImportError:
-        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except ImportError as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': 'Pro 模块加载失败: ' + str(e)})
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
@@ -2365,9 +2386,13 @@ def api_pro_inspection_history():
         im = get_instance_manager()
         history = im.get_inspection_history(instance_id, limit)
         return jsonify({'ok': True, 'history': history})
-    except ImportError:
-        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except ImportError as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': 'Pro 模块加载失败: ' + str(e)})
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
@@ -2380,9 +2405,13 @@ def api_pro_instance_trend(instance_id):
         im = get_instance_manager()
         trend = im.get_instance_trend(instance_id, days)
         return jsonify({'ok': True, 'trend': trend})
-    except ImportError:
-        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except ImportError as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': 'Pro 模块加载失败: ' + str(e)})
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
@@ -2400,9 +2429,13 @@ def api_pro_import_instances():
         im = get_instance_manager()
         result = im.batch_add_from_csv(csv_content)
         return jsonify(result)
-    except ImportError:
-        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except ImportError as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': 'Pro 模块加载失败: ' + str(e)})
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
@@ -2418,9 +2451,13 @@ def api_pro_datasources():
         im = get_instance_manager()
         instances = im.get_all_instances(mask_password=True)
         return jsonify({'ok': True, 'datasources': instances})
-    except ImportError:
-        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except ImportError as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': 'Pro 模块加载失败: ' + str(e)})
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
@@ -2434,9 +2471,13 @@ def api_pro_datasource(instance_id):
         if not inst:
             return jsonify({'ok': False, 'error': '数据源不存在'})
         return jsonify({'ok': True, 'datasource': inst})
-    except ImportError:
-        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except ImportError as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': 'Pro 模块加载失败: ' + str(e)})
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
@@ -2450,9 +2491,13 @@ def api_pro_datasource_decrypt(instance_id):
         if not inst:
             return jsonify({'ok': False, 'error': '数据源不存在'})
         return jsonify({'ok': True, 'datasource': inst})
-    except ImportError:
-        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except ImportError as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': 'Pro 模块加载失败: ' + str(e)})
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
@@ -2482,9 +2527,13 @@ def api_pro_datasource_add():
         im = get_instance_manager()
         result = im.add_instance(inst)
         return jsonify(result)
-    except ImportError:
-        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except ImportError as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': 'Pro 模块加载失败: ' + str(e)})
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
@@ -2497,9 +2546,13 @@ def api_pro_datasource_update(instance_id):
         im = get_instance_manager()
         result = im.update_instance(instance_id, data)
         return jsonify(result)
-    except ImportError:
-        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except ImportError as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': 'Pro 模块加载失败: ' + str(e)})
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
@@ -2511,9 +2564,13 @@ def api_pro_datasource_delete(instance_id):
         im = get_instance_manager()
         result = im.delete_instance(instance_id)
         return jsonify(result)
-    except ImportError:
-        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except ImportError as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': 'Pro 模块加载失败: ' + str(e)})
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
@@ -2525,9 +2582,13 @@ def api_pro_datasource_test(instance_id):
         im = get_instance_manager()
         result = im.test_connection(instance_id)
         return jsonify(result)
-    except ImportError:
-        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except ImportError as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': 'Pro 模块加载失败: ' + str(e)})
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
@@ -2539,9 +2600,13 @@ def api_pro_datasources_export():
         im = get_instance_manager()
         csv_content = im.export_csv()
         return jsonify({'ok': True, 'csv': csv_content})
-    except ImportError:
-        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except ImportError as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': 'Pro 模块加载失败: ' + str(e)})
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
@@ -2555,9 +2620,13 @@ def api_pro_datasources_import():
         im = get_instance_manager()
         result = im.batch_add_from_csv(csv_content)
         return jsonify(result)
-    except ImportError:
-        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except ImportError as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': 'Pro 模块加载失败: ' + str(e)})
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
@@ -2574,9 +2643,13 @@ def api_pro_rules():
         engine = get_rule_engine()
         rules = engine.list_rules(db_type)
         return jsonify({'ok': True, 'rules': rules})
-    except ImportError:
-        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except ImportError as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': 'Pro 模块加载失败: ' + str(e)})
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
@@ -2594,9 +2667,13 @@ def api_pro_rules_add():
         if ok:
             return jsonify({'ok': True, 'message': '规则已保存'})
         return jsonify({'ok': False, 'error': '保存失败'})
-    except ImportError:
-        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except ImportError as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': 'Pro 模块加载失败: ' + str(e)})
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
@@ -2610,9 +2687,13 @@ def api_pro_rules_delete(rule_id):
         if ok:
             return jsonify({'ok': True, 'message': '规则已删除'})
         return jsonify({'ok': False, 'error': '规则不存在'})
-    except ImportError:
-        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except ImportError as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': 'Pro 模块加载失败: ' + str(e)})
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
@@ -2629,9 +2710,13 @@ def api_pro_rules_toggle(rule_id):
         new_enabled = not rule.get('enabled', False)
         engine.toggle_rule(rule_id, new_enabled)
         return jsonify({'ok': True, 'enabled': new_enabled, 'message': '设置已保存'})
-    except ImportError:
-        return jsonify({'ok': False, 'error': 'Pro 模块未安装'})
+    except ImportError as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': 'Pro 模块加载失败: ' + str(e)})
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
