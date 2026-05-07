@@ -330,7 +330,24 @@ Each risk is presented as a card: **Risk Level (High/Medium/Low) → Issue Descr
 
 ### Intelligent Risk Analysis
 
-Automatically detects potential database risks — **each risk includes an executable remediation SQL** ready to copy and run:
+Automatically detects potential database risks — **each risk includes an executable remediation SQL with one-click fix support**:
+
+#### One-Click Fix 🔧
+
+> No more copying and pasting SQL manually — execute remediation scripts directly from the Web UI.
+
+| Feature | Description |
+|---------|-------------|
+| One-Click Execution | Each risk in the inspection report has an "Execute Fix" button — click to run directly |
+| Dangerous SQL Confirmation | High-risk operations (DELETE, DROP, TRUNCATE) prompt for confirmation before execution |
+| Multi-Database Support | MySQL / PostgreSQL / Oracle / SQL Server / DM8 / TiDB |
+| Execution Logging | All fix operations are logged for audit and traceability |
+| User-Friendly Error Messages | Common database errors are translated into friendly Chinese prompts |
+
+Execution Flow:
+```
+Risk Detected → View Fix SQL → Click "Execute Fix" → Dangerous ops require confirmation → Execute → View Results
+```
 
 #### MySQL (18+ rules)
 

@@ -2957,8 +2957,8 @@ function formatBytes(bytes) {
         <!-- 首页概览卡片 -->
         <div class="home-overview" id="home-overview-section" style="display:none;">
           <div class="section-header">
-            <h2 class="section-title">系统概览</h2>
-            <p class="section-desc">运行状态实时监控</p>
+            <h2 class="section-title" data-i18n="webui.home_overview_title">系统概览</h2>
+            <p class="section-desc" data-i18n="webui.home_overview_subtitle">运行状态实时监控</p>
           </div>
           <div class="overview-grid">
             <!-- 健康评分仪表盘 -->
@@ -4905,7 +4905,7 @@ function pollStatus() {
             <div class="ri">${highCnt>0?'🔴':midCnt>0?'🟡':'🟢'}</div>
             <div class="rd">
               <h3>${i18n('webui.analyze_issues').replace('{}', issues.length)}</h3>
-              <p>高风险 ${highCnt} · 中风险 ${midCnt} · 低风险 ${issues.length-highCnt-midCnt}</p>
+              <p>${i18n('webui.report_issues_summary').replace('{high}', highCnt).replace('{mid}', midCnt).replace('{low}', issues.length-highCnt-midCnt)}</p>
             </div>
           </div>
           <div class="issues-list" style="margin-top:16px">
@@ -5054,12 +5054,12 @@ async function loadReports() {
       const low = f.low || 0;
       const total = high + mid + low;
       const riskBadges = total > 0
-        ? '<span class="severity-tag severity-high" style="margin-left:8px;font-size:11px;padding:2px 7px">🔴 高 '+high+'</span><span class="severity-tag severity-mid" style="margin-left:4px;font-size:11px;padding:2px 7px">🟡 中 '+mid+'</span><span class="severity-tag severity-low" style="margin-left:4px;font-size:11px;padding:2px 7px">🟢 低 '+low+'</span>'
-        : '<span style="margin-left:8px;font-size:12px;color:var(--text-muted)">— 无问题</span>';
+        ? '<span class="severity-tag severity-high" style="margin-left:8px;font-size:11px;padding:2px 7px">🔴 '+i18n('webui.risk_high')+' '+high+'</span><span class="severity-tag severity-mid" style="margin-left:4px;font-size:11px;padding:2px 7px">🟡 '+i18n('webui.risk_mid')+' '+mid+'</span><span class="severity-tag severity-low" style="margin-left:4px;font-size:11px;padding:2px 7px">🟢 '+i18n('webui.risk_low')+' '+low+'</span>'
+        : '<span style="margin-left:8px;font-size:12px;color:var(--text-muted)">'+i18n('webui.risk_no_issues')+'</span>';
       // auto_analyze 使用 base64 编码传递，避免 JSON 特殊字符破坏 HTML
       const autoAnalyzeB64 = btoa(unescape(encodeURIComponent(f.auto_analyze || '[]')));
       const issueBtn = total > 0
-        ? '<button class="btn btn-ghost" style="font-size:12px;padding:6px 12px;margin-left:4px" onclick="showReportIssues(\'' + escHtml(f.name).replace(/'/g, "\\'") + '\', \'' + autoAnalyzeB64 + '\')">📋 问题列表</button>'
+        ? '<button class="btn btn-ghost" style="font-size:12px;padding:6px 12px;margin-left:4px" onclick="showReportIssues(\'' + escHtml(f.name).replace(/'/g, "\\'") + '\', \'' + autoAnalyzeB64 + '\')">'+i18n('webui.btn_report_issues')+'</button>'
         : '';
       return `
         <div class="report-item">
@@ -5093,14 +5093,14 @@ function showReportIssues(filename, autoAnalyzeB64) {
     issues = [];
   }
   if (!issues || issues.length === 0) {
-    showConfirmModal('📋 问题列表', '<p style="color:var(--text-muted);text-align:center;padding:20px">该报告暂无问题数据</p>', () => {});
+    showConfirmModal(i18n('webui.report_issues_title'), '<p style="color:var(--text-muted);text-align:center;padding:20px">'+i18n('webui.report_issues_empty')+'</p>', () => {});
     return;
   }
   const html = `
   <div id="report-issues-modal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:999999;display:flex;align-items:center;justify-content:center" onclick="if(event.target===this)this.remove()">
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;min-width:700px;max-width:900px;max-height:80vh;display:flex;flex-direction:column">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-        <div style="font-size:15px;font-weight:600">📋 ${escHtml(filename)} — 问题列表（共 ${issues.length} 项）</div>
+        <div style="font-size:15px;font-weight:600">${i18n('webui.report_issues_subtitle').replace('{filename}', escHtml(filename)).replace('{count}', issues.length)}</div>
         <button onclick="document.getElementById('report-issues-modal').remove()" style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;padding:4px">✕</button>
       </div>
       <div class="issues-list" style="overflow-y:auto;flex:1">

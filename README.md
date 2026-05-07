@@ -20,7 +20,7 @@
 
 <p align="center">
 
-[![Version](https://img.shields.io/badge/版本-v2.4.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/版本-v2.4.2-blue.svg)]()
 [![License](https://img.shields.io/badge/开源协议-MIT-green.svg)]()
 [![Python](https://img.shields.io/badge/Python-3.6%2B-blue.svg)]()
 [![AI](https://img.shields.io/badge/AI-Ollama-orange.svg)]()
@@ -56,6 +56,7 @@ DBCheck 可以自动完成：
 ✅ 数据库健康巡检  
 ✅ 系统资源采集  
 ✅ 风险分析与修复建议  
+✅ **一键修复（点击即可执行修复 SQL）**  
 ✅ Word 巡检报告生成  
 ✅ 慢查询深度分析  
 ✅ AI 智能诊断  
@@ -189,6 +190,7 @@ http://localhost:5003
 | 📊 历史趋势分析 | 自动汇总多次巡检数据并生成趋势图 |
 | 🤖 AI 智能诊断 | 基于 Ollama 本地大模型分析 |
 | 🔍 慢查询深度分析 | SQL / IO / 锁等待 / 临时表综合分析 |
+| **🔧 一键修复** | **点击即可执行修复 SQL，无需手动复制粘贴** |
 | 📚 RAG 知识库 | 注入企业内部文档增强 AI 诊断 |
 | 📧 自动通知 | 邮件 / Webhook 自动推送 |
 | 🌐 Web UI | 浏览器可视化操作界面 |
