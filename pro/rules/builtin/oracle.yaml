@@ -5,7 +5,7 @@ rules:
     name: 系统内存使用率过高
     name_zh: 系统内存使用率过高
     category: system
-    db_types: [oracle_full]
+    db_types: [oracle]
     severity: high
     priority: high
     owner: 系统管理员
@@ -23,7 +23,7 @@ rules:
     name: 系统内存使用率预警
     name_zh: 系统内存使用率预警
     category: system
-    db_types: [oracle_full]
+    db_types: [oracle]
     severity: medium
     priority: medium
     owner: 系统管理员
@@ -41,7 +41,7 @@ rules:
     name: 磁盘空间紧张
     name_zh: 磁盘空间紧张
     category: system
-    db_types: [oracle_full]
+    db_types: [oracle]
     severity: high
     priority: high
     owner: 系统管理员
@@ -60,7 +60,7 @@ rules:
     name: SGA/PGA 内存分配失衡
     name_zh: SGA/PGA 内存分配失衡
     category: memory
-    db_types: [oracle_full]
+    db_types: [oracle]
     severity: high
     priority: high
     owner: DBA
@@ -82,7 +82,7 @@ rules:
     name: 库缓存命中率低
     name_zh: 库缓存命中率低
     category: performance
-    db_types: [oracle_full]
+    db_types: [oracle]
     severity: high
     priority: high
     owner: DBA
@@ -100,7 +100,7 @@ rules:
     name: 长时间运行的 SQL
     name_zh: 长时间运行的 SQL
     category: performance
-    db_types: [oracle_full]
+    db_types: [oracle]
     severity: high
     priority: high
     owner: DBA
@@ -120,7 +120,7 @@ rules:
     name: 存在无效对象
     name_zh: 存在无效对象
     category: maintenance
-    db_types: [oracle_full]
+    db_types: [oracle]
     severity: medium
     priority: medium
     owner: DBA
@@ -140,7 +140,7 @@ rules:
     name: 撤销表空间保留时间不足
     name_zh: 撤销表空间保留时间不足
     category: durability
-    db_types: [oracle_full]
+    db_types: [oracle]
     severity: medium
     priority: medium
     owner: DBA
@@ -158,7 +158,7 @@ rules:
     name: 临时表空间空间不足
     name_zh: 临时表空间空间不足
     category: storage
-    db_types: [oracle_full]
+    db_types: [oracle]
     severity: high
     priority: high
     owner: DBA
@@ -178,7 +178,7 @@ rules:
     name: 归档日志目标错误
     name_zh: 归档日志目标错误
     category: backup
-    db_types: [oracle_full]
+    db_types: [oracle]
     severity: high
     priority: high
     owner: DBA
@@ -198,7 +198,7 @@ rules:
     name: SYSAUX 表空间使用率过高
     name_zh: SYSAUX 表空间使用率过高
     category: storage
-    db_types: [oracle_full]
+    db_types: [oracle]
     severity: medium
     priority: medium
     owner: DBA

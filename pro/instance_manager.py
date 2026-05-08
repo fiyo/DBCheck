@@ -67,6 +67,12 @@ class DatabaseInstance:
     password: str = ""  # 加密存储
     service_name: str = ""  # Oracle 专用
     sysdba: bool = False  # Oracle SYSDBA 连接
+    ssh_host: str = ""     # SSH 跳板主机
+    ssh_port: int = 22     # SSH 端口
+    ssh_user: str = ""     # SSH 用户
+    ssh_password: str = "" # SSH 密码（加密存储）
+    ssh_key_file: str = "" # SSH 私钥路径
+    ssh_enabled: bool = False  # 是否启用 SSH
     tags: List[str] = None  # 标签列表
     group: str = "default"  # 分组
     enabled: bool = True
@@ -138,6 +144,9 @@ class InstanceManager:
                 with open(self.instances_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     for inst_data in data.get("instances", []):
+                        # 兼容旧数据：oracle_full → oracle
+                        if inst_data.get('db_type') == 'oracle_full':
+                            inst_data['db_type'] = 'oracle'
                         inst = DatabaseInstance.from_dict(inst_data)
                         self._instances[inst.id] = inst
             except Exception:
@@ -279,7 +288,7 @@ class InstanceManager:
                 conn.close()
                 return {'ok': True, 'message': '连接成功 (PostgreSQL %s:%d)' % (inst.host, inst.port)}
 
-            elif db_type == 'oracle' or db_type == 'oracle_full':
+            elif db_type == 'oracle':
                 import oracledb
                 dsn = inst.service_name or '%s:%d/orcl' % (inst.host, inst.port)
                 mode = oracledb.SYSDBA if inst.sysdba else oracledb.DEFAULT_MODE
@@ -333,6 +342,8 @@ class InstanceManager:
             return {"ok": False, "message": "实例ID已存在"}
         # 加密密码
         instance.password = _encrypt_pwd(instance.password)
+        if instance.ssh_password:
+            instance.ssh_password = _encrypt_pwd(instance.ssh_password)
         self._instances[instance.id] = instance
         self._save_data()
         return {"ok": True, "message": "实例添加成功", "instance_id": instance.id}
@@ -344,8 +355,11 @@ class InstanceManager:
         instance = self._instances[instance_id]
         for key, value in updates.items():
             if hasattr(instance, key):
-                # 密码变更时加密
-                if key == 'password' and value:
+                # 空值跳过，保留原值
+                if value is None or (isinstance(value, str) and value == ''):
+                    continue
+                # 密码字段自动加密
+                if key in ('password', 'ssh_password') and value:
                     value = _encrypt_pwd(value)
                 setattr(instance, key, value)
         instance.updated_at = datetime.now().isoformat()
@@ -398,6 +412,8 @@ class InstanceManager:
             d = inst.to_dict()
         if d.get('password'):
             d['password'] = _decrypt_pwd(d['password'])
+        if d.get('ssh_password'):
+            d['ssh_password'] = _decrypt_pwd(d['ssh_password'])
         return d
 
 

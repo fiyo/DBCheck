@@ -614,7 +614,7 @@ def run_oracle_full_task(task_id, db_info, inspector_name):
             im.record_inspection(
                 instance_id=instance_id,
                 instance_name=db_label,
-                db_type='oracle_full',
+                db_type='oracle',
                 health_score=health_score,
                 risk_count=risk_count,
                 risk_level=risk_level,
@@ -1634,7 +1634,7 @@ def api_test_db():
         ok, msg = test_mysql_connection(data['host'], data['port'], data['user'], data['password'], data.get('database'))
     elif db_type == 'pg':
         ok, msg = test_pg_connection(data['host'], data['port'], data['user'], data['password'], data.get('database', 'postgres'))
-    elif db_type == 'oracle_full':
+    elif db_type == 'oracle':
         ok, msg = test_oracle_connection(data['host'], data['port'], data['user'], data['password'], data.get('service_name', 'ORCL'), bool(data.get('sysdba')))
     elif db_type == 'dm':
         ok, msg = test_dm_connection(data['host'], data['port'], data['user'], data['password'])
@@ -1756,7 +1756,7 @@ def api_start_inspection():
         t = threading.Thread(target={
             'mysql':      run_mysql_task,
             'pg':         run_pg_task,
-            'oracle_full':run_oracle_full_task,
+            'oracle':run_oracle_full_task,
             'dm':         run_dm_task,
             'sqlserver':  run_sqlserver_task,
             'tidb':       run_tidb_task,
@@ -2490,7 +2490,14 @@ def api_pro_datasource_decrypt(instance_id):
         inst = im.get_instance_decrypted(instance_id)
         if not inst:
             return jsonify({'ok': False, 'error': '数据源不存在'})
-        return jsonify({'ok': True, 'datasource': inst})
+        # 检查密码是否成功解密（失败时返回的是加密密文）
+        pwd = inst.get('password', '')
+        likely_encrypted = pwd and len(pwd) > 50 and '=' in pwd and '/' in pwd
+        return jsonify({
+            'ok': True,
+            'datasource': inst,
+            'password_decrypted': not likely_encrypted,
+        })
     except ImportError as e:
         import traceback
         traceback.print_exc()
@@ -2590,6 +2597,91 @@ def api_pro_datasource_test(instance_id):
         import traceback
         traceback.print_exc()
         return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/datasources/test-connection', methods=['POST'])
+def api_pro_datasources_test_conn():
+    """测试数据库连接（直接传参）"""
+    try:
+        data = request.get_json()
+        db_type = data.get('db_type', 'mysql')
+        host = data.get('host', '')
+        port = data.get('port', 3306)
+        user = data.get('user', '')
+        password = data.get('password', '')
+        service_name = data.get('service_name', '')
+
+        if not host:
+            return jsonify({'ok': False, 'error': '请输入主机地址'})
+
+        if db_type == 'mysql' or db_type == 'tidb':
+            import pymysql
+            conn = pymysql.connect(host=host, port=port, user=user, password=password, connect_timeout=10)
+            conn.close()
+        elif db_type == 'pg' or db_type == 'postgresql':
+            import psycopg2
+            db = data.get('database', 'postgres')
+            conn = psycopg2.connect(host=host, port=port, user=user, password=password, dbname=db, connect_timeout=10)
+            conn.close()
+        elif db_type == 'oracle':
+            import oracledb
+            dsn = f"{host}:{port}/{service_name}" if service_name else f"{host}:{port}"
+            # 尝试 SSH 隧道
+            ssh_host = data.get('ssh_host', '')
+            _tunnel = None
+            if ssh_host:
+                try:
+                    import paramiko
+                    _tunnel = paramiko.SSHClient()
+                    _tunnel.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                    ssh_port = data.get('ssh_port', 22)
+                    ssh_user = data.get('ssh_user', 'root')
+                    ssh_pass = data.get('ssh_password', '')
+                    _tunnel.connect(ssh_host, port=int(ssh_port), username=ssh_user,
+                                   password=ssh_pass or '', timeout=10,
+                                   look_for_keys=False, allow_agent=False)
+                    _t = _tunnel.get_transport()
+                    _local = _t.request_port_forward('', 0, host, int(port))
+                    dsn = f"localhost:{_local}/{service_name}" if service_name else f"localhost:{_local}"
+                except Exception:
+                    _tunnel = None
+            try:
+                params = {"user": user, "password": password, "dsn": dsn}
+                if data.get('sysdba'):
+                    params["mode"] = oracledb.SYSDBA
+                conn = oracledb.connect(**params)
+            except Exception as e:
+                if 'DPY-3010' in str(e):
+                    try: oracledb.init_oracle_client()
+                    except Exception: pass
+                    conn = oracledb.connect(**params)
+                else:
+                    raise
+            conn.close()
+            if _tunnel: _tunnel.close()
+        elif db_type == 'dm':
+            import dmPython
+            try:
+                conn = dmPython.connect(server=host, port=int(port), user=user, password=password)
+                conn.close()
+            except Exception as de:
+                if 'exception set' in str(de):
+                    return jsonify({'ok': False, 'error': f'达梦连接失败，请检查用户名（默认SYSDBA）、密码和端口（{host}:{port}）'})
+                raise
+            conn.close()
+        elif db_type == 'sqlserver':
+            import pyodbc
+            conn_str = f"DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={host},{port};UID={user};PWD={password};TrustServerCertificate=yes;Connection Timeout=10"
+            conn = pyodbc.connect(conn_str)
+            conn.close()
+        else:
+            return jsonify({'ok': False, 'error': f'不支持的数据库类型: {db_type}'})
+
+        return jsonify({'ok': True, 'message': '连接成功'})
+    except ImportError as e:
+        return jsonify({'ok': False, 'error': f'驱动未安装: {e}'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)})
 
 
 @app.route('/api/pro/datasources/export', methods=['GET'])
@@ -2721,6 +2813,253 @@ def api_pro_rules_toggle(rule_id):
 
 
 # ══════════════════════════════════════════════════════════════
+#  备份管理 API
+# ══════════════════════════════════════════════════════════════
+
+@app.route('/api/pro/backup/run', methods=['POST'])
+def api_pro_backup_run():
+    """执行备份"""
+    try:
+        from pro.backup import get_backup_manager
+        data = request.get_json()
+        conn_info = data.get('conn_info', {})
+        pwd = conn_info.get('password', '')
+
+        # 诊断信息
+        diag = {
+            'password_length': len(pwd),
+            'password_masked': (pwd[:2] + '***') if pwd else '(empty)',
+            'likely_encrypted': pwd and len(pwd) > 50 and '=' in pwd and '/' in pwd,
+        }
+
+        bm = get_backup_manager()
+        result = bm.backup(
+            instance_id=data.get('instance_id', ''),
+            db_type=data.get('db_type', ''),
+            conn_info=conn_info,
+            backup_type=data.get('backup_type', 'full'),
+            databases=data.get('databases', None),
+            tables=data.get('tables', None),
+            instance_name=data.get('instance_name', ''),
+        )
+        resp = {'ok': result.success, 'message': result.message,
+                'result': result.to_dict()}
+        if not result.success:
+            resp['diagnostic'] = diag
+            # 附加 raw 输出用于诊断
+            raw = result.to_dict()
+            if raw.get('message') and 'mysql:' in raw.get('message', ''):
+                resp['diagnostic']['mysql_ok'] = True
+            resp['cmd_hint'] = (
+                f"docker exec {conn_info.get('docker',{}).get('container','?')} "
+                f"mysql -hlocalhost -P3306 -u{conn_info.get('user','?')} "
+                f"-p*** -e 'SHOW DATABASES' -- 在宿主机执行验证"
+            ) if conn_info.get('exec_mode') == 'docker' else None
+        return jsonify(resp)
+    except ImportError as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'ok': False, 'error': 'Pro 模块加载失败: ' + str(e)})
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/backup/list', methods=['GET'])
+def api_pro_backup_list():
+    """备份文件列表"""
+    try:
+        from pro.backup import get_backup_manager
+        instance_id = request.args.get('instance_id', '')
+        db_type = request.args.get('db_type', '')
+        bm = get_backup_manager()
+        backups = bm.list_backups(instance_id, db_type)
+        return jsonify({'ok': True, 'backups': backups})
+    except ImportError as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'ok': False, 'error': 'Pro 模块加载失败: ' + str(e)})
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/backup/delete', methods=['POST'])
+def api_pro_backup_delete():
+    """删除备份"""
+    try:
+        data = request.get_json()
+        timestamp = data.get('timestamp', '')
+        instance_id = data.get('instance_id', '')
+        import shutil
+        path = os.path.join("backups", instance_id, timestamp)
+        if os.path.exists(path):
+            shutil.rmtree(path, ignore_errors=True)
+            return jsonify({'ok': True, 'message': '已删除'})
+        return jsonify({'ok': False, 'error': '备份不存在'}), 404
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/backup/restore', methods=['POST'])
+def api_pro_backup_restore():
+    """恢复备份"""
+    try:
+        from pro.backup import get_backup_manager
+        data = request.get_json()
+        bm = get_backup_manager()
+        # 解析相对路径为绝对路径
+        backup_file = data.get('backup_file', '')
+        if backup_file and not os.path.isabs(backup_file):
+            backup_file = os.path.join("backups", backup_file)
+        result = bm.restore(
+            backup_file=backup_file,
+            db_type=data.get('db_type', ''),
+            conn_info=data.get('conn_info', {}),
+            target_db=data.get('target_db', None),
+        )
+        return jsonify({'ok': result.success, 'message': result.message})
+    except ImportError as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'ok': False, 'error': 'Pro 模块加载失败: ' + str(e)})
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/backup/history', methods=['GET'])
+def api_pro_backup_history():
+    """备份历史记录"""
+    try:
+        from pro.backup import get_backup_manager
+        instance_id = request.args.get('instance_id', None)
+        limit = int(request.args.get('limit', 50))
+        bm = get_backup_manager()
+        history = bm.get_history(instance_id, limit)
+        return jsonify({'ok': True, 'history': history})
+    except ImportError as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'ok': False, 'error': 'Pro 模块加载失败: ' + str(e)})
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/backup/statistics', methods=['GET'])
+def api_pro_backup_statistics():
+    """备份统计"""
+    try:
+        from pro.backup import get_backup_manager
+        bm = get_backup_manager()
+        stats = bm.get_statistics()
+        return jsonify({'ok': True, 'statistics': stats})
+    except ImportError as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'ok': False, 'error': 'Pro 模块加载失败: ' + str(e)})
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/backup/files', methods=['GET'])
+def api_pro_backup_files():
+    """获取磁盘上的备份文件列表"""
+    try:
+        instance_id = request.args.get('instance_id', '')
+        db_type = request.args.get('db_type', '')
+        from pro.backup import get_backup_manager
+        bm = get_backup_manager()
+        backups = bm.list_backups(instance_id, db_type)
+        return jsonify({'ok': True, 'backups': backups})
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/backup/download/<path:filepath>', methods=['GET'])
+def api_pro_backup_download(filepath):
+    """下载备份文件"""
+    try:
+        import os
+        # 安全检查：限制在 backups 目录内
+        full_path = os.path.abspath(os.path.join("backups", filepath))
+        if not full_path.startswith(os.path.abspath("backups")):
+            return jsonify({'ok': False, 'error': '非法路径'}), 403
+        if not os.path.exists(full_path):
+            return jsonify({'ok': False, 'error': '文件不存在'}), 404
+        from flask import send_file
+        return send_file(full_path, as_attachment=True)
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+def api_pro_backup_config():
+    """备份配置"""
+    try:
+        from pro.backup import get_backup_manager
+        bm = get_backup_manager()
+        if request.method == 'GET':
+            return jsonify({'ok': True, 'config': bm.config})
+        else:
+            data = request.get_json()
+            bm.save_config(data)
+            return jsonify({'ok': True, 'message': '配置已保存'})
+    except ImportError as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'ok': False, 'error': 'Pro 模块加载失败: ' + str(e)})
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/backup/history/<int:record_id>', methods=['DELETE'])
+def api_pro_backup_history_delete(record_id):
+    """删除备份历史记录"""
+    try:
+        import sqlite3
+        db_file = os.path.join("pro_data", "backup_history.db")
+        conn = sqlite3.connect(db_file)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM backup_history WHERE id=?", (record_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({'ok': True, 'message': '已删除'})
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/backup/docker-containers', methods=['GET'])
+def api_pro_backup_docker_containers():
+    """获取运行中的 Docker 容器列表"""
+    try:
+        import subprocess, json
+        result = subprocess.run(
+            ["docker", "ps", "--format", "{{json .}}"],
+            capture_output=True, text=True, timeout=10,
+            encoding="utf-8", errors="replace"
+        )
+        if result.returncode != 0:
+            return jsonify({'ok': False, 'error': 'Docker 未运行或未安装'})
+        out = result.stdout or ""
+        containers = []
+        for line in out.strip().split("\n"):
+            if not line:
+                continue
+            try:
+                c = json.loads(line)
+                name = c.get("Names", "")
+                image = c.get("Image", "")
+                containers.append({"name": name, "image": image})
+            except Exception:
+                pass
+        return jsonify({'ok': True, 'containers': containers})
+    except FileNotFoundError:
+        return jsonify({'ok': False, 'error': 'Docker 未安装'})
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+# ══════════════════════════════════════════════════════════════
 #  SQL 执行 API（一键修复）
 # ══════════════════════════════════════════════════════════════
 
@@ -2824,7 +3163,7 @@ def _translate_error(error_msg: str, db_type: str) -> str:
             return '无法操作：该记录被其他数据引用'
 
     # Oracle 常见错误
-    elif db_type in ('oracle', 'oracle_full'):
+    elif db_type in ('oracle',):
         if 'ora-00054' in error_lower:
             return '资源正忙，该对象被锁定了'
         if 'ora-00001' in error_lower:
@@ -2988,7 +3327,7 @@ def api_inspection_execute_sql():
             cursor.close()
             conn.close()
 
-        elif db_type == 'oracle' or db_type == 'oracle_full':
+        elif db_type == 'oracle':
             import oracledb
             dsn = db_info.get('service_name') or f"{db_info.get('host')}:{db_info.get('port')}/orcl"
             mode = oracledb.SYSDBA if db_info.get('sysdba') else oracledb.DEFAULT_MODE
@@ -3613,7 +3952,7 @@ def api_chat():
             task_func_map = {
                 'mysql': run_mysql_task,
                 'pg': run_pg_task,
-                'oracle_full': run_oracle_full_task,
+                'oracle': run_oracle_full_task,
                 'dm': run_dm_task,
                 'sqlserver': run_sqlserver_task,
                 'tidb': run_tidb_task,

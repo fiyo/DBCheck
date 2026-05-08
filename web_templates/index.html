@@ -2067,6 +2067,23 @@ async function executeFixSql(taskId, sql) {
 .health-risk-chip.medium   { background: rgba(227,179,65,.2); color: var(--warn); }
 .health-risk-chip.low      { background: rgba(76,175,80,.15); color: #81c784; }
 .health-risk-chip.healthy  { background: rgba(46,160,67,.15); color: #4caf50; }
+
+/* ── 通用表格 ── */
+.table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
+.table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.table thead { background: var(--surface2); }
+.table th {
+  text-align: left; padding: 10px 14px; font-weight: 600;
+  font-size: 12px; color: var(--text-muted); text-transform: uppercase;
+  letter-spacing: .4px; border-bottom: 2px solid var(--border);
+  white-space: nowrap;
+}
+.table td {
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+  color: var(--text); vertical-align: middle;
+}
+.table tbody tr:hover { background: rgba(55,138,221,.06); }
+.table tbody tr:last-child td { border-bottom: none; }
 </style>
 </head>
 <body>
@@ -2505,9 +2522,9 @@ function formatBytes(bytes) {
               return;
             }
             listEl.innerHTML = list.map(ds => {
-              const dbIcons = {mysql:'🐬', pg:'🐘', oracle_full:'🔴', dm:'🟡', sqlserver:'🟠', tidb:'🟢'};
+              const dbIcons = {mysql:'🐬', pg:'🐘', oracle:'🔴', dm:'🟡', sqlserver:'🟠', tidb:'🟢'};
               const icon = dbIcons[ds.db_type] || '🗄️';
-              const tagClass = 'tag-' + (ds.db_type === 'oracle_full' ? 'oracle' : ds.db_type === 'sqlserver' ? 'sqlserver' : ds.db_type);
+              const tagClass = 'tag-' + (ds.db_type === 'oracle' ? 'oracle' : ds.db_type === 'sqlserver' ? 'sqlserver' : ds.db_type);
               const groupLabel = ds.group || 'default';
               return '<div style="padding:12px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;display:flex;align-items:center;gap:12px">' +
                 '<span class="tag ' + tagClass + '" style="font-size:12px">' + icon + ' ' + (ds.db_type||'') + '</span>' +
@@ -2642,6 +2659,7 @@ function formatBytes(bytes) {
       }
 
       function showAddDatasourceModal(existingDs) {
+        if (!existingDs) { _editDsPassword = ''; _editDsPort = 0; }
         document.getElementById('datasource-modal-backdrop')?.remove();
         const isEdit = !!existingDs;
         const modalTitle = isEdit ? i18n('webui.pro_datasource_edit_title') : i18n('webui.pro_datasource_add_title');
@@ -2654,7 +2672,7 @@ function formatBytes(bytes) {
                 '<select id="ds-db-type" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" onchange="onDsDbTypeChange()">' +
                   '<option value="mysql">MySQL</option>' +
                   '<option value="pg">PostgreSQL</option>' +
-                  '<option value="oracle_full">Oracle</option>' +
+                  '<option value="oracle">Oracle</option>' +
                   '<option value="dm">达梦 DM8</option>' +
                   '<option value="sqlserver">SQL Server</option>' +
                   '<option value="tidb">TiDB</option>' +
@@ -2682,9 +2700,36 @@ function formatBytes(bytes) {
                 '<select id="ds-group" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px">' +
                 '<option value="default">default</option></select></div>' +
             '</div>' +
+            // SSH 配置（开关 + 下拉切换认证方式）
+            '<div style="margin-top:12px;border-top:1px solid var(--border);padding-top:10px;">' +
+              '<div class="toggle-row" onclick="var s=document.getElementById(\'ds-ssh-section\');var t=document.getElementById(\'ds-ssh-toggle\');var on=s.style.display!==\'none\';s.style.display=on?\'none\':\'\';t.className=\'toggle\'+(on?\'\':\' on\')" style="margin-bottom:8px;">' +
+                '<span style="font-size:13px;font-weight:500">🔐 启用 SSH 系统信息采集</span>' +
+                '<div class="toggle" id="ds-ssh-toggle"></div>' +
+              '</div>' +
+              '<div id="ds-ssh-section" style="display:none">' +
+                '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px;">' +
+                  '<div><label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">SSH 主机地址</label>' +
+                    '<input id="ds-ssh-host" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="与数据库主机相同"></div>' +
+                  '<div><label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">SSH 端口</label>' +
+                    '<input id="ds-ssh-port" type="number" value="22" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px"></div>' +
+                  '<div><label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">SSH 用户名</label>' +
+                    '<input id="ds-ssh-user" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" value="root"></div>' +
+                  '<div><label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">认证方式</label>' +
+                    '<select id="ds-ssh-auth" onchange="onDsSshAuthChange()" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px">' +
+                      '<option value="password">密码认证</option>' +
+                      '<option value="key">私钥文件</option>' +
+                    '</select></div>' +
+                  '<div id="ds-ssh-password-wrap"><label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">SSH 密码</label>' +
+                    '<input id="ds-ssh-password" type="password" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="SSH 登录密码"></div>' +
+                  '<div id="ds-ssh-key-wrap" style="display:none"><label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">私钥文件路径</label>' +
+                    '<input id="ds-ssh-key" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="C:\\Users\\xxx\\.ssh\\id_rsa"></div>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
             '<div id="ds-save-msg" style="margin-top:10px;font-size:12px"></div>' +
             '<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">' +
               '<button class="btn btn-ghost" onclick="document.getElementById(\'datasource-modal-backdrop\').remove()">' + i18n('webui.cancel') + '</button>' +
+              '<button class="btn btn-ghost" onclick="testDsConnInModal()">🔗 测试连接</button>' +
               '<button class="btn btn-primary" onclick="saveDatasource()">' + saveBtnText + '</button>' +
             '</div>' +
           '</div></div>';
@@ -2700,10 +2745,12 @@ function formatBytes(bytes) {
       }
 
       let _currentDbType = '';
+      let _editDsPassword = '';
+      let _editDsPort = 0;
       function onDsDbTypeChange() {
         const dbType = document.getElementById('ds-db-type').value;
-        const portMap = {mysql:3306, pg:5432, dm:5236, oracle_full:1521, sqlserver:1433, tidb:4000};
-        const userMap = {mysql:'root', pg:'postgres', dm:'SYSDBA', oracle_full:'system', sqlserver:'sa', tidb:'root'};
+        const portMap = {mysql:3306, pg:5432, dm:5236, oracle:1521, sqlserver:1433, tidb:4000};
+        const userMap = {mysql:'root', pg:'postgres', dm:'SYSDBA', oracle:'system', sqlserver:'sa', tidb:'root'};
         document.getElementById('ds-port').value = portMap[dbType] || 3306;
         const userEl = document.getElementById('ds-user');
         // 类型改变时强制更新用户名
@@ -2712,8 +2759,48 @@ function formatBytes(bytes) {
         }
         _currentDbType = dbType;
         document.getElementById('ds-database-wrap').style.display = dbType === 'pg' ? '' : 'none';
-        document.getElementById('ds-service-wrap').style.display = dbType === 'oracle_full' ? '' : 'none';
-        document.getElementById('ds-sysdba-wrap').style.display = dbType === 'oracle_full' ? '' : 'none';
+        document.getElementById('ds-service-wrap').style.display = dbType === 'oracle' ? '' : 'none';
+        document.getElementById('ds-sysdba-wrap').style.display = dbType === 'oracle' ? '' : 'none';
+      }
+
+      function onDsSshAuthChange() {
+        const auth = document.getElementById('ds-ssh-auth').value;
+        document.getElementById('ds-ssh-password-wrap').style.display = auth === 'password' ? '' : 'none';
+        document.getElementById('ds-ssh-key-wrap').style.display = auth === 'key' ? '' : 'none';
+      }
+
+      async function testDsConnInModal() {
+        const msgEl = document.getElementById('ds-save-msg');
+        const dbType = document.getElementById('ds-db-type').value;
+        const host = document.getElementById('ds-host').value.trim();
+        let port = parseInt(document.getElementById('ds-port').value) || _editDsPort || 3306;
+        let password = document.getElementById('ds-password').value;
+        // 编辑时密码留空则使用缓存的解密密码
+        if (!password) password = _editDsPassword;
+        const user = document.getElementById('ds-user').value.trim();
+        const svcName = document.getElementById('ds-service-name')?.value || '';
+        const dbName = document.getElementById('ds-database')?.value || '';
+        const sysdba = document.getElementById('ds-sysdba')?.checked || false;
+        const sshHost = document.getElementById('ds-ssh-host')?.value || '';
+        const sshPort = document.getElementById('ds-ssh-port')?.value || 22;
+        const sshUser = document.getElementById('ds-ssh-user')?.value || '';
+        const sshPassword = document.getElementById('ds-ssh-password')?.value || '';
+        if (!host) { msgEl.style.color = 'var(--danger)'; msgEl.textContent = '❌ 请输入主机地址'; return; }
+        msgEl.style.color = 'var(--text-muted)';
+        msgEl.textContent = '⏳ 测试连接中...';
+        try {
+          const res = await fetch('/api/pro/datasources/test-connection', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ db_type: dbType, host, port: parseInt(port), user, password, service_name: svcName, database: dbName, sysdba, ssh_host: sshHost, ssh_port: parseInt(sshPort), ssh_user: sshUser, ssh_password: sshPassword })
+          });
+          const data = await res.json();
+          msgEl.style.color = data.ok ? 'var(--success)' : 'var(--danger)';
+          msgEl.textContent = (data.ok ? '✅ ' : '❌ ') + (data.message || data.error || '连接失败');
+        } catch(e) {
+          msgEl.style.color = 'var(--danger)';
+          msgEl.textContent = '❌ ' + e.message;
+        }
       }
 
       async function saveDatasource() {
@@ -2727,9 +2814,14 @@ function formatBytes(bytes) {
           user: document.getElementById('ds-user').value.trim(),
           password: document.getElementById('ds-password').value || undefined,
           group: document.getElementById('ds-group').value.trim() || 'default',
+          ssh_host: document.getElementById('ds-ssh-host').value.trim(),
+          ssh_port: parseInt(document.getElementById('ds-ssh-port').value) || 22,
+          ssh_user: document.getElementById('ds-ssh-user').value.trim(),
+          ssh_password: document.getElementById('ds-ssh-password').value || undefined,
+          ssh_key_file: document.getElementById('ds-ssh-key').value.trim(),
         };
         if (payload.db_type === 'pg') payload.database = document.getElementById('ds-database').value.trim();
-        if (payload.db_type === 'oracle_full') {
+        if (payload.db_type === 'oracle') {
           payload.service_name = document.getElementById('ds-service-name').value.trim();
           payload.sysdba = document.getElementById('ds-sysdba').checked;
         }
@@ -2767,10 +2859,13 @@ function formatBytes(bytes) {
 
       async function editDatasource(id) {
         try {
-          const res = await fetch('/api/pro/datasources/' + id);
+          const res = await fetch('/api/pro/datasources/' + id + '/decrypt');
           const data = await res.json();
           if (data.ok && data.datasource) {
             const ds = data.datasource;
+            // 缓存解密后的密码供测试连接使用
+            _editDsPassword = ds.password || '';
+            _editDsPort = ds.port;
             // 先获取原始密码用于编辑
             showAddDatasourceModal(ds);
             // 填充表单
@@ -2778,19 +2873,38 @@ function formatBytes(bytes) {
               document.getElementById('ds-db-type').value = ds.db_type || 'mysql';
               document.getElementById('ds-label').value = ds.name || '';
               document.getElementById('ds-host').value = ds.host || '';
-              document.getElementById('ds-port').value = ds.port || 3306;
               document.getElementById('ds-user').value = ds.user || '';
               // 密码留空，不回显
               document.getElementById('ds-password').placeholder = '（不修改请留空）';
+              document.getElementById('ds-password').value = '';
               document.getElementById('ds-group').value = ds.group || 'default';
               if (ds.db_type === 'pg') {
                 document.getElementById('ds-database').value = ds.database || '';
               }
-              if (ds.db_type === 'oracle_full') {
+              if (ds.db_type === 'oracle') {
                 document.getElementById('ds-service-name').value = ds.service_name || '';
                 document.getElementById('ds-sysdba').checked = ds.sysdba === true;
               }
+              // SSH 回填
+              if (ds.ssh_host) {
+                document.getElementById('ds-ssh-section').style.display = '';
+                document.getElementById('ds-ssh-toggle').className = 'toggle on';
+                document.getElementById('ds-ssh-host').value = ds.ssh_host || '';
+                document.getElementById('ds-ssh-port').value = ds.ssh_port || 22;
+                document.getElementById('ds-ssh-user').value = ds.ssh_user || '';
+                document.getElementById('ds-ssh-password').placeholder = '（不修改请留空）';
+                document.getElementById('ds-ssh-password').value = '';
+                document.getElementById('ds-ssh-key').value = ds.ssh_key_file || '';
+                if (ds.ssh_key_file && !ds.ssh_password) {
+                  document.getElementById('ds-ssh-auth').value = 'key';
+                }
+                onDsSshAuthChange();
+              }
+              // 防止 onDsDbTypeChange 覆盖已填充的用户名
+              _currentDbType = ds.db_type || 'mysql';
               onDsDbTypeChange();
+              // 端口放在 onDsDbTypeChange 之后，避免被默认值覆盖
+              document.getElementById('ds-port').value = ds.port ?? 3306;
               // 添加隐藏字段存储ID
               const form = document.getElementById('datasource-modal-backdrop').querySelector('div[style*="min-width"]');
               const idInput = document.createElement('input');
@@ -2819,10 +2933,28 @@ function formatBytes(bytes) {
 
       async function testDatasourceConnection(id) {
         try {
-          const res = await fetch('/api/pro/datasources/' + id + '/test', {method:'POST'});
+          const r = await fetch('/api/pro/datasources/' + id + '/decrypt');
+          const d = await r.json();
+          if (!d.ok || !d.datasource) { toastError('加载失败'); return; }
+          const ds = d.datasource;
+          const res = await fetch('/api/pro/datasources/test-connection', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              db_type: ds.db_type, host: ds.host, port: ds.port,
+              user: ds.user, password: ds.password,
+              service_name: ds.service_name || '',
+              database: ds.database || '',
+              sysdba: ds.sysdba || false,
+              ssh_host: ds.ssh_host || '',
+              ssh_port: ds.ssh_port || 22,
+              ssh_user: ds.ssh_user || '',
+              ssh_password: ds.ssh_password || '',
+            })
+          });
           const data = await res.json();
-          if (data.ok) { toastSuccess(i18n('webui.ds_connect_success').replace('{}', data.version || '')); }
-          else { toastError(i18n('webui.ds_connect_fail').replace('{}', data.error || '')); }
+          if (data.ok) { toastSuccess('连接成功'); }
+          else { toastError((data.error || data.message || '连接失败')); }
         } catch(e) { toastError(e.message); }
       }
 
@@ -2894,6 +3026,9 @@ function formatBytes(bytes) {
     <div class="nav-item" onclick="showPage('scheduler')" id="nav-scheduler">
       <span class="icon">⏰</span> <span data-i18n="webui.nav_scheduler">定时巡检</span>
     </div>
+    <!-- <div class="nav-item" onclick="showPage('backup')" id="nav-backup">
+      <span class="icon">💾</span> <span data-i18n="webui.nav_backup">数据库备份</span>
+    </div> -->
     <div class="nav-item" onclick="showPage('reports')" id="nav-reports">
       <span class="icon">📄</span> <span data-i18n="webui.reports_title">历史巡检报告</span>
     </div>
@@ -3158,13 +3293,13 @@ function formatBytes(bytes) {
             <span class="badge" data-i18n="webui.step_badge">第 1 步 / 共 5 步</span>
           </div>
           <div class="type-grid">
-            <div class="type-card selected" id="tc-oracle_full" onclick="selectDbType('oracle_full')">
+            <div class="type-card selected" id="tc-oracle" onclick="selectDbType('oracle')">
               <div class="tc-header">
                 <div class="tc-logo"><img src="/oracle.png" alt="DBCheck" style="width:36px;height:36px;"></div>
-                <div class="tc-check" id="chk-oracle_full">✓</div>
+                <div class="tc-check" id="chk-oracle">✓</div>
               </div>
-              <div class="tc-name" data-i18n="webui.db_oracle_full_name">Oracle</div>
-              <div class="tc-desc" data-i18n="webui.db_oracle_full_desc">基于 OS 层 + 数据库层，覆盖 80+ 检查项，适合 10g~21c+。</div>
+              <div class="tc-name" data-i18n="webui.db_oracle_name">Oracle</div>
+              <div class="tc-desc" data-i18n="webui.db_oracle_desc">基于 OS 层 + 数据库层，覆盖 80+ 检查项，适合 10g~21c+。</div>
             </div>
             <div class="type-card" id="tc-mysql" onclick="selectDbType('mysql')">
               <div class="tc-header">
@@ -3634,6 +3769,95 @@ function formatBytes(bytes) {
         </div>
       </div>
 
+      <!-- ══ Page: Backup ══ -->
+      <div class="page" id="page-backup">
+        <div class="page-toolbar" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
+          <h2 style="font-size:18px;margin:0;">💾 <span data-i18n="webui.backup_title">数据库备份管理</span></h2>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+            <div>
+              <label style="font-size:12px;display:block;margin-bottom:2px;">备份范围</label>
+              <select id="backup-scope" class="input" style="width:100px;padding:6px 10px;font-size:12px" onchange="onBackupScopeChange()">
+                <option value="full">全库</option>
+                <option value="schema">仅结构</option>
+                <option value="tables">指定表</option>
+              </select>
+            </div>
+            <div id="backup-tables-wrap" style="display:none;">
+              <label style="font-size:12px;display:block;margin-bottom:2px;">表名（逗号分隔）</label>
+              <input type="text" id="backup-tables-input" class="input" style="width:200px;padding:6px 10px;font-size:12px" placeholder="db.table1, db.table2">
+            </div>
+            <button class="btn btn-primary" onclick="runBackup()">▶ <span data-i18n="webui.backup_run_btn">执行备份</span></button>
+          </div>
+        </div>
+
+        <!-- 备份统计卡片 -->
+        <div class="card" style="margin-bottom:16px;" id="backup-stats-card">
+          <div style="display:flex;gap:24px;flex-wrap:wrap;font-size:14px;">
+            <div><span style="color:var(--text-muted)" data-i18n="webui.backup_total">总备份:</span> <b id="stat-total">0</b></div>
+            <div><span style="color:var(--text-muted)" data-i18n="webui.backup_success">成功:</span> <b style="color:var(--success)" id="stat-success">0</b></div>
+            <div><span style="color:var(--text-muted)" data-i18n="webui.backup_failed">失败:</span> <b style="color:var(--danger)" id="stat-failed">0</b></div>
+            <div><span style="color:var(--text-muted)" data-i18n="webui.backup_size">总大小:</span> <b id="stat-size">0 B</b></div>
+            <div><span style="color:var(--text-muted)" data-i18n="webui.backup_24h">24小时:</span> <b id="stat-24h">0</b></div>
+          </div>
+        </div>
+
+        <!-- 备份实例选择 -->
+        <div class="input-row" style="margin-bottom:12px;display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+          <div>
+            <label style="font-size:13px;font-weight:500;display:block;margin-bottom:4px;" data-i18n="webui.backup_instance_label">目标实例:</label>
+            <select id="backup-instance-id" class="input" style="width:200px;padding:6px 12px;" onchange="onBackupInstanceChange()"></select>
+          </div>
+          <div>
+            <label style="font-size:13px;font-weight:500;display:block;margin-bottom:4px;">执行模式:</label>
+            <select id="backup-exec-mode" class="input" style="width:120px;padding:6px 12px;" onchange="onExecModeChange()">
+              <option value="local">本地</option>
+              <option value="docker">Docker</option>
+              <option value="ssh">SSH</option>
+            </select>
+          </div>
+          <div id="backup-docker-section" style="display:none;">
+            <label style="font-size:13px;font-weight:500;display:block;margin-bottom:4px;">容器名/ID:</label>
+            <div style="display:flex;gap:6px;">
+              <input type="text" id="backup-docker-container" class="input" style="width:220px;padding:6px 12px;" placeholder="选择或输入容器名" list="docker-container-list">
+              <datalist id="docker-container-list"></datalist>
+              <button class="btn btn-ghost" style="font-size:11px;padding:4px 8px;" onclick="detectContainers()" title="刷新容器列表">🔍</button>
+            </div>
+          </div>
+          <div id="backup-hint" style="font-size:12px;color:var(--text-muted);line-height:1.4;">
+            💡 Docker: 使用 <code>docker exec 容器名 mysqldump</code><br>
+            💡 SSH: 在远程主机上执行备份命令<br>
+            💡 Oracle: expdp 必须在数据库服务器运行，请选择 Docker 或 SSH 模式
+          </div>
+        </div>
+
+        <!-- 备份进度 -->
+        <div id="backup-progress" style="display:none;margin-bottom:12px;padding:12px;background:var(--surface2);border-radius:8px;font-size:13px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="spinner" style="width:16px;height:16px;"></span>
+            <span id="backup-progress-text" data-i18n="webui.backup_running">备份中，请稍候...</span>
+          </div>
+        </div>
+
+        <!-- 备份历史 -->
+        <div class="card" id="backup-history-card">
+          <div class="card-title">📋 <span data-i18n="webui.backup_history_title">备份历史</span></div>
+          <div class="table-wrap">
+            <table class="table" style="width:100%;">
+              <thead><tr>
+                <th data-i18n="webui.backup_time">时间</th>
+                <th data-i18n="webui.backup_type">类型</th>
+                <th data-i18n="webui.backup_status" style="text-align:center">状态</th>
+                <th data-i18n="webui.backup_size">大小</th>
+                <th data-i18n="webui.backup_duration">耗时</th>
+                <th>数据库</th>
+                <th data-i18n="webui.backup_action">操作</th>
+              </tr></thead>
+              <tbody id="backup-history-tbody"><tr><td colspan="7" style="text-align:center;color:var(--text-muted)">选择实例后加载</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <!-- ══ Page: License ══ -->
       <div class="page" id="page-license">
         <div class="card">
@@ -3848,7 +4072,7 @@ function formatBytes(bytes) {
               <option value="" data-i18n="webui.rules_filter_all">全部</option>
               <option value="mysql">MySQL</option>
               <option value="pg">PostgreSQL</option>
-              <option value="oracle_full">Oracle</option>
+              <option value="oracle">Oracle</option>
               <option value="dm">达梦 DM8</option>
               <option value="sqlserver">SQL Server</option>
               <option value="tidb">TiDB</option>
@@ -3869,7 +4093,7 @@ function formatBytes(bytes) {
 
 <script>
 // ─── State ───
-let dbType = 'oracle_full';
+let dbType = 'oracle';
 let sshEnabled = false;
 let currentTaskId = null;
 let pollTimer = null;
@@ -4074,6 +4298,7 @@ function showPage(name) {
     datasources: [i18n('webui.nav_datasources'), ''],
     rules:   [i18n('webui.nav_rules'),      ''],
     license: [i18n('webui.nav_license'),   i18n('webui.license_desc')],
+    backup:  ['💾 ' + (i18n('webui.backup_title') || '数据库备份管理'), ''],
   };
   const t = titles[name] || [name, ''];
   document.getElementById('topbar-title').textContent = t[0];
@@ -4089,6 +4314,7 @@ function showPage(name) {
   if (name === 'ai') loadAIConfig();
   if (name === 'rag') showRagPage();
   if (name === 'home') loadHomeStats();
+  if (name === 'backup') loadBackupPage();
 }
 
 function startWizard() {
@@ -4096,9 +4322,9 @@ function startWizard() {
   logOffset = 0;
 
   // 1. 重置数据库类型为 Oracle
-  dbType = 'oracle_full';
+  dbType = 'oracle';
   sshEnabled = false;
-  selectDbType('oracle_full');
+  selectDbType('oracle');
 
   // 2. 清除所有表单字段（port/user/ssh-port 由默认值覆盖，需保留）
   const fids = ['f-name','f-host','f-password','f-database',
@@ -4268,9 +4494,19 @@ function onDatasourceChange() {
       if (ds.db_type === 'pg') {
         document.getElementById('f-database').value = ds.database || '';
       }
-      if (ds.db_type === 'oracle_full') {
+      if (ds.db_type === 'oracle') {
         document.getElementById('f-service-name').value = ds.service_name || '';
         document.getElementById('f-sysdba').checked = !!ds.sysdba;
+      }
+      // 自动填充 SSH 配置
+      if (ds.ssh_host) {
+        document.getElementById('f-ssh-host').value = ds.ssh_host || '';
+        document.getElementById('f-ssh-port').value = ds.ssh_port || 22;
+        document.getElementById('f-ssh-user').value = ds.ssh_user || 'root';
+        document.getElementById('f-ssh-password').value = ds.ssh_password || '';
+        document.getElementById('f-ssh-key').value = ds.ssh_key_file || '';
+        // 自动启用 SSH
+        if (!sshEnabled) toggleSsh();
       }
     } else {
       document.getElementById('f-name').value = '';
@@ -4284,11 +4520,13 @@ function onDatasourceChange() {
 
 function resetFormFromDatasource() {
   // 清除自动填充的内容，让用户手动输入
-  ['f-name','f-host','f-port','f-user','f-password','f-database','f-service-name'].forEach(id => {
+  ['f-name','f-host','f-port','f-user','f-password','f-database','f-service-name',
+   'f-ssh-host','f-ssh-port','f-ssh-user','f-ssh-password','f-ssh-key'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
   document.getElementById('f-password').placeholder = '数据库密码';
+  if (sshEnabled) toggleSsh();
 }
 
 // ─── DB Type ───
@@ -4310,26 +4548,26 @@ function selectDbType(type, skipReload) {
   document.getElementById('tc-mysql').classList.toggle('selected', type === 'mysql');
   document.getElementById('tc-pg').classList.toggle('selected', type === 'pg');
   document.getElementById('tc-dm').classList.toggle('selected', type === 'dm');
-  document.getElementById('tc-oracle_full').classList.toggle('selected', type === 'oracle_full');
+  document.getElementById('tc-oracle').classList.toggle('selected', type === 'oracle');
   document.getElementById('tc-sqlserver').classList.toggle('selected', type === 'sqlserver');
   document.getElementById('tc-tidb').classList.toggle('selected', type === 'tidb');
   document.getElementById('chk-mysql').textContent = type === 'mysql' ? '✓' : '';
   document.getElementById('chk-pg').textContent   = type === 'pg'    ? '✓' : '';
   document.getElementById('chk-dm').textContent = type === 'dm' ? '✓' : '';
-  document.getElementById('chk-oracle_full').textContent = type === 'oracle_full' ? '✓' : '';
+  document.getElementById('chk-oracle').textContent = type === 'oracle' ? '✓' : '';
   document.getElementById('chk-sqlserver').textContent = type === 'sqlserver' ? '✓' : '';
   // 默认端口 & 用户名
-  const portMap = { mysql: 3306, pg: 5432, dm: 5236, oracle_full: 1521, sqlserver: 1433, tidb: 4000 };
-  const userMap = { mysql: 'root', pg: 'postgres', dm: 'SYSDBA', oracle_full: 'system', sqlserver: 'sa', tidb: 'root' };
+  const portMap = { mysql: 3306, pg: 5432, dm: 5236, oracle: 1521, sqlserver: 1433, tidb: 4000 };
+  const userMap = { mysql: 'root', pg: 'postgres', dm: 'SYSDBA', oracle: 'system', sqlserver: 'sa', tidb: 'root' };
   document.getElementById('f-port').value = portMap[type] || 3306;
   document.getElementById('f-user').value = userMap[type] || 'root';
   document.getElementById('f-database-wrap').style.display = type === 'pg' ? '' : 'none';
   // Oracle全面巡检：显示服务名输入框
   var svcWrap = document.getElementById('f-service-wrap');
-  if (svcWrap) svcWrap.style.display = type === 'oracle_full' ? '' : 'none';
+  if (svcWrap) svcWrap.style.display = type === 'oracle' ? '' : 'none';
   // Oracle全面巡检：显示 SYSDBA 复选框
   var sysdbaWrap = document.getElementById('f-sysdba-wrap');
-  if (sysdbaWrap) sysdbaWrap.style.display = type === 'oracle_full' ? '' : 'none';
+  if (sysdbaWrap) sysdbaWrap.style.display = type === 'oracle' ? '' : 'none';
 }
 
 // ─── Test DB (新建巡检页) ───
@@ -4432,7 +4670,7 @@ async function testJobDb() {
   el.innerHTML = '<div class="status-banner info"><span class="spinner"></span> ' + i18n('webui.testing_connection') + '</div>';
   try {
     const dbType = document.getElementById('job-db-type').value;
-    const portDefaults = { mysql:3306, pg:5432, oracle_full:1521, dm:5236, sqlserver:1433, tidb:4000 };
+    const portDefaults = { mysql:3306, pg:5432, oracle:1521, dm:5236, sqlserver:1433, tidb:4000 };
     const res = await fetch('/api/test_db', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
@@ -4693,21 +4931,21 @@ function fillConfirmPanel() {
   const typeLabels = {
     mysql: '🐬 ' + i18n('webui.db_type_mysql'),
     pg: '🐘 ' + i18n('webui.db_type_pg'),
-    oracle_full: '🔴 ' + i18n('webui.db_type_oracle') + ' ' + i18n('webui.oracle_full_suffix'),
+    oracle: '🔴 ' + i18n('webui.db_type_oracle') + ' ' + i18n('webui.oracle_suffix'),
     dm: '🟡 ' + i18n('webui.db_type_dm'),
     sqlserver: '🟠 ' + i18n('webui.db_type_sqlserver') + ' ' + i18n('webui.db_sqlserver_beta'),
     tidb:    '🐬 ' + i18n('webui.db_type_tidb') + ' ' + i18n('webui.db_tidb_beta'),
   };
-  const nameDefaults = { mysql: 'MySQL_Server', pg: 'PG_Server', oracle_full: 'Oracle_Server', dm: 'DM8_Server', sqlserver: 'SQLServer', tidb: 'TiDB_Cluster' };
-  const portDefaults = { mysql: '3306', pg: '5432', oracle_full: '1521', dm: '5236', sqlserver: '1433', tidb: '4000' };
-  const userDefaults = { mysql: 'root', pg: 'postgres', oracle_full: 'system', dm: 'SYSDBA', sqlserver: 'sa', tidb: 'root' };
+  const nameDefaults = { mysql: 'MySQL_Server', pg: 'PG_Server', oracle: 'Oracle_Server', dm: 'DM8_Server', sqlserver: 'SQLServer', tidb: 'TiDB_Cluster' };
+  const portDefaults = { mysql: '3306', pg: '5432', oracle: '1521', dm: '5236', sqlserver: '1433', tidb: '4000' };
+  const userDefaults = { mysql: 'root', pg: 'postgres', oracle: 'system', dm: 'SYSDBA', sqlserver: 'sa', tidb: 'root' };
   const typeLabel = typeLabels[dbType] || dbType;
   const name = document.getElementById('f-name').value.trim() || (nameDefaults[dbType]||'_Server');
   const host = document.getElementById('f-host').value.trim() || 'localhost';
   const port = document.getElementById('f-port').value || (portDefaults[dbType]||'1521');
   const sshLabel = sshEnabled ? `${document.getElementById('f-ssh-host').value || host}:${document.getElementById('f-ssh-port').value||22}` : i18n('webui.ssh_not_configured');
 
-  const tagClass = dbType === 'mysql' ? 'tag-mysql' : dbType === 'oracle_full' ? 'tag-oracle' : dbType === 'dm' ? 'tag-dm' : dbType === 'sqlserver' ? 'tag-sqlserver' : dbType === 'tidb' ? 'tag-tidb' : 'tag-pg';
+  const tagClass = dbType === 'mysql' ? 'tag-mysql' : dbType === 'oracle' ? 'tag-oracle' : dbType === 'dm' ? 'tag-dm' : dbType === 'sqlserver' ? 'tag-sqlserver' : dbType === 'tidb' ? 'tag-tidb' : 'tag-pg';
   document.getElementById('cf-dbtype').innerHTML = `<span class="tag ${tagClass}">${typeLabel}</span>`;
   document.getElementById('cf-name').textContent = name;
   document.getElementById('cf-conn').textContent = `${host}:${port}`;
@@ -4721,9 +4959,9 @@ async function startInspection() {
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> ' + i18n('webui.btn_starting');
 
-  const name = document.getElementById('f-name').value.trim() || (dbType==='mysql'?'MySQL_Server':dbType==='oracle'?'Oracle_Server':dbType==='oracle_full'?'Oracle_Full':dbType==='dm'?'DM8_Server':'PG_Server');
+  const name = document.getElementById('f-name').value.trim() || (dbType==='mysql'?'MySQL_Server':dbType==='oracle'?'Oracle_Server':dbType==='oracle'?'Oracle_Full':dbType==='dm'?'DM8_Server':'PG_Server');
   const host = document.getElementById('f-host').value.trim() || 'localhost';
-  const port = parseInt(document.getElementById('f-port').value) || (dbType==='mysql'?3306:dbType==='oracle'||dbType==='oracle_full'?1521:dbType==='dm'?5236:5432);
+  const port = parseInt(document.getElementById('f-port').value) || (dbType==='mysql'?3306:dbType==='oracle'||dbType==='oracle'?1521:dbType==='dm'?5236:5432);
   const user = document.getElementById('f-user').value.trim() || (userDefaults[dbType]||'root');
   const password = document.getElementById('f-password').value;
   const database = dbType === 'pg' ? (document.getElementById('f-database').value.trim() || 'postgres') : (document.getElementById('f-database').value.trim() || '');
@@ -6073,7 +6311,7 @@ function onJobDbTypeChange() {
   const portInput = document.getElementById('job-port');
 
   const defaultPorts = {
-    mysql: 3306, pg: 5432, oracle_full: 1521,
+    mysql: 3306, pg: 5432, oracle: 1521,
     dm: 5236, sqlserver: 1433, tidb: 4000
   };
   portInput.value = defaultPorts[dbType] || 3306;
@@ -6222,7 +6460,7 @@ function showAddJobForm() {
     const dbTypes = [
       {value:'mysql', label:'MySQL'},
       {value:'pg', label:'PostgreSQL'},
-      {value:'oracle_full', label:'Oracle'},
+      {value:'oracle', label:'Oracle'},
       {value:'dm', label:'达梦 DM8'},
       {value:'sqlserver', label:'SQL Server'},
       {value:'tidb', label:'TiDB'},
@@ -7256,7 +7494,7 @@ async function loadHomeStats() {
     const dbTypeMap = {
       'mysql': { icon: '🐬', name: 'MySQL' },
       'pg': { icon: '🐘', name: 'PostgreSQL' },
-      'oracle_full': { icon: '🔴', name: 'Oracle' },
+      'oracle': { icon: '🔴', name: 'Oracle' },
       'dm': { icon: '🟡', name: '达梦 DM8' },
       'sqlserver': { icon: '🟠', name: 'SQL Server' },
       'tidb': { icon: '🟢', name: 'TiDB' }
@@ -8279,6 +8517,362 @@ if (typeof socket !== 'undefined') {
     }
   });
 }
+
+// ══════════════════════════════════════════════════════════════
+//  备份管理
+// ══════════════════════════════════════════════════════════════
+
+async function loadBackupPage() {
+    await fillBackupInstances();
+    await loadBackupList();
+    await loadBackupStats();
+}
+
+function getCurrentDbType() {
+    const sel = document.getElementById('backup-instance-id');
+    if (!sel || !sel.selectedOptions.length) return 'mysql';
+    const opt = sel.selectedOptions[0];
+    const text = opt.textContent || '';
+    const m = text.match(/\[(\w+)\]/);
+    return m ? m[1].toLowerCase() : 'mysql';
+}
+
+function restoreBackup(instanceId, timestamp) {
+    const existing = document.getElementById('restore-panel');
+    if (existing) existing.remove();
+
+    const panel = document.createElement('div');
+    panel.id = 'restore-panel';
+    panel.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;z-index:99999;min-width:360px;box-shadow:0 12px 40px rgba(0,0,0,0.35)';
+    panel.innerHTML =
+        '<div style="font-size:16px;font-weight:600;margin-bottom:8px;">🔄 恢复备份</div>' +
+        '<div style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">备份时间: ' + escHtml(timestamp) + '</div>' +
+        '<div style="margin-bottom:14px;">' +
+          '<label style="font-size:13px;font-weight:500;display:block;margin-bottom:4px;">目标数据库名 <span style="color:var(--danger)">*</span></label>' +
+          '<input id="restore-target-db" class="input" style="width:100%;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="输入目标数据库名" autofocus>' +
+        '</div>' +
+        '<div id="restore-msg" style="font-size:12px;color:var(--warn);margin-bottom:14px;padding:8px 12px;background:rgba(255,193,7,0.08);border-radius:6px;">' +
+          '⚠ 此操作将 <b>覆盖</b> 目标数据库中的同名表和数据' +
+        '</div>' +
+        '<div style="display:flex;justify-content:flex-end;gap:10px;">' +
+          '<button class="btn btn-ghost" onclick="document.getElementById(\'restore-panel\').remove()">取消</button>' +
+          '<button class="btn btn-primary" id="btn-restore-confirm" onclick="doRestore(\'' + escHtml(instanceId) + '\',\'' + escHtml(timestamp) + '\')">确认恢复</button>' +
+        '</div>';
+    document.body.appendChild(panel);
+    setTimeout(() => document.getElementById('restore-target-db')?.focus(), 100);
+}
+
+async function doRestore(instanceId, timestamp) {
+    const dbType = getCurrentDbType();
+    const targetDb = document.getElementById('restore-target-db')?.value.trim();
+    const msgEl = document.getElementById('restore-msg');
+    if (!targetDb) {
+        msgEl.innerHTML = '❌ 请输入目标数据库名';
+        msgEl.style.color = 'var(--danger)';
+        return;
+    }
+
+    // 二次确认
+    msgEl.innerHTML = '⚠ 确认将备份恢复到 <b>' + escHtml(targetDb) + '</b>？同名表将被覆盖。';
+    msgEl.style.color = 'var(--warn)';
+    const btn = document.getElementById('btn-restore-confirm');
+    btn.textContent = '再次确认执行';
+    btn.style.background = 'var(--danger)';
+    btn.onclick = async function() {
+        btn.textContent = '恢复中...';
+        btn.disabled = true;
+        msgEl.innerHTML = '⏳ 正在恢复，请稍候...';
+        msgEl.style.color = 'var(--text-muted)';
+
+    // 获取实例信息
+    const res = await fetch('/api/pro/datasources/' + encodeURIComponent(instanceId) + '/decrypt');
+    const data = await res.json();
+    const inst = data.ok ? data.datasource : null;
+    if (!inst) {
+        document.getElementById('restore-msg').textContent = '❌ 获取实例信息失败';
+        return;
+    }
+
+    // 找到备份文件路径
+    const filesRes = await fetch('/api/pro/backup/files?instance_id=' + encodeURIComponent(instanceId) + '&db_type=' + dbType);
+    const filesData = await filesRes.json();
+    const backup = (filesData.backups || []).find(b => b.timestamp === timestamp);
+    if (!backup || !backup.files || backup.files.length === 0) {
+        document.getElementById('restore-msg').textContent = '❌ 未找到备份文件';
+        return;
+    }
+
+    // 找 .sql 文件（非 globals）
+    const sqlFile = backup.files.find(f => f.endsWith('.sql') || f.endsWith('.sql.gz')) || backup.files[0];
+    const backupFilePath = instanceId + '/' + timestamp + '/' + sqlFile;
+
+    try {
+        const restoreRes = await fetch('/api/pro/backup/restore', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                backup_file: backupFilePath,
+                db_type: dbType,
+                conn_info: {
+                    host: inst.host, port: inst.port,
+                    user: inst.user, password: inst.password,
+                    exec_mode: document.getElementById('backup-exec-mode')?.value || 'local',
+                    docker: { container: document.getElementById('backup-docker-container')?.value || '' },
+                },
+                target_db: targetDb,
+            })
+        });
+        const restoreData = await restoreRes.json();
+        if (restoreData.ok) {
+            document.getElementById('restore-msg').textContent = '✅ 恢复成功！';
+            document.getElementById('restore-panel').remove();
+            toastSuccess('恢复完成: ' + targetDb);
+        } else {
+            document.getElementById('restore-msg').textContent = '❌ ' + (restoreData.message || '恢复失败');
+        }
+    } catch(e) {
+        document.getElementById('restore-msg').textContent = '❌ ' + e.message;
+    }
+    };
+}
+
+async function fillBackupInstances() {
+    try {
+        const res = await fetch('/api/pro/datasources');
+        const data = await res.json();
+        const sel = document.getElementById('backup-instance-id');
+        if (!sel) return;
+        if (data.ok && data.datasources) {
+            sel.innerHTML = data.datasources.map(i =>
+                '<option value="' + escHtml(i.id) + '">' + escHtml(i.name || i.id) + ' [' + (i.db_type||'') + ']</option>'
+            ).join('');
+            if (data.datasources.length > 0) {
+                sel.value = data.datasources[0].id;
+            }
+        }
+    } catch(e) {}
+}
+
+async function loadBackupStats() {
+    try {
+        const res = await fetch('/api/pro/backup/statistics');
+        const data = await res.json();
+        if (data.ok) {
+            const s = data.statistics;
+            document.getElementById('stat-total').textContent = s.total_backups || 0;
+            document.getElementById('stat-success').textContent = s.success || 0;
+            document.getElementById('stat-failed').textContent = s.failed || 0;
+            document.getElementById('stat-size').textContent = formatBytes(s.total_size_bytes || 0);
+            document.getElementById('stat-24h').textContent = s.last_24h || 0;
+        }
+    } catch(e) {}
+}
+
+async function loadBackupList() {
+    const instanceId = document.getElementById('backup-instance-id')?.value || '';
+    const tbody = document.getElementById('backup-history-tbody');
+    if (!tbody || !instanceId) return;
+    try {
+        const [histRes, filesRes] = await Promise.all([
+            fetch('/api/pro/backup/history?instance_id=' + encodeURIComponent(instanceId)),
+            fetch('/api/pro/backup/files?instance_id=' + encodeURIComponent(instanceId) + '&db_type=' + getCurrentDbType())
+        ]);
+        const histData = await histRes.json();
+        const filesData = await filesRes.json();
+        // 将磁盘文件按时间戳索引
+        const fileByTs = {};
+        if (filesData.ok && filesData.backups) {
+            filesData.backups.forEach(b => { fileByTs[b.timestamp] = b; });
+        }
+        if (histData.ok && histData.history.length > 0) {
+            tbody.innerHTML = histData.history.map(h => {
+                const statusIcon = h.status === 'success' ? '✅' : h.status === 'running' ? '🔄' : '❌';
+                const statusClass = h.status === 'success' ? 'var(--success)' : h.status === 'running' ? 'var(--info)' : 'var(--danger)';
+                const typeMap = { full: '全量', diff: '差异', log: '日志', schema: '仅结构', data: '仅数据' };
+                const typeLabel = typeMap[h.backup_type] || h.backup_type || '全量';
+                // 从 file_path 提取时间戳
+                let ts = '';
+                if (h.file_path) {
+                    const parts = h.file_path.replace(/\\/g, '/').split('/');
+                    ts = parts[parts.length - 1] || '';
+                }
+                const fileInfo = fileByTs[ts] || {};
+                const dbs = (fileInfo.databases || []).join(', ') || '-';
+                const files = fileInfo.files || [];
+                return '<tr>' +
+                    '<td>' + (h.started_at || '-') + '</td>' +
+                    '<td>' + typeLabel + '</td>' +
+                    '<td style="color:' + statusClass + ';font-size:16px;text-align:center">' + statusIcon + '</td>' +
+                    '<td>' + formatBytes(h.file_size || 0) + '</td>' +
+                    '<td>' + (h.duration ? h.duration.toFixed(1) + 's' : '-') + '</td>' +
+                    '<td style="max-width:140px;overflow:hidden;text-overflow:ellipsis">' + escHtml(dbs) + '</td>' +
+                    '<td style="white-space:nowrap">' +
+                        files.filter(f => f.endsWith('.sql') || f.endsWith('.gz')).map(f =>
+                            '<a class="btn btn-ghost" style="font-size:11px;padding:3px 8px;text-decoration:none" ' +
+                            'href="/api/pro/backup/download/' + encodeURIComponent(instanceId + '/' + ts + '/' + f) + '">⬇ 下载</a>'
+                        ).join('') +
+                        (ts ? '<button class="btn btn-ghost" style="font-size:11px;padding:3px 8px;color:var(--warn)" ' +
+                         'onclick="restoreBackup(\'' + escHtml(instanceId) + '\',\'' + escHtml(ts) + '\')">🔄 恢复</button>' : '') +
+                        '<button class="btn btn-ghost" style="font-size:11px;padding:3px 8px;" ' +
+                         'onclick="deleteBackupHistory(' + h.id + ')">🗑 删除</button>' +
+                    '</td>' +
+                '</tr>';
+            }).join('');
+        } else {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">暂无备份记录</td></tr>';
+        }
+    } catch(e) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--danger)">加载失败</td></tr>';
+    }
+}
+
+async function runBackup() {
+    const instanceId = document.getElementById('backup-instance-id')?.value;
+    const dbType = getCurrentDbType();
+    const backupScope = document.getElementById('backup-scope')?.value || 'full';
+    const execMode = document.getElementById('backup-exec-mode')?.value || 'local';
+    const dockerContainer = document.getElementById('backup-docker-container')?.value || '';
+    const tablesRaw = document.getElementById('backup-tables-input')?.value || '';
+    const backupTables = backupScope === 'tables' ? tablesRaw.split(',').map(t => t.trim()).filter(Boolean) : null;
+    if (!instanceId) {
+        toastError('请选择目标实例');
+        return;
+    }
+    try {
+        const res = await fetch('/api/pro/datasources/' + encodeURIComponent(instanceId) + '/decrypt');
+        const data = await res.json();
+        const inst = data.ok ? data.datasource : null;
+        if (!inst) { toastError('实例信息加载失败'); return; }
+
+        // 检查密码解密状态
+        if (data.password_decrypted === false) {
+            toastError('密码解密失败，请在「数据源管理」中重新输入密码后保存');
+            return;
+        }
+
+        // 构建 conn_info，根据模式添加额外配置
+        const connInfo = {
+            host: inst.host, port: inst.port,
+            user: inst.user, password: inst.password,
+            service_name: inst.service_name || '',
+            exec_mode: execMode,
+        };
+        if (execMode === 'docker' && dockerContainer) {
+            connInfo.docker = { container: dockerContainer };
+        }
+        // SSH 配置从实例读取
+        if (inst.ssh_host) {
+            connInfo.ssh = {
+                host: inst.ssh_host, port: inst.ssh_port || 22,
+                user: inst.ssh_user || 'root',
+                password: inst.ssh_password || '',
+                key_file: inst.ssh_key_file || '',
+            };
+        }
+
+        document.getElementById('backup-progress').style.display = 'block';
+        document.getElementById('backup-progress-text').textContent = '备份中，请稍候...';
+
+        const backupRes = await fetch('/api/pro/backup/run', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                instance_id: instanceId, db_type: dbType,
+                instance_name: inst.name || instanceId,
+                conn_info: connInfo,
+                backup_type: backupScope,
+                tables: backupTables,
+            })
+        });
+        const backupData = await backupRes.json();
+        document.getElementById('backup-progress').style.display = 'none';
+        if (backupData.ok) {
+            toastSuccess('备份成功');
+        } else {
+            let msg = backupData.message || '备份失败';
+            if (backupData.diagnostic) {
+                const d = backupData.diagnostic;
+                msg += '\n[诊断] 密码长度=' + d.password_length + ' 前2位=' + d.password_masked;
+                if (d.likely_encrypted) {
+                    msg += '\n⚠ 密码疑似未解密，请在数据源管理中重新输入密码';
+                }
+            }
+            if (backupData.cmd_hint) {
+                msg += '\n[验证] ' + backupData.cmd_hint;
+            }
+            toastError(msg);
+        }
+        await loadBackupList();
+        await loadBackupStats();
+    } catch(e) {
+        document.getElementById('backup-progress').style.display = 'none';
+        toastError('备份异常: ' + e.message);
+    }
+}
+
+function onBackupScopeChange() {
+    const scope = document.getElementById('backup-scope')?.value;
+    document.getElementById('backup-tables-wrap').style.display = scope === 'tables' ? '' : 'none';
+}
+
+function onBackupInstanceChange() {
+    loadBackupList();
+}
+
+function onExecModeChange() {
+    const mode = document.getElementById('backup-exec-mode')?.value;
+    document.getElementById('backup-docker-section').style.display = mode === 'docker' ? '' : 'none';
+    if (mode === 'docker') detectContainers();
+}
+
+async function detectContainers() {
+    const datalist = document.getElementById('docker-container-list');
+    if (!datalist) return;
+    datalist.innerHTML = '<option value="">检测中...</option>';
+    try {
+        const res = await fetch('/api/pro/backup/docker-containers');
+        const data = await res.json();
+        if (data.ok && data.containers.length > 0) {
+            datalist.innerHTML = data.containers.map(c =>
+                '<option value="' + escHtml(c.name) + '">' + escHtml(c.image) + '</option>'
+            ).join('');
+        } else {
+            datalist.innerHTML = '<option value="">无运行中的容器</option>';
+        }
+    } catch(e) {
+        datalist.innerHTML = '<option value="">检测失败</option>';
+    }
+}
+
+function showBackupConfirm(msg, onConfirm) {
+    const existing = document.getElementById('backup-confirm-backdrop');
+    if (existing) existing.remove();
+    const html = '<div id="backup-confirm-backdrop" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:999999;display:flex;align-items:center;justify-content:center">' +
+      '<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;min-width:320px;box-shadow:0 12px 40px rgba(0,0,0,0.35)">' +
+        '<div style="font-size:15px;font-weight:600;margin-bottom:12px;">⚠ 确认操作</div>' +
+        '<div style="font-size:13px;color:var(--text);margin-bottom:20px;line-height:1.6">' + msg + '</div>' +
+        '<div style="display:flex;justify-content:flex-end;gap:10px">' +
+          '<button class="btn btn-ghost" onclick="document.getElementById(\'backup-confirm-backdrop\').remove()">取消</button>' +
+          '<button class="btn btn-primary" style="background:var(--danger)" id="backup-confirm-ok">确认删除</button>' +
+        '</div></div></div>';
+    document.body.insertAdjacentHTML('beforeend', html);
+    document.getElementById('backup-confirm-ok').onclick = function() {
+        document.getElementById('backup-confirm-backdrop').remove();
+        onConfirm();
+    };
+}
+
+async function deleteBackupHistory(recordId) {
+    showBackupConfirm('确认删除此备份历史记录？', async function() {
+    try {
+        const res = await fetch('/api/pro/backup/history/' + recordId, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.ok) { toastSuccess('已删除'); await loadBackupList(); await loadBackupStats(); }
+        else { toastError(data.error || '删除失败'); }
+    } catch(e) { toastError('删除异常'); }
+    });
+}
+
 
 </script>
 

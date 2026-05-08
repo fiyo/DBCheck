@@ -30,6 +30,11 @@ from .rule_engine import (
     RuleEngine,
     get_rule_engine,
 )
+from .backup import (
+    BackupManager,
+    BackupResult,
+    get_backup_manager,
+)
 
 __all__ = [
     # Pro status (no license required)
@@ -49,4 +54,8 @@ __all__ = [
     # Rule Engine
     "RuleEngine",
     "get_rule_engine",
+    # Backup
+    "BackupManager",
+    "BackupResult",
+    "get_backup_manager",
 ]
