@@ -18,7 +18,6 @@ snapshot/
 docs/README.md
 docs/
 memory/
-backups/
 20260409082251/
 scheduler.log
 scheduler_jobs.json
