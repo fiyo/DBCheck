@@ -42,45 +42,61 @@ except ImportError:
     _HAS_ORACLE = False
 
 
-def _get_oracle_conn_thunk_first(dsn, user, password, mode=None):
+def _get_oracle_conn_thunk_first(dsn, user, password, mode=None,
+                                  ssh_host=None, ssh_port=22,
+                                  ssh_user=None, ssh_password=None,
+                                  ssh_key=None):
     """
-    连接 Oracle，优先尝试 thin mode（纯 Python，无需 Instant Client）；
-    若遇到 DPY-3010（Oracle 11g 等低版本不支持），自动 fallback 到 thick mode。
-
-    参数:
-        dsn:         Oracle DSN 字符串
-        user:        用户名
-        password:    密码
-        mode:        连接模式（如 oracledb.SYSDBA），可选
-
-    返回:
-        oracledb.Connection 对象
+    连接 Oracle，优先尝试 thin mode；支持 SSH 隧道。
     """
-    # 先尝试 thin mode（默认，无需配置）
+    import oracledb as _odb
+
+    # SSH 隧道
+    _tunnel = None
+    _real_dsn = dsn
+    if ssh_host:
+        try:
+            import paramiko
+            _tunnel = paramiko.SSHClient()
+            _tunnel.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            if ssh_key:
+                _tunnel.connect(ssh_host, port=int(ssh_port), username=ssh_user,
+                               key_filename=ssh_key, timeout=15,
+                               look_for_keys=False, allow_agent=False)
+            else:
+                _tunnel.connect(ssh_host, port=int(ssh_port), username=ssh_user,
+                               password=ssh_password or '', timeout=15,
+                               look_for_keys=False, allow_agent=False)
+            # 从 DSN 解析 Oracle 主机和端口
+            _dsn_part = dsn.replace('//', '').split('/')[0]
+            _ora_host, _ora_port = (_dsn_part.split(':') + ['1521'])[:2]
+            _t = _tunnel.get_transport()
+            _local_port = _t.request_port_forward('', 0, _ora_host, int(_ora_port))
+            _real_dsn = dsn.replace(f'{_ora_host}:{_ora_port}', f'localhost:{_local_port}')
+            print(f"  🔗 SSH 隧道: localhost:{_local_port} → {_ora_host}:{_ora_port}")
+        except Exception as e:
+            print(f"  ⚠️  SSH 隧道失败: {e}, 改为直连")
+            _tunnel = None
+
     try:
         if mode is not None:
-            return oracledb.connect(user=user, password=password, dsn=dsn, mode=mode)
+            return _odb.connect(user=user, password=password, dsn=_real_dsn, mode=mode), _tunnel
         else:
-            return oracledb.connect(user=user, password=password, dsn=dsn)
+            return _odb.connect(user=user, password=password, dsn=_real_dsn), _tunnel
     except Exception as e:
         err_str = str(e)
         # DPY-3010 = thin mode 不支持此数据库版本（如 Oracle 11g）
         if 'DPY-3010' not in err_str:
-            raise  # 其他错误不 fallback，直接抛异常
-        print("  ⚠️  thin mode 不支持此版本，尝试 thick mode（需要 Oracle Instant Client）...")
-        try:
-            oracledb.init_oracle_client()  # 加载 Instant Client
-        except Exception as init_err:
-            # 已经初始化过（multiple init）或找不到库
-            init_err_str = str(init_err)
-            if 'DPY-6004' not in init_err_str and 'ORA-' not in init_err_str:
-                print("  ❌ 找不到 Oracle Instant Client，请安装后重试：")
-                print("     https://python-oracledb.readthedocs.io/en/latest/user_guide/installation.html")
             raise
+        print("  ⚠️  thin mode 不支持此版本，尝试 thick mode...")
+        try:
+            _odb.init_oracle_client()
+        except Exception:
+            pass
         if mode is not None:
-            return oracledb.connect(user=user, password=password, dsn=dsn, mode=mode)
+            return _odb.connect(user=user, password=password, dsn=_real_dsn, mode=mode), _tunnel
         else:
-            return oracledb.connect(user=user, password=password, dsn=dsn)
+            return _odb.connect(user=user, password=password, dsn=_real_dsn), _tunnel
 
 try:
     from docx import Document
@@ -2639,7 +2655,13 @@ def single_inspection(args):
         if args.user.upper() == 'SYS' and not args.sysdba:
             args.sysdba = True
         mode = oracledb.SYSDBA if args.sysdba else None
-        conn = _get_oracle_conn_thunk_first(dsn, args.user, args.password, mode)
+        ssh_tunnel = None
+        conn, ssh_tunnel = _get_oracle_conn_thunk_first(
+            dsn, args.user, args.password, mode,
+            ssh_host=args.ssh_host, ssh_port=args.ssh_port or 22,
+            ssh_user=args.ssh_user, ssh_password=args.ssh_pass,
+            ssh_key=args.ssh_key if hasattr(args, 'ssh_key') else None
+        )
         print(f"  ✅ {_t('oracle_log_connect_ok')} (mode: {'SYSDBA' if args.sysdba else 'NORMAL'})")
     except Exception as e:
         print(f"  ❌ {_t('oracle_log_connect_fail')}: {e}")
@@ -2854,7 +2876,9 @@ def single_inspection(args):
     except Exception as e:
         print(f"  ⚠  索引健康分析失败: {e}")
 
-    conn.close()  # 关闭数据库连接
+    conn.close()
+    if ssh_tunnel:
+        ssh_tunnel.close()  # 关闭数据库连接
 
     # ── 5. 生成报告 ────────────────────────────────────────────────────────
     print(f"\n[{GREEN}5/6{RESET}] {_t('oracle_log_gen_report')}")
