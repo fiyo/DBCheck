@@ -23,6 +23,8 @@ a = Analysis(
         (os.path.join(project_root, 'rag'), 'rag'),
         # ── Pro 插件目录（数据源管理、规则引擎）────────────
         (os.path.join(project_root, 'pro'), 'pro'),
+        # ── Pro 规则目录（YAML 配置文件）───────────────
+        (os.path.join(project_root, 'pro', 'rules'), 'pro/rules'),
     ],
     hiddenimports=[
         # ── 数据库驱动 ───────────────────────────────────────
@@ -135,12 +137,19 @@ a = Analysis(
         'pytz',
         'pytz.exceptions',
         'pytz.tzinfo',
-        # ── Pro 插件模块（v2.4.0+ 新增）─────────────────────
+        # ── Pro 插件模块（v2.4.0+）─────────────────────────
         'pro',
         'pro.instance_manager',
         'pro.rule_engine',
         'pro.report_score',
         'pro.version',
+        'pro.backup',
+        'pro.backup.base',
+        'pro.backup.manager',
+        'pro.backup.mysql_backup',
+        'pro.backup.pg_backup',
+        'pro.backup.oracle_backup',
+        'pro.backup.sqlserver_backup',
         # ── i18n ─────────────────────────────────────────────
         'i18n',
         'i18n.zh',
