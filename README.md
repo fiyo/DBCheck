@@ -20,7 +20,7 @@
 
 <p align="center">
 
-[![Version](https://img.shields.io/badge/版本-v2.4.2-blue.svg)]()
+[![Version](https://img.shields.io/badge/版本-v2.4.3-blue.svg)]()
 [![License](https://img.shields.io/badge/开源协议-MIT-green.svg)]()
 [![Python](https://img.shields.io/badge/Python-3.6%2B-blue.svg)]()
 [![AI](https://img.shields.io/badge/AI-Ollama-orange.svg)]()

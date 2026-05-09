@@ -4,7 +4,7 @@ DBCheck is an open-source, cross-platform automated database health check tool t
 > website：https://dbcheck.top
 
 
-[![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-2.4.03-blue.svg)]()
 [![MySQL](https://img.shields.io/badge/database-MySQL-blue.svg)]()
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-gray.svg)]()
 [![Oracle](https://img.shields.io/badge/Oracle-red.svg)]()

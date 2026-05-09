@@ -4,7 +4,7 @@ DBCheck 是一款开源、跨平台的数据库自动化健康巡检工具，支
 > 官方网站：https://dbcheck.top
 
 
-[![Version](https://img.shields.io/badge/版本-2.4.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/版本-2.4.3-blue.svg)]()
 [![MySQL](https://img.shields.io/badge/支持的数据库-MySQL-blue.svg)]()
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-gray.svg)]()
 [![Oracle](https://img.shields.io/badge/Oracle-red.svg)]()
