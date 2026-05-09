@@ -2659,7 +2659,7 @@ function formatBytes(bytes) {
       }
 
       function showAddDatasourceModal(existingDs) {
-        if (!existingDs) { _editDsPassword = ''; _editDsPort = 0; }
+        if (!existingDs) { _editDsPassword = ''; _editDsPort = 0; _editSshPassword = ''; }
         document.getElementById('datasource-modal-backdrop')?.remove();
         const isEdit = !!existingDs;
         const modalTitle = isEdit ? i18n('webui.pro_datasource_edit_title') : i18n('webui.pro_datasource_add_title');
@@ -2747,6 +2747,7 @@ function formatBytes(bytes) {
       let _currentDbType = '';
       let _editDsPassword = '';
       let _editDsPort = 0;
+      let _editSshPassword = '';
       function onDsDbTypeChange() {
         const dbType = document.getElementById('ds-db-type').value;
         const portMap = {mysql:3306, pg:5432, dm:5236, oracle:1521, sqlserver:1433, tidb:4000};
@@ -2784,7 +2785,8 @@ function formatBytes(bytes) {
         const sshHost = document.getElementById('ds-ssh-host')?.value || '';
         const sshPort = document.getElementById('ds-ssh-port')?.value || 22;
         const sshUser = document.getElementById('ds-ssh-user')?.value || '';
-        const sshPassword = document.getElementById('ds-ssh-password')?.value || '';
+        let sshPass = document.getElementById('ds-ssh-password')?.value || '';
+        if (!sshPass) sshPass = _editSshPassword;
         if (!host) { msgEl.style.color = 'var(--danger)'; msgEl.textContent = '❌ 请输入主机地址'; return; }
         msgEl.style.color = 'var(--text-muted)';
         msgEl.textContent = '⏳ 测试连接中...';
@@ -2792,7 +2794,7 @@ function formatBytes(bytes) {
           const res = await fetch('/api/pro/datasources/test-connection', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ db_type: dbType, host, port: parseInt(port), user, password, service_name: svcName, database: dbName, sysdba, ssh_host: sshHost, ssh_port: parseInt(sshPort), ssh_user: sshUser, ssh_password: sshPassword })
+            body: JSON.stringify({ db_type: dbType, host, port: parseInt(port), user, password, service_name: svcName, database: dbName, sysdba, ssh_host: sshHost, ssh_port: parseInt(sshPort), ssh_user: sshUser, ssh_password: sshPass })
           });
           const data = await res.json();
           msgEl.style.color = data.ok ? 'var(--success)' : 'var(--danger)';
@@ -2814,12 +2816,13 @@ function formatBytes(bytes) {
           user: document.getElementById('ds-user').value.trim(),
           password: document.getElementById('ds-password').value || undefined,
           group: document.getElementById('ds-group').value.trim() || 'default',
-          ssh_host: document.getElementById('ds-ssh-host').value.trim(),
-          ssh_port: parseInt(document.getElementById('ds-ssh-port').value) || 22,
-          ssh_user: document.getElementById('ds-ssh-user').value.trim(),
-          ssh_password: document.getElementById('ds-ssh-password').value || undefined,
-          ssh_key_file: document.getElementById('ds-ssh-key').value.trim(),
         };
+        const sshOn = document.getElementById('ds-ssh-section')?.style.display !== 'none';
+        payload.ssh_host = sshOn ? document.getElementById('ds-ssh-host').value.trim() : '';
+        payload.ssh_port = sshOn ? (parseInt(document.getElementById('ds-ssh-port').value) || 22) : 22;
+        payload.ssh_user = sshOn ? document.getElementById('ds-ssh-user').value.trim() : '';
+        payload.ssh_password = sshOn ? (document.getElementById('ds-ssh-password').value || undefined) : '';
+        payload.ssh_key_file = sshOn ? document.getElementById('ds-ssh-key').value.trim() : '';
         if (payload.db_type === 'pg') payload.database = document.getElementById('ds-database').value.trim();
         if (payload.db_type === 'oracle') {
           payload.service_name = document.getElementById('ds-service-name').value.trim();
@@ -2866,6 +2869,7 @@ function formatBytes(bytes) {
             // 缓存解密后的密码供测试连接使用
             _editDsPassword = ds.password || '';
             _editDsPort = ds.port;
+            _editSshPassword = ds.ssh_password || '';
             // 先获取原始密码用于编辑
             showAddDatasourceModal(ds);
             // 填充表单

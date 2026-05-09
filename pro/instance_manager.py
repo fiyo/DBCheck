@@ -355,8 +355,10 @@ class InstanceManager:
         instance = self._instances[instance_id]
         for key, value in updates.items():
             if hasattr(instance, key):
-                # 空值跳过，保留原值
-                if value is None or (isinstance(value, str) and value == ''):
+                # 空值跳过，保留原值（密码字段除外：空密码不保存）
+                if value is None:
+                    continue
+                if isinstance(value, str) and value == '' and key not in ('ssh_host', 'ssh_user', 'ssh_key_file'):
                     continue
                 # 密码字段自动加密
                 if key in ('password', 'ssh_password') and value:

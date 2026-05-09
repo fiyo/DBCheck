@@ -85,18 +85,13 @@ def _get_oracle_conn_thunk_first(dsn, user, password, mode=None,
             return _odb.connect(user=user, password=password, dsn=_real_dsn), _tunnel
     except Exception as e:
         err_str = str(e)
-        # DPY-3010 = thin mode 不支持此数据库版本（如 Oracle 11g）
-        if 'DPY-3010' not in err_str:
-            raise
-        print("  ⚠️  thin mode 不支持此版本，尝试 thick mode...")
-        try:
-            _odb.init_oracle_client()
-        except Exception:
-            pass
-        if mode is not None:
-            return _odb.connect(user=user, password=password, dsn=_real_dsn, mode=mode), _tunnel
+        if 'DPY-3010' in err_str:
+            print("  ⚠️  thin mode 不支持此版本（Oracle 11g 及以下）")
+            if not ssh_host:
+                raise Exception('Oracle 11g 及以下版本需通过 SSH 连接，请在数据源中启用 SSH') from e
+            # SSH 隧道已建立，直接重试连接
         else:
-            return _odb.connect(user=user, password=password, dsn=_real_dsn), _tunnel
+            raise
 
 try:
     from docx import Document

@@ -2626,10 +2626,11 @@ def api_pro_datasources_test_conn():
         elif db_type == 'oracle':
             import oracledb
             dsn = f"{host}:{port}/{service_name}" if service_name else f"{host}:{port}"
-            # 尝试 SSH 隧道
             ssh_host = data.get('ssh_host', '')
             _tunnel = None
+
             if ssh_host:
+                # 配了 SSH → 只走隧道，不 fallback 直连
                 try:
                     import paramiko
                     _tunnel = paramiko.SSHClient()
@@ -2643,20 +2644,21 @@ def api_pro_datasources_test_conn():
                     _t = _tunnel.get_transport()
                     _local = _t.request_port_forward('', 0, host, int(port))
                     dsn = f"localhost:{_local}/{service_name}" if service_name else f"localhost:{_local}"
-                except Exception:
-                    _tunnel = None
+                except Exception as te:
+                    return jsonify({'ok': False, 'error': f'SSH 隧道建立失败: {te}'})
+
             try:
                 params = {"user": user, "password": password, "dsn": dsn}
                 if data.get('sysdba'):
                     params["mode"] = oracledb.SYSDBA
                 conn = oracledb.connect(**params)
             except Exception as e:
-                if 'DPY-3010' in str(e):
-                    try: oracledb.init_oracle_client()
-                    except Exception: pass
-                    conn = oracledb.connect(**params)
-                else:
-                    raise
+                err_msg = str(e)
+                if 'DPY-3010' in err_msg:
+                    return jsonify({'ok': False, 'error': 'Oracle 11g 及以下版本不支持直连，请在数据源中配置 SSH'})
+                if 'timed out' in err_msg.lower() or 'timeout' in err_msg.lower():
+                    return jsonify({'ok': False, 'error': '连接超时，Oracle 可能无法直连，请在数据源中配置 SSH'})
+                raise
             conn.close()
             if _tunnel: _tunnel.close()
         elif db_type == 'dm':
