@@ -49,8 +49,20 @@ app = Flask(__name__, template_folder='web_templates', static_folder='web_templa
 app.config['SECRET_KEY'] = os.urandom(24)
 socketio.init_app(app)
 
+# ── REST API v1 ─────────────────────────────────────────────
+from api_v1 import api_v1, _ADMIN_TOKEN
+app.register_blueprint(api_v1)
+
+def get_admin_token():
+    return _ADMIN_TOKEN
+
 # 全局任务状态
 tasks = {}
+
+# ── 用户认证 ───────────────────────────────────────────────
+from auth import init_default_user, register_auth_routes
+init_default_user()
+register_auth_routes(app)
 
 # ── 工具函数 ───────────────────────────────────────────────
 def _ts():
@@ -1493,7 +1505,8 @@ def index():
     except Exception:
         pass
     return render_template('index.html', version=__version__, lang=lang, i18n_data=i18n_data,
-                           pro_available=pro_available)
+                           pro_available=pro_available,
+                           admin_token=get_admin_token())
 
 
 @app.route('/api/i18n')

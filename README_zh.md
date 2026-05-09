@@ -3,6 +3,7 @@
 DBCheck 是一款开源、跨平台的数据库自动化健康巡检工具，支持 MySQL、PostgreSQL、Oracle、SQL Server、达梦 DM8 及 TiDB 六种主流关系型数据库。工具通过执行预定义的 SQL 检查项与系统资源采集，自动生成格式规范的 Microsoft Word 巡检报告，并提供历史趋势分析、AI 智能诊断、配置基线合规检查、索引健康分析、慢查询深度分析、脱敏导出等高级功能。DBCheck 旨在将 DBA 从重复、耗时的手工巡检工作中解放出来，提升数据库运维效率与风险发现能力。
 > 官方网站：https://dbcheck.top
 
+> Language: [English](./README_en.md) | [中文](./README_zh.md)
 
 [![Version](https://img.shields.io/badge/版本-2.4.3-blue.svg)]()
 [![MySQL](https://img.shields.io/badge/支持的数据库-MySQL-blue.svg)]()
@@ -14,7 +15,7 @@ DBCheck 是一款开源、跨平台的数据库自动化健康巡检工具，支
 [![License](https://img.shields.io/badge/开源协议-MIT-green.svg)]()
 [![捐赠者](https://img.shields.io/badge/捐赠者-2-blue.svg)]()
 
-> Language: [English](./README_en.md) | [中文](./README.md)
+
 
 ## 🌍 多语言支持
 
@@ -805,6 +806,8 @@ python main.py
 python web_ui.py
 ```
 
+> 🔐 **默认账号**：用户名 `dbcheck`，密码 `dbcheck`。首次登录后请在用户中心修改密码。
+
 **Web UI 操作步骤：**
 
 | 步骤 | 功能 |
@@ -955,6 +958,66 @@ dbcheck.exe         # Windows
 | 第22章 | 报告说明 |
 
 > 不同数据库类型的报告结构略有差异，但均包含封面、基本信息、性能分析、风险建议、AI 诊断、报告说明六大模块。
+
+---
+
+## REST API（v2.4.3+）
+
+DBCheck 提供 REST API 供 CI/CD、监控系统等外部工具调用。所有 API 需通过 **API Key** 认证，在 Web UI 的 **API Key 管理** 页面创建。
+
+### 快速开始
+
+```bash
+# 1. 健康检查
+curl http://localhost:5003/api/v1/health
+
+# 2. 触发巡检（同步等待结果）
+curl -X POST http://localhost:5003/api/v1/inspect \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"db_type":"mysql","host":"192.168.1.100","port":3306,"user":"root","password":"****"}'
+
+# 3. 异步巡检
+curl -X POST http://localhost:5003/api/v1/inspect \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"db_type":"oracle","host":"192.168.1.200","service_name":"ORCL","user":"system","password":"****","mode":"async"}'
+
+# 4. 查询任务结果
+curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
+```
+
+### 接口列表
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/v1/health` | 健康检查 |
+| `POST` | `/api/v1/inspect` | 触发巡检 |
+| `GET` | `/api/v1/inspect/{task_id}` | 查询任务结果 |
+| `GET` | `/api/v1/inspects` | 列出最近任务 |
+
+### 请求参数
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|:---:|------|
+| `db_type` | string | ✅ | mysql / pg / oracle / dm / sqlserver / tidb |
+| `host` | string | ✅ | 数据库主机地址 |
+| `port` | int | ❌ | 端口（默认按类型） |
+| `user` | string | ❌ | 用户名（默认按类型） |
+| `password` | string | ❌ | 密码 |
+| `database` | string | ❌ | PG/TiDB 数据库名 |
+| `service_name` | string | ❌ | Oracle 服务名 |
+| `sysdba` | bool | ❌ | Oracle SYSDBA 模式 |
+| `mode` | string | ❌ | sync=同步 / async=异步 |
+| `timeout` | int | ❌ | 同步超时秒数（默认300） |
+| `ssh` | object | ❌ | SSH 跳板配置 `{host, port, user, password}` |
+
+### 安全建议
+
+- 生产环境使用 HTTPS 反向代理（nginx）
+- 定期轮换 API Key
+- 内网部署，防火墙限制访问
+- API Key 创建后仅显示一次，请妥善保管
 
 ---
 

@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+#
+# Copyright (c) 2024 DBCheck Contributors
+# sdfiyon@gmail.com
+#
+# This file is part of DBCheck, an open-source database health inspection tool.
+# DBCheck is released under the MIT License.
+# See LICENSE or visit https://opensource.org/licenses/MIT for full license text.
+#
 """
 DBCheck Pro Backup - MySQL Engine
 基于 mysqldump 的 MySQL 备份引擎

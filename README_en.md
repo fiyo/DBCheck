@@ -3,6 +3,7 @@
 DBCheck is an open-source, cross-platform automated database health check tool that supports six mainstream relational databases: **MySQL**, **PostgreSQL**, **Oracle**, **SQL Server**, **DM8**, and **TiDB**. The tool automatically generates standardized Microsoft Word inspection reports by executing predefined SQL checks and collecting system resources. It also provides advanced features such as historical trend analysis, AI-powered intelligent diagnostics, configuration baseline compliance checks, index health analysis, in-depth slow query analysis, and data-masked export. DBCheck aims to free DBAs from repetitive and time-consuming manual inspection work, improving database operation and maintenance efficiency and risk detection capabilities.
 > website：https://dbcheck.top
 
+> Language: [English](./README_en.md) | [中文](./README_zh.md)
 
 [![Version](https://img.shields.io/badge/version-2.4.03-blue.svg)]()
 [![MySQL](https://img.shields.io/badge/database-MySQL-blue.svg)]()
@@ -14,7 +15,6 @@ DBCheck is an open-source, cross-platform automated database health check tool t
 [![License](https://img.shields.io/badge/license-MIT-green.svg)]()
 [![Donors](https://img.shields.io/badge/donors-2-blue.svg)]()
 
-> Language: [English](./README_en.md) | [中文](./README.md)
 
 ## 🌍 Multi-Language Support
 
@@ -793,6 +793,8 @@ Start the web service and visit **http://localhost:5003** in your browser to per
 python web_ui.py
 ```
 
+> 🔐 **Default credentials**: Username `dbcheck`, Password `dbcheck`. Change your password in the Account Center after first login.
+
 **Web UI Workflow:**
 
 | Step | Function |
@@ -990,6 +992,55 @@ The generated Word report contains the following chapters (Oracle inspection rep
 
 16. **SQL Server version support**
     - Supports **SQL Server 2012, 2014, 2016, 2017, 2019, 2022** and above
+
+---
+
+## REST API (v2.4.3+)
+
+DBCheck provides a REST API for external tools such as CI/CD pipelines and monitoring systems. API Key authentication is required — create keys in the **API Key Management** page in the Web UI.
+
+```bash
+# Health check
+curl http://localhost:5003/api/v1/health
+
+# Trigger inspection (sync)
+curl -X POST http://localhost:5003/api/v1/inspect \
+  -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" \
+  -d '{"db_type":"mysql","host":"192.168.1.100","port":3306,"user":"root","password":"****"}'
+
+# Trigger inspection (async, returns task_id)
+curl -X POST http://localhost:5003/api/v1/inspect \
+  -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" \
+  -d '{"db_type":"oracle","host":"192.168.1.200","service_name":"ORCL","user":"system","password":"****","mode":"async"}'
+
+# Query result
+curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
+```
+
+### API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/health` | Health check |
+| `POST` | `/api/v1/inspect` | Trigger inspection |
+| `GET` | `/api/v1/inspect/{task_id}` | Query task result |
+| `GET` | `/api/v1/inspects` | List recent tasks |
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|:---:|-------------|
+| `db_type` | string | ✅ | mysql / pg / oracle / dm / sqlserver / tidb |
+| `host` | string | ✅ | Database host |
+| `port` | int | | Default per type |
+| `user` | string | | Default per type |
+| `password` | string | | Password |
+| `service_name` | string | | Oracle service name |
+| `database` | string | | PG/TiDB database name |
+| `mode` | string | | sync (default) / async |
+| `ssh` | object | | SSH tunnel `{host, port, user, password}` |
+
+> **Security**: Use HTTPS reverse proxy (nginx) in production. Rotate API keys regularly.
 
 ---
 

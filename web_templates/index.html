@@ -351,6 +351,7 @@ async function executeFixSql(taskId, sql) {
   font-size: 12px; color: var(--text-muted);
   margin-left: auto;
 }
+.dropdown-item:hover { background: var(--surface2); }
 
 .content {
   padding: 36px 40px;
@@ -3060,6 +3061,9 @@ function formatBytes(bytes) {
     <div class="nav-item" onclick="showPage('license')" id="nav-license" style="display:none;">
       <span class="icon">🔑</span> <span data-i18n="webui.nav_license">许可证</span>
     </div>
+    <div class="nav-item" onclick="showPage('apikey')" id="nav-apikey">
+      <span class="icon">🔐</span> <span data-i18n="webui.nav_apikey">API Key 管理</span>
+    </div>
 
     <div class="sidebar-footer">
       Oracle · MySQL · PostgreSQL · SQL Server<br/>DM · TiDB<br/>
@@ -3076,6 +3080,14 @@ function formatBytes(bytes) {
       <button class="btn btn-ghost" id="lang-toggle" onclick="toggleLang()" style="margin-left:auto;font-size:12px;padding:4px 10px;border-radius:6px;cursor:pointer;">
         🌐 <span id="lang-label">EN</span>
       </button>
+      <span id="topbar-user" style="font-size:12px;color:var(--text-muted);margin-left:8px;cursor:pointer;display:none;" onclick="toggleUserMenu()">
+        👤 <span id="topbar-user-name"></span> ▾
+      </span>
+      <div id="user-dropdown" style="display:none;position:absolute;top:100%;right:10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 0;z-index:999;min-width:140px;box-shadow:0 4px 12px rgba(0,0,0,0.3);">
+        <div style="padding:6px 14px;font-size:11px;color:var(--text-muted);border-bottom:1px solid var(--border);margin-bottom:4px;">已登录</div>
+        <div class="dropdown-item" onclick="showPage('account');toggleUserMenu()" style="padding:6px 14px;font-size:12px;cursor:pointer;">👤 用户中心</div>
+        <div class="dropdown-item" onclick="doLogout()" style="padding:6px 14px;font-size:12px;cursor:pointer;color:var(--danger);">退出登录</div>
+      </div>
     </div>
 
     <div class="content">
@@ -3892,6 +3904,84 @@ function formatBytes(bytes) {
         </div>
       </div>
 
+      <!-- ══ Page: Account ══ -->
+      <div class="page" id="page-account">
+        <div class="card">
+          <div class="card-title"><span>👤</span> 用户中心</div>
+          <div id="account-content" style="font-size:13px;">
+            <div style="color:var(--text-muted);text-align:center;padding:20px;">加载中...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ Page: API Key Management ══ -->
+      <div class="page" id="page-apikey">
+        <div class="card">
+          <div class="card-title"><span>🔐</span> API Key 管理</div>
+          <div class="card-desc" style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">
+            API Key 用于外部系统（CI/CD、监控）调用 DBCheck REST API。创建后<b>仅显示一次</b>，请立即复制保存。
+          </div>
+          <div style="display:flex;gap:8px;margin-bottom:16px;">
+            <button class="btn btn-primary" onclick="createApiKey()" style="font-size:12px;padding:6px 14px;">➕ 创建 API Key</button>
+          </div>
+          <div id="apikey-list" style="font-size:13px;">
+            <div style="color:var(--text-muted);text-align:center;padding:20px;">加载中...</div>
+          </div>
+          <!-- 新建 Key 展示弹窗 -->
+          <div id="apikey-new-modal" style="display:none;background:var(--surface2);border:1px solid var(--success);border-radius:8px;padding:16px;margin-top:12px;">
+            <div style="font-size:13px;color:var(--text);margin-bottom:8px;">
+              ✅ Key 创建成功！以下内容<b>仅显示一次</b>，请立即复制保存：
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <code id="apikey-new-value" style="flex:1;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:6px;font-size:18px;font-family:monospace;word-break:break-all;"></code>
+              <button class="btn btn-ghost" id="btn-copy-apikey" onclick="(function(b){var c=document.getElementById('apikey-new-value').textContent;if(navigator.clipboard){navigator.clipboard.writeText(c)}else{var t=document.createElement('textarea');t.value=c;document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t)}b.textContent='✅ 已复制';setTimeout(function(){b.textContent='📋 复制'},2000)})(this)" style="padding:8px 12px;font-size:12px;">📋 复制</button>
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:8px;">
+              ⚠️ 关闭此页面后无法再次查看完整 Key，只能删除重建。
+            </div>
+            <button class="btn btn-ghost" style="margin-top:8px;font-size:12px;" onclick="document.getElementById('apikey-new-modal').style.display='none'">关闭</button>
+          </div>
+        </div>
+
+        <!-- API 调用示例独立卡片 -->
+        <div class="card" style="margin-top:16px;">
+          <div class="card-title"><span>📖</span> API 调用示例</div>
+          <details open style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-top:8px;">
+            <summary style="padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;background:var(--surface2);user-select:none;">curl 命令示例</summary>
+            <div style="padding:14px;font-size:12px;line-height:1.8;">
+              <div style="color:var(--text-muted);margin-bottom:6px;">替换 <code style="background:var(--surface2);padding:1px 5px;border-radius:3px;">YOUR_API_KEY</code> 为实际 Key：</div>
+              <div style="margin-bottom:10px;"><b>健康检查</b></div>
+              <pre style="background:var(--surface2);padding:10px 12px;border-radius:6px;font-size:11px;overflow-x:auto;margin:0;">curl http://localhost:5003/api/v1/health</pre>
+              <div style="margin-top:12px;margin-bottom:6px;"><b>触发巡检（同步等待结果）</b></div>
+              <pre style="background:var(--surface2);padding:10px 12px;border-radius:6px;font-size:11px;overflow-x:auto;margin:0;">curl -X POST http://localhost:5003/api/v1/inspect \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"db_type":"mysql","host":"192.168.1.100","port":3306,"user":"root","password":"****"}'</pre>
+              <div style="margin-top:12px;margin-bottom:6px;"><b>异步巡检 + 查询结果</b></div>
+              <pre style="background:var(--surface2);padding:10px 12px;border-radius:6px;font-size:11px;overflow-x:auto;margin:0;"># 1. 触发（返回 task_id）
+curl -X POST http://localhost:5003/api/v1/inspect \
+  -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" \
+  -d '{"db_type":"oracle","host":"192.168.1.200","service_name":"ORCL","user":"system","password":"****","mode":"async"}'
+
+# 2. 查询结果
+curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}</pre>
+              <div style="margin-top:12px;margin-bottom:6px;"><b>SSH 跳板巡检</b></div>
+              <pre style="background:var(--surface2);padding:10px 12px;border-radius:6px;font-size:11px;overflow-x:auto;margin:0;">curl -X POST http://localhost:5003/api/v1/inspect \
+  -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" \
+  -d '{"db_type":"oracle","host":"192.168.1.200","port":1521,"service_name":"ORCL","user":"system","password":"****","ssh":{"host":"10.0.0.1","user":"oracle","password":"ssh_pass"}}'</pre>
+              <div style="margin-top:12px;color:var(--text-muted);font-size:11px;">
+                <b>支持的 db_type</b>：mysql, pg, oracle, dm, sqlserver, tidb &nbsp;|&nbsp;
+                <b>可选参数</b>：database, sysdba, inspector, timeout
+              </div>
+              <div style="margin-top:8px;padding:8px 10px;background:var(--warn);border-radius:4px;font-size:11px;color:var(--text);">
+                ⚠️ <b>安全建议</b>：生产环境请使用 HTTPS 反向代理（nginx）+ 内网部署，或使用 SSH 隧道传输。避免在公网传输明文密码。
+              </div>
+            </div>
+          </details>
+        </div>
+
+      </div>
+
       <!-- ══ Page: AI Settings ══ -->
       <div class="page" id="page-ai">
         <div class="card">
@@ -4096,6 +4186,10 @@ function formatBytes(bytes) {
 </div><!-- /app-shell -->
 
 <script>
+// ─── API Key 管理令牌（服务器注入）─────────────────────────
+const _ADMIN_TOKEN = '{{ admin_token or "" }}';
+if (_ADMIN_TOKEN) sessionStorage.setItem('dbcheck_admin', _ADMIN_TOKEN);
+
 // ─── State ───
 let dbType = 'oracle';
 let sshEnabled = false;
@@ -4289,8 +4383,10 @@ async function executeFixSql(taskId, sql) {
 function showPage(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('page-' + name).classList.add('active');
-  document.getElementById('nav-' + name).classList.add('active');
+  var pageEl = document.getElementById('page-' + name);
+  if (pageEl) pageEl.classList.add('active');
+  var navEl = document.getElementById('nav-' + name);
+  if (navEl) navEl.classList.add('active');
   const titles = {
     home:    [i18n('webui.home_title'),     i18n('webui.home_subtitle')],
     wizard:  [i18n('webui.nav_wizard'),    i18n('webui.wizard_desc')],
@@ -4303,6 +4399,8 @@ function showPage(name) {
     rules:   [i18n('webui.nav_rules'),      ''],
     license: [i18n('webui.nav_license'),   i18n('webui.license_desc')],
     backup:  ['💾 ' + (i18n('webui.backup_title') || '数据库备份管理'), ''],
+    apikey:  ['🔐 API Key 管理', '创建和管理 API 访问密钥'],
+    account: ['👤 用户中心', '管理账户信息和安全设置'],
   };
   const t = titles[name] || [name, ''];
   document.getElementById('topbar-title').textContent = t[0];
@@ -4319,6 +4417,8 @@ function showPage(name) {
   if (name === 'rag') showRagPage();
   if (name === 'home') loadHomeStats();
   if (name === 'backup') loadBackupPage();
+  if (name === 'apikey') loadApiKeys();
+  if (name === 'account') loadAccountPage();
 }
 
 function startWizard() {
@@ -7434,6 +7534,39 @@ async function executeFixSql(taskId, sql) {
 <!-- Toast 通知容器 -->
 <div id="toast-container" style="position:fixed;top:20px;right:20px;z-index:999999;display:flex;flex-direction:column;gap:10px;pointer-events:none"></div>
 
+<!-- 登录遮罩 -->
+<div id="login-overlay" style="position:fixed;top:0;left:0;right:0;bottom:0;background:linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%);z-index:999999;display:flex;align-items:center;justify-content:center;">
+  <div style="text-align:center;animation:fadeInUp 0.6s ease;">
+    <!-- Logo -->
+    <img src="/dbcheck_logo.png" style="width:80px;height:80px;margin:0 auto 16px;border-radius:18px;box-shadow:0 8px 32px rgba(108,92,231,0.3);" alt="DBCheck">
+    <!-- Title -->
+    <div style="font-size:32px;font-weight:800;color:#fff;letter-spacing:-1px;margin-bottom:4px;">DBCheck</div>
+    <div style="font-size:13px;color:rgba(255,255,255,0.5);margin-bottom:32px;">数据库智能巡检工具</div>
+    <!-- Form card -->
+    <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:28px;width:360px;backdrop-filter:blur(10px);">
+      <div style="margin-bottom:14px;">
+        <div style="text-align:left;font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:4px;">用户名</div>
+        <input id="login-user" type="text" placeholder="请输入用户名" style="width:100%;padding:11px 14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:#fff;font-size:14px;box-sizing:border-box;outline:none;transition:border-color 0.2s;" autocomplete="username" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='rgba(255,255,255,0.15)'">
+      </div>
+      <div style="margin-bottom:6px;">
+        <div style="text-align:left;font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:4px;">密码</div>
+        <input id="login-pass" type="password" placeholder="请输入密码" style="width:100%;padding:11px 14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:#fff;font-size:14px;box-sizing:border-box;outline:none;transition:border-color 0.2s;" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='rgba(255,255,255,0.15)'">
+      </div>
+      <div id="login-error" style="color:#ff6b6b;font-size:12px;margin-bottom:14px;min-height:18px;text-align:left;"></div>
+      <button id="btn-login" style="width:100%;padding:12px;background:linear-gradient(135deg, var(--accent), #6c5ce7);border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:600;cursor:pointer;transition:transform 0.15s,box-shadow 0.15s;" onmouseover="this.style.transform='scale(1.02)';this.style.boxShadow='0 4px 16px rgba(108,92,231,0.4)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+        登 录
+      </button>
+    </div>
+  </div>
+</div>
+
+<style>
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+</style>
+
 <script>
 /* ── Toast 通知系统 ─────────────────────────── */
 function toast(msg, type='info', duration=4000) {
@@ -7827,6 +7960,281 @@ async function executeFixSql(taskId, sql) {
 // ══════════════════════════════════════════════════════════════
 //  i18n 初始化
 // ══════════════════════════════════════════════════════════════
+// ─── API Key Management ─────────────────────
+
+async function loadApiKeys() {
+  try {
+    const token = sessionStorage.getItem('dbcheck_admin') || _ADMIN_TOKEN;
+    const res = await fetch('/api/v1/admin/keys', {
+      headers: {'X-Admin-Token': token}
+    });
+    const data = await res.json();
+    const listEl = document.getElementById('apikey-list');
+    if (!data.ok || !data.keys || !data.keys.length) {
+      listEl.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:20px;">暂无 API Key，点击上方按钮创建</div>';
+      return;
+    }
+    listEl.innerHTML = data.keys.map(k => `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;background:var(--surface2);">
+        <div>
+          <div style="font-weight:600;">${escapeHtml(k.name)}</div>
+          <div style="font-size:11px;color:var(--text-muted);">
+            <code>${k.key_prefix}...</code>
+            &middot; ${k.created_at?.slice(0,10) || ''}
+            ${k.last_used_at ? ' &middot; 最近: ' + k.last_used_at.slice(0,10) : ' &middot; 未使用'}
+            ${!k.is_active ? ' <span style="color:var(--danger)">已禁用</span>' : ''}
+          </div>
+        </div>
+        <button class="btn btn-ghost" onclick="deleteApiKey('${k.id}','${escapeHtml(k.name)}')" style="color:var(--danger);font-size:12px;padding:4px 10px;">删除</button>
+      </div>
+    `).join('');
+  } catch(e) {
+    document.getElementById('apikey-list').innerHTML = '<div style="color:var(--danger);text-align:center;">加载失败</div>';
+  }
+}
+
+async function createApiKey() {
+  const name = await showPromptModal('创建 API Key', '请输入 Key 名称（如：CI/CD、Grafana 监控）：');
+  if (!name) return;
+  try {
+    const token = sessionStorage.getItem('dbcheck_admin') || _ADMIN_TOKEN;
+    const res = await fetch('/api/v1/admin/keys', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Admin-Token': token
+      },
+      body: JSON.stringify({name})
+    });
+    const data = await res.json();
+    if (data.ok && data.key) {
+      document.getElementById('apikey-new-value').textContent = data.key;
+      document.getElementById('apikey-new-modal').style.display = '';
+      loadApiKeys();
+    } else {
+      toastError('创建失败：' + (data.error || '未知错误'));
+    }
+  } catch(e) {
+    toastError('请求失败：' + e.message);
+  }
+}
+
+async function deleteApiKey(id, name) {
+  showConfirmModal('删除 API Key', '确定删除 Key「' + name + '」？<br>删除后使用此 Key 的服务将<b>立即失效</b>。', async function() {
+    try {
+      const token = sessionStorage.getItem('dbcheck_admin') || _ADMIN_TOKEN;
+      const res = await fetch('/api/v1/admin/keys/' + id, {
+        method: 'DELETE',
+        headers: {'X-Admin-Token': token}
+      });
+      const data = await res.json();
+      if (data.ok) {
+        loadApiKeys();
+        toastSuccess('已删除');
+      } else {
+        toastError('删除失败：' + (data.error || '未知错误'));
+      }
+    } catch(e) {
+      toastError('请求失败：' + e.message);
+    }
+  });
+}
+
+// ─── 通用输入弹窗（替代 prompt）───────────────────────────────
+function showPromptModal(title, msg) {
+  return new Promise(resolve => {
+    const id = 'modal-prompt-' + Date.now();
+    const html =
+      '<div id="' + id + '-backdrop" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:999999;display:flex;align-items:center;justify-content:center">' +
+        '<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;min-width:360px;z-index:999999">' +
+          '<div style="font-size:15px;font-weight:600;margin-bottom:8px">' + title + '</div>' +
+          '<div style="font-size:13px;color:var(--text-muted);margin-bottom:12px">' + msg + '</div>' +
+          '<input id="' + id + '-input" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;box-sizing:border-box;">' +
+          '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">' +
+            '<button class="btn btn-ghost" onclick="document.getElementById(\'' + id + '-backdrop\').remove();window._pr_' + id + '(null)">取消</button>' +
+            '<button class="btn btn-primary" onclick="doPromptResolve(\'' + id + '\')">确定</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    document.body.insertAdjacentHTML('beforeend', html);
+    window['_pr_' + id] = resolve;
+    setTimeout(function() { var el = document.getElementById(id + '-input'); if (el) el.focus(); }, 100);
+  });
+}
+function doPromptResolve(id) {
+  var val = document.getElementById(id + '-input');
+  val = val ? val.value.trim() : '';
+  document.getElementById(id + '-backdrop').remove();
+  window['_pr_' + id](val);
+  delete window['_pr_' + id];
+}
+
+// ─── Auth (Login / User Center) ─────────────────
+
+async function checkLogin() {
+  try {
+    var r = await fetch('/api/auth/status');
+    var d = await r.json();
+    if (!d.logged_in) { showLogin(); return; }
+    document.getElementById('login-overlay').style.display = 'none';
+    document.body.style.overflow = '';
+    window._currentUser = d.user;
+    var ue = document.getElementById('topbar-user');
+    ue.style.display = '';
+    document.getElementById('topbar-user-name').textContent = d.user.display_name || d.user.username;
+  } catch(e) { showLogin(); }
+}
+
+function showLogin() {
+  document.getElementById('login-overlay').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function toggleUserMenu() {
+  var dd = document.getElementById('user-dropdown');
+  dd.style.display = dd.style.display === 'none' ? '' : 'none';
+}
+
+document.addEventListener('click', function(e) {
+  var dd = document.getElementById('user-dropdown');
+  var ue = document.getElementById('topbar-user');
+  if (dd && ue && dd.style.display !== 'none' && !ue.contains(e.target) && !dd.contains(e.target)) {
+    dd.style.display = 'none';
+  }
+});
+
+async function doLogin() {
+  var u = document.getElementById('login-user').value.trim();
+  var p = document.getElementById('login-pass').value;
+  var err = document.getElementById('login-error');
+  if (!u || !p) { err.textContent = '请输入用户名和密码'; return; }
+  err.textContent = '';
+  try {
+    var r = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({username: u, password: p})
+    });
+    var d = await r.json();
+    if (d.ok) {
+      window._currentUser = d.user;
+      document.getElementById('login-overlay').style.display = 'none';
+      document.body.style.overflow = '';
+      var ue = document.getElementById('topbar-user');
+      ue.style.display = '';
+      document.getElementById('topbar-user-name').textContent = d.user.display_name || d.user.username;
+    } else {
+      err.textContent = d.error || '登录失败';
+    }
+  } catch(e) { err.textContent = '网络错误'; }
+}
+
+async function doLogout() {
+  await fetch('/api/auth/logout', {method:'POST'});
+  window._currentUser = null;
+  document.getElementById('login-overlay').style.display = 'flex';
+  showPage('home');
+}
+
+async function loadAccountPage() {
+  try {
+    var r = await fetch('/api/auth/me');
+    var d = await r.json();
+    var el = document.getElementById('account-content');
+    if (!d.ok || !d.user) { el.innerHTML = '<div style="color:var(--danger);text-align:center;padding:20px;">加载失败</div>'; return; }
+    var u = d.user;
+    el.innerHTML =
+      '<div style="display:flex;gap:24px;flex-wrap:wrap;">' +
+        // 左侧：头像 + 信息
+        '<div style="flex:1;min-width:280px;">' +
+          '<div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">' +
+            '<div style="width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#6c5ce7);display:flex;align-items:center;justify-content:center;font-size:24px;color:#fff;font-weight:700;">' + (u.display_name || u.username).charAt(0).toUpperCase() + '</div>' +
+            '<div>' +
+              '<div style="font-size:16px;font-weight:600;">' + escapeHtml(u.display_name || u.username) + '</div>' +
+              '<div style="font-size:12px;color:var(--text-muted);">' + (u.role === 'admin' ? '超级管理员' : '普通用户') + ' · ' + (u.created_at || '').slice(0,10) + ' 加入</div>' +
+            '</div>' +
+          '</div>' +
+          // 表单
+          '<div style="display:grid;gap:10px;">' +
+            '<div><label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:3px;">用户名</label>' +
+            '<input value="' + escapeHtml(u.username) + '" disabled style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text-muted);font-size:13px;box-sizing:border-box;"></div>' +
+            '<div style="display:flex;gap:8px;"><div style="flex:1;"><label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:3px;">显示名称</label>' +
+            '<input id="acct-name" value="' + escapeHtml(u.display_name || '') + '" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;box-sizing:border-box;"></div>' +
+            '<div style="flex:1;"><label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:3px;">邮箱</label>' +
+            '<input id="acct-email" value="' + escapeHtml(u.email || '') + '" placeholder="可选" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;box-sizing:border-box;"></div></div>' +
+            '<div><button class="btn btn-primary" onclick="saveProfile()" style="font-size:12px;">💾 保存信息</button></div>' +
+          '</div>' +
+        '</div>' +
+        // 右侧：安全设置
+        '<div style="width:300px;">' +
+          '<div style="border:1px solid var(--border);border-radius:10px;padding:16px;">' +
+            '<div style="font-size:14px;font-weight:600;margin-bottom:12px;">🔒 修改密码</div>' +
+            '<input id="acct-oldpw" type="password" placeholder="旧密码" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;box-sizing:border-box;margin-bottom:8px;">' +
+            '<input id="acct-newpw" type="password" placeholder="新密码（至少6位）" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;box-sizing:border-box;margin-bottom:8px;">' +
+            '<button class="btn btn-primary" onclick="changePassword()" style="font-size:12px;width:100%;">更新密码</button>' +
+            '<div id="acct-pw-msg" style="font-size:12px;margin-top:8px;min-height:18px;"></div>' +
+          '</div>' +
+          // 退出
+          '<button class="btn btn-ghost" onclick="doLogout()" style="margin-top:12px;width:100%;color:var(--danger);border-color:var(--danger);">退出登录</button>' +
+        '</div>' +
+      '</div>';
+  } catch(e) {
+    document.getElementById('account-content').innerHTML = '<div style="color:var(--danger);text-align:center;">加载失败</div>';
+  }
+}
+
+async function saveProfile() {
+  var name = document.getElementById('acct-name').value.trim();
+  var email = document.getElementById('acct-email').value.trim();
+  try {
+    var r = await fetch('/api/auth/update-profile', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({display_name: name, email: email})
+    });
+    var d = await r.json();
+    if (d.ok) toastSuccess('保存成功');
+    else toastError(d.error || '保存失败');
+  } catch(e) { toastError('网络错误'); }
+}
+
+async function changePassword() {
+  var oldPw = document.getElementById('acct-oldpw').value;
+  var newPw = document.getElementById('acct-newpw').value;
+  var msg = document.getElementById('acct-pw-msg');
+  if (!oldPw || !newPw) { msg.style.color = 'var(--danger)'; msg.textContent = '请填写旧密码和新密码'; return; }
+  if (newPw.length < 6) { msg.style.color = 'var(--danger)'; msg.textContent = '新密码至少6位'; return; }
+  if (oldPw === newPw) { msg.style.color = 'var(--danger)'; msg.textContent = '新密码不能与旧密码相同'; return; }
+  try {
+    var r = await fetch('/api/auth/change-password', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({old_password: oldPw, new_password: newPw})
+    });
+    var d = await r.json();
+    msg.style.color = d.ok ? 'var(--success)' : 'var(--danger)';
+    msg.textContent = d.ok ? d.message : d.error;
+    if (d.ok) { document.getElementById('acct-oldpw').value = ''; document.getElementById('acct-newpw').value = ''; }
+  } catch(e) { msg.style.color = 'var(--danger)'; msg.textContent = '网络错误'; }
+}
+
+checkLogin();
+
+// 绑定登录按钮（确保函数已定义）
+document.addEventListener('DOMContentLoaded', function() {
+  var btn = document.getElementById('btn-login');
+  if (btn) btn.addEventListener('click', doLogin);
+});
+
+function copyNewApiKey() {
+  var code = document.getElementById('apikey-new-value').textContent;
+  navigator.clipboard.writeText(code).then(function() {
+    var btn = document.getElementById('btn-copy-apikey');
+    if (btn) { btn.textContent = '✅ 已复制'; setTimeout(function() { btn.textContent = '📋 复制'; }, 2000); }
+  });
+}
+
+
 /* (已禁用 - 无需许可证) async function activateProLicense() {
   const key = document.getElementById('pro-license-key').value.trim();
   if (!key) { toastError('请输入许可证密钥'); return; }

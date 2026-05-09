@@ -263,6 +263,8 @@ ZI = {
     "webui.nav_section_setting": "设置",
     "webui.nav_scheduler": "定时巡检",
     "webui.nav_notifier": "通知设置",
+    "webui.nav_account": "用户中心",
+    "webui.nav_apikey": "API Key 管理",
     "webui.ssh_config": "SSH 连接配置",
     "webui.analyze_issues": "智能分析发现问题 {} 项",
     "webui.ssh_testing": "正在测试 SSH...",

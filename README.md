@@ -147,6 +147,8 @@ python web_ui.py
 http://localhost:5003
 ```
 
+> 🔐 **默认账号**：用户名 `dbcheck`，密码 `dbcheck`。首次登录后请在用户中心修改密码。
+
 ---
 
 # 🖥️ 界面截图
@@ -394,6 +396,34 @@ pyinstaller dbcheck.spec
 
 - [Zhh9126/MySQLDBCHECK](https://github.com/Zhh9126/MySQLDBCHECK.git)
 - [Zhh9126/SQL-SERVER-CHECK](https://github.com/Zhh9126/SQL-SERVER-CHECK.git)
+
+---
+
+# 🔗 REST API（v2.4.3+）
+
+DBCheck 提供 REST API 供 CI/CD、监控系统等外部工具调用。需在 Web UI 的 **API Key 管理** 页面创建密钥后使用。
+
+```bash
+# 健康检查
+curl http://localhost:5003/api/v1/health
+
+# 触发巡检
+curl -X POST http://localhost:5003/api/v1/inspect \
+  -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" \
+  -d '{"db_type":"mysql","host":"192.168.1.100","port":3306,"user":"root","password":"****"}'
+
+# 查询结果
+curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
+```
+
+| 参数 | 说明 |
+|------|------|
+| `db_type` | mysql / pg / oracle / dm / sqlserver / tidb |
+| `mode` | sync=同步等待 / async=返回task_id |
+| `ssh` | SSH 跳板 `{host, port, user, password}` |
+| `timeout` | 同步超时秒数（默认300） |
+
+安全建议：生产环境使用 HTTPS 反向代理，定期轮换 API Key。
 
 ---
 
