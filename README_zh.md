@@ -3,7 +3,7 @@
 DBCheck 是一款开源、跨平台的数据库自动化健康巡检工具，支持 MySQL、PostgreSQL、Oracle、SQL Server、达梦 DM8 及 TiDB 六种主流关系型数据库。工具通过执行预定义的 SQL 检查项与系统资源采集，自动生成格式规范的 Microsoft Word 巡检报告，并提供历史趋势分析、AI 智能诊断、配置基线合规检查、索引健康分析、慢查询深度分析、脱敏导出等高级功能。DBCheck 旨在将 DBA 从重复、耗时的手工巡检工作中解放出来，提升数据库运维效率与风险发现能力。
 > 官方网站：https://dbcheck.top
 
-> Language: [English](./README_en.md) | [中文](./README_zh.md)
+> Language: [English](./README.md) | [中文](./README_zh.md)
 
 [![Version](https://img.shields.io/badge/版本-v2.4.4-blue.svg)]()
 [![License](https://img.shields.io/badge/开源协议-MIT-green.svg)]()
