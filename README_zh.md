@@ -5,15 +5,16 @@ DBCheck 是一款开源、跨平台的数据库自动化健康巡检工具，支
 
 > Language: [English](./README_en.md) | [中文](./README_zh.md)
 
-
 [![Version](https://img.shields.io/badge/版本-v2.4.4-blue.svg)]()
 [![License](https://img.shields.io/badge/开源协议-MIT-green.svg)]()
 [![Python](https://img.shields.io/badge/Python-3.6%2B-blue.svg)]()
-[![AI](https://img.shields.io/badge/AI-Ollama+RAG-orange.svg)]()
+[![AI](https://img.shields.io/badge/AI-Ollama-orange.svg)]()
+[![RAG](https://img.shields.io/badge/RAG-知识库增强-red.svg)]()
 [![WebUI](https://img.shields.io/badge/WebUI-Flask-success.svg)]()
-[![WebUI](https://img.shields.io/badge/公众号-山东Oracle用户组-brightgreen?logo=WeChat)]()
+[![WeChat](https://img.shields.io/badge/公众号-山东Oracle用户组-brightgreen?logo=WeChat)]()
 [![Stars](https://img.shields.io/github/stars/fiyo/dbcheck?style=flat-square&label=仓库星标)]()
 [![Followers](https://img.shields.io/github/forks/fiyo/dbcheck?style=flat-square)]()
+[![WebSite](https://img.shields.io/badge/网址-www.dbcheck.top-green.svg)]()
 ## 🌍 多语言支持
 
 DBCheck 支持**中文（默认）**和**英文**两种语言，界面文本随语言切换自动更新。
