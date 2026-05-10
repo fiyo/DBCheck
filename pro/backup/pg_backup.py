@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2024 DBCheck Contributors
-# sdfiyon@gmail.com
+# Copyright (c) 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
 #
 # This file is part of DBCheck, an open-source database health inspection tool.
-# DBCheck is released under the MIT License.
-# See LICENSE or visit https://opensource.org/licenses/MIT for full license text.
+# DBCheck is released under the MIT License with Attribution Requirements.
+# See LICENSE for full license text.
 #
+
 """
 DBCheck Pro Backup - PostgreSQL Engine
 基于 pg_dump 的 PostgreSQL 备份引擎
