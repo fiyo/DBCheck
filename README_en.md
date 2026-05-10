@@ -5,15 +5,6 @@ DBCheck is an open-source, cross-platform automated database health check tool t
 
 > Language: [English](./README_en.md) | [中文](./README_zh.md)
 
-[![Version](https://img.shields.io/badge/version-2.4.03-blue.svg)]()
-[![MySQL](https://img.shields.io/badge/database-MySQL-blue.svg)]()
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-gray.svg)]()
-[![Oracle](https://img.shields.io/badge/Oracle-red.svg)]()
-[![SQL Server](https://img.shields.io/badge/SQL%20Server-orange.svg)]()
-[![DM](https://img.shields.io/badge/DM-yellow.svg)]()
-[![TiDB](https://img.shields.io/badge/TiDB-green.svg)]()
-[![License](https://img.shields.io/badge/license-MIT-green.svg)]()
-[![Donors](https://img.shields.io/badge/donors-2-blue.svg)]()
 
 [![Version](https://img.shields.io/badge/version-v2.4.4-blue.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-green.svg)]()
