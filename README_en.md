@@ -9,10 +9,11 @@ DBCheck is an open-source, cross-platform automated database health check tool t
 [![Version](https://img.shields.io/badge/version-v2.4.4-blue.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-green.svg)]()
 [![Python](https://img.shields.io/badge/Python-3.6%2B-blue.svg)]()
-[![AI](https://img.shields.io/badge/AI-Ollama-orange.svg)]()
-[![RAG](https://img.shields.io/badge/RAG-RAG-red.svg)]()
+[![AI](https://img.shields.io/badge/AI-Ollama+RAG-orange.svg)]()
 [![WebUI](https://img.shields.io/badge/WebUI-Flask-success.svg)]()
-![Stars](https://img.shields.io/github/stars/fiyo/dbcheck?style=flat-square&label=Star)
+[![WebUI](https://img.shields.io/badge/wechat-sdougwx-brightgreen?logo=WeChat)]()
+[![Stars](https://img.shields.io/github/stars/fiyo/dbcheck?style=flat-square&label=Star)]()
+[![Followers](https://img.shields.io/github/forks/fiyo/dbcheck?style=flat-square)]()
 
 
 ## 🌍 Multi-Language Support

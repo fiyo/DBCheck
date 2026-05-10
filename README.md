@@ -26,7 +26,9 @@
 [![AI](https://img.shields.io/badge/AI-Ollama-orange.svg)]()
 [![RAG](https://img.shields.io/badge/RAG-知识库增强-red.svg)]()
 [![WebUI](https://img.shields.io/badge/WebUI-Flask-success.svg)]()
-![Stars](https://img.shields.io/github/stars/fiyo/dbcheck?style=flat-square&label=仓库星标)
+[![WebUI](https://img.shields.io/badge/公众号-山东Oracle用户组-brightgreen?logo=WeChat)]()
+[![Stars](https://img.shields.io/github/stars/fiyo/dbcheck?style=flat-square&label=仓库星标)]()
+[![Followers](https://img.shields.io/github/forks/fiyo/dbcheck?style=flat-square)]()
 
 </p>
 
