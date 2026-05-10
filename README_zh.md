@@ -5,17 +5,14 @@ DBCheck 是一款开源、跨平台的数据库自动化健康巡检工具，支
 
 > Language: [English](./README_en.md) | [中文](./README_zh.md)
 
-[![Version](https://img.shields.io/badge/版本-2.4.3-blue.svg)]()
-[![MySQL](https://img.shields.io/badge/支持的数据库-MySQL-blue.svg)]()
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-gray.svg)]()
-[![Oracle](https://img.shields.io/badge/Oracle-red.svg)]()
-[![SQL Server](https://img.shields.io/badge/SQL%20Server-orange.svg)]()
-[![DM](https://img.shields.io/badge/DM-yellow.svg)]()
-[![TiDB](https://img.shields.io/badge/TiDB-green.svg)]()
+
+[![Version](https://img.shields.io/badge/版本-v2.4.4-blue.svg)]()
 [![License](https://img.shields.io/badge/开源协议-MIT-green.svg)]()
-[![捐赠者](https://img.shields.io/badge/捐赠者-2-blue.svg)]()
-
-
+[![Python](https://img.shields.io/badge/Python-3.6%2B-blue.svg)]()
+[![AI](https://img.shields.io/badge/AI-Ollama-orange.svg)]()
+[![RAG](https://img.shields.io/badge/RAG-知识库增强-red.svg)]()
+[![WebUI](https://img.shields.io/badge/WebUI-Flask-success.svg)]()
+![Stars](https://img.shields.io/github/stars/fiyo/dbcheck?style=flat-square&label=仓库星标)
 
 ## 🌍 多语言支持
 
