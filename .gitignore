@@ -10,6 +10,7 @@ test_dm_*.py
 probe*.py
 history.json
 db_history.db
+instances.json
 .env
 notifier_config.json
 scheduler_jobs.json
