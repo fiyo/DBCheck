@@ -258,7 +258,17 @@ slave_status = show slave status;
 mysql_users = select user as col1,host as col2,Grant_priv as col3,plugin as col4,account_locked as col5 from mysql.user where user not in ('mysql.infoschema','mysql.session','mysql.sys');
 instancetime = select DATE_FORMAT(date_sub(now(), INTERVAL variable_value SECOND),"%Y-%m-%d %H:%i:%s") started_at from performance_schema.global_status where variable_name='Uptime';
 platform_info = select variable_name, variable_value from performance_schema.session_variables where variable_name in ('version_compile_os','version_compile_machine');
+innodb_lock_chain = SELECT r.trx_id AS waiting_trx_id, r.trx_mysql_thread_id AS waiting_thread, LEFT(COALESCE(r.trx_query, ''), 200) AS waiting_query, r.trx_state AS waiting_state, r.trx_started AS waiting_since, TIMESTAMPDIFF(SECOND, r.trx_started, NOW()) AS waiting_seconds, b.trx_id AS blocking_trx_id, b.trx_mysql_thread_id AS blocking_thread, LEFT(COALESCE(b.trx_query, ''), 200) AS blocking_query, b.trx_state AS blocking_state, b.trx_started AS blocking_since, l.LOCK_TYPE, CONCAT(l.OBJECT_SCHEMA, ".", l.OBJECT_NAME) AS locked_table, l.INDEX_NAME AS locked_index, l.LOCK_MODE AS LOCK_MODE FROM information_schema.INNODB_TRX r JOIN performance_schema.data_lock_waits w ON r.trx_id = w.REQUESTING_ENGINE_TRANSACTION_ID JOIN performance_schema.data_locks l ON w.REQUESTING_ENGINE_LOCK_ID = l.ENGINE_LOCK_ID JOIN information_schema.INNODB_TRX b ON w.BLOCKING_ENGINE_TRANSACTION_ID = b.trx_id ORDER BY r.trx_started;
+innodb_long_trx = SELECT trx_id, trx_mysql_thread_id, trx_state, LEFT(COALESCE(trx_query, ''), 200) AS trx_query, TIMESTAMPDIFF(SECOND, trx_started, NOW()) AS trx_duration_sec, trx_rows_locked, trx_rows_modified, trx_isolation_level FROM information_schema.INNODB_TRX WHERE TIMESTAMPDIFF(SECOND, trx_started, NOW()) > 60 ORDER BY trx_started;
+innodb_deadlock_status = SHOW ENGINE INNODB STATUS;
+innodb_lock_type_stats = SELECT LOCK_TYPE, LOCK_MODE, COUNT(*) AS lock_count, COUNT(DISTINCT OBJECT_SCHEMA) AS schema_count FROM performance_schema.data_locks WHERE LOCK_TYPE != 'TABLE' OR LOCK_MODE != 'IS' GROUP BY LOCK_TYPE, LOCK_MODE ORDER BY lock_count DESC;
 """
+
+# ══════ InnoDB 锁诊断 SQL（独立于模板文件，模块级 Python 变量）══════
+innodb_lock_chain = """SELECT r.trx_id AS waiting_trx_id, r.trx_mysql_thread_id AS waiting_thread, LEFT(COALESCE(r.trx_query, ''), 200) AS waiting_query, r.trx_state AS waiting_state, r.trx_started AS waiting_since, TIMESTAMPDIFF(SECOND, r.trx_started, NOW()) AS waiting_seconds, b.trx_id AS blocking_trx_id, b.trx_mysql_thread_id AS blocking_thread, LEFT(COALESCE(b.trx_query, ''), 200) AS blocking_query, b.trx_state AS blocking_state, b.trx_started AS blocking_since, l.LOCK_TYPE, CONCAT(l.OBJECT_SCHEMA, ".", l.OBJECT_NAME) AS locked_table, l.INDEX_NAME AS locked_index, l.LOCK_MODE AS LOCK_MODE FROM information_schema.INNODB_TRX r JOIN performance_schema.data_lock_waits w ON r.trx_id = w.REQUESTING_ENGINE_TRANSACTION_ID JOIN performance_schema.data_locks l ON w.REQUESTING_ENGINE_LOCK_ID = l.ENGINE_LOCK_ID JOIN information_schema.INNODB_TRX b ON w.BLOCKING_ENGINE_TRANSACTION_ID = b.trx_id ORDER BY r.trx_started"""
+innodb_long_trx = """SELECT trx_id, trx_mysql_thread_id, trx_state, LEFT(COALESCE(trx_query, ''), 200) AS trx_query, TIMESTAMPDIFF(SECOND, trx_started, NOW()) AS trx_duration_sec, trx_rows_locked, trx_rows_modified, trx_isolation_level FROM information_schema.INNODB_TRX WHERE TIMESTAMPDIFF(SECOND, trx_started, NOW()) > 60 ORDER BY trx_started"""
+innodb_deadlock_status = """SHOW ENGINE INNODB STATUS"""
+innodb_lock_type_stats = """SELECT LOCK_TYPE, LOCK_MODE, COUNT(*) AS lock_count, COUNT(DISTINCT OBJECT_SCHEMA) AS schema_count FROM performance_schema.data_locks WHERE LOCK_TYPE != 'TABLE' OR LOCK_MODE != 'IS' GROUP BY LOCK_TYPE, LOCK_MODE ORDER BY lock_count DESC"""
 
 class RemoteSystemInfoCollector:
     """远程系统信息收集器 - 通过SSH连接获取远程主机信息"""
@@ -1924,7 +1934,9 @@ class getData(object):
                     "character_set_database", "basedir", "slow_query_log", 
                     "table_locks_immediate", "table_locks_waited", "db_size", 
                     "processlist", "log_bin", "query_cache", "slave_status",
-                    "mysql_users", "instancetime", "platform_info"]
+                    "mysql_users", "instancetime", "platform_info",
+                    "innodb_lock_chain", "innodb_long_trx",
+                    "innodb_deadlock_status", "innodb_lock_type_stats"]
         for key in init_keys:
             self.context.update({key: []})
         try:
@@ -1953,6 +1965,22 @@ class getData(object):
                 except Exception as e:
                     print(f"\n⚠️  步骤 {name} 执行失败: {e}")
                     self.context[name] = []
+            # ── 锁诊断查询（独立于模板文件执行）──────
+            _lock_queries = {
+                'innodb_lock_chain': innodb_lock_chain,
+                'innodb_long_trx': innodb_long_trx,
+                'innodb_deadlock_status': innodb_deadlock_status,
+                'innodb_lock_type_stats': innodb_lock_type_stats,
+            }
+            for lock_key, lock_sql in _lock_queries.items():
+                try:
+                    cursor2.execute(lock_sql.replace('\n', ' ').replace('\r', ' '))
+                    result = [dict((cursor2.description[i][0], value) for i, value in enumerate(row)) for row in cursor2.fetchall()]
+                    self.context[lock_key] = result
+                    time.sleep(0.05)
+                except Exception as e:
+                    print(f"\n⚠️  锁诊断查询 {lock_key} 执行失败: {e}")
+                    self.context[lock_key] = []
         except Exception as e:
             print(f'\n❌ 数据库查询失败: {e}')
         finally:
@@ -2711,8 +2739,86 @@ class saveDoc(object):
                         doc2.add_paragraph(self._t('report.index_health_no_issues'))
                     doc2.add_paragraph()
 
-                # 第 11 章 报告说明
-                doc2.add_heading('11. ' + self._t('report.fallback_notes_chapter'), level=1)
+                # 第 11 章 InnoDB 锁诊断（P0）
+                doc2.add_heading('11. ' + self._t('report.innodb_lock_chapter'), level=1)
+                # 11.1 锁等待详情
+                doc2.add_heading('11.1 ' + self._t('report.lock_wait_detail'), level=2)
+                lock_chain = self.context.get('innodb_lock_chain', [])
+                if lock_chain:
+                    tbl = doc2.add_table(rows=1+min(len(lock_chain), 20), cols=6)
+                    tbl.style = 'Table Grid'
+                    tbl.autofit = True
+                    hdr = tbl.rows[0].cells
+                    hdr_texts = [
+                        self._t('report.lock_waiting_thread'),
+                        self._t('report.lock_wait_sec'),
+                        'Lock Mode',
+                        self._t('report.lock_blocking_thread'),
+                        self._t('report.lock_locked_table'),
+                        self._t('report.lock_waiting_sql')
+                    ]
+                    for j, (cell, ht) in enumerate(zip(hdr, hdr_texts)):
+                        cell.text = ht
+                        self._set_cell_bg(cell, '336699')
+                        cell.paragraphs[0].runs[0].bold = True
+                        cell.paragraphs[0].runs[0].font.size = Pt(8)
+                        cell.paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
+                        cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    for i, row in enumerate(lock_chain[:20], 1):
+                        cells = tbl.rows[i].cells
+                        cells[0].text = str(row.get('waiting_thread', ''))
+                        cells[1].text = str(row.get('waiting_seconds', ''))
+                        cells[2].text = str(row.get('LOCK_MODE', ''))
+                        cells[3].text = str(row.get('blocking_thread', ''))
+                        cells[4].text = str(row.get('locked_table', ''))
+                        cells[5].text = str(row.get('waiting_query', '')[:80])
+                        for c in cells:
+                            for para in c.paragraphs:
+                                for run in para.runs:
+                                    run.font.size = Pt(8)
+                else:
+                    doc2.add_paragraph(self._t('report.no_lock_wait'))
+
+                # 11.2 长事务检测
+                doc2.add_heading('11.2 ' + self._t('report.long_trx_detect'), level=2)
+                long_trx = self.context.get('innodb_long_trx', [])
+                if long_trx:
+                    tbl = doc2.add_table(rows=1+min(len(long_trx), 20), cols=6)
+                    tbl.style = 'Table Grid'
+                    tbl.autofit = True
+                    hdr = tbl.rows[0].cells
+                    hdr_texts = [
+                        'TRX_ID', 'Thread',
+                        self._t('report.long_trx_duration_sec'),
+                        self._t('report.long_trx_state'),
+                        self._t('report.long_trx_rows_locked'),
+                        self._t('report.long_trx_query')
+                    ]
+                    for j, (cell, ht) in enumerate(zip(hdr, hdr_texts)):
+                        cell.text = ht
+                        self._set_cell_bg(cell, '336699')
+                        cell.paragraphs[0].runs[0].bold = True
+                        cell.paragraphs[0].runs[0].font.size = Pt(8)
+                        cell.paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
+                        cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    for i, row in enumerate(long_trx[:20], 1):
+                        cells = tbl.rows[i].cells
+                        cells[0].text = str(row.get('trx_id', ''))
+                        cells[1].text = str(row.get('trx_mysql_thread_id', ''))
+                        cells[2].text = str(row.get('trx_duration_sec', ''))
+                        cells[3].text = str(row.get('trx_state', ''))
+                        cells[4].text = str(row.get('trx_rows_locked', ''))
+                        cells[5].text = str(row.get('trx_query', '')[:80])
+                        for c in cells:
+                            for para in c.paragraphs:
+                                for run in para.runs:
+                                    run.font.size = Pt(8)
+                else:
+                    doc2.add_paragraph(self._t('report.no_long_trx'))
+                doc2.add_paragraph()
+
+                # 第 12 章 报告说明
+                doc2.add_heading('12. ' + self._t('report.fallback_notes_chapter'), level=1)
                 notes = [
                     self._t("report.note_1"),
                     self._t("report.note_2"),
@@ -2941,6 +3047,81 @@ class saveDoc(object):
                 (self._t('report.fallback_lock_immediate'), 'table_locks_immediate'),
                 (self._t('report.fallback_lock_waited'), 'table_locks_waited')
             ], col1_width=4, col2_width=10)
+            # 4.2.1 InnoDB 锁等待详情
+            doc.add_heading('4.2.1 InnoDB ' + self._t('report.lock_wait_detail'), level=3)
+            lock_chain = self.context.get('innodb_lock_chain', [])
+            if lock_chain:
+                table = doc.add_table(rows=1+min(len(lock_chain), 20), cols=6)
+                table.style = 'Table Grid'
+                table.autofit = True
+                hdr = table.rows[0].cells
+                hdr_texts = [
+                    self._t('report.lock_waiting_thread'),
+                    self._t('report.lock_wait_sec'),
+                    'Lock Mode',
+                    self._t('report.lock_blocking_thread'),
+                    self._t('report.lock_locked_table'),
+                    self._t('report.lock_waiting_sql')
+                ]
+                for j, (cell, ht) in enumerate(zip(hdr, hdr_texts)):
+                    cell.text = ht
+                    self._set_cell_bg(cell, '336699')
+                    cell.paragraphs[0].runs[0].bold = True
+                    cell.paragraphs[0].runs[0].font.size = Pt(8)
+                    cell.paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
+                    cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                for i, row in enumerate(lock_chain[:20], 1):
+                    cells = table.rows[i].cells
+                    cells[0].text = str(row.get('waiting_thread', ''))
+                    cells[1].text = str(row.get('waiting_seconds', ''))
+                    cells[2].text = str(row.get('LOCK_MODE', ''))
+                    cells[3].text = str(row.get('blocking_thread', ''))
+                    cells[4].text = str(row.get('locked_table', ''))
+                    cells[5].text = str(row.get('waiting_query', '')[:80])
+                    for c in cells:
+                        for para in c.paragraphs:
+                            for run in para.runs:
+                                run.font.size = Pt(8)
+            else:
+                para = doc.add_paragraph(self._t('report.no_lock_wait'))
+                para.style = doc.styles['Normal']
+            # 4.2.2 长事务检测
+            doc.add_heading('4.2.2 ' + self._t('report.long_trx_detect'), level=3)
+            long_trx = self.context.get('innodb_long_trx', [])
+            if long_trx:
+                table = doc.add_table(rows=1+min(len(long_trx), 20), cols=6)
+                table.style = 'Table Grid'
+                table.autofit = True
+                hdr = table.rows[0].cells
+                hdr_texts = [
+                    'TRX_ID', 'Thread',
+                    self._t('report.long_trx_duration_sec'),
+                    self._t('report.long_trx_state'),
+                    self._t('report.long_trx_rows_locked'),
+                    self._t('report.long_trx_query')
+                ]
+                for j, (cell, ht) in enumerate(zip(hdr, hdr_texts)):
+                    cell.text = ht
+                    self._set_cell_bg(cell, '336699')
+                    cell.paragraphs[0].runs[0].bold = True
+                    cell.paragraphs[0].runs[0].font.size = Pt(8)
+                    cell.paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
+                    cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                for i, row in enumerate(long_trx[:20], 1):
+                    cells = table.rows[i].cells
+                    cells[0].text = str(row.get('trx_id', ''))
+                    cells[1].text = str(row.get('trx_mysql_thread_id', ''))
+                    cells[2].text = str(row.get('trx_duration_sec', ''))
+                    cells[3].text = str(row.get('trx_state', ''))
+                    cells[4].text = str(row.get('trx_rows_locked', ''))
+                    cells[5].text = str(row.get('trx_query', '')[:80])
+                    for c in cells:
+                        for para in c.paragraphs:
+                            for run in para.runs:
+                                run.font.size = Pt(8)
+            else:
+                para = doc.add_paragraph(self._t('report.no_long_trx'))
+                para.style = doc.styles['Normal']
             doc.add_heading('4.3 ' + self._t('report.fallback_abnormal_conn'), level=2)
             aborted = self.context.get('aborted_connections', [])
             table = doc.add_table(rows=3, cols=2)

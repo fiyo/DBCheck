@@ -258,6 +258,10 @@ slave_status = show slave status;
 mysql_users = select user as col1,host as col2,Grant_priv as col3,plugin as col4,account_locked as col5 from mysql.user where user not in ('mysql.infoschema','mysql.session','mysql.sys');
 instancetime = select DATE_FORMAT(date_sub(now(), INTERVAL variable_value SECOND),"%Y-%m-%d %H:%i:%s") started_at from performance_schema.global_status where variable_name='Uptime';
 platform_info = select variable_name, variable_value from performance_schema.session_variables where variable_name in ('version_compile_os','version_compile_machine');
+innodb_lock_chain = SELECT r.trx_id AS waiting_trx_id, r.trx_mysql_thread_id AS waiting_thread, LEFT(COALESCE(r.trx_query, ''), 200) AS waiting_query, r.trx_state AS waiting_state, r.trx_started AS waiting_since, TIMESTAMPDIFF(SECOND, r.trx_started, NOW()) AS waiting_seconds, b.trx_id AS blocking_trx_id, b.trx_mysql_thread_id AS blocking_thread, LEFT(COALESCE(b.trx_query, ''), 200) AS blocking_query, b.trx_state AS blocking_state, b.trx_started AS blocking_since, l.LOCK_TYPE, CONCAT(l.OBJECT_SCHEMA, ".", l.OBJECT_NAME) AS locked_table, l.INDEX_NAME AS locked_index, l.LOCK_MODE AS LOCK_MODE FROM information_schema.INNODB_TRX r JOIN performance_schema.data_lock_waits w ON r.trx_id = w.REQUESTING_ENGINE_TRANSACTION_ID JOIN performance_schema.data_locks l ON w.REQUESTING_ENGINE_LOCK_ID = l.ENGINE_LOCK_ID JOIN information_schema.INNODB_TRX b ON w.BLOCKING_ENGINE_TRANSACTION_ID = b.trx_id ORDER BY r.trx_started;
+innodb_long_trx = SELECT trx_id, trx_mysql_thread_id, trx_state, LEFT(COALESCE(trx_query, ''), 200) AS trx_query, TIMESTAMPDIFF(SECOND, trx_started, NOW()) AS trx_duration_sec, trx_rows_locked, trx_rows_modified, trx_isolation_level FROM information_schema.INNODB_TRX WHERE TIMESTAMPDIFF(SECOND, trx_started, NOW()) > 60 ORDER BY trx_started;
+innodb_deadlock_status = SHOW ENGINE INNODB STATUS;
+innodb_lock_type_stats = SELECT LOCK_TYPE, LOCK_MODE, COUNT(*) AS lock_count, COUNT(DISTINCT OBJECT_SCHEMA) AS schema_count FROM performance_schema.data_locks WHERE LOCK_TYPE != 'TABLE' OR LOCK_MODE != 'IS' GROUP BY LOCK_TYPE, LOCK_MODE ORDER BY lock_count DESC;
 """
 
 class RemoteSystemInfoCollector:
@@ -1854,7 +1858,7 @@ class getData(object):
         self.password = password
         self.ssh_info = ssh_info or {}
         try:
-            self.conn_db2 = pymysql.connect(host=self.H, port=self.P, user=self.user, password=self.password, charset='utf8mb4', connect_timeout=10)
+            self.conn_db2 = pymysql.connect(host=self.H, port=self.P, user=self.user, password=self.password, charset='utf8mb4', connect_timeout=10, read_timeout=60)
         except Exception as e:
             print(f"❌ 数据库连接失败: {e}")
             self.conn_db2 = None
@@ -1924,7 +1928,9 @@ class getData(object):
                     "character_set_database", "basedir", "slow_query_log", 
                     "table_locks_immediate", "table_locks_waited", "db_size", 
                     "processlist", "log_bin", "query_cache", "slave_status",
-                    "mysql_users", "instancetime", "platform_info"]
+                    "mysql_users", "instancetime", "platform_info",
+                    "innodb_lock_chain", "innodb_long_trx",
+                    "innodb_deadlock_status", "innodb_lock_type_stats"]
         for key in init_keys:
             self.context.update({key: []})
         try:
@@ -2238,17 +2244,29 @@ class saveDoc(object):
 
             # 尝试使用 docxtpl 正常渲染
             try:
+                print("  📄 正在渲染 Word 报告模板...")
                 with open(self.ifile, 'rb') as f:
                     template_bytes = f.read()
                 doc_stream = io.BytesIO(template_bytes)
                 tpl = DocxTemplate(doc_stream)
                 tpl.render(self.context)
-                tpl.save(self.ofile)
+                print("  💾 正在保存 Word 文件...")
+                # 先保存到 BytesIO，再一次性写入文件，避免文件句柄未释放导致 python-docx 打开卡住
+                buf = io.BytesIO()
+                tpl.save(buf)
+                buf.seek(0)
+                with open(self.ofile, 'wb') as f:
+                    f.write(buf.getvalue())
+                buf.seek(0)  # 重置指针，用于后续 python-docx 打开
 
 
                 # ── 追加新章节（第7章 7.1/7.2 + 第8章 AI诊断）───────────────────
                 # docxtpl 模板本身有旧的"7.报告说明"，先把它及之后的内容删掉，再追加新章节
-                doc2 = Document(self.ofile)
+                print("  📑 正在追加新章节...")
+                import time as _time
+                _t0 = _time.time()
+                doc2 = Document(buf)  # 从 BytesIO 打开，避免文件句柄问题
+                print("  ⏱  打开文件耗时: %.1f 秒" % (_time.time() - _t0))
 
                 # ── 修复 docxtpl 保存后 sections 可能为空的问题 ──────────────
                 # docxtpl 保存的文件重新打开后 sections[-1] 可能 IndexError
@@ -2279,9 +2297,11 @@ class saveDoc(object):
                 ns_w = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
                 body = doc2._element.body
                 body_children = list(body.iterchildren())
+                print("  ⏱  body 子元素数量: %d" % len(body_children))
                 # 直接在 body_children 中找到"7. 报告说明"段落对应的元素
                 # （不能用 doc2.paragraphs 的索引去切 body_children，因为两者不完全对齐）
                 cutoff_el = None
+                _t1 = _time.time()
                 for el in body_children:
                     tag = el.tag.split('}')[1] if '}' in el.tag else el.tag
                     if tag == 'p':
@@ -2294,6 +2314,7 @@ class saveDoc(object):
                         if t.startswith('7.') and ('报告说明' in t or 'Report Notes' in t):
                             cutoff_el = el
                             break
+                print("  ⏱  查找章节切分点耗时: %.1f 秒" % (_time.time() - _t1))
                 if cutoff_el is not None:
                     # python-docx 不提供直接按索引批量删除段落，通过 element 操作
                     cutoff_idx_in_children = body_children.index(cutoff_el)
@@ -2709,7 +2730,9 @@ class saveDoc(object):
                 for note in notes:
                     doc2.add_paragraph(note)
 
+                print("  💾 正在保存最终报告...")
                 doc2.save(self.ofile)
+                print("  ✅ 报告保存完成: %s" % self.ofile)
                 return True
             except AttributeError as ae:
                 if 'part' in str(ae):
@@ -2722,6 +2745,7 @@ class saveDoc(object):
                 tb = traceback.format_exc()
 
                 pass  # 静默降级到备用渲染
+                print("  ⚠️ docxtpl 渲染异常，降级到备用渲染模式...")
                 return self._fallback_render()
 
         except Exception as e:
@@ -2738,11 +2762,11 @@ class saveDoc(object):
         封面、健康状态概览、系统资源检查（CPU/内存/磁盘）、
         MySQL 配置检查（连接/内存/日志）、性能分析（QPS/锁/异常连接）、
         数据库信息（大小/进程列表）、安全信息（用户信息）、风险与建议、报告说明。
-
         所有数据均从 self.context 中直接提取，无 Jinja2 模板变量。
 
         :return: 渲染并保存成功返回 True，失败返回 False
         """
+        print("  📝 使用备用渲染模式构建 Word 报告...")
         try:
             doc = Document()
             title = doc.add_heading(self._t('report.mysql_title'), 0)
@@ -2923,6 +2947,81 @@ class saveDoc(object):
                 (self._t('report.fallback_lock_immediate'), 'table_locks_immediate'),
                 (self._t('report.fallback_lock_waited'), 'table_locks_waited')
             ], col1_width=4, col2_width=10)
+            # 4.2.1 InnoDB 锁等待详情
+            doc.add_heading('4.2.1 InnoDB ' + self._t('report.lock_wait_detail'), level=3)
+            lock_chain = self.context.get('innodb_lock_chain', [])
+            if lock_chain:
+                table = doc.add_table(rows=1+min(len(lock_chain), 20), cols=6)
+                table.style = 'Table Grid'
+                table.autofit = True
+                hdr = table.rows[0].cells
+                hdr_texts = [
+                    self._t('report.lock_waiting_thread'),
+                    self._t('report.lock_wait_sec'),
+                    'Lock Mode',
+                    self._t('report.lock_blocking_thread'),
+                    self._t('report.lock_locked_table'),
+                    self._t('report.lock_waiting_sql')
+                ]
+                for j, (cell, ht) in enumerate(zip(hdr, hdr_texts)):
+                    cell.text = ht
+                    self._set_cell_bg(cell, '336699')
+                    cell.paragraphs[0].runs[0].bold = True
+                    cell.paragraphs[0].runs[0].font.size = Pt(8)
+                    cell.paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
+                    cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                for i, row in enumerate(lock_chain[:20], 1):
+                    cells = table.rows[i].cells
+                    cells[0].text = str(row.get('waiting_thread', ''))
+                    cells[1].text = str(row.get('waiting_seconds', ''))
+                    cells[2].text = str(row.get('LOCK_MODE', ''))
+                    cells[3].text = str(row.get('blocking_thread', ''))
+                    cells[4].text = str(row.get('locked_table', ''))
+                    cells[5].text = str(row.get('waiting_query', '')[:80])
+                    for c in cells:
+                        for para in c.paragraphs:
+                            for run in para.runs:
+                                run.font.size = Pt(8)
+            else:
+                para = doc.add_paragraph(self._t('report.no_lock_wait'))
+                para.style = doc.styles['Normal']
+            # 4.2.2 长事务检测
+            doc.add_heading('4.2.2 ' + self._t('report.long_trx_detect'), level=3)
+            long_trx = self.context.get('innodb_long_trx', [])
+            if long_trx:
+                table = doc.add_table(rows=1+min(len(long_trx), 20), cols=6)
+                table.style = 'Table Grid'
+                table.autofit = True
+                hdr = table.rows[0].cells
+                hdr_texts = [
+                    'TRX_ID', 'Thread',
+                    self._t('report.long_trx_duration_sec'),
+                    self._t('report.long_trx_state'),
+                    self._t('report.long_trx_rows_locked'),
+                    self._t('report.long_trx_query')
+                ]
+                for j, (cell, ht) in enumerate(zip(hdr, hdr_texts)):
+                    cell.text = ht
+                    self._set_cell_bg(cell, '336699')
+                    cell.paragraphs[0].runs[0].bold = True
+                    cell.paragraphs[0].runs[0].font.size = Pt(8)
+                    cell.paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
+                    cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                for i, row in enumerate(long_trx[:20], 1):
+                    cells = table.rows[i].cells
+                    cells[0].text = str(row.get('trx_id', ''))
+                    cells[1].text = str(row.get('trx_mysql_thread_id', ''))
+                    cells[2].text = str(row.get('trx_duration_sec', ''))
+                    cells[3].text = str(row.get('trx_state', ''))
+                    cells[4].text = str(row.get('trx_rows_locked', ''))
+                    cells[5].text = str(row.get('trx_query', '')[:80])
+                    for c in cells:
+                        for para in c.paragraphs:
+                            for run in para.runs:
+                                run.font.size = Pt(8)
+            else:
+                para = doc.add_paragraph(self._t('report.no_long_trx'))
+                para.style = doc.styles['Normal']
             doc.add_heading('4.3 ' + self._t('report.fallback_abnormal_conn'), level=2)
             aborted = self.context.get('aborted_connections', [])
             table = doc.add_table(rows=3, cols=2)
@@ -3251,7 +3350,9 @@ class saveDoc(object):
             for note in notes:
                 doc.add_paragraph(note)
 
+            print("  💾 正在保存备用模式报告...")
             doc.save(self.ofile)
+            print("  ✅ 备用模式报告保存完成: %s" % self.ofile)
             pass  # 备用渲染成功
             return True
         except Exception as e:

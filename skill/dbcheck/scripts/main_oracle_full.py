@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
 #
@@ -42,45 +42,56 @@ except ImportError:
     _HAS_ORACLE = False
 
 
-def _get_oracle_conn_thunk_first(dsn, user, password, mode=None):
+def _get_oracle_conn_thunk_first(dsn, user, password, mode=None,
+                                  ssh_host=None, ssh_port=22,
+                                  ssh_user=None, ssh_password=None,
+                                  ssh_key=None):
     """
-    连接 Oracle，优先尝试 thin mode（纯 Python，无需 Instant Client）；
-    若遇到 DPY-3010（Oracle 11g 等低版本不支持），自动 fallback 到 thick mode。
-
-    参数:
-        dsn:         Oracle DSN 字符串
-        user:        用户名
-        password:    密码
-        mode:        连接模式（如 oracledb.SYSDBA），可选
-
-    返回:
-        oracledb.Connection 对象
+    连接 Oracle，优先尝试 thin mode；支持 SSH 隧道。
     """
-    # 先尝试 thin mode（默认，无需配置）
+    import oracledb as _odb
+
+    # SSH 隧道
+    _tunnel = None
+    _real_dsn = dsn
+    if ssh_host:
+        try:
+            import paramiko
+            _tunnel = paramiko.SSHClient()
+            _tunnel.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            if ssh_key:
+                _tunnel.connect(ssh_host, port=int(ssh_port), username=ssh_user,
+                               key_filename=ssh_key, timeout=15,
+                               look_for_keys=False, allow_agent=False)
+            else:
+                _tunnel.connect(ssh_host, port=int(ssh_port), username=ssh_user,
+                               password=ssh_password or '', timeout=15,
+                               look_for_keys=False, allow_agent=False)
+            # 从 DSN 解析 Oracle 主机和端口
+            _dsn_part = dsn.replace('//', '').split('/')[0]
+            _ora_host, _ora_port = (_dsn_part.split(':') + ['1521'])[:2]
+            _t = _tunnel.get_transport()
+            _local_port = _t.request_port_forward('', 0, _ora_host, int(_ora_port))
+            _real_dsn = dsn.replace(f'{_ora_host}:{_ora_port}', f'localhost:{_local_port}')
+            print(f"  🔗 SSH 隧道: localhost:{_local_port} → {_ora_host}:{_ora_port}")
+        except Exception as e:
+            print(f"  ⚠️  SSH 隧道失败: {e}, 改为直连")
+            _tunnel = None
+
     try:
         if mode is not None:
-            return oracledb.connect(user=user, password=password, dsn=dsn, mode=mode)
+            return _odb.connect(user=user, password=password, dsn=_real_dsn, mode=mode), _tunnel
         else:
-            return oracledb.connect(user=user, password=password, dsn=dsn)
+            return _odb.connect(user=user, password=password, dsn=_real_dsn), _tunnel
     except Exception as e:
         err_str = str(e)
-        # DPY-3010 = thin mode 不支持此数据库版本（如 Oracle 11g）
-        if 'DPY-3010' not in err_str:
-            raise  # 其他错误不 fallback，直接抛异常
-        print("  ⚠️  thin mode 不支持此版本，尝试 thick mode（需要 Oracle Instant Client）...")
-        try:
-            oracledb.init_oracle_client()  # 加载 Instant Client
-        except Exception as init_err:
-            # 已经初始化过（multiple init）或找不到库
-            init_err_str = str(init_err)
-            if 'DPY-6004' not in init_err_str and 'ORA-' not in init_err_str:
-                print("  ❌ 找不到 Oracle Instant Client，请安装后重试：")
-                print("     https://python-oracledb.readthedocs.io/en/latest/user_guide/installation.html")
-            raise
-        if mode is not None:
-            return oracledb.connect(user=user, password=password, dsn=dsn, mode=mode)
+        if 'DPY-3010' in err_str:
+            print("  ⚠️  thin mode 不支持此版本（Oracle 11g 及以下）")
+            if not ssh_host:
+                raise Exception('Oracle 11g 及以下版本需通过 SSH 连接，请在数据源中启用 SSH') from e
+            # SSH 隧道已建立，直接重试连接
         else:
-            return oracledb.connect(user=user, password=password, dsn=dsn)
+            raise
 
 try:
     from docx import Document
@@ -170,6 +181,9 @@ def get_checks_for_version(ver_major):
             ("性能指标",      oracle_check_performance),
             ("Top SQL",       oracle_check_top_sql),
             ("无效对象",      oracle_check_invalid_objects),
+            ("阻塞会话",      oracle_check_blocking),
+            ("死锁检测",      oracle_check_deadlock),
+            ("长事务",         oracle_check_long_trx),
             ("用户安全",      oracle_check_users),
             # 备份/DataGuard/RAC/AWR 在 10g 通常不可用，已在对应函数内做版本适配
             ("备份信息",      oracle_check_backup),
@@ -199,6 +213,9 @@ def get_checks_for_version(ver_major):
             ("性能指标",      oracle_check_performance),
             ("Top SQL",       oracle_check_top_sql),
             ("无效对象",      oracle_check_invalid_objects),
+            ("阻塞会话",      oracle_check_blocking),
+            ("死锁检测",      oracle_check_deadlock),
+            ("长事务",         oracle_check_long_trx),
             ("用户安全",      oracle_check_users),
             ("备份信息",      oracle_check_backup),
             ("闪回/回收站",   oracle_check_flashback),
@@ -226,6 +243,9 @@ def get_checks_for_version(ver_major):
         ("性能指标",      oracle_check_performance),
         ("Top SQL",       oracle_check_top_sql),
         ("无效对象",      oracle_check_invalid_objects),
+        ("阻塞会话",      oracle_check_blocking),
+        ("死锁检测",      oracle_check_deadlock),
+        ("长事务",         oracle_check_long_trx),
         ("用户安全",      oracle_check_users),
         ("备份信息",      oracle_check_backup),
         ("闪回/回收站",   oracle_check_flashback),
@@ -1192,6 +1212,112 @@ def oracle_check_long_sql(conn):
             FETCH FIRST 10 ROWS ONLY
         """)
         results['long_sql'] = cur.fetchall()
+    except Exception as e:
+        results['error'] = str(e)
+    finally:
+        cur.close()
+    return results
+
+
+def oracle_check_blocking(conn):
+    """阻塞会话检测（v$lock + v$session）"""
+    results = {}
+    cur = conn.cursor()
+    try:
+        # 阻塞链：查询被阻塞的会话及其阻塞源
+        cur.execute("""
+            SELECT
+                b.sid AS blocked_sid,
+                b.serial# AS blocked_serial,
+                b.username AS blocked_user,
+                b.machine AS blocked_machine,
+                b.program AS blocked_program,
+                b.sql_id AS blocked_sql_id,
+                b.event AS blocked_event,
+                b.seconds_in_wait AS sec_in_wait,
+                bl.sid AS blocking_sid,
+                bl.serial# AS blocking_serial,
+                bl.username AS blocking_user,
+                bl.machine AS blocking_machine,
+                bl.program AS blocking_program,
+                bl.sql_id AS blocking_sql_id,
+                l.type AS lock_type,
+                l.lmode AS lock_mode_held,
+                l.request AS lock_mode_requested,
+                o.owner || '.' || o.object_name AS locked_object
+            FROM v$lock l
+            JOIN v$session b ON b.sid = l.sid
+            JOIN v$lock l2 ON l2.id1 = l.id1 AND l2.id2 = l.id2 AND l2.sid != l.sid
+            JOIN v$session bl ON bl.sid = l2.sid
+            LEFT JOIN dba_objects o ON o.object_id = l.id1
+            WHERE l.request > 0 AND l2.lmode > 0 AND l2.request = 0
+            ORDER BY b.seconds_in_wait DESC
+            FETCH FIRST 20 ROWS ONLY
+        """)
+        results['blocking_chain'] = cur.fetchall()
+    except Exception as e:
+        results['error'] = str(e)
+    finally:
+        cur.close()
+    return results
+
+
+def oracle_check_deadlock(conn):
+    """死锁统计检测"""
+    results = {}
+    cur = conn.cursor()
+    try:
+        # 死锁统计（系统启动以来的累计值）
+        cur.execute("""
+            SELECT name, value
+            FROM v$sysstat
+            WHERE name LIKE '%deadlock%' OR name LIKE '%enqueue deadlock%'
+            ORDER BY name
+        """)
+        results['deadlock_stats'] = cur.fetchall()
+
+        # 当前锁等待 Top10（被阻塞的会话）
+        cur.execute("""
+            SELECT s.sid, s.serial#, s.username, s.status, s.event,
+                   s.seconds_in_wait, s.sql_id,
+                   l.type, l.lmode, l.request,
+                   o.owner || '.' || o.object_name AS obj_name
+            FROM v$session s
+            JOIN v$lock l ON s.sid = l.sid
+            LEFT JOIN dba_objects o ON o.object_id = l.id1
+            WHERE s.wait_class != 'Idle' AND l.request > 0
+            ORDER BY s.seconds_in_wait DESC
+            FETCH FIRST 10 ROWS ONLY
+        """)
+        results['lock_waiters'] = cur.fetchall()
+    except Exception as e:
+        results['error'] = str(e)
+    finally:
+        cur.close()
+    return results
+
+
+def oracle_check_long_trx(conn):
+    """长事务检测（运行超过60秒的事务）"""
+    results = {}
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT
+                s.sid, s.serial#, s.username, s.machine, s.program,
+                s.sql_id, s.status, s.event,
+                t.start_date AS trx_start,
+                ROUND((SYSDATE - t.start_date) * 86400) AS trx_seconds,
+                t.used_ublk AS undo_blocks,
+                t.used_urec AS undo_records,
+                s.sql_exec_start
+            FROM v$transaction t
+            JOIN v$session s ON s.saddr = t.ses_addr
+            WHERE (SYSDATE - t.start_date) * 86400 > 60
+            ORDER BY t.start_date
+            FETCH FIRST 20 ROWS ONLY
+        """)
+        results['long_trx'] = cur.fetchall()
     except Exception as e:
         results['error'] = str(e)
     finally:
@@ -2380,6 +2506,123 @@ def build_word_report(db_info, os_data, check_results, db_version, ai_advice='',
             for run in p.runs:
                 run.font.size = Pt(10.5)
 
+    # ── 锁诊断（P0）──────────────────────────────────────────────────────────
+    blocking_data = check_results.get('阻塞会话', {})
+    deadlock_data = check_results.get('死锁检测', {})
+    long_trx_data = check_results.get('长事务', {})
+    blocking_rows = blocking_data.get('blocking_chain', [])
+    deadlock_stats = deadlock_data.get('deadlock_stats', [])
+    lock_waiters = deadlock_data.get('lock_waiters', [])
+    long_trx_rows = long_trx_data.get('long_trx', [])
+
+    has_lock_data = blocking_rows or deadlock_stats or lock_waiters or long_trx_rows
+    if has_lock_data:
+        _add_section(_t('report.oracle_lock_chapter'))
+
+        # -- 阻塞会话分析 --
+        _add_subsection(_t('report.oracle_sec_blocking'))
+        if blocking_rows:
+            blocking_headers = [
+                _t('report.oracle_col_blocked_sid'), _t('report.oracle_col_serial'),
+                _t('report.oracle_col_username'), _t('report.oracle_col_event'),
+                _t('report.oracle_col_wait_sec'), _t('report.oracle_col_blocking_sid'),
+                _t('report.oracle_col_blocking_username'),
+                _t('report.oracle_col_lock_type'), _t('report.oracle_col_locked_obj'),
+            ]
+            blocking_display = []
+            for r in blocking_rows:
+                blocking_display.append([
+                    str(r[0]) if len(r) > 0 else '',        # blocked_sid
+                    str(r[1]) if len(r) > 1 else '',        # blocked_serial
+                    str(r[2]) if len(r) > 2 else '',        # blocked_user
+                    str(r[6]) if len(r) > 6 else '',        # blocked_event
+                    str(r[7]) if len(r) > 7 else '',        # sec_in_wait
+                    str(r[8]) if len(r) > 8 else '',        # blocking_sid
+                    str(r[10]) if len(r) > 10 else '',      # blocking_user
+                    str(r[14]) if len(r) > 14 else '',      # lock_type
+                    str(r[17]) if len(r) > 17 else '',      # locked_object
+                ])
+            _docx_table(doc, blocking_headers, blocking_display)
+            doc.add_paragraph()
+        else:
+            p = doc.add_paragraph(_t('report.oracle_no_blocking'))
+            for run in p.runs:
+                run.font.size = Pt(10.5)
+                run.font.color.rgb = RGBColor(128, 128, 128)
+
+        # -- 死锁检测 --
+        _add_subsection(_t('report.oracle_sec_deadlock'))
+        if deadlock_stats:
+            p = doc.add_paragraph(_t('report.oracle_deadlock_stats_title'))
+            for run in p.runs:
+                run.font.size = Pt(10.5)
+                run.font.bold = True
+            deadlock_stats_display = []
+            for r in deadlock_stats:
+                deadlock_stats_display.append([
+                    str(r[0]) if len(r) > 0 else '',
+                    str(r[1]) if len(r) > 1 else '',
+                ])
+            _docx_table(doc,
+                [_t('report.oracle_col_stat_name'), _t('report.oracle_col_stat_value')],
+                deadlock_stats_display)
+            doc.add_paragraph()
+
+        if lock_waiters:
+            p = doc.add_paragraph(_t('report.oracle_lock_waiters_title'))
+            for run in p.runs:
+                run.font.size = Pt(10.5)
+                run.font.bold = True
+            waiters_display = []
+            for r in lock_waiters:
+                waiters_display.append([
+                    str(r[0]) if len(r) > 0 else '',        # sid
+                    str(r[1]) if len(r) > 1 else '',        # serial#
+                    str(r[2]) if len(r) > 2 else '',        # username
+                    str(r[4]) if len(r) > 4 else '',        # event
+                    str(r[5]) if len(r) > 5 else '',        # seconds_in_wait
+                    str(r[7]) if len(r) > 7 else '',        # lock type
+                    str(r[10]) if len(r) > 10 else '',      # locked object
+                ])
+            _docx_table(doc,
+                [_t('report.oracle_col_sid'), _t('report.oracle_col_serial'),
+                 _t('report.oracle_col_username'), _t('report.oracle_col_event'),
+                 _t('report.oracle_col_wait_sec'), _t('report.oracle_col_lock_type'),
+                 _t('report.oracle_col_locked_obj')],
+                waiters_display)
+            doc.add_paragraph()
+
+        if not deadlock_stats and not lock_waiters:
+            p = doc.add_paragraph(_t('report.oracle_no_deadlock'))
+            for run in p.runs:
+                run.font.size = Pt(10.5)
+                run.font.color.rgb = RGBColor(128, 128, 128)
+
+        # -- 长事务检测 --
+        _add_subsection(_t('report.oracle_sec_long_trx'))
+        if long_trx_rows:
+            long_trx_display = []
+            for r in long_trx_rows:
+                long_trx_display.append([
+                    str(r[0]) if len(r) > 0 else '',        # sid
+                    str(r[1]) if len(r) > 1 else '',        # serial#
+                    str(r[2]) if len(r) > 2 else '',        # username
+                    str(r[8]) if len(r) > 8 else '',        # trx_start
+                    str(r[9]) if len(r) > 9 else '',        # trx_seconds
+                    str(r[10]) if len(r) > 10 else '',      # undo_blocks
+                ])
+            _docx_table(doc,
+                [_t('report.oracle_col_sid'), _t('report.oracle_col_serial'),
+                 _t('report.oracle_col_username'), _t('report.oracle_col_trx_start'),
+                 _t('report.oracle_col_trx_seconds'), _t('report.oracle_col_undo_blocks')],
+                long_trx_display)
+            doc.add_paragraph()
+        else:
+            p = doc.add_paragraph(_t('report.oracle_no_long_trx'))
+            for run in p.runs:
+                run.font.size = Pt(10.5)
+                run.font.color.rgb = RGBColor(128, 128, 128)
+
     # ── 第24章 配置基线与索引健康 ────────────────────────────────────────
     # ── 24.1 配置基线检查 ─────────────────────────────────────────────────
     _add_section(_t('report.oracle_sec_config_baseline'))
@@ -2511,7 +2754,7 @@ def build_word_report(db_info, os_data, check_results, db_version, ai_advice='',
         doc.add_paragraph()
 
     # ── 第26章 报告说明 ────────────────────────────────────────────────────
-    _add_section(_t('report.notes_chapter'))
+    _add_section(_t('report.oracle_notes_chapter'))
     notes = [
         _t('report.oracle_note_1'),
         _t('report.oracle_note_2'),
@@ -2576,6 +2819,8 @@ def single_inspection(args):
     """单机巡检主流程"""
     import paramiko
 
+    # 返回值：供 Web UI 调用 run_full_analysis 使用
+    context = {}
     # Get language and local _t for this function
     try:
         from i18n import get_lang
@@ -2617,6 +2862,9 @@ def single_inspection(args):
         'AWR快照':      'oracle_check_item_awr',
         '作业调度':     'oracle_check_item_jobs',
         'Alert日志':    'oracle_check_item_alert',
+        '阻塞会话':     'oracle_check_item_blocking',
+        '死锁检测':     'oracle_check_item_deadlock',
+        '长事务':        'oracle_check_item_long_trx',
     }
 
     def _item_name(name):
@@ -2637,7 +2885,13 @@ def single_inspection(args):
         if args.user.upper() == 'SYS' and not args.sysdba:
             args.sysdba = True
         mode = oracledb.SYSDBA if args.sysdba else None
-        conn = _get_oracle_conn_thunk_first(dsn, args.user, args.password, mode)
+        ssh_tunnel = None
+        conn, ssh_tunnel = _get_oracle_conn_thunk_first(
+            dsn, args.user, args.password, mode,
+            ssh_host=args.ssh_host, ssh_port=args.ssh_port or 22,
+            ssh_user=args.ssh_user, ssh_password=args.ssh_pass,
+            ssh_key=args.ssh_key if hasattr(args, 'ssh_key') else None
+        )
         print(f"  ✅ {_t('oracle_log_connect_ok')} (mode: {'SYSDBA' if args.sysdba else 'NORMAL'})")
     except Exception as e:
         print(f"  ❌ {_t('oracle_log_connect_fail')}: {e}")
@@ -2700,6 +2954,7 @@ def single_inspection(args):
     # ── 4.5 AI 诊断（根据配置判断是否启用）───────────────────────────────────
     print(f"\n[{GREEN}4.5/6{RESET}] {_t('oracle_log_ai_diagnosis')}")
     ai_advice = ''
+    risk_items = []  # 在 try 块外初始化，确保 AI 禁用时也能被 history 引用
     try:
         from analyzer import AIAdvisor
         cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_config.json')
@@ -2752,8 +3007,10 @@ def single_inspection(args):
             wait_summary = '\n'.join([_t('oracle_log_ai_wait_fmt').format(w0=w[0], w1=w[1], w2=w[2], w3=w[3])
                                       for w in wait_top5]) if wait_top5 else 'N/A'
             # 收集阻塞会话
-            blocked_sessions = check_results.get('阻塞会话', [])
-            blocked_summary = _t('oracle_log_ai_blocked').format(n=len(blocked_sessions)) if blocked_sessions else _t('oracle_log_ai_no_blocked')
+            blocked_data = check_results.get('阻塞会话', {})
+            blocking_rows = blocked_data.get('blocking_chain', [])
+            blocked_sessions = len(blocking_rows)
+            blocked_summary = _t('oracle_log_ai_blocked').format(n=blocked_sessions) if blocked_sessions else _t('oracle_log_ai_no_blocked')
             # 收集 Top SQL（按 Buffer Gets 前5）
             top_sql_raw = check_results.get('Top SQL', {})
             top_sql5 = top_sql_raw.get('top_sql_buffer_gets', [])[:5]
@@ -2852,7 +3109,9 @@ def single_inspection(args):
     except Exception as e:
         print(f"  ⚠  索引健康分析失败: {e}")
 
-    conn.close()  # 关闭数据库连接
+    conn.close()
+    if ssh_tunnel:
+        ssh_tunnel.close()  # 关闭数据库连接
 
     # ── 5. 生成报告 ────────────────────────────────────────────────────────
     print(f"\n[{GREEN}5/6{RESET}] {_t('oracle_log_gen_report')}")
@@ -2951,12 +3210,60 @@ def single_inspection(args):
                 break
         ora_session_limit_formatted = [{'SESSIONS_LIMIT': sess_limit}] if sess_limit else []
 
+        # ── 阻塞会话数据 ──
+        blocking_data = check_results.get('阻塞会话', {})
+        blocking_rows = blocking_data.get('blocking_chain', [])
+        ora_blocked_formatted = []
+        if blocking_rows:
+            for r in blocking_rows:
+                ora_blocked_formatted.append({
+                    'BLOCKED_SID': str(r[0]) if len(r) > 0 else '',
+                    'BLOCKED_SERIAL': str(r[1]) if len(r) > 1 else '',
+                    'BLOCKED_USER': str(r[2]) if len(r) > 2 else '',
+                    'BLOCKED_EVENT': str(r[6]) if len(r) > 6 else '',
+                    'SEC_IN_WAIT': float(r[7]) if len(r) > 7 and r[7] is not None else 0,
+                    'BLOCKING_SID': str(r[8]) if len(r) > 8 else '',
+                    'BLOCKING_SERIAL': str(r[9]) if len(r) > 9 else '',
+                    'BLOCKING_USER': str(r[10]) if len(r) > 10 else '',
+                    'LOCK_TYPE': str(r[14]) if len(r) > 14 else '',
+                    'LOCKED_OBJECT': str(r[17]) if len(r) > 17 else '',
+                })
+
+        # ── 死锁数据 ──
+        deadlock_data = check_results.get('死锁检测', {})
+        deadlock_stats = deadlock_data.get('deadlock_stats', [])
+        ora_deadlock_formatted = []
+        for r in deadlock_stats:
+            if len(r) >= 2:
+                ora_deadlock_formatted.append({
+                    'STAT_NAME': str(r[0]),
+                    'STAT_VALUE': int(str(r[1])) if r[1] is not None else 0,
+                })
+
+        # ── 长事务数据 ──
+        long_trx_data = check_results.get('长事务', {})
+        long_trx_rows = long_trx_data.get('long_trx', [])
+        ora_long_trx_formatted = []
+        if long_trx_rows:
+            for r in long_trx_rows:
+                ora_long_trx_formatted.append({
+                    'SID': str(r[0]) if len(r) > 0 else '',
+                    'SERIAL': str(r[1]) if len(r) > 1 else '',
+                    'USERNAME': str(r[2]) if len(r) > 2 else '',
+                    'TRX_START': str(r[8]) if len(r) > 8 else '',
+                    'TRX_SECONDS': float(r[9]) if len(r) > 9 and r[9] is not None else 0,
+                    'UNDO_BLOCKS': int(str(r[10])) if len(r) > 10 and r[10] is not None else 0,
+                })
+
         context = {
             'ora_version': [{'BANNER': version_str}],
             'ora_tablespace': _ts_rows(ts.get('data_tablespaces', [])),
             'ora_sessions': ora_sessions_formatted,
             'ora_sga_total': ora_sga_formatted,
             'ora_session_limit': ora_session_limit_formatted,
+            'ora_blocked': ora_blocked_formatted,
+            'ora_deadlock': ora_deadlock_formatted,
+            'ora_long_trx': ora_long_trx_formatted,
             'system_info': {
                 'hostname': os_data.get('hostname', ''),
                 'cpu': {'usage_percent': os_data.get('cpu_usage_pct', 0)},
@@ -2979,6 +3286,7 @@ def single_inspection(args):
     if ssh_client:
         ssh_client.close()
 
+    return context
 
 def _input(prompt, default=''):
     """统一输入函数，带默认值显示"""

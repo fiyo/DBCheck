@@ -240,6 +240,10 @@ pg_users         = SELECT rolname AS username, rolsuper AS is_superuser, rolcrea
 pg_databases     = SELECT datname, pg_encoding_to_char(encoding) AS encoding, datcollate, datctype, datallowconn, datconnlimit FROM pg_database WHERE datistemplate=false ORDER BY datname;
 pg_extensions    = SELECT name, default_version, installed_version, comment FROM pg_available_extensions WHERE installed_version IS NOT NULL ORDER BY name;
 pg_processlist   = SELECT pid, usename, datname, application_name, client_addr, state, left(query,100) AS query, now()-query_start AS duration FROM pg_stat_activity WHERE pid <> pg_backend_pid() ORDER BY duration DESC NULLS LAST LIMIT 20;
+pg_blocking_chain = SELECT blocked_locks.pid AS blocked_pid, blocked_activity.usename AS blocked_user, left(blocked_activity.query, 200) AS blocked_query, blocked_activity.query_start AS blocked_since, EXTRACT(EPOCH FROM (now() - blocked_activity.query_start)) AS blocked_seconds, blocked_locks.locktype AS blocked_locktype, blocked_locks.relation::regclass AS blocked_relation, blocked_locks.mode AS blocked_mode, blocking_locks.pid AS blocking_pid, blocking_activity.usename AS blocking_user, left(blocking_activity.query, 200) AS blocking_query, EXTRACT(EPOCH FROM (now() - blocking_activity.query_start)) AS blocking_seconds, blocking_locks.mode AS blocking_mode FROM pg_catalog.pg_locks blocked_locks JOIN pg_catalog.pg_stat_activity blocked_activity ON blocked_activity.pid = blocked_locks.pid JOIN pg_catalog.pg_locks blocking_locks ON blocking_locks.locktype = blocked_locks.locktype AND blocking_locks.database IS NOT DISTINCT FROM blocked_locks.database AND blocking_locks.relation IS NOT DISTINCT FROM blocked_locks.relation AND blocking_locks.page IS NOT DISTINCT FROM blocked_locks.page AND blocking_locks.tuple IS NOT DISTINCT FROM blocked_locks.tuple AND blocking_locks.virtualxid IS NOT DISTINCT FROM blocked_locks.virtualxid AND blocking_locks.transactionid IS NOT DISTINCT FROM blocked_locks.transactionid AND blocking_locks.pid != blocked_locks.pid JOIN pg_catalog.pg_stat_activity blocking_activity ON blocking_activity.pid = blocking_locks.pid WHERE NOT blocked_locks.granted AND blocked_activity.pid <> pg_backend_pid() ORDER BY blocked_seconds DESC;
+pg_deadlock_count = SELECT datname, deadlocks FROM pg_stat_database WHERE deadlocks > 0 ORDER BY deadlocks DESC;
+pg_long_xact      = SELECT pid, usename, datname, application_name, state, xact_start, EXTRACT(EPOCH FROM (now() - xact_start)) AS xact_seconds, left(query, 200) AS query FROM pg_stat_activity WHERE xact_start IS NOT NULL AND EXTRACT(EPOCH FROM (now() - xact_start)) > 60 AND state != 'idle' ORDER BY xact_start;
+pg_lock_type_stats = SELECT locktype, mode, granted, COUNT(*) AS count FROM pg_locks GROUP BY locktype, mode, granted ORDER BY count DESC;
 """
 
 
@@ -544,7 +548,7 @@ class LocalSystemInfoCollector:
                             'free_gb': round(usage.free / (1024**3), 2),
                             'usage_percent': usage.percent
                         }
-                    except PermissionError:
+                    except (PermissionError, SystemError, OSError):
                         continue
             # 额外检查常见 PostgreSQL 数据目录
             pg_paths = ['/var/lib/postgresql', '/data/postgresql', '/usr/local/pgsql/data']
@@ -2018,7 +2022,9 @@ class getData(object):
                     "pg_wait_events", "pg_long_queries", "pg_lock_info", "pg_db_size",
                     "pg_table_stats", "pg_index_usage", "pg_replication", "pg_cache_hit",
                     "pg_bgwriter", "pg_settings_key", "pg_users", "pg_databases",
-                    "pg_extensions", "pg_processlist", "instancetime", "platform_info"]
+                    "pg_extensions", "pg_processlist", "instancetime", "platform_info",
+                    "pg_blocking_chain", "pg_deadlock_count",
+                    "pg_long_xact", "pg_lock_type_stats"]
         for key in init_keys:
             self.context.update({key: []})
         try:
@@ -2736,8 +2742,87 @@ class saveDoc(object):
                         doc2.add_paragraph(self._t('report.index_health_no_issues'))
                     doc2.add_paragraph()
 
-                # 第 11 章 报告说明
-                doc2.add_heading('11. ' + self._t('report.fallback_pg_notes_chapter'), level=1)
+                # 第 11 章 PostgreSQL 锁诊断（P0）
+                doc2.add_heading('11. ' + self._t('report.pg_lock_chapter'), level=1)
+                # 11.1 阻塞链检测
+                doc2.add_heading('11.1 ' + self._t('report.lock_wait_detail'), level=2)
+                pg_blocking = self.context.get('pg_blocking_chain', [])
+                if pg_blocking:
+                    tbl = doc2.add_table(rows=1+min(len(pg_blocking), 15), cols=5)
+                    tbl.style = 'Table Grid'
+                    tbl.autofit = True
+                    hdr = tbl.rows[0].cells
+                    for j, ht in enumerate([
+                        self._t('report.lock_blocking_thread'),
+                        self._t('report.lock_waiting_thread'),
+                        self._t('report.lock_wait_sec'),
+                        'Mode',
+                        self._t('report.lock_locked_table')
+                    ]):
+                        cell = hdr[j]
+                        cell.text = ht
+                        self._set_cell_bg(cell, '336699')
+                        for para in cell.paragraphs:
+                            for run in para.runs:
+                                run.bold = True
+                                run.font.size = Pt(8)
+                                run.font.color.rgb = RGBColor(255, 255, 255)
+                            para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    for i, row in enumerate(pg_blocking[:15], 1):
+                        cells = tbl.rows[i].cells
+                        cells[0].text = str(row.get('blocking_pid', ''))
+                        cells[1].text = str(row.get('blocked_pid', ''))
+                        cells[2].text = str(row.get('blocked_seconds', ''))
+                        cells[3].text = str(row.get('blocked_mode', ''))
+                        cells[4].text = str(row.get('blocked_relation', ''))
+                        for c in cells:
+                            for para in c.paragraphs:
+                                for run in para.runs:
+                                    run.font.size = Pt(8)
+                else:
+                    doc2.add_paragraph(self._t('report.no_lock_wait'))
+
+                # 11.2 长事务检测
+                doc2.add_heading('11.2 ' + self._t('report.long_trx_detect'), level=2)
+                pg_long_xact = self.context.get('pg_long_xact', [])
+                if pg_long_xact:
+                    tbl = doc2.add_table(rows=1+min(len(pg_long_xact), 10), cols=5)
+                    tbl.style = 'Table Grid'
+                    tbl.autofit = True
+                    hdr = tbl.rows[0].cells
+                    for j, ht in enumerate([
+                        'PID',
+                        self._t('report.fallback_pg_pg_user'),
+                        self._t('report.long_trx_duration_sec'),
+                        self._t('report.long_trx_state'),
+                        self._t('report.long_trx_query')
+                    ]):
+                        cell = hdr[j]
+                        cell.text = ht
+                        self._set_cell_bg(cell, '336699')
+                        for para in cell.paragraphs:
+                            for run in para.runs:
+                                run.bold = True
+                                run.font.size = Pt(8)
+                                run.font.color.rgb = RGBColor(255, 255, 255)
+                            para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    for i, row in enumerate(pg_long_xact[:10], 1):
+                        cells = tbl.rows[i].cells
+                        cells[0].text = str(row.get('pid', ''))
+                        cells[1].text = str(row.get('usename', ''))
+                        cells[2].text = str(row.get('xact_seconds', ''))
+                        cells[3].text = str(row.get('state', ''))
+                        cells[4].text = str(row.get('query', '')[:80])
+                        for c in cells:
+                            for para in c.paragraphs:
+                                for run in para.runs:
+                                    run.font.size = Pt(8)
+                else:
+                    doc2.add_paragraph(self._t('report.no_long_trx'))
+                doc2.add_paragraph()
+
+                # 第 12 章 报告说明
+                doc2.add_heading('12. ' + self._t('report.fallback_pg_notes_chapter'), level=1)
                 notes = [
                     self._t("report.note_1_pg"),
                     self._t("report.fallback_note_2"),
@@ -3016,6 +3101,86 @@ class saveDoc(object):
             pg_db = self.context.get('pg_db_size', [])
             for d in pg_db[:8]:
                 p = doc.add_paragraph(f"  {d.get('database_name', '')}: {d.get('size', '')}")
+                if p.runs:
+                    p.runs[0].font.size = Pt(10)
+
+            # ── 4.4 阻塞链检测 ──
+            doc.add_heading('4.4 ' + self._t('report.lock_wait_detail'), level=2)
+            pg_blocking = self.context.get('pg_blocking_chain', [])
+            if pg_blocking:
+                table = doc.add_table(rows=1+min(len(pg_blocking), 15), cols=5)
+                table.style = 'Table Grid'
+                table.autofit = True
+                hdr = table.rows[0].cells
+                for j, ht in enumerate([
+                    self._t('report.lock_blocking_thread'),
+                    self._t('report.lock_waiting_thread'),
+                    self._t('report.lock_wait_sec'),
+                    'Mode',
+                    self._t('report.lock_locked_table')
+                ]):
+                    cell = hdr[j]
+                    cell.text = ht
+                    self._set_cell_bg(cell, '336699')
+                    for para in cell.paragraphs:
+                        for run in para.runs:
+                            run.bold = True
+                            run.font.size = Pt(8)
+                            run.font.color.rgb = RGBColor(255, 255, 255)
+                        para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                for i, row in enumerate(pg_blocking[:15], 1):
+                    cells = table.rows[i].cells
+                    cells[0].text = str(row.get('blocking_pid', ''))
+                    cells[1].text = str(row.get('blocked_pid', ''))
+                    cells[2].text = str(row.get('blocked_seconds', ''))
+                    cells[3].text = str(row.get('blocked_mode', ''))
+                    cells[4].text = str(row.get('blocked_relation', ''))
+                    for c in cells:
+                        for para in c.paragraphs:
+                            for run in para.runs:
+                                run.font.size = Pt(8)
+            else:
+                p = doc.add_paragraph(self._t('report.no_lock_wait'))
+                if p.runs:
+                    p.runs[0].font.size = Pt(10)
+
+            # ── 4.5 长事务检测 ──
+            doc.add_heading('4.5 ' + self._t('report.long_trx_detect'), level=2)
+            pg_long_xact = self.context.get('pg_long_xact', [])
+            if pg_long_xact:
+                table = doc.add_table(rows=1+min(len(pg_long_xact), 10), cols=5)
+                table.style = 'Table Grid'
+                table.autofit = True
+                hdr = table.rows[0].cells
+                for j, ht in enumerate([
+                    'PID',
+                    self._t('report.fallback_pg_pg_user'),
+                    self._t('report.long_trx_duration_sec'),
+                    self._t('report.long_trx_state'),
+                    self._t('report.long_trx_query')
+                ]):
+                    cell = hdr[j]
+                    cell.text = ht
+                    self._set_cell_bg(cell, '336699')
+                    for para in cell.paragraphs:
+                        for run in para.runs:
+                            run.bold = True
+                            run.font.size = Pt(8)
+                            run.font.color.rgb = RGBColor(255, 255, 255)
+                        para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                for i, row in enumerate(pg_long_xact[:10], 1):
+                    cells = table.rows[i].cells
+                    cells[0].text = str(row.get('pid', ''))
+                    cells[1].text = str(row.get('usename', ''))
+                    cells[2].text = str(row.get('xact_seconds', ''))
+                    cells[3].text = str(row.get('state', ''))
+                    cells[4].text = str(row.get('query', '')[:80])
+                    for c in cells:
+                        for para in c.paragraphs:
+                            for run in para.runs:
+                                run.font.size = Pt(8)
+            else:
+                p = doc.add_paragraph(self._t('report.no_long_trx'))
                 if p.runs:
                     p.runs[0].font.size = Pt(10)
 

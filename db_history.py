@@ -5,7 +5,7 @@ DBCheck SQLite 历史记录管理器
 支持同一数据库实例的历史对比和趋势数据生成。
 
 表结构：
-  instances   - 数据库实例注册表
+  history_instances   - 数据库实例注册表
   snapshots   - 每次巡检的快照（含提取的数值指标 + 完整 context JSON）
 """
 
@@ -45,7 +45,7 @@ class SQLiteHistoryManager:
     """
 
     SCHEMA = """
-    CREATE TABLE IF NOT EXISTS instances (
+    CREATE TABLE IF NOT EXISTS history_instances (
         key         TEXT PRIMARY KEY,   -- _db_key() 生成
         db_type     TEXT NOT NULL,
         host        TEXT NOT NULL,
@@ -77,7 +77,7 @@ class SQLiteHistoryManager:
         db_version      TEXT,
         -- 完整 context JSON（供详细对比）
         context_json TEXT NOT NULL DEFAULT '{}',
-        FOREIGN KEY (instance_key) REFERENCES instances(key) ON DELETE CASCADE
+        FOREIGN KEY (instance_key) REFERENCES history_instances(key) ON DELETE CASCADE
     );
 
     CREATE INDEX IF NOT EXISTS idx_snapshots_instance_ts
@@ -99,17 +99,17 @@ class SQLiteHistoryManager:
 
     def _ensure_instance(self, conn, instance_key: str, db_type: str, host: str, port, label: str):
         row = conn.execute(
-            "SELECT key FROM instances WHERE key=?", (instance_key,)
+            "SELECT key FROM history_instances WHERE key=?", (instance_key,)
         ).fetchone()
         if not row:
             now = self._now_str()
             conn.execute(
-                "INSERT INTO instances (key,db_type,host,port,label,created_at,updated_at) VALUES (?,?,?,?,?,?,?)",
+                "INSERT INTO history_instances (key,db_type,host,port,label,created_at,updated_at) VALUES (?,?,?,?,?,?,?)",
                 (instance_key, db_type, host, str(port), label, now, now)
             )
         else:
             conn.execute(
-                "UPDATE instances SET label=?,updated_at=? WHERE key=?",
+                "UPDATE history_instances SET label=?,updated_at=? WHERE key=?",
                 (label, self._now_str(), instance_key)
             )
 
@@ -238,20 +238,21 @@ class SQLiteHistoryManager:
             sga_total = context.get('ora_sga_total', [])
             m['sga_total_mb'] = _safe_float(sga_total, 'SGA_TOTAL_MB') if sga_total else 0.0
             ts_list = context.get('ora_tablespace', [])
-            if ts_list:
+            if ts_list and isinstance(ts_list, list):
                 m['max_tablespace_pct'] = max((_safe_float(ts.get('USED_PCT_WITH_MAXEXT', ts.get('USED_PCT', 0))) for ts in ts_list), default=0.0)
             m['version'] = (context.get('ora_version', [{}]) or [{}])[0].get('BANNER', '') if context.get('ora_version') else ''
         elif db_type == 'dm':
             dm_sess = context.get('dm_sessions', [])
-            m['connections'] = _safe_int(dm_sess, 'TOTAL_SESSIONS') if dm_sess else 0
+            m['connections'] = _safe_int(dm_sess, 'TOTAL_SESSIONS') if dm_sess and isinstance(dm_sess, list) else 0
             dm_limit = context.get('dm_session_limit', [])
-            m['max_connections'] = _safe_int(dm_limit, 'SESSIONS_LIMIT') if dm_limit else m['connections'] + 100
+            m['max_connections'] = _safe_int(dm_limit, 'SESSIONS_LIMIT') if dm_limit and isinstance(dm_limit, list) else m['connections'] + 100
             dm_sga = context.get('dm_sga_total', [])
-            m['sga_total_mb'] = _safe_float(dm_sga, 'SGA_TOTAL_MB') if dm_sga else 0.0
+            m['sga_total_mb'] = _safe_float(dm_sga, 'SGA_TOTAL_MB') if dm_sga and isinstance(dm_sga, list) else 0.0
             dm_ts = context.get('dm_tablespace', [])
-            if dm_ts:
+            if dm_ts and isinstance(dm_ts, list):
                 m['max_tablespace_pct'] = max((_safe_float(ts.get('USED_PCT', 0)) for ts in dm_ts), default=0.0)
-            m['version'] = (context.get('dm_version', [{}]) or [{}])[0].get('BANNER', '') if context.get('dm_version') else ''
+            dm_ver = context.get('dm_version')
+            m['version'] = (dm_ver or [{}])[0].get('BANNER', '') if dm_ver and isinstance(dm_ver, list) else ''
         elif db_type == 'sqlserver':
             ss_conn = context.get('connections', [])
             m['connections'] = ss_conn[0].get('connection_count', 0) if ss_conn and isinstance(ss_conn[0], dict) else 0
@@ -297,7 +298,7 @@ class SQLiteHistoryManager:
         with _get_conn(self.db_path) as conn:
             # 获取实例信息
             inst_row = conn.execute(
-                "SELECT label FROM instances WHERE key=?", (key,)
+                "SELECT label FROM history_instances WHERE key=?", (key,)
             ).fetchone()
             if not inst_row:
                 return {}
@@ -427,7 +428,7 @@ class SQLiteHistoryManager:
                         ORDER BY s.ts DESC LIMIT 1) AS last_risk,
                        (SELECT s.ts FROM snapshots s WHERE s.instance_key=i.key
                         ORDER BY s.ts DESC LIMIT 1) AS last_time
-                FROM instances i
+                FROM history_instances i
                 ORDER BY i.updated_at DESC
             """).fetchall()
 
@@ -451,5 +452,5 @@ class SQLiteHistoryManager:
         """删除指定实例及其所有快照"""
         with _get_conn(self.db_path) as conn:
             conn.execute("DELETE FROM snapshots WHERE instance_key=?", (key,))
-            conn.execute("DELETE FROM instances WHERE key=?", (key,))
+            conn.execute("DELETE FROM history_instances WHERE key=?", (key,))
             conn.commit()

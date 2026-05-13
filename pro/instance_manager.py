@@ -121,6 +121,9 @@ class InstanceManager:
 
     def __init__(self, data_dir: str = "pro_data"):
         self.data_dir = data_dir
+        self.instances_db = os.path.join(data_dir, "instances.db")
+        self.groups_db = os.path.join(data_dir, "groups.db")
+        # 兼容旧版 JSON 路径（迁移时回退用）
         self.instances_file = os.path.join(data_dir, "instances.json")
         self.groups_file = os.path.join(data_dir, "groups.json")
         self.db_file = os.path.join(data_dir, "pro_history.db")
@@ -137,14 +140,40 @@ class InstanceManager:
         self._init_database()
 
     def _load_data(self):
-        """加载数据"""
-        # 加载实例
-        if os.path.exists(self.instances_file):
+        """加载数据（优先从 SQLite，回退到 JSON 兼容旧数据）"""
+        # ── 加载实例 ──
+        if os.path.exists(self.instances_db):
+            try:
+                conn = sqlite3.connect(self.instances_db)
+                conn.row_factory = sqlite3.Row
+                c = conn.cursor()
+                c.execute("SELECT * FROM instances ORDER BY created_at")
+                for row in c.fetchall():
+                    d = dict(row)
+                    # 兼容旧数据：oracle_full → oracle
+                    if d.get('db_type') == 'oracle_full':
+                        d['db_type'] = 'oracle'
+                    # tags 从 JSON 字符串还原为列表
+                    if isinstance(d.get('tags'), str):
+                        try:
+                            d['tags'] = json.loads(d['tags'])
+                        except Exception:
+                            d['tags'] = []
+                    # sysdba / ssh_enabled / enabled 从 INTEGER 还原为 bool
+                    for bool_field in ('sysdba', 'ssh_enabled', 'enabled'):
+                        d[bool_field] = bool(d.get(bool_field, False))
+                    inst = DatabaseInstance.from_dict(d)
+                    self._instances[inst.id] = inst
+                conn.close()
+            except Exception:
+                pass
+
+        # JSON 回退（兼容旧数据）
+        if not self._instances and os.path.exists(self.instances_file):
             try:
                 with open(self.instances_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     for inst_data in data.get("instances", []):
-                        # 兼容旧数据：oracle_full → oracle
                         if inst_data.get('db_type') == 'oracle_full':
                             inst_data['db_type'] = 'oracle'
                         inst = DatabaseInstance.from_dict(inst_data)
@@ -152,8 +181,23 @@ class InstanceManager:
             except Exception:
                 pass
 
-        # 加载分组
-        if os.path.exists(self.groups_file):
+        # ── 加载分组 ──
+        if os.path.exists(self.groups_db):
+            try:
+                conn = sqlite3.connect(self.groups_db)
+                conn.row_factory = sqlite3.Row
+                c = conn.cursor()
+                c.execute("SELECT * FROM groups ORDER BY created_at")
+                for row in c.fetchall():
+                    d = dict(row)
+                    grp = InstanceGroup(**d)
+                    self._groups[grp.name] = grp
+                conn.close()
+            except Exception:
+                pass
+
+        # JSON 回退（兼容旧数据）
+        if not self._groups and os.path.exists(self.groups_file):
             try:
                 with open(self.groups_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
@@ -170,20 +214,68 @@ class InstanceManager:
             self._groups["test"] = InstanceGroup("test", "测试环境", "#639922")
 
     def _save_data(self):
-        """保存数据"""
-        # 保存实例（兼容对象和字典两种格式）
-        instances_data = {
-            "instances": [inst.to_dict() if not isinstance(inst, dict) else inst for inst in self._instances.values()]
-        }
-        with open(self.instances_file, "w", encoding="utf-8") as f:
-            json.dump(instances_data, f, indent=2, ensure_ascii=False)
+        """保存数据到 SQLite"""
+        # ── 保存实例到 instances.db ──
+        conn = sqlite3.connect(self.instances_db)
+        c = conn.cursor()
+        # 确保表存在
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS instances (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL, db_type TEXT NOT NULL, host TEXT NOT NULL,
+                port INTEGER NOT NULL, "user" TEXT NOT NULL, password TEXT DEFAULT '',
+                service_name TEXT DEFAULT '', sysdba INTEGER DEFAULT 0,
+                ssh_host TEXT DEFAULT '', ssh_port INTEGER DEFAULT 22,
+                ssh_user TEXT DEFAULT '', ssh_password TEXT DEFAULT '',
+                ssh_key_file TEXT DEFAULT '', ssh_enabled INTEGER DEFAULT 0,
+                tags TEXT DEFAULT '[]', "group" TEXT DEFAULT 'default',
+                enabled INTEGER DEFAULT 1, description TEXT DEFAULT '',
+                created_at TEXT DEFAULT '', updated_at TEXT DEFAULT ''
+            )
+        """)
+        for inst in self._instances.values():
+            d = inst.to_dict() if not isinstance(inst, dict) else inst
+            c.execute("""
+                INSERT OR REPLACE INTO instances
+                (id, name, db_type, host, port, "user", password, service_name, sysdba,
+                 ssh_host, ssh_port, ssh_user, ssh_password, ssh_key_file, ssh_enabled,
+                 tags, "group", enabled, description, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                d.get("id", ""), d.get("name", ""), d.get("db_type", ""),
+                d.get("host", ""), d.get("port", 0), d.get("user", ""),
+                d.get("password", ""), d.get("service_name", ""),
+                1 if d.get("sysdba") else 0,
+                d.get("ssh_host", ""), d.get("ssh_port", 22),
+                d.get("ssh_user", ""), d.get("ssh_password", ""),
+                d.get("ssh_key_file", ""), 1 if d.get("ssh_enabled") else 0,
+                json.dumps(d.get("tags", []), ensure_ascii=False),
+                d.get("group", "default"), 1 if d.get("enabled", True) else 0,
+                d.get("description", ""), d.get("created_at", ""), d.get("updated_at", "")
+            ))
+        conn.commit()
+        conn.close()
 
-        # 保存分组（兼容对象和字典两种格式）
-        groups_data = {
-            "groups": [grp.to_dict() if not isinstance(grp, dict) else grp for grp in self._groups.values()]
-        }
-        with open(self.groups_file, "w", encoding="utf-8") as f:
-            json.dump(groups_data, f, indent=2, ensure_ascii=False)
+        # ── 保存分组到 groups.db ──
+        conn = sqlite3.connect(self.groups_db)
+        c = conn.cursor()
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS groups (
+                name TEXT PRIMARY KEY,
+                description TEXT DEFAULT '',
+                color TEXT DEFAULT '#378ADD',
+                created_at TEXT DEFAULT ''
+            )
+        """)
+        for grp in self._groups.values():
+            d = grp.to_dict() if not isinstance(grp, dict) else grp
+            c.execute("""
+                INSERT OR REPLACE INTO groups (name, description, color, created_at)
+                VALUES (?, ?, ?, ?)
+            """, (d.get("name", ""), d.get("description", ""),
+                  d.get("color", "#378ADD"), d.get("created_at", "")))
+        conn.commit()
+        conn.close()
 
     def _init_database(self):
         """初始化数据库"""

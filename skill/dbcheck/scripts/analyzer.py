@@ -155,6 +155,7 @@ def smart_analyze_mysql(context: dict) -> list:
                 'fix_sql': "SET GLOBAL expire_logs_days = 7;  -- MySQL 5.x"
             })
         elif expire_days < 0:
+            # MySQL 5.x 也可能查询不到 expire_logs_days（旧版本或未配置）
             issues.append({
                 'col1': 'binlog 过期未配置', 'col2': '中风险',
                 'col3': 'expire_logs_days 未设置，binlog 将永不清理，建议设置合理的保留天数',
@@ -208,7 +209,68 @@ def smart_analyze_mysql(context: dict) -> list:
                 'fix_sql': '-- 排查锁等待来源：\nSHOW FULL PROCESSLIST;\nSHOW OPEN TABLES WHERE In_use > 0;\nSELECT * FROM information_schema.INNODB_LOCKS;'
             })
 
-    # ── 9. 中止连接数 ────────────────────────────────────
+    # ── 8.1 InnoDB 锁等待链检测 ──────────────────────────
+    lock_chain = context.get('innodb_lock_chain', [])
+    if lock_chain:
+        max_wait = max((int(row.get('waiting_seconds', 0) or 0) for row in lock_chain), default=0)
+        if max_wait > 10:
+            issues.append({
+                'col1': f'InnoDB 锁等待链（{len(lock_chain)} 条）', 'col2': '高风险',
+                'col3': f'发现 {len(lock_chain)} 条行锁等待链，最长等待 {max_wait} 秒（阻塞线程 {lock_chain[0].get("blocking_thread", "?")} → 被阻塞线程 {lock_chain[0].get("waiting_thread", "?")}），严重影响并发性能',
+                'col4': '高', 'col5': 'DBA',
+                'fix_sql': '-- 查看阻塞会话详情：\nSELECT * FROM information_schema.INNODB_TRX WHERE trx_mysql_thread_id = {bt};\n-- 如需终止阻塞事务：\n-- KILL {bt};'.format(bt=lock_chain[0].get('blocking_thread', '?'))
+            })
+        elif max_wait > 0:
+            issues.append({
+                'col1': f'InnoDB 锁等待（{len(lock_chain)} 条）', 'col2': '中风险',
+                'col3': f'发现 {len(lock_chain)} 条行锁等待，最长等待 {max_wait} 秒，建议关注阻塞事务',
+                'col4': '中', 'col5': 'DBA',
+                'fix_sql': '-- 查看锁等待链：\nSELECT * FROM information_schema.INNODB_TRX;\nSELECT * FROM performance_schema.data_lock_waits;'
+            })
+
+    # ── 8.2 长事务检测 ──────────────────────────────────
+    long_trx = context.get('innodb_long_trx', [])
+    if long_trx:
+        max_dur = max((int(row.get('trx_duration_sec', 0) or 0) for row in long_trx), default=0)
+        issues.append({
+            'col1': f'发现 {len(long_trx)} 个长事务（>60秒）', 'col2': '高风险',
+            'col3': f'发现 {len(long_trx)} 个运行超过 60 秒的事务，最长持续 {max_dur} 秒（TRX_ID={long_trx[0].get("trx_id", "?")}），可能持有锁并导致其他会话阻塞',
+            'col4': '高', 'col5': 'DBA',
+            'fix_sql': '-- 查看长事务详情：\nSELECT trx_id, trx_mysql_thread_id, trx_query, TIMESTAMPDIFF(SECOND, trx_started, NOW()) AS duration_sec\nFROM information_schema.INNODB_TRX\nWHERE TIMESTAMPDIFF(SECOND, trx_started, NOW()) > 60;\n-- 如需终止：KILL <thread_id>;'
+        })
+
+    # ── 8.3 InnoDB 死锁检测 ──────────────────────────────
+    deadlock_data = context.get('innodb_deadlock_status', [])
+    if deadlock_data and isinstance(deadlock_data, list) and deadlock_data:
+        first_row = deadlock_data[0] if deadlock_data else {}
+        # SHOW ENGINE INNODB STATUS 返回 Status 列
+        status_text = str(first_row.get('Status', first_row.get('status', '')))
+        if 'LATEST DETECTED DEADLOCK' in status_text.upper():
+            # 提取死锁时间戳
+            import re
+            deadlock_ts = ''
+            ts_match = re.search(r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})', status_text)
+            if ts_match:
+                deadlock_ts = ts_match.group(1)
+            issues.append({
+                'col1': 'InnoDB 检测到死锁', 'col2': '高风险',
+                'col3': f'InnoDB 引擎检测到死锁（时间：{deadlock_ts or "最近"}），死锁涉及的事务已被自动回滚，请检查应用层事务逻辑',
+                'col4': '高', 'col5': 'DBA',
+                'fix_sql': '-- 查看死锁详情：\nSHOW ENGINE INNODB STATUS\\G\n-- 查看锁等待信息：\nSELECT * FROM performance_schema.data_lock_waits;'
+            })
+
+    # ── 8.4 锁类型分布 ──────────────────────────────────
+    lock_stats = context.get('innodb_lock_type_stats', [])
+    if lock_stats:
+        total_locks = sum(int(row.get('lock_count', 0) or 0) for row in lock_stats)
+        if total_locks > 50:
+            stats_desc = ', '.join(f"{row.get('lock_mode','?')}x{row.get('lock_count','?')}" for row in lock_stats[:5])
+            issues.append({
+                'col1': f'InnoDB 锁数量较多（{total_locks} 个）', 'col2': '中风险',
+                'col3': f'当前 InnoDB 持有 {total_locks} 个锁，分布：{stats_desc}，锁数量偏高可能影响并发性能',
+                'col4': '中', 'col5': 'DBA',
+                'fix_sql': '-- 查看锁分布详情：\nSELECT lock_type, lock_mode, COUNT(*) AS cnt FROM performance_schema.data_locks GROUP BY lock_type, lock_mode ORDER BY cnt DESC;'
+            })
     aborted = _int(_val('aborted_connections'))
     if aborted > 100:
         issues.append({
@@ -395,6 +457,23 @@ def smart_analyze_mysql(context: dict) -> list:
                 'fix_sql': ''
             })
 
+    # ── 插件规则检查（Pro 版）────────────────────────────
+    try:
+        from pro.rule_engine import analyze_with_plugins
+        plugin_issues = analyze_with_plugins('mysql', context)
+        if plugin_issues:
+            issues.extend(plugin_issues)
+    except Exception:
+        pass
+
+    # ── 插件规则检查（Pro 版）──────────────────────────────
+    try:
+        from pro.rule_engine import analyze_with_plugins
+        plugin_issues = analyze_with_plugins('postgresql', context)
+        if plugin_issues:
+            issues.extend(plugin_issues)
+    except Exception:
+        pass
     return issues
 
 
@@ -509,7 +588,47 @@ def smart_analyze_pg(context: dict) -> list:
             })
             break
 
-    # ── 6. 用户安全（超级用户过多） ──────────────────────
+    # ── 5.1 PostgreSQL 阻塞链检测 ───────────────────────
+    pg_blocking = context.get('pg_blocking_chain', [])
+    if pg_blocking:
+        max_wait = max((float(row.get('blocked_seconds', 0) or 0) for row in pg_blocking), default=0)
+        if max_wait > 10:
+            issues.append({
+                'col1': f'PostgreSQL 阻塞链（{len(pg_blocking)} 条）', 'col2': 'report.risk_high',
+                'col3': f'发现 {len(pg_blocking)} 条锁阻塞链，最长等待 {max_wait:.0f} 秒（阻塞 PID {pg_blocking[0].get("blocking_pid", "?")} → 被阻塞 PID {pg_blocking[0].get("blocked_pid", "?")}），影响并发性能',
+                'col4': 'report.pg_fallback_priority_high', 'col5': 'report.pg_fallback_owner_dba',
+                'fix_sql': f"-- 终止阻塞进程(谨慎):\n-- SELECT pg_terminate_backend({pg_blocking[0].get('blocking_pid', '?')});"
+            })
+        else:
+            issues.append({
+                'col1': f'PostgreSQL 锁阻塞（{len(pg_blocking)} 条）', 'col2': 'report.risk_mid',
+                'col3': f'发现 {len(pg_blocking)} 条锁阻塞，最长等待 {max_wait:.0f} 秒',
+                'col4': 'report.pg_fallback_priority_mid', 'col5': 'report.pg_fallback_owner_dba',
+                'fix_sql': "SELECT blocked_locks.pid AS blocked, blocking_locks.pid AS blocking, blocked_locks.locktype, blocked_locks.mode FROM pg_locks blocked_locks JOIN pg_locks blocking_locks ON blocked_locks.locktype = blocking_locks.locktype WHERE NOT blocked_locks.granted;"
+            })
+
+    # ── 5.2 PostgreSQL 死锁统计 ─────────────────────────
+    pg_deadlock = context.get('pg_deadlock_count', [])
+    if pg_deadlock:
+        total_deadlocks = sum(int(row.get('deadlocks', 0) or 0) for row in pg_deadlock)
+        db_names = ', '.join(f"{row.get('datname','?')}({row.get('deadlocks','0')})" for row in pg_deadlock[:3])
+        issues.append({
+            'col1': f'PostgreSQL 死锁（{total_deadlocks} 次）', 'col2': 'report.risk_high',
+            'col3': f'数据库累计检测到 {total_deadlocks} 次死锁：{db_names}，请检查应用事务逻辑',
+            'col4': 'report.pg_fallback_priority_high', 'col5': 'report.pg_fallback_owner_dba',
+            'fix_sql': "-- 查看当前锁等待：\nSELECT * FROM pg_locks WHERE NOT granted;\n-- 查看长时间运行的事务：\nSELECT pid, now()-xact_start AS duration, query FROM pg_stat_activity WHERE xact_start IS NOT NULL AND state != 'idle' ORDER BY duration DESC;"
+        })
+
+    # ── 5.3 PostgreSQL 长事务检测 ───────────────────────
+    pg_long_xact = context.get('pg_long_xact', [])
+    if pg_long_xact:
+        max_dur = max((float(row.get('xact_seconds', 0) or 0) for row in pg_long_xact), default=0)
+        issues.append({
+            'col1': f'发现 {len(pg_long_xact)} 个长事务（>60秒）', 'col2': 'report.risk_high',
+            'col3': f'发现 {len(pg_long_xact)} 个超过 60 秒的事务，最长持续 {max_dur:.0f} 秒（PID={pg_long_xact[0].get("pid", "?")}），可能导致 autovacuum 阻塞和表膨胀',
+            'col4': 'report.pg_fallback_priority_high', 'col5': 'report.pg_fallback_owner_dba',
+            'fix_sql': "-- 查看长事务详情：\nSELECT pid, now()-xact_start AS duration, state, query FROM pg_stat_activity WHERE xact_start IS NOT NULL AND state != 'idle' ORDER BY duration DESC;\n-- 终止(谨慎): SELECT pg_terminate_backend(pid);"
+        })
     pg_users = context.get('pg_users', [])
     superusers = [u for u in pg_users if str(u.get('superuser', '')).upper() in ('T', 'TRUE', 'YES', '1')]
     if len(superusers) > 2:
@@ -627,6 +746,14 @@ def smart_analyze_pg(context: dict) -> list:
                 'fix_sql': ''
             })
 
+    # ── 插件规则检查（Pro 版）──────────────────────────────
+    try:
+        from pro.rule_engine import analyze_with_plugins
+        plugin_issues = analyze_with_plugins('oracle', context)
+        if plugin_issues:
+            issues.extend(plugin_issues)
+    except Exception:
+        pass
     return issues
 
 
@@ -714,23 +841,65 @@ def smart_analyze_oracle(context: dict) -> list:
                 'fix_sql': '-- 调整参数：\nALTER SYSTEM SET processes=<新值> SCOPE=SPFILE;\nALTER SYSTEM SET sessions=<新值> SCOPE=SPFILE;\n-- 重启后生效'
             })
 
-    # ── 4. 锁等待 / 阻塞 ─────────────────────────
+    # ── 4.1 锁等待 / 阻塞链 ──────────────────────
     blocked = context.get('ora_blocked', [])
     if blocked:
         b_count = len(blocked)
         max_wait = max((_float(b.get('SEC_IN_WAIT', 0)) for b in blocked), default=0)
+        blocking_sid = blocked[0].get('BLOCKING_SID', '?') if blocked else '?'
+        blocked_sid = blocked[0].get('BLOCKED_SID', '?') if blocked else '?'
+        lock_type = blocked[0].get('LOCK_TYPE', '?') if blocked else '?'
+        locked_obj = blocked[0].get('LOCKED_OBJECT', '') if blocked else ''
+        obj_info = f'（对象: {locked_obj}）' if locked_obj else ''
         fix_lines = []
         for b in blocked[:5]:
             bsid = b.get("BLOCKED_SID", "")
+            bserial = b.get("BLOCKED_SERIAL", "")
             fix_lines.append(
-                f"ALTER SYSTEM KILL SESSION '{bsid},{bsid}'; "
-                "-- 杀掉被阻塞的会话"
+                f"ALTER SYSTEM KILL SESSION '{bsid},{bserial}' IMMEDIATE;"
+                f" -- 杀掉被阻塞会话 {bsid}"
             )
+        if max_wait > 60:
+            issues.append({
+                'col1': f'发现 {b_count} 组严重锁阻塞', 'col2': '高风险',
+                'col3': f'{b_count} 个会话被锁阻塞，最长等待 {max_wait:.0f} 秒 {obj_info}（阻塞源 SID={blocking_sid} → 被阻塞 SID={blocked_sid}，锁类型={lock_type}），严重影响业务',
+                'col4': '高', 'col5': 'DBA',
+                'fix_sql': '\n'.join(fix_lines)
+            })
+        else:
+            issues.append({
+                'col1': f'发现 {b_count} 组锁阻塞', 'col2': '中风险',
+                'col3': f'{b_count} 个会话被锁阻塞，最长等待 {max_wait:.0f} 秒 {obj_info}（锁类型={lock_type}）',
+                'col4': '中', 'col5': 'DBA',
+                'fix_sql': '\n'.join(fix_lines) if fix_lines else ''
+            })
+
+    # ── 4.2 死锁统计 ───────────────────────────────
+    ora_deadlock = context.get('ora_deadlock', [])
+    if ora_deadlock:
+        total_deadlocks = sum(d.get('STAT_VALUE', 0) for d in ora_deadlock)
+        d_names = ', '.join(f"{d.get('STAT_NAME','?')}={d.get('STAT_VALUE',0)}" for d in ora_deadlock[:5])
+        if total_deadlocks > 0:
+            issues.append({
+                'col1': f'Oracle 死锁（{total_deadlocks} 次）', 'col2': '高风险',
+                'col3': f'数据库累计检测到 {total_deadlocks} 次死锁：{d_names}，请检查应用并发事务逻辑',
+                'col4': '高', 'col5': 'DBA',
+                'fix_sql': "-- 查看当前锁等待详情：\nSELECT s.sid, s.serial#, s.username, s.event, l.type, l.lmode, l.request\nFROM v$session s JOIN v$lock l ON s.sid = l.sid\nWHERE l.request > 0 ORDER BY s.seconds_in_wait DESC;\n-- 分析死锁日志：\n-- ALTER SYSTEM SET EVENTS '60 TRACE NAME SYSTEM_STATE LEVEL 10';\n-- 然后查看 trace 文件中 DEADLOCK DETECTED 段"
+            })
+
+    # ── 4.3 长事务检测 ─────────────────────────────
+    ora_long_trx = context.get('ora_long_trx', [])
+    if ora_long_trx:
+        max_dur = max((_float(t.get('TRX_SECONDS', 0)) for t in ora_long_trx), default=0)
+        total_undo = sum(int(t.get('UNDO_BLOCKS', 0) or 0) for t in ora_long_trx)
+        first_sid = ora_long_trx[0].get('SID', '?') if ora_long_trx else '?'
+        undo_warn = f'，占用 {total_undo} 个 Undo 块' if total_undo > 0 else ''
         issues.append({
-            'col1': f'发现 {b_count} 组锁阻塞', 'col2': '高风险',
-            'col3': f'{b_count} 个会话被锁阻塞，最长等待 {max_wait:.0f} 秒，可能影响业务响应速度',
+            'col1': f'发现 {len(ora_long_trx)} 个长事务（>60秒）',
+            'col2': '高风险',
+            'col3': f'发现 {len(ora_long_trx)} 个超过 60 秒的事务，最长持续 {max_dur:.0f} 秒（SID={first_sid}）{undo_warn}，可能导致 Undo 表空间膨胀和 ORA-01555 错误',
             'col4': '高', 'col5': 'DBA',
-            'fix_sql': '\n'.join(fix_lines)
+            'fix_sql': "-- 查看长事务详情：\nSELECT s.sid, s.serial#, s.username, s.machine, s.program,\n       t.start_date, ROUND((SYSDATE-t.start_date)*86400) AS sec,\n       t.used_ublk, t.used_urec\nFROM v$transaction t JOIN v$session s ON s.saddr=t.ses_addr\nORDER BY t.start_date;\n-- 终止长事务(谨慎):\n-- ALTER SYSTEM KILL SESSION 'SID,SERIAL#' IMMEDIATE;"
         })
 
     # ── 5. SGA 总量检查 ───────────────────────────
@@ -994,6 +1163,14 @@ def smart_analyze_oracle(context: dict) -> list:
             'fix_sql': '\n'.join(fix_lines)
         })
 
+    # ── 插件规则检查（Pro 版）──────────────────────────────
+    try:
+        from pro.rule_engine import analyze_with_plugins
+        plugin_issues = analyze_with_plugins("oracle", context)
+        if plugin_issues:
+            issues.extend(plugin_issues)
+    except Exception:
+        pass
     return issues
 
 
@@ -1456,6 +1633,121 @@ Format requirement (output Markdown directly, no prefixes like "Here are"):
 
 
 # ═══════════════════════════════════════════════════════
+#  4. 智能风险分析（DM8、SQL Server、TiDB）
+# ═══════════════════════════════════════════════════════
+
+def smart_analyze_dm(context: dict) -> list:
+    """
+    对 DM8 巡检结果执行基础风险规则分析。
+    DM8 与 Oracle 类似，支持表空间、内存、参数、锁诊断等检查。
+    """
+    issues = []
+
+    def _val(key, sub="Value", default=None):
+        data = context.get(key, [])
+        if data and isinstance(data, list) and data[0]:
+            return data[0].get(sub, default)
+        return default
+
+    def _int(v, default=0):
+        try:
+            return int(str(v).replace(",", ""))
+        except Exception:
+            return default
+
+    # ── 1. 表空间使用率 ──────────────────────────────────
+    tablespaces = context.get("tablespace", [])
+    for ts in tablespaces:
+        usage = _int(ts.get("USAGE_PCT", 0))
+        if usage > 85:
+            issues.append({
+                'col1': f"表空间使用率 - {ts.get('TABLESPACE_NAME', '')}",
+                'col2': '高风险' if usage > 95 else '中风险',
+                'col3': f"表空间 {ts.get('TABLESPACE_NAME', '')} 使用率 {usage}%，可能导致数据无法写入",
+                'col4': '高' if usage > 95 else '中',
+                'col5': 'DBA',
+                'fix_sql': f"-- 请联系 DBA 扩展表空间 {ts.get('TABLESPACE_NAME', '')}"
+            })
+
+    # ── 2. 锁阻塞链（DM8 12.1）────────────────────────
+    blocking = context.get("dm_lock_blocking", [])
+    if blocking and isinstance(blocking, list):
+        for b in blocking:
+            if not isinstance(b, dict): continue
+            waiter_user = b.get('waiter_user', '')
+            blocker_user = b.get('blocker_user', '')
+            wait_ms = _int(b.get('wait_ms', 0))
+            lock_type = b.get('lock_type', '')
+            issues.append({
+                'col1': f"锁阻塞链 - {waiter_user} 等待 {blocker_user}",
+                'col2': '高风险' if wait_ms > 10000 else '中风险',
+                'col3': f"会话 {waiter_user} 被 {blocker_user} 阻塞，"
+                         f"等待时间 {wait_ms}ms，锁类型 {lock_type}",
+                'col4': '高' if wait_ms > 10000 else '中',
+                'col5': 'DBA',
+                'fix_sql': f"-- 查询阻塞会话: SELECT * FROM V$SESSIONS WHERE USER_NAME='{blocker_user}';\n"
+                           f"-- 必要时联系用户提交或回滚事务"
+            })
+
+    # ── 3. 死锁检测（DM8 12.2）─────────────────────────
+    deadlock = context.get("dm_lock_deadlock", [])
+    if deadlock and isinstance(deadlock, list):
+        dl_count = _int(deadlock[0].get('deadlock_count', 0)) if deadlock else 0
+        if dl_count > 0:
+            issues.append({
+                'col1': '死锁检测',
+                'col2': '高风险',
+                'col3': f"检测到 {dl_count} 个死锁，事务相互等待，需立即处理",
+                'col4': '高',
+                'col5': 'DBA',
+                'fix_sql': "-- 查询死锁事务: SELECT * FROM V$TRXWAIT WHERE ...;\n"
+                           "-- 必要时 KILL 其中一个事务（谨慎操作）"
+            })
+
+    # ── 4. 长事务（>60秒）（DM8 12. 3）────────────────
+    long_trx = context.get("dm_lock_long_trx", [])
+    if long_trx and isinstance(long_trx, list):
+        for lt in long_trx:
+            if not isinstance(lt, dict): continue
+            user = lt.get('USER_NAME', '')
+            duration = _int(lt.get('duration_sec', 0))
+            trx_id = lt.get('trx_id', '')
+            if duration > 60:
+                issues.append({
+                    'col1': f"长事务 - {user} ({duration}s)",
+                    'col2': '高风险' if duration > 300 else '中风险',
+                    'col3': f"用户 {user} 的事务（ID={trx_id}）已运行 {duration} 秒，"
+                             f"可能持有锁未释放",
+                    'col4': '高' if duration > 300 else '中',
+                    'col5': 'DBA',
+                    'fix_sql': f"-- 查询事务详情: SELECT * FROM V$TRX WHERE ID={trx_id};\n"
+                               f"-- 必要时联系用户提交或回滚事务"
+                })
+
+    return issues
+
+
+def smart_analyze_sqlserver(context: dict) -> list:
+    """
+    对 SQL Server 巡检结果执行基础风险规则分析。
+    """
+    issues = []
+    # TODO: 添加完整的 SQL Server 风险规则
+    return issues
+
+
+def smart_analyze_tidb(context: dict) -> list:
+    """
+    对 TiDB 巡检结果执行风险规则分析。
+    TiDB 兼容 MySQL 协议，可复用部分 MySQL 规则。
+    """
+    issues = []
+    # 复用 MySQL 的部分规则
+    # TODO: 添加 TiDB 特有的风险规则
+    return issues
+
+
+# ═══════════════════════════════════════════════════════
 #  5. 综合分析入口（供 main_mysql.py / main_pg.py 调用）
 # ═══════════════════════════════════════════════════════
 
@@ -1485,8 +1777,16 @@ def run_full_analysis(db_type: str, host: str, port, label: str,
         issues = smart_analyze_mysql(context)
     elif db_type == 'pg':
         issues = smart_analyze_pg(context)
-    else:
+    elif db_type == 'oracle':
         issues = smart_analyze_oracle(context)
+    elif db_type == 'dm':
+        issues = smart_analyze_dm(context)
+    elif db_type == 'sqlserver':
+        issues = smart_analyze_sqlserver(context)
+    elif db_type == 'tidb':
+        issues = smart_analyze_tidb(context)
+    else:
+        issues = []  # 未知类型，返回空列表
 
     # 2. 保存历史并获取趋势
     hm = HistoryManager(base_dir)

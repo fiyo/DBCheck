@@ -126,6 +126,15 @@ dm_trxwait        = SELECT ID, WAIT_FOR_ID, WAIT_TIME, THRD_ID, LOCK FROM V$TRXW
 # ── 12. 事务 ─────────────────────────────────
 dm_transactions   = SELECT ID, SESS_ID, STATUS, INS_CNT, DEL_CNT, UPD_CNT, START_LSN FROM V$TRX ORDER BY ID DESC LIMIT 30;
 
+# ── 12.1 锁阻塞链详情 ─────────────────────
+dm_lock_blocking  = SELECT tw.ID AS waiter_trx_id, tw.WAIT_FOR_ID AS blocker_trx_id, tw.WAIT_TIME AS wait_ms, tw.LOCK AS lock_type, w.SESS_ID AS waiter_sess_id, w_user.USER_NAME AS waiter_user, w_user.CLNT_IP AS waiter_ip, b.SESS_ID AS blocker_sess_id, b_user.USER_NAME AS blocker_user FROM V$TRXWAIT tw JOIN V$TRX w ON tw.ID=w.ID JOIN V$TRX b ON tw.WAIT_FOR_ID=b.ID LEFT JOIN V$SESSIONS w_user ON w.SESS_ID=w_user.SESS_ID LEFT JOIN V$SESSIONS b_user ON b.SESS_ID=b_user.SESS_ID ORDER BY tw.WAIT_TIME DESC;
+
+# ── 12.2 死锁检测 ────────────────────────
+dm_lock_deadlock  = SELECT COUNT(*) AS deadlock_count FROM V$TRXWAIT t1 WHERE EXISTS (SELECT 1 FROM V$TRXWAIT t2 WHERE t2.ID=t1.WAIT_FOR_ID AND t2.WAIT_FOR_ID=t1.ID);
+
+# ── 12.3 长事务（>60秒）────────────────────
+dm_lock_long_trx  = SELECT trx.ID AS trx_id, trx.SESS_ID, trx.STATUS, sess.USER_NAME, sess.CLNT_IP, DATEDIFF(SS, sess.CREATE_TIME, SYSDATE) AS duration_sec FROM V$TRX trx JOIN V$SESSIONS sess ON trx.SESS_ID=sess.SESS_ID WHERE DATEDIFF(SS, sess.CREATE_TIME, SYSDATE)>60 ORDER BY duration_sec DESC;
+
 # ── 13. DMDSC 集群 ───────────────────────────────
 dm_dcinfo         = SELECT 'DMDSC集群视图，暂不支持单实例环境' AS MSG;
 dm_inst_info      = SELECT INSTANCE_NAME, INSTANCE_NUMBER, HOST_NAME, STATUS$, SVR_VERSION, START_TIME FROM V$INSTANCE;
@@ -455,14 +464,68 @@ def analyze_health_status(context):
         except (IndexError, KeyError, TypeError):
             pass
 
-    # ── 3. 锁等待 ───────────────────────
+    # ── 3. 锁等待与阻塞链 ───────────────────────
     blocked = context.get('dm_blocked', [])
+    blocking_detail = context.get('dm_lock_blocking', [])
+    deadlock = context.get('dm_lock_deadlock', [])
+    long_trx = context.get('dm_lock_long_trx', [])
+
+    # 3.1 锁等待计数
     if blocked and isinstance(blocked, list):
         lock_cnt = len(blocked)
         if lock_cnt >= 5:
             alerts_critical.append(f"[紧急] 发现 {lock_cnt} 个锁等待，可能导致业务阻塞")
         elif lock_cnt >= 2:
             alerts_warning.append(f"[关注] 发现 {lock_cnt} 个锁等待，建议排查")
+
+    # 3.2 锁阻塞链详情
+    if blocking_detail and isinstance(blocking_detail, list):
+        blocking_cnt = len(blocking_detail)
+        if blocking_cnt > 0:
+            # 提取阻塞者与被阻塞者信息
+            blocker_users = set()
+            waiter_users = set()
+            max_wait_ms = 0
+            for bd in blocking_detail:
+                if not isinstance(bd, dict): continue
+                blocker_users.add(bd.get('blocker_user', ''))
+                waiter_users.add(bd.get('waiter_user', ''))
+                wait_ms = _safe_int_val(bd.get('wait_ms', 0))
+                if wait_ms > max_wait_ms:
+                    max_wait_ms = wait_ms
+            alerts_warning.append(
+                f"[关注] 发现 {blocking_cnt} 个锁阻塞链，"
+                f"阻塞者: {', '.join(u for u in blocker_users if u)}，"
+                f"最长等待: {max_wait_ms}ms"
+            )
+
+    # 3.3 死锁检测
+    if deadlock and isinstance(deadlock, list):
+        dl_count = _safe_int_val(deadlock[0].get('deadlock_count', 0)) if deadlock else 0
+        if dl_count > 0:
+            alerts_critical.append(f"[紧急] 检测到 {dl_count} 个死锁，需立即处理")
+
+    # 3.4 长事务（>60秒）
+    if long_trx and isinstance(long_trx, list):
+        long_trx_cnt = len(long_trx)
+        if long_trx_cnt > 0:
+            max_dur = 0
+            long_trx_users = set()
+            for lt in long_trx:
+                if not isinstance(lt, dict): continue
+                dur = _safe_int_val(lt.get('duration_sec', 0))
+                if dur > max_dur:
+                    max_dur = dur
+                long_trx_users.add(lt.get('USER_NAME', ''))
+            if max_dur > 300:  # > 5 分钟
+                alerts_critical.append(
+                    f"[紧急] 发现 {long_trx_cnt} 个长事务，最长 {max_dur} 秒，"
+                    f"用户: {', '.join(u for u in long_trx_users if u)}"
+                )
+            else:
+                alerts_warning.append(
+                    f"[关注] 发现 {long_trx_cnt} 个长事务（>60秒），最长 {max_dur} 秒"
+                )
 
     # ── 4. 无效对象 ──────────────────────
     invalid = context.get('dm_invalid_cnt', [])
@@ -827,7 +890,7 @@ class getData(object):
 
     def checkdb(self, sqlfile=''):
         print("\n" + _t("dm8_starting"))
-        total_steps = 22
+        total_steps = 25
         current_step = 0
         cfg = configparser.RawConfigParser()
         try:
@@ -855,6 +918,7 @@ class getData(object):
             "dm_dcinfo", "dm_inst_info",
             "dm_undo_info",
             "dm_transactions",
+            "dm_lock_blocking", "dm_lock_deadlock", "dm_lock_long_trx",
             "dm_recyclebin",
             "dm_datafiles",
             "dm_profile_pwd",
@@ -1400,7 +1464,117 @@ class saveDoc(object):
                     c.vertical_alignment = WD_ALIGN_PARAGRAPH.CENTER
             return t
 
-        # 第16章 风险与建议
+        # 第16章 锁诊断（P0）
+        blocking_data = self.context.get('dm_lock_blocking', [])
+        deadlock_data = self.context.get('dm_lock_deadlock', [])
+        long_trx_data = self.context.get('dm_lock_long_trx', [])
+
+        has_lock_data = blocking_data or deadlock_data or long_trx_data
+        if has_lock_data:
+            _add_heading(self._t('report.dm_lock_chapter'))
+
+            # -- 16.1 阻塞会话分析 --
+            _add_heading(self._t('report.dm_lock_sec_blocking'), 2)
+            if blocking_data:
+                blocking_headers = [
+                    self._t('report.dm_lock_col_waiter_sess'),
+                    self._t('report.dm_lock_col_waiter_user'),
+                    self._t('report.dm_lock_col_waiter_ip'),
+                    self._t('report.dm_lock_col_wait_ms'),
+                    self._t('report.dm_lock_col_lock_type'),
+                    self._t('report.dm_lock_col_blocker_sess'),
+                    self._t('report.dm_lock_col_blocker_user'),
+                ]
+                blocking_display = []
+                for r in blocking_data:
+                    if isinstance(r, dict):
+                        blocking_display.append([
+                            str(r.get('waiter_sess_id', '')),
+                            str(r.get('waiter_user', '')),
+                            str(r.get('waiter_ip', '')),
+                            str(r.get('wait_ms', '')),
+                            str(r.get('lock_type', '')),
+                            str(r.get('blocker_sess_id', '')),
+                            str(r.get('blocker_user', '')),
+                        ])
+                    elif isinstance(r, (list, tuple)):
+                        blocking_display.append([
+                            str(r[4]) if len(r) > 4 else '',
+                            str(r[5]) if len(r) > 5 else '',
+                            str(r[6]) if len(r) > 6 else '',
+                            str(r[2]) if len(r) > 2 else '',
+                            str(r[3]) if len(r) > 3 else '',
+                            str(r[7]) if len(r) > 7 else '',
+                            str(r[8]) if len(r) > 8 else '',
+                        ])
+                _add_table(blocking_headers, blocking_display)
+                doc.add_paragraph()
+            else:
+                p = doc.add_paragraph(self._t('report.dm_lock_no_blocking'))
+                for r in p.runs:
+                    r.font.size = Pt(10.5); r.font.name = '微软雅黑'
+                    r.font.color.rgb = RGBColor(128, 128, 128)
+
+            # -- 16.2 死锁检测 --
+            _add_heading(self._t('report.dm_lock_sec_deadlock'), 2)
+            if deadlock_data:
+                d0 = deadlock_data[0]
+                if isinstance(d0, dict):
+                    deadlock_count = str(d0.get('deadlock_count', '0'))
+                elif isinstance(d0, (list, tuple)) and len(d0) > 0:
+                    deadlock_count = str(d0[0])
+                else:
+                    deadlock_count = '0'
+                p = doc.add_paragraph()
+                run = p.add_run(self._t('report.dm_lock_deadlock_count') + ': ' + deadlock_count)
+                run.font.size = Pt(10.5); run.font.name = '微软雅黑'; run.bold = True
+                doc.add_paragraph()
+            else:
+                p = doc.add_paragraph(self._t('report.dm_lock_no_deadlock'))
+                for r in p.runs:
+                    r.font.size = Pt(10.5); r.font.name = '微软雅黑'
+                    r.font.color.rgb = RGBColor(128, 128, 128)
+
+            # -- 16.3 长事务检测 --
+            _add_heading(self._t('report.dm_lock_sec_long_trx'), 2)
+            if long_trx_data:
+                long_trx_headers = [
+                    self._t('report.dm_lock_col_trx_id'),
+                    self._t('report.dm_lock_col_sess_id'),
+                    self._t('report.dm_lock_col_user_name'),
+                    self._t('report.dm_lock_col_status'),
+                    self._t('report.dm_lock_col_duration_sec'),
+                    self._t('report.dm_lock_col_clnt_ip'),
+                ]
+                long_trx_display = []
+                for r in long_trx_data:
+                    if isinstance(r, dict):
+                        long_trx_display.append([
+                            str(r.get('trx_id', '')),
+                            str(r.get('SESS_ID', '')),
+                            str(r.get('USER_NAME', '')),
+                            str(r.get('STATUS', '')),
+                            str(r.get('duration_sec', '')),
+                            str(r.get('CLNT_IP', '')),
+                        ])
+                    elif isinstance(r, (list, tuple)):
+                        long_trx_display.append([
+                            str(r[0]) if len(r) > 0 else '',
+                            str(r[1]) if len(r) > 1 else '',
+                            str(r[3]) if len(r) > 3 else '',
+                            str(r[2]) if len(r) > 2 else '',
+                            str(r[5]) if len(r) > 5 else '',
+                            str(r[4]) if len(r) > 4 else '',
+                        ])
+                _add_table(long_trx_headers, long_trx_display)
+                doc.add_paragraph()
+            else:
+                p = doc.add_paragraph(self._t('report.dm_lock_no_long_trx'))
+                for r in p.runs:
+                    r.font.size = Pt(10.5); r.font.name = '微软雅黑'
+                    r.font.color.rgb = RGBColor(128, 128, 128)
+
+        # 第17章 风险与建议
         _add_heading(self._t('report.dm_ch16'))
         issues = self.context.get("auto_analyze", [])
         if issues:

@@ -77,6 +77,141 @@ def _t(key):
     except Exception:
         return key
 
+
+# ============================================================
+# Markdown → Word 渲染
+# ============================================================
+
+def _render_markdown_to_doc(doc, text, default_size=11, ch8_prefix=False):
+    """
+    将 Markdown 文本渲染为 Word 段落，支持：
+    - **加粗**、*斜体*、`行内代码`
+    - ## 二级标题（ch8_prefix=True 时自动加 8.X 序号）→ Heading 2
+    - ### 三级标题 → Heading 3（无序号）
+    - - /*/• 列表项 → bullet paragraph
+    - > 引用块 → indented paragraph
+    - [text](url) → text（去掉链接）
+    """
+    CODE_FONT = 'Courier New'
+    lines = text.strip().split('\n')
+    in_code_block = False
+    code_buf = []
+    h2_seq = [0]  # 闭包兼容写法（避免 nonlocal 在部分嵌套层级报错）
+
+    def _add_run(para, md_text, size):
+        """解析 md_text 中的 **bold**、*italic*、`code` 并添加 Run"""
+        # 先处理行内代码（优先级最高）
+        parts = re.split(r'(``[^`]+``|`[^`]+`)', md_text)
+        for part in parts:
+            if re.match(r'`[^`]+`', part):
+                run = para.add_run(part.strip('`'))
+                run.font.name = CODE_FONT
+                run.font.size = Pt(size - 1)
+                run.font.color.rgb = None
+            else:
+                sub_parts = re.split(r'(\*\*[^*]+\*\*|\*[^*]+\*)', part)
+                for sp in sub_parts:
+                    if sp.startswith('**') and sp.endswith('**'):
+                        run = para.add_run(sp[2:-2])
+                        run.bold = True
+                        run.font.size = Pt(size)
+                    elif sp.startswith('*') and sp.endswith('*'):
+                        run = para.add_run(sp[1:-1])
+                        run.italic = True
+                        run.font.size = Pt(size)
+                    elif sp:
+                        link_text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', sp)
+                        run = para.add_run(link_text)
+                        run.font.size = Pt(size)
+
+    for raw_line in lines:
+        line = raw_line.strip()
+
+        # 代码块开始/结束
+        if line.startswith('```'):
+            if not in_code_block:
+                in_code_block = True
+                code_buf = []
+                continue
+            else:
+                in_code_block = False
+                code_p = doc.add_paragraph()
+                code_p.style = 'Quote'
+                code_p.paragraph_format.left_indent = Cm(0.5)
+                for cl in code_buf:
+                    cp = code_p.add_run(cl)
+                    cp.font.name = CODE_FONT
+                    cp.font.size = Pt(9)
+                code_p.add_run().font.size = Pt(9)
+                code_buf = []
+                continue
+
+        if in_code_block:
+            code_buf.append(raw_line)
+            continue
+
+        if not line:
+            continue
+
+        # 二级标题
+        m = re.match(r'^##\s+(.+)', line)
+        if m:
+            heading_text = m.group(1)
+            if ch8_prefix:
+                h2_seq[0] += 1
+                heading_text = f'8.{h2_seq[0]} {heading_text}'
+            h = doc.add_heading(heading_text, level=2)
+            for run in h.runs:
+                run.font.size = Pt(12)
+            continue
+
+        # 三级标题
+        m = re.match(r'^###\s+(.+)', line)
+        if m:
+            h = doc.add_heading(m.group(1), level=3)
+            for run in h.runs:
+                run.font.size = Pt(11)
+            continue
+
+        # 一级标题
+        m = re.match(r'^#\s+(.+)', line)
+        if m:
+            h = doc.add_heading(m.group(1), level=1)
+            for run in h.runs:
+                run.font.size = Pt(13)
+            continue
+
+        # 引用块
+        if line.startswith('>'):
+            q = doc.add_paragraph()
+            q.paragraph_format.left_indent = Cm(1)
+            q.paragraph_format.first_line_indent = Cm(-0.5)
+            _add_run(q, line.lstrip('>').strip(), default_size)
+            continue
+
+        # 列表项
+        m = re.match(r'^([-*•])\s+(.+)', line)
+        if m:
+            bp = doc.add_paragraph(style='List Bullet')
+            _add_run(bp, m.group(2), default_size)
+            continue
+
+        # 序号列表
+        m = re.match(r'^\d+\.\s+(.+)', line)
+        if m:
+            op = doc.add_paragraph(style='List Number')
+            _add_run(op, m.group(1), default_size)
+            continue
+
+        # 水平线
+        if re.match(r'^[-*_]{3,}\s*$', line):
+            continue
+
+        # 普通段落
+        p = doc.add_paragraph()
+        _add_run(p, line, default_size)
+
+
 # ============================================================
 # 内置 PostgreSQL 巡检 SQL 模板
 # ============================================================
@@ -105,6 +240,10 @@ pg_users         = SELECT rolname AS username, rolsuper AS is_superuser, rolcrea
 pg_databases     = SELECT datname, pg_encoding_to_char(encoding) AS encoding, datcollate, datctype, datallowconn, datconnlimit FROM pg_database WHERE datistemplate=false ORDER BY datname;
 pg_extensions    = SELECT name, default_version, installed_version, comment FROM pg_available_extensions WHERE installed_version IS NOT NULL ORDER BY name;
 pg_processlist   = SELECT pid, usename, datname, application_name, client_addr, state, left(query,100) AS query, now()-query_start AS duration FROM pg_stat_activity WHERE pid <> pg_backend_pid() ORDER BY duration DESC NULLS LAST LIMIT 20;
+pg_blocking_chain = SELECT blocked_locks.pid AS blocked_pid, blocked_activity.usename AS blocked_user, left(blocked_activity.query, 200) AS blocked_query, blocked_activity.query_start AS blocked_since, EXTRACT(EPOCH FROM (now() - blocked_activity.query_start)) AS blocked_seconds, blocked_locks.locktype AS blocked_locktype, blocked_locks.relation::regclass AS blocked_relation, blocked_locks.mode AS blocked_mode, blocking_locks.pid AS blocking_pid, blocking_activity.usename AS blocking_user, left(blocking_activity.query, 200) AS blocking_query, EXTRACT(EPOCH FROM (now() - blocking_activity.query_start)) AS blocking_seconds, blocking_locks.mode AS blocking_mode FROM pg_catalog.pg_locks blocked_locks JOIN pg_catalog.pg_stat_activity blocked_activity ON blocked_activity.pid = blocked_locks.pid JOIN pg_catalog.pg_locks blocking_locks ON blocking_locks.locktype = blocked_locks.locktype AND blocking_locks.database IS NOT DISTINCT FROM blocked_locks.database AND blocking_locks.relation IS NOT DISTINCT FROM blocked_locks.relation AND blocking_locks.page IS NOT DISTINCT FROM blocked_locks.page AND blocking_locks.tuple IS NOT DISTINCT FROM blocked_locks.tuple AND blocking_locks.virtualxid IS NOT DISTINCT FROM blocked_locks.virtualxid AND blocking_locks.transactionid IS NOT DISTINCT FROM blocked_locks.transactionid AND blocking_locks.pid != blocked_locks.pid JOIN pg_catalog.pg_stat_activity blocking_activity ON blocking_activity.pid = blocking_locks.pid WHERE NOT blocked_locks.granted AND blocked_activity.pid <> pg_backend_pid() ORDER BY blocked_seconds DESC;
+pg_deadlock_count = SELECT datname, deadlocks FROM pg_stat_database WHERE deadlocks > 0 ORDER BY deadlocks DESC;
+pg_long_xact      = SELECT pid, usename, datname, application_name, state, xact_start, EXTRACT(EPOCH FROM (now() - xact_start)) AS xact_seconds, left(query, 200) AS query FROM pg_stat_activity WHERE xact_start IS NOT NULL AND EXTRACT(EPOCH FROM (now() - xact_start)) > 60 AND state != 'idle' ORDER BY xact_start;
+pg_lock_type_stats = SELECT locktype, mode, granted, COUNT(*) AS count FROM pg_locks GROUP BY locktype, mode, granted ORDER BY count DESC;
 """
 
 
@@ -409,7 +548,7 @@ class LocalSystemInfoCollector:
                             'free_gb': round(usage.free / (1024**3), 2),
                             'usage_percent': usage.percent
                         }
-                    except PermissionError:
+                    except (PermissionError, SystemError, OSError):
                         continue
             # 额外检查常见 PostgreSQL 数据目录
             pg_paths = ['/var/lib/postgresql', '/data/postgresql', '/usr/local/pgsql/data']
@@ -1191,11 +1330,6 @@ class WordTemplateGenerator:
                     for r in p.runs:
                         r.font.size = Pt(10)
                     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            for cell in row_cells:
-                for p in cell.paragraphs:
-                    for r in p.runs:
-                        r.font.size = Pt(10)
-                    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     def _add_database_info_section(self):
         """
         生成第 5 章「数据库信息」，包含三个小节：
@@ -1329,7 +1463,7 @@ class WordTemplateGenerator:
         以段落形式输出 5 条固定说明文字，包含：
         报告生成说明、空白项说明、磁盘信息范围说明、巡检结果免责说明、定期巡检建议。
         """
-        heading = self.doc.add_heading('11. ' + self._l['ch11'], level=1)
+        heading = self.doc.add_heading('11. ' + self._t('report.fallback_pg_notes_chapter'), level=1)
         heading_run = heading.runs[0]
         heading_run.font.size = Pt(14)
         heading_run.font.bold = True
@@ -1397,7 +1531,7 @@ class WordTemplateGenerator:
         """
         生成第 8 章「AI 智能诊断建议」。
 
-        使用 Jinja2 模板变量占位。
+        使用 Jinja2 模板变量占位，由 _render_markdown_to_doc() 渲染 Markdown 格式。
         """
         heading = self.doc.add_heading('8. ' + self._l['ch8'], level=1)
         heading_run = heading.runs[0]
@@ -1888,7 +2022,9 @@ class getData(object):
                     "pg_wait_events", "pg_long_queries", "pg_lock_info", "pg_db_size",
                     "pg_table_stats", "pg_index_usage", "pg_replication", "pg_cache_hit",
                     "pg_bgwriter", "pg_settings_key", "pg_users", "pg_databases",
-                    "pg_extensions", "pg_processlist", "instancetime", "platform_info"]
+                    "pg_extensions", "pg_processlist", "instancetime", "platform_info",
+                    "pg_blocking_chain", "pg_deadlock_count",
+                    "pg_long_xact", "pg_lock_type_stats"]
         for key in init_keys:
             self.context.update({key: []})
         try:
@@ -2322,19 +2458,19 @@ class saveDoc(object):
                 tpl.save(self.ofile)
 
                 # ── 追加新章节（第7章 7.1/7.2 + 第8章 AI诊断）───────────────────
-                # docxtpl 模板本身有旧的"7.报告说明"，先把它及之后的内容删掉，再追加新章节
+                # 先彻底清除 docxtpl 渲染后的第7章及之后所有内容（含旧的未格式化第8章）
                 doc2 = Document(self.ofile)
+                ns_w = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+                # 找第7章或第8章标题位置
                 cutoff_idx = None
                 for i, para in enumerate(doc2.paragraphs):
                     t = para.text.strip()
-                    if t.startswith('7.') and (self._t('report.notes_chapter') in t or '报告说明' in t or 'Report Notes' in t):
+                    if t.startswith('7.') or t.startswith('8.'):
                         cutoff_idx = i
                         break
                 if cutoff_idx is not None:
-                    ns_w = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
                     body = doc2._element.body
                     body_children = list(body.iterchildren())
-                    # 确保不删掉最后的 sectPr（如果 body 末尾是 sectPr）
                     to_remove = []
                     for el in body_children[cutoff_idx:]:
                         tag = el.tag.split('}')[1] if '}' in el.tag else el.tag
@@ -2357,6 +2493,9 @@ class saveDoc(object):
                         pgSz.set(qn('w:h'), '16838')
                         new_sp.append(pgSz)
                         body.append(new_sp)
+                else:
+                    # 没找到第7/8章，可能是模板不同，直接继续
+                    pass
 
 
                 auto_analyze = self.context.get('auto_analyze', [])
@@ -2428,22 +2567,13 @@ class saveDoc(object):
                         if qp.runs: qp.runs[0].font.size = Pt(9)
 
                 # 第 8 章 AI 智能诊断建议
-                ai_advice = self.context.get('ai_advice','').strip()
+                ai_advice = self.context.get('ai_advice', '').strip()
                 doc2.add_heading('8. ' + self._t('report.ai_chapter'), level=1)
                 if ai_advice:
                     p = doc2.add_paragraph()
                     p.add_run(self._t('report.ai_disclaimer')).italic = True
                     doc2.add_paragraph()
-                    for line in ai_advice.split('\n'):
-                        line = line.strip()
-                        if not line:
-                            continue  # 跳过空行，避免多余间距
-                        elif line.startswith(('- ','* ','• ')):
-                            bp = doc2.add_paragraph(style='List Bullet')
-                            bp.add_run(line[2:]).font.size = Pt(11)
-                        else:
-                            np = doc2.add_paragraph(line)
-                            if np.runs: np.runs[0].font.size = Pt(11)
+                    _render_markdown_to_doc(doc2, ai_advice, default_size=11, ch8_prefix=True)
                 else:
                     p = doc2.add_paragraph()
                     p.add_run(self._t('report.ai_disabled')).italic = True
@@ -2612,8 +2742,87 @@ class saveDoc(object):
                         doc2.add_paragraph(self._t('report.index_health_no_issues'))
                     doc2.add_paragraph()
 
-                # 第 11 章 报告说明
-                doc2.add_heading('11. ' + self._t('report.fallback_pg_notes_chapter'), level=1)
+                # 第 11 章 PostgreSQL 锁诊断（P0）
+                doc2.add_heading('11. ' + self._t('report.pg_lock_chapter'), level=1)
+                # 11.1 阻塞链检测
+                doc2.add_heading('11.1 ' + self._t('report.lock_wait_detail'), level=2)
+                pg_blocking = self.context.get('pg_blocking_chain', [])
+                if pg_blocking:
+                    tbl = doc2.add_table(rows=1+min(len(pg_blocking), 15), cols=5)
+                    tbl.style = 'Table Grid'
+                    tbl.autofit = True
+                    hdr = tbl.rows[0].cells
+                    for j, ht in enumerate([
+                        self._t('report.lock_blocking_thread'),
+                        self._t('report.lock_waiting_thread'),
+                        self._t('report.lock_wait_sec'),
+                        'Mode',
+                        self._t('report.lock_locked_table')
+                    ]):
+                        cell = hdr[j]
+                        cell.text = ht
+                        self._set_cell_bg(cell, '336699')
+                        for para in cell.paragraphs:
+                            for run in para.runs:
+                                run.bold = True
+                                run.font.size = Pt(8)
+                                run.font.color.rgb = RGBColor(255, 255, 255)
+                            para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    for i, row in enumerate(pg_blocking[:15], 1):
+                        cells = tbl.rows[i].cells
+                        cells[0].text = str(row.get('blocking_pid', ''))
+                        cells[1].text = str(row.get('blocked_pid', ''))
+                        cells[2].text = str(row.get('blocked_seconds', ''))
+                        cells[3].text = str(row.get('blocked_mode', ''))
+                        cells[4].text = str(row.get('blocked_relation', ''))
+                        for c in cells:
+                            for para in c.paragraphs:
+                                for run in para.runs:
+                                    run.font.size = Pt(8)
+                else:
+                    doc2.add_paragraph(self._t('report.no_lock_wait'))
+
+                # 11.2 长事务检测
+                doc2.add_heading('11.2 ' + self._t('report.long_trx_detect'), level=2)
+                pg_long_xact = self.context.get('pg_long_xact', [])
+                if pg_long_xact:
+                    tbl = doc2.add_table(rows=1+min(len(pg_long_xact), 10), cols=5)
+                    tbl.style = 'Table Grid'
+                    tbl.autofit = True
+                    hdr = tbl.rows[0].cells
+                    for j, ht in enumerate([
+                        'PID',
+                        self._t('report.fallback_pg_pg_user'),
+                        self._t('report.long_trx_duration_sec'),
+                        self._t('report.long_trx_state'),
+                        self._t('report.long_trx_query')
+                    ]):
+                        cell = hdr[j]
+                        cell.text = ht
+                        self._set_cell_bg(cell, '336699')
+                        for para in cell.paragraphs:
+                            for run in para.runs:
+                                run.bold = True
+                                run.font.size = Pt(8)
+                                run.font.color.rgb = RGBColor(255, 255, 255)
+                            para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    for i, row in enumerate(pg_long_xact[:10], 1):
+                        cells = tbl.rows[i].cells
+                        cells[0].text = str(row.get('pid', ''))
+                        cells[1].text = str(row.get('usename', ''))
+                        cells[2].text = str(row.get('xact_seconds', ''))
+                        cells[3].text = str(row.get('state', ''))
+                        cells[4].text = str(row.get('query', '')[:80])
+                        for c in cells:
+                            for para in c.paragraphs:
+                                for run in para.runs:
+                                    run.font.size = Pt(8)
+                else:
+                    doc2.add_paragraph(self._t('report.no_long_trx'))
+                doc2.add_paragraph()
+
+                # 第 12 章 报告说明
+                doc2.add_heading('12. ' + self._t('report.fallback_pg_notes_chapter'), level=1)
                 notes = [
                     self._t("report.note_1_pg"),
                     self._t("report.fallback_note_2"),
@@ -2892,6 +3101,86 @@ class saveDoc(object):
             pg_db = self.context.get('pg_db_size', [])
             for d in pg_db[:8]:
                 p = doc.add_paragraph(f"  {d.get('database_name', '')}: {d.get('size', '')}")
+                if p.runs:
+                    p.runs[0].font.size = Pt(10)
+
+            # ── 4.4 阻塞链检测 ──
+            doc.add_heading('4.4 ' + self._t('report.lock_wait_detail'), level=2)
+            pg_blocking = self.context.get('pg_blocking_chain', [])
+            if pg_blocking:
+                table = doc.add_table(rows=1+min(len(pg_blocking), 15), cols=5)
+                table.style = 'Table Grid'
+                table.autofit = True
+                hdr = table.rows[0].cells
+                for j, ht in enumerate([
+                    self._t('report.lock_blocking_thread'),
+                    self._t('report.lock_waiting_thread'),
+                    self._t('report.lock_wait_sec'),
+                    'Mode',
+                    self._t('report.lock_locked_table')
+                ]):
+                    cell = hdr[j]
+                    cell.text = ht
+                    self._set_cell_bg(cell, '336699')
+                    for para in cell.paragraphs:
+                        for run in para.runs:
+                            run.bold = True
+                            run.font.size = Pt(8)
+                            run.font.color.rgb = RGBColor(255, 255, 255)
+                        para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                for i, row in enumerate(pg_blocking[:15], 1):
+                    cells = table.rows[i].cells
+                    cells[0].text = str(row.get('blocking_pid', ''))
+                    cells[1].text = str(row.get('blocked_pid', ''))
+                    cells[2].text = str(row.get('blocked_seconds', ''))
+                    cells[3].text = str(row.get('blocked_mode', ''))
+                    cells[4].text = str(row.get('blocked_relation', ''))
+                    for c in cells:
+                        for para in c.paragraphs:
+                            for run in para.runs:
+                                run.font.size = Pt(8)
+            else:
+                p = doc.add_paragraph(self._t('report.no_lock_wait'))
+                if p.runs:
+                    p.runs[0].font.size = Pt(10)
+
+            # ── 4.5 长事务检测 ──
+            doc.add_heading('4.5 ' + self._t('report.long_trx_detect'), level=2)
+            pg_long_xact = self.context.get('pg_long_xact', [])
+            if pg_long_xact:
+                table = doc.add_table(rows=1+min(len(pg_long_xact), 10), cols=5)
+                table.style = 'Table Grid'
+                table.autofit = True
+                hdr = table.rows[0].cells
+                for j, ht in enumerate([
+                    'PID',
+                    self._t('report.fallback_pg_pg_user'),
+                    self._t('report.long_trx_duration_sec'),
+                    self._t('report.long_trx_state'),
+                    self._t('report.long_trx_query')
+                ]):
+                    cell = hdr[j]
+                    cell.text = ht
+                    self._set_cell_bg(cell, '336699')
+                    for para in cell.paragraphs:
+                        for run in para.runs:
+                            run.bold = True
+                            run.font.size = Pt(8)
+                            run.font.color.rgb = RGBColor(255, 255, 255)
+                        para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                for i, row in enumerate(pg_long_xact[:10], 1):
+                    cells = table.rows[i].cells
+                    cells[0].text = str(row.get('pid', ''))
+                    cells[1].text = str(row.get('usename', ''))
+                    cells[2].text = str(row.get('xact_seconds', ''))
+                    cells[3].text = str(row.get('state', ''))
+                    cells[4].text = str(row.get('query', '')[:80])
+                    for c in cells:
+                        for para in c.paragraphs:
+                            for run in para.runs:
+                                run.font.size = Pt(8)
+            else:
+                p = doc.add_paragraph(self._t('report.no_long_trx'))
                 if p.runs:
                     p.runs[0].font.size = Pt(10)
 

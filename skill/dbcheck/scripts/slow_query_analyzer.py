@@ -729,6 +729,12 @@ class BaseSlowQueryAnalyzer:
             import logging
             logging.getLogger('slow_query').warning(
                 'SQL exec failed (db=%s): %s', self.db_type, str(e))
+            # psycopg2 在查询失败后事务进入 aborted 状态，必须回滚
+            # 否则后续所有 SQL 都会报 "current transaction is aborted"
+            try:
+                conn.rollback()
+            except Exception:
+                pass
             return []
 
 
