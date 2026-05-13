@@ -771,27 +771,27 @@ python main.py
 The main menu offers nine options:
 
 ```
-==================================================
-  🗄️  Database Automation Inspector  v2.3  Main Menu
-==================================================
-    🐬  1 │ MySQL           MySQL Health Inspection & Report
-    🐘  2 │ PostgreSQL      PostgreSQL Health Inspection & Report
-    🔴  3 │ Oracle          Oracle Deep Health Inspection (20+ Checks)
-    🟠  4 │ SQL Server      SQL Server Health Inspection & Report
-    🟡  5 │ DM8             Dameng DM8 Health Inspection & Report
-    🐬  6 │ TiDB            TiDB Health Inspection & Report (MySQL 8.0 Compatible)
+python main.py --lang en             
 
-    🌐  7 │ Launch Web UI   Browser-based GUI
-    📋  8 │ Batch Template  Generate Batch Inspection Excel Template
+  ██████╗ ██████╗  ██████╗██╗  ██╗███████╗ ██████╗██╗  ██╗
+  ██╔══██╗██╔══██╗██╔════╝██║  ██║██╔════╝██╔════╝██║ ██╔╝
+  ██║  ██║██████╔╝██║     ███████║██║     ██║     █████╔╝
+  ██║  ██║██╔══██╗██║     ██╔══██║██╔══╝  ██║     ██╔═██╗
+  ██████╔╝██████╔╝╚██████╗██║  ██║███████╗╚██████╗██║  ██╗
+  ╚═════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝ ╚═════╝╚═╝  ╚═╝
+          🗄️  Database Automation Inspector  v2.4.5  Main Menu
+  ──────────────────────────────────────────────────────────
+    🐬  1 │ MySQL（5.6/5.7/8.0+）
+    🐘  2 │ PostgreSQL（10+）
+    🔴  3 │ Oracle（10g/11g/12c+）
+    🟠  4 │ SQL Server (2012+)
+    🟡  5 │ DM8 (DM8+)
+    🐬  6 │ TiDB (6.5+ / MySQL 8.0+ compatible)
+  ──────────────────────────────────────────────────────────
+    📋  7 │ Batch Template Generator
+    🌐  8 │ Launch Web UI
     ❌  0 │ Exit
-==================================================
 ```
-
-1. Enter **1–5** to enter the inspection menu for the corresponding database type
-2. Enter **6** to enter the TiDB inspection menu
-3. Enter **7** to launch the Web UI
-4. Enter **8** to select a template type to generate (MySQL / PostgreSQL / Oracle / SQL Server / DM8 / TiDB)
-5. Enter **0** to exit
 
 #### Single Instance Inspection (Oracle as Example)
 

@@ -33,7 +33,7 @@ article_*.md
 # Pro license activation
 license.key
 license.key.bak
-
+dbdoctor_analysis.md
 mysql_inspector.lic
 
 # Pro runtime data
