@@ -89,7 +89,7 @@ Each risk is presented as a card: **Risk Level (High/Medium/Low) → Issue Descr
 | Undo Management | — | — | ✅ | — | ✅ | — |
 | Data Guard | — | — | ✅ | — | — | — |
 | Wait Events | — | — | ✅ | ✅ | ✅ | — |
-| Locks and Blocking | — | — | — | ✅ | — | — |
+| Locks and Blocking | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | DM8-Specific Views | — | — | — | — | ✅ | — |
 | Placement & Affinity | — | — | — | — | — | ✅ |
 
@@ -142,7 +142,7 @@ Each risk is presented as a card: **Risk Level (High/Medium/Low) → Issue Descr
 | Recycle Bin / Flashback Recovery Area | — | — | ✅ | — | ✅ | — |
 | Profile Password Policy | — | — | ✅ | — | — | — |
 | Top Wait Events | — | — | ✅ | ✅ | ✅ | — |
-| Locks and Blocking Detection | — | — | — | ✅ | — | — |
+| Locks and Blocking Detection | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Stale Statistics Detection | — | — | ✅ | ✅ | ✅ | ✅ |
 | Partitioned Table Information | — | — | ✅ | ✅ | ✅ | ✅ |
 | Datafile Status | — | — | ✅ | ✅ | ✅ | — |
@@ -433,6 +433,31 @@ Risk Detected → View Fix SQL → Click "Execute Fix" → Dangerous ops require
 | Placement | Placement rules misconfiguration / affinity policy |
 | Stats | Stale statistics / auto-analyze disabled |
 | Other | binlog disabled, excessive aborted connections, system CPU/memory pressure |
+
+### 🔒 P0 Lock Diagnostics (v2.4.4)
+
+> Deep lock analysis with structured reporting — blocking chain visualization, deadlock statistics, long-transaction detection, and actionable fix scripts — now available across all six database engines.
+
+#### Diagnostic Dimensions
+
+| Chapter | Focus | Key Metrics |
+|---------|-------|-------------|
+| **4.1 Lock Blocking Chain** | Identify the root blocker in multi-level wait chains | Blocker SID / lock type / locked object name. Severity tier: ≥60s (critical), 10–60s (warning), <10s (info). `fix_sql` uses correct SERIAL# for precise session termination |
+| **4.2 Deadlock Statistics** | Cumulative deadlock counts and trace analysis | Aggregates `v$sysstat` deadlock counter, top-10 current wait sessions, trace file analysis guide |
+| **4.3 Long Transaction Detection** | Detect transactions exceeding 60s threshold | Undo block consumption, ORA-01555 risk assessment, termination script with rollback estimate |
+
+#### Per-Database Coverage
+
+| Database | SQL Templates Added | Lock Analysis Dimensions | Causal Templates |
+|----------|:-------------------:|--------------------------|:----------------:|
+| **MySQL** | +4 (InnoDB lock chain / deadlock / long trx / lock type stats) | 5-dimension (blocker, blocked, lock type, duration, object) | 6 |
+| **PostgreSQL** | +4 (blocking chain / deadlock / long trx / lock type distribution) | 5-dimension (blocking PID, blocked PID, lock mode, duration, relation) | 5 |
+| **Oracle** | +3 (blocking sessions via v$lock×v$session join / deadlock stats / long trx) | 5-dimension (SID, SERIAL#, lock type, object, seconds) | 5 |
+| **DM8** | +3 (V$LOCK analysis / V$TRXWAIT chain / V$TRX long trx) | 5-dimension (TRX_ID, LTYPE, LMODE, BLOCKED, duration) | 5 |
+| **SQL Server** | Built-in (sys.dm_exec_requests blocking_chain / deadlock_xml / long-running sessions) | 5-dimension | 4 |
+| **TiDB** | Built-in (CLUSTER_PROCESSLIST / DEADLOCKS / TIDB_TRX) | 5-dimension | 4 |
+
+> **Note**: SQL Server and TiDB lock diagnostics are natively integrated through system DMVs / cluster tables and do not require additional SQL templates. All six engines output structured lock analysis chapters in the Word report.
 
 ### Historical Trend Analysis
 
