@@ -42,12 +42,59 @@ except ImportError:
     _HAS_ORACLE = False
 
 
+def _find_oracle_client_lib_dir():
+    """
+    自动检测 Oracle Instant Client 库目录（Windows 为主）。
+    返回 lib_dir 字符串，找不到返回 None。
+    """
+    import glob as _glob
+
+    # 1. ORACLE_HOME 环境变量
+    oracle_home = os.environ.get('ORACLE_HOME', '')
+    if oracle_home:
+        lib_dir = os.path.join(oracle_home, 'bin') if os.name == 'nt' else os.path.join(oracle_home, 'lib')
+        if os.path.isdir(lib_dir):
+            return lib_dir
+
+    # 2. Windows: 搜索常见 Instant Client 安装路径
+    if os.name == 'nt':
+        search_roots = [r'C:\oracle', r'C:\instantclient',
+                        r'D:\oracle', r'D:\instantclient',
+                        r'C:\app', r'D:\app']
+        for root in search_roots:
+            if not os.path.isdir(root):
+                continue
+            # 按版本号降序排列，优先使用最新版
+            matches = sorted(_glob.glob(os.path.join(root, 'instantclient*')), reverse=True)
+            for m in matches:
+                if os.path.isdir(m) and os.path.isfile(os.path.join(m, 'oci.dll')):
+                    return m
+
+    # 3. Linux/macOS: 检查常见路径
+    for candidate in ['/usr/lib/oracle/instantclient', '/opt/oracle/instantclient',
+                       '/usr/local/lib/instantclient']:
+        # 找具体版本目录
+        base = candidate
+        if os.path.isdir(base):
+            subdirs = sorted([d for d in os.listdir(base) if os.path.isdir(os.path.join(base, d))], reverse=True)
+            for sd in subdirs:
+                full = os.path.join(base, sd)
+                if os.path.isfile(os.path.join(full, 'libclntsh.so')) or \
+                   os.path.isfile(os.path.join(full, 'libclntsh.dylib')):
+                    return full
+
+    return None
+
+
 def _get_oracle_conn_thunk_first(dsn, user, password, mode=None,
                                   ssh_host=None, ssh_port=22,
                                   ssh_user=None, ssh_password=None,
                                   ssh_key=None):
     """
-    连接 Oracle，优先尝试 thin mode；支持 SSH 隧道。
+    连接 Oracle。
+    优先尝试 thin mode（python-oracledb 默认），
+    Oracle 11g 及以下自动 fallback 到 thick mode（需 Oracle Instant Client）。
+    支持 SSH 隧道。
     """
     import oracledb as _odb
 
@@ -78,20 +125,84 @@ def _get_oracle_conn_thunk_first(dsn, user, password, mode=None,
             print(f"  ⚠️  SSH 隧道失败: {e}, 改为直连")
             _tunnel = None
 
-    try:
+    def _do_connect():
         if mode is not None:
-            return _odb.connect(user=user, password=password, dsn=_real_dsn, mode=mode), _tunnel
+            return _odb.connect(user=user, password=password, dsn=_real_dsn, mode=mode)
         else:
-            return _odb.connect(user=user, password=password, dsn=_real_dsn), _tunnel
+            return _odb.connect(user=user, password=password, dsn=_real_dsn)
+
+    # ── 第一次尝试：thin mode ──
+    try:
+        return _do_connect(), _tunnel
     except Exception as e:
         err_str = str(e)
-        if 'DPY-3010' in err_str:
-            print("  ⚠️  thin mode 不支持此版本（Oracle 11g 及以下）")
-            if not ssh_host:
-                raise Exception('Oracle 11g 及以下版本需通过 SSH 连接，请在数据源中启用 SSH') from e
-            # SSH 隧道已建立，直接重试连接
-        else:
+        if 'DPY-3010' not in err_str:
             raise
+        # thin mode 不支持 Oracle 11g 及以下 → fallback 到 thick mode
+        print("  ⚠️  thin mode 不支持此版本（Oracle 11g 及以下），切换到 thick mode...")
+
+    # ── 启用 thick mode ──
+    try:
+        # 先尝试不传 lib_dir（让 oracledb 自动从 PATH / 模块目录查找）
+        _odb.init_oracle_client()
+        print("  ✅ thick mode 已启用（自动检测 Oracle Client）")
+    except Exception:
+        # 自动检测 Instant Client 安装路径
+        lib_dir = _find_oracle_client_lib_dir()
+        if lib_dir:
+            print(f"  🔍 检测到 Oracle Client: {lib_dir}")
+            try:
+                _odb.init_oracle_client(lib_dir=lib_dir)
+                print("  ✅ thick mode 已启用")
+            except Exception as init_err:
+                raise Exception(
+                    f'thick mode 初始化失败，Oracle Client 库加载异常。\n'
+                    f'库目录: {lib_dir}\n'
+                    f'错误: {init_err}\n\n'
+                    f'可能原因：\n'
+                    f'  1. Instant Client 版本与 python-oracledb 不兼容（建议 19.x 或 23.x）\n'
+                    f'  2. 缺少 Visual C++ Redistributable（Windows 需安装 VC++ 2015-2022）\n'
+                    f'     https://aka.ms/vs/17/release/vc_redist.x64.exe\n'
+                    f'  3. 32/64 位不匹配（Python 64-bit 需 Instant Client 64-bit）'
+                ) from init_err
+        else:
+            _platform = platform.system()
+            if _platform == 'Windows':
+                _help = (
+                    '📥 安装步骤（Windows）：\n'
+                    '  1. 下载 Oracle Instant Client Basic Package (64-bit)：\n'
+                    '     https://www.oracle.com/database/technologies/instant-client/winx64-64-downloads.html\n'
+                    '  2. 解压到 C:\\oracle\\instantclient_23_5（版本号可能不同）\n'
+                    '  3. 将 C:\\oracle\\instantclient_23_5 添加到系统 PATH：\n'
+                    '     "系统属性" → "环境变量" → Path → 新建 → 粘贴路径\n'
+                    '  4. 重新打开命令行窗口后重试巡检\n'
+                    '  或者设置环境变量 ORACLE_HOME=C:\\oracle\\instantclient_23_5'
+                )
+            elif _platform == 'Darwin':
+                _help = (
+                    '📥 安装步骤（macOS）：\n'
+                    '  1. 下载 Oracle Instant Client Basic Package (ARM64 或 x64)：\n'
+                    '     https://www.oracle.com/database/technologies/instant-client/macos-arm64-downloads.html\n'
+                    '  2. 解压到 ~/Downloads/instantclient_23_3\n'
+                    '  3. 设置环境变量后重试巡检'
+                )
+            else:
+                _help = (
+                    '📥 安装步骤（Linux）：\n'
+                    '  1. 下载 Oracle Instant Client Basic Package (x64)：\n'
+                    '     https://www.oracle.com/database/technologies/instant-client/linux-x86-64-downloads.html\n'
+                    '  2. 安装到 /usr/lib/oracle/instantclient\n'
+                    '  3. 运行 ldconfig 后重试巡检'
+                )
+            raise Exception(
+                f'未检测到 Oracle Instant Client，无法连接 Oracle 11g。\n\n{_help}'
+            )
+
+    # ── 第二次尝试：thick mode 重连 ──
+    try:
+        return _do_connect(), _tunnel
+    except Exception as e:
+        raise Exception(f'Oracle thick mode 连接失败: {e}') from e
 
 try:
     from docx import Document
