@@ -4058,6 +4058,8 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
             <div style="background:var(--surface2);border-radius:8px;padding:12px;font-size:12px;color:var(--text-muted);margin-bottom:8px" data-i18n="webui.ai_openai_tip">
               💡 DeepSeek 用法：API URL 填 https://api.deepseek.com/v1，模型填 deepseek-chat，API Key 填 DeepSeek 的 key
             </div>
+            <div id="openai-test-result" style="font-size:11px;margin-top:4px;color:var(--text-muted)"></div>
+            <button class="btn btn-ghost" onclick="testOpenAI()" style="font-size:12px;padding:7px 12px;margin-top:8px;" data-i18n="webui.ai_test_btn">🔗 测试连接</button>
           </div>
 
           <div id="ai-ollama-fields" style="display:none">
@@ -6285,6 +6287,38 @@ async function testOllama() {
     }
   } catch(e) {
     result.textContent = i18n('webui.ai_test_fail') + ': ' + e.message;
+    result.style.color = '#f44336';
+  }
+}
+
+async function testOpenAI() {
+  const result = document.getElementById('openai-test-result');
+  result.textContent = i18n('webui.ai_testing');
+  result.style.color = 'var(--text-muted)';
+  try {
+    const apiUrl = document.getElementById('ai-api-url').value.trim() || 'https://api.openai.com/v1';
+    const apiKey = document.getElementById('ai-api-key').value.trim();
+    const model = document.getElementById('ai-model').value.trim() || 'gpt-4o-mini';
+    if (!apiKey) {
+      result.textContent = i18n('webui.ai_err_no_key') || '请先填写 API Key';
+      result.style.color = '#f44336';
+      return;
+    }
+    const resp = await fetch('/api/test_openai', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({api_url: apiUrl, api_key: apiKey, model: model})
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      result.textContent = i18n('webui.ai_test_ok');
+      result.style.color = '#4caf50';
+    } else {
+      result.textContent = (i18n('webui.ai_test_fail') || '测试失败') + ': ' + (data.error || data.msg || '');
+      result.style.color = '#f44336';
+    }
+  } catch(e) {
+    result.textContent = (i18n('webui.ai_test_fail') || '测试失败') + ': ' + e.message;
     result.style.color = '#f44336';
   }
 }

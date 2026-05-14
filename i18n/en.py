@@ -216,6 +216,7 @@ EN = {
     "webui.ai_testing": "⏳ Connecting...",
     "webui.ai_test_ok": "Connection successful! Model responding normally",
     "webui.ai_test_fail": "Connection failed",
+    "webui.ai_err_no_key": "Please enter API Key first",
     "webui.ai_save_btn": "💾 Save Configuration",
     "webui.ai_reload_btn": "Reload",
     "webui.ai_ollama_timeout_hint": "Recommended: 300~600 seconds, large models load slowly",

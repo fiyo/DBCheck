@@ -239,6 +239,7 @@ ZI = {
     "webui.ai_testing": "⏳ 正在连接...",
     "webui.ai_test_ok": "连接成功！模型响应正常",
     "webui.ai_test_fail": "连接失败",
+    "webui.ai_err_no_key": "请先填写 API Key",
     "webui.ai_save_btn": "💾 保存配置",
     "webui.ai_reload_btn": "↻ 重新加载",
     "webui.ai_ollama_timeout_hint": "建议 300~600 秒，大模型加载较慢",

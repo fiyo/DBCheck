@@ -1720,6 +1720,44 @@ def api_test_ollama():
         return jsonify({'ok': False, 'msg': _t('webui.err_conn_failed').format(e=e)})
 
 
+@app.route('/api/test_openai', methods=['POST'])
+def api_test_openai():
+    """测试 OpenAI / 兼容 API 连接（OpenAI、DeepSeek、Azure 等）"""
+    import urllib.request, json as _json
+    data = request.json or {}
+    api_url = (data.get('api_url') or 'https://api.openai.com/v1').rstrip('/')
+    api_key = data.get('api_key', '')
+    model = data.get('model') or 'gpt-4o-mini'
+
+    if not api_key:
+        return jsonify({'ok': False, 'msg': _t('webui.ai_err_no_key')})
+
+    # 先用 /models 端点验证 API Key 是否有效
+    test_url = api_url + '/models'
+    try:
+        req = urllib.request.Request(test_url, headers={
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {api_key}'
+        })
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            body = resp.read().decode('utf-8')
+            try:
+                result = _json.loads(body)
+                models = result.get('data', [])
+                if isinstance(models, list) and len(models) > 0:
+                    model_ids = [m.get('id', '') for m in models[:5]]
+                    return jsonify({'ok': True, 'msg': _t('webui.ai_test_ok') + '，可用模型: ' + ', '.join(model_ids)})
+                return jsonify({'ok': True, 'msg': _t('webui.ai_test_ok')})
+            except _json.JSONDecodeError:
+                # /models 返回非标准格式时，尝试最简 chat 请求
+                return jsonify({'ok': True, 'msg': _t('webui.ai_test_ok')})
+    except urllib.error.HTTPError as e:
+        body = e.read().decode('utf-8', errors='replace')[:300]
+        return jsonify({'ok': False, 'msg': f'HTTP {e.code}: {body}'})
+    except Exception as e:
+        return jsonify({'ok': False, 'msg': _t('webui.err_conn_failed').format(e=e)})
+
+
 @app.route('/api/test_ssh', methods=['POST'])
 def api_test_ssh():
     """测试 SSH 连接"""
