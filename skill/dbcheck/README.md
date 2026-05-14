@@ -331,7 +331,7 @@ AI 诊断与智能分析的关系：
 ## 环境要求
 
 - **操作系统**：Linux / macOS / Windows
-- **Python**：3.6 及以上
+- **Python**：3.10 及以上
 - **通用依赖**：pymysql、psycopg2-binary、python-docx、docxtpl、paramiko、psutil、openpyxl、pandas、flask、flask_socketio
 - **Oracle 依赖**：`oracledb`（推荐）或 `cx_Oracle`（需要 Oracle Instant Client）
 - **DM8 依赖**：`dmpython`（pip install dmpython）

@@ -701,7 +701,7 @@ class BaseSlowQueryAnalyzer:
         if ai_advisor and ai_advisor.enabled:
             prompt = build_slow_query_ai_prompt(self.DB_TYPE, self._result, lang)
             try:
-                self._result.ai_diagnosis = ai_advisor._call_ollama(prompt, timeout=60)
+                self._result.ai_diagnosis = ai_advisor._call_llm(prompt, timeout=60)
             except Exception as e:
                 self._result.ai_diagnosis = ''
                 print("⚠️ 慢查询 AI 诊断失败 [%s]: %s" % (self.DB_TYPE, e))
