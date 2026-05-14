@@ -8,7 +8,7 @@ DBCheck 是一款开源、跨平台的数据库自动化健康巡检工具，支
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://dbcheck.top)
 [![Version](https://img.shields.io/badge/版本-v2.4.4-blue.svg)]()
 [![License](https://img.shields.io/badge/开源协议-MIT-green.svg)]()
-[![Python](https://img.shields.io/badge/Python-3.6%2B-blue.svg)]()
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)]()
 [![AI](https://img.shields.io/badge/AI-Ollama-orange.svg)]()
 [![RAG](https://img.shields.io/badge/RAG-知识库增强-red.svg)]()
 [![WebUI](https://img.shields.io/badge/WebUI-Flask-success.svg)]()
@@ -749,7 +749,7 @@ Web UI 中的 **📚 RAG 知识库** 页面提供：
 ## 环境要求
 
 - **操作系统**：Linux / macOS / Windows
-- **Python**：3.6 及以上
+- **Python**：3.10 及以上
 - **通用依赖**：pymysql、psycopg2-binary、python-docx、docxtpl、paramiko、psutil、openpyxl、pandas、flask、flask_socketio
 - **Oracle 依赖**：`oracledb`（推荐）或 `cx_Oracle`（需要 Oracle Instant Client）
 - **DM8 依赖**：`dmpython`（pip install dmpython）

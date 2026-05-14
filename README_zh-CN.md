@@ -22,7 +22,7 @@
 
 [![Version](https://img.shields.io/badge/版本-v2.4.4-blue.svg)]()
 [![License](https://img.shields.io/badge/开源协议-MIT-green.svg)]()
-[![Python](https://img.shields.io/badge/Python-3.6%2B-blue.svg)]()
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)]()
 [![AI](https://img.shields.io/badge/AI-Ollama-orange.svg)]()
 [![RAG](https://img.shields.io/badge/RAG-知识库增强-red.svg)]()
 [![WebUI](https://img.shields.io/badge/WebUI-Flask-success.svg)]()

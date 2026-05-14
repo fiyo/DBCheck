@@ -8,7 +8,7 @@ DBCheck is an open-source, cross-platform automated database health check tool t
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://dbcheck.top)
 [![Version](https://img.shields.io/badge/version-v2.4.4-blue.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-green.svg)]()
-[![Python](https://img.shields.io/badge/Python-3.6%2B-blue.svg)]()
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)]()
 [![AI](https://img.shields.io/badge/AI-Ollama+RAG-orange.svg)]()
 [![WebUI](https://img.shields.io/badge/WebUI-Flask-success.svg)]()
 [![WeChat](https://img.shields.io/badge/WeChat_Official_Account-sdougwx-brightgreen?logo=WeChat)]()
@@ -726,7 +726,7 @@ The **📚 RAG Knowledge Base** page in Web UI provides:
 ## Environment Requirements
 
 - **Operating System**: Linux / macOS / Windows
-- **Python**: 3.6+
+- **Python**: 3.10+
 - **General Dependencies**: pymysql, psycopg2-binary, python-docx, docxtpl, paramiko, psutil, openpyxl, pandas, flask, flask_socketio, apscheduler
 - **Oracle Dependencies**: `oracledb` (recommended, pure Python, no Instant Client needed) or `cx_Oracle` (requires Oracle Instant Client)
 - **DM8 Dependencies**: `dmpython` (pip install dmpython)
