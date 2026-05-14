@@ -57,6 +57,17 @@ python main.py --lang zh         # 切换为中文（显式指定）
 
 配置文件位于 `main.py` 同级目录下。
 
+## 🌓 主题切换
+
+DBCheck Web UI 支持**暗色**和**亮色**两种主题。点击顶栏 ☀️/🌙 按钮即可即时切换——偏好会保存在浏览器中，下次访问自动恢复。
+
+| 特性 | 说明 |
+|------|------|
+| 默认主题 | 暗色（GitHub 风格配色） |
+| 亮色主题 | 高对比度浅色变体，适合明亮环境 |
+| 持久化 | 存储在浏览器 `localStorage`，页面刷新不丢失 |
+| 零配置 | 无需 CLI 参数或修改配置文件 |
+
 ## AI 辅助 · 问题发现即处理
 
 ### 🤖 AI 智能诊断
@@ -66,9 +77,12 @@ python main.py --lang zh         # 切换为中文（显式指定）
 | 后端 | 特点 | 适用场景 |
 |------|------|---------|
 | `ollama` | 本地运行，零成本，无网络依赖 | 内网环境、数据安全要求高 |
+| `openai` | 云端 API（兼容 OpenAI / DeepSeek），需要网络和 API Key | 允许调用云端 API 的环境 |
 | `disabled` | 不调用 AI（默认） | 离线环境 / 无需 AI |
 
-> ⚠️ **安全说明**：AI 诊断功能仅支持本地 Ollama（localhost:11434），巡检数据不会发送到任何第三方服务。代码层已做硬性限制，即使配置文件被篡改为远程地址也会自动降级为禁用状态。
+> **在线模型开关**：在 Web UI 的 **AI 诊断设置** 页面勾选"启用在线模型"即可解锁云端后端（OpenAI、DeepSeek 等）。默认关闭时仅允许本地 Ollama，巡检数据不出本机。
+>
+> ⚠️ **安全说明**：在线模式关闭时，AI 诊断仅支持本地 Ollama（localhost:11434）。开启在线模式后，数据将通过网络发送至配置的云端 API——请确认您的 API 服务商隐私政策符合要求。
 
 ### 🔍 风险与建议
 
@@ -510,12 +524,14 @@ AI 诊断与智能分析的关系：
 
 | 参数 | 说明 |
 |------|------|
-| 后端类型 | `ollama` 或 `disabled` |
-| API 地址 | 默认 `http://localhost:11434`（仅允许 localhost）|
-| 模型名称 | 如 `qwen3:30b`、`qwen3:8b`、`llama3` 等 |
+| 在线模型 | 复选框——勾选后可使用云端 API（OpenAI / DeepSeek）；默认关闭 |
+| 后端类型 | `ollama`、`openai` 或 `disabled` |
+| API 地址 | Ollama: `http://localhost:11434`；OpenAI: `https://api.openai.com/v1` |
+| API Key | `openai` 后端必须（OpenAI / DeepSeek 密钥）|
+| 模型名称 | 如 `qwen3:30b`（Ollama）、`gpt-4o-mini`（OpenAI）、`deepseek-chat`（DeepSeek）|
 | 超时时间 | 默认 600 秒（大模型冷启动较慢）|
 
-> ⚠️ 出于安全考虑，非 localhost 的 API 地址会被代码自动拒绝，防止敏感数据外传。
+> ⚠️ 在线模式关闭时，非 localhost 的 API 地址会被代码自动拒绝，防止敏感数据外传。
 
 ## AI 对话巡检 💬
 

@@ -54,6 +54,17 @@ To change the default language without using CLI flags or Web UI, edit the confi
 
 The config file is located in the same directory as `main.py`.
 
+## 🌓 Theme Switching
+
+DBCheck Web UI supports both **dark** and **light** themes. Click the ☀️/🌙 button in the top bar to toggle instantly — the preference is saved to your browser and restored automatically on next visit.
+
+| Feature | Description |
+|---------|-------------|
+| Default Theme | Dark (GitHub-style color palette) |
+| Light Theme | High-contrast light variant for bright environments |
+| Persistence | Stored in browser `localStorage`, survives page refresh |
+| Zero Config | No CLI flags or config file changes needed |
+
 ## AI-Assisted - Detect and Resolve Issues
 
 ### AI-Powered Intelligent Diagnosis
@@ -63,9 +74,12 @@ Leveraging a fully offline, local **Ollama** deployment, DBCheck analyzes inspec
 | Backend | Characteristics | Use Case |
 |---------|----------------|----------|
 | `ollama` | Local-only, zero cost, no network dependency | Air-gapped environments, high data-security requirements |
+| `openai` | Cloud API (OpenAI / DeepSeek compatible), requires network and API Key | Environments that allow cloud API access |
 | `disabled` | AI disabled (default) | Offline environments / AI not required |
 
-> **Security Notice**: AI diagnosis is strictly limited to local Ollama (localhost:11434). Inspection data is never sent to any third-party service. This is enforced at the code level — even if the configuration file is tampered with to use a remote address, the system will automatically fall back to the disabled state.
+> **Online Model Toggle**: In the Web UI **AI Settings** page, enable the "Online Model" checkbox to unlock cloud backends (OpenAI, DeepSeek, etc.). When disabled (default), only local Ollama is available — inspection data never leaves your machine.
+>
+> **Security Notice**: AI diagnosis is strictly limited to local Ollama (localhost:11434) when online mode is off. When online mode is enabled, data will be sent to the configured cloud API — ensure your API provider's privacy policy meets your requirements.
 
 ### Risk Detection and Recommendations
 
@@ -487,12 +501,14 @@ Comparison of Intelligent Analysis vs. AI Diagnosis:
 
 | Parameter | Description |
 |-----------|-------------|
-| Backend Type | `ollama` or `disabled` |
-| API Address | Default `http://localhost:11434` (localhost only) |
-| Model Name | e.g. `qwen3:30b`, `qwen3:8b`, `llama3`, etc. |
+| Online Model | Checkbox — enable to use cloud APIs (OpenAI / DeepSeek); disabled by default |
+| Backend Type | `ollama`, `openai`, or `disabled` |
+| API Address | Ollama: `http://localhost:11434`; OpenAI: `https://api.openai.com/v1` |
+| API Key | Required for `openai` backend (OpenAI / DeepSeek key) |
+| Model Name | e.g. `qwen3:30b` (Ollama), `gpt-4o-mini` (OpenAI), `deepseek-chat` (DeepSeek) |
 | Timeout | Default 600 seconds (LLM cold start can be slow) |
 
-> For security reasons, any non-localhost API address is automatically rejected by the code to prevent data leakage.
+> ⚠️ When online mode is off, any non-localhost API address is automatically rejected to prevent data leakage.
 
 ## AI Chat Inspection 💬
 
