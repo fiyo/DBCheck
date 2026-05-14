@@ -19,9 +19,29 @@
   --warn:      #e3b341;
   --danger:    #f85149;
   --text:      #e6edf3;
+  --text-main: #e6edf3;
   --text-muted:#8b949e;
+  --info:      #58a6ff;
+  --success:   #3fb950;
   --radius:    12px;
   --trans:     0.22s ease;
+}
+
+/* ─── 浅色主题 ─── */
+[data-theme="light"] {
+  --bg:        #f6f8fa;
+  --surface:   #ffffff;
+  --surface2:  #f0f2f5;
+  --border:    #d0d7de;
+  --accent:    #1a7f37;
+  --accent2:   #0969da;
+  --warn:      #9a6700;
+  --danger:    #cf222e;
+  --text:      #1f2328;
+  --text-main: #1f2328;
+  --text-muted:#656d76;
+  --info:      #0969da;
+  --success:   #1a7f37;
 }
 
 html { font-size: 15px; }
@@ -588,6 +608,14 @@ select option { background: var(--surface2); }
   border: 1px solid var(--border);
 }
 .btn-ghost:hover { border-color: var(--text-muted); color: var(--text); }
+.theme-toggle {
+  background: transparent; color: var(--text-muted);
+  border: 1px solid var(--border);
+  padding: 4px 8px; border-radius: 6px;
+  font-size: 14px; cursor: pointer;
+  transition: all var(--trans);
+}
+.theme-toggle:hover { border-color: var(--text-muted); color: var(--text); }
 .btn-primary {
   background: var(--accent2); color: #fff;
 }
@@ -3079,6 +3107,9 @@ function formatBytes(bytes) {
       <span class="topbar-sub" id="topbar-sub">欢迎使用 DBCheck 数据库巡检工具</span>
       <button class="btn btn-ghost" id="lang-toggle" onclick="toggleLang()" style="margin-left:auto;font-size:12px;padding:4px 10px;border-radius:6px;cursor:pointer;">
         🌐 <span id="lang-label">EN</span>
+      </button>
+      <button class="btn btn-ghost" id="theme-toggle" onclick="toggleTheme()" title="切换主题" style="font-size:12px;padding:4px 10px;border-radius:6px;cursor:pointer;">
+        ☀️
       </button>
       <span id="topbar-user" style="font-size:12px;color:var(--text-muted);margin-left:8px;cursor:pointer;display:none;" onclick="toggleUserMenu()">
         👤 <span id="topbar-user-name"></span> ▾
@@ -7659,8 +7690,29 @@ function toastConfirm(msg) {
   });
 }
 
+function getTheme() {
+  return document.documentElement.getAttribute('data-theme') || 'dark';
+}
+
+function setTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme || 'dark');
+  localStorage.setItem('dbcheck-theme', theme || 'dark');
+  var btn = document.getElementById('theme-toggle');
+  if (btn) btn.textContent = (theme === 'light') ? '🌙' : '☀️';
+}
+
+function initTheme() {
+  var saved = localStorage.getItem('dbcheck-theme') || 'dark';
+  setTheme(saved);
+}
+
+function toggleTheme() {
+  setTheme(getTheme() === 'dark' ? 'light' : 'dark');
+}
+
 async function initApp() {
   await initI18N();
+  initTheme();
   // 只绑定一次 RAG 删除按钮事件
   var ragBody = document.getElementById('rag-doc-tbody');
   if (ragBody) {
