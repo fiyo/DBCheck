@@ -1627,13 +1627,42 @@ def api_ai_config():
     if os.path.exists(cfg_path):
         with open(cfg_path, 'r', encoding='utf-8') as f:
             cfg = json.load(f)
+        # 确保返回的配置包含 online_enabled 字段
+        cfg.setdefault('online_enabled', False)
+        cfg.setdefault('online_backend', 'openai')
+        cfg.setdefault('online_api_url', 'https://api.openai.com/v1')
+        cfg.setdefault('online_model', 'gpt-4o-mini')
+        # 脱敏：不返回真实 api_key
+        if cfg.get('api_key'):
+            cfg['api_key'] = '***' if cfg['api_key'] else ''
         return jsonify(cfg)
-    return jsonify({'enabled': False, 'url': '', 'backend': '', 'model': ''})
+    return jsonify({
+        'enabled': False, 'backend': 'disabled', 'model': '',
+        'online_enabled': False, 'online_backend': 'openai',
+        'online_api_url': '', 'online_model': '',
+        'api_key': '', 'api_url': ''
+    })
 
 @app.route('/api/ai_config', methods=['POST'])
 def api_save_ai_config():
     data = request.json or {}
     cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_config.json')
+
+    # 加载现有配置作为基础
+    existing = {}
+    if os.path.exists(cfg_path):
+        with open(cfg_path, 'r', encoding='utf-8') as f:
+            existing = json.load(f)
+
+    # 合并：如果 api_key 为空字符串，保留旧的 api_key（防止误覆盖）
+    if 'api_key' in data and not data['api_key'] and existing.get('api_key'):
+        data['api_key'] = existing['api_key']
+
+    # 深度合并：保持已有配置中未提交的字段
+    for key in ('rag',):
+        if key not in data and key in existing:
+            data[key] = existing[key]
+
     with open(cfg_path, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
     return jsonify({'ok': True, 'msg': _t('webui.ai_config_saved')})
@@ -3478,21 +3507,45 @@ def _load_ai_config():
     if os.path.exists(cfg_path):
         with open(cfg_path, 'r', encoding='utf-8') as f:
             return json.load(f)
-    return {'backend': 'ollama', 'api_url': 'http://localhost:11434', 'model': 'qwen3:8b', 'timeout': 600}
+    return {
+        'backend': 'ollama',
+        'online_enabled': False,
+        'online_backend': 'openai',
+        'api_key': '',
+        'api_url': 'http://localhost:11434',
+        'online_api_url': 'https://api.openai.com/v1',
+        'online_model': 'gpt-4o-mini',
+        'model': 'qwen3:8b',
+        'timeout': 600
+    }
 
 
-def _call_ollama(prompt: str, system: str = '') -> str:
-    """调用 Ollama API 生成文本"""
+def _call_llm(prompt: str, system: str = '') -> str:
+    """调用 LLM API 生成文本（支持 Ollama 和 OpenAI 协议兼容的远程模型）"""
     cfg = _load_ai_config()
+    backend = cfg.get('backend', 'ollama')
+    timeout = int(cfg.get('timeout', 600))
+
+    if backend == 'ollama':
+        return _call_llm_ollama(cfg, prompt, system, timeout)
+    elif backend == 'openai':
+        online_enabled = cfg.get('online_enabled', False)
+        if not online_enabled:
+            return '[在线模型未启用，请在 AI 设置中开启"启用在线模型"]'
+        return _call_llm_openai(cfg, prompt, system, timeout)
+    else:
+        return '[AI 后端未启用]'
+
+
+def _call_llm_ollama(cfg: dict, prompt: str, system: str, timeout: int) -> str:
+    """调用 Ollama API 生成文本"""
     api_url = cfg.get('api_url', 'http://localhost:11434').rstrip('/')
     model = cfg.get('model', 'qwen3:8b')
-    timeout = int(cfg.get('timeout', 600))
 
     url = api_url + '/api/generate'
     payload = {
         'model': model,
         'prompt': prompt,
-        'system': system,
         'stream': False,
     }
     if system:
@@ -3509,6 +3562,47 @@ def _call_ollama(prompt: str, system: str = '') -> str:
         return f'[Ollama 调用失败: {e}]'
 
 
+def _call_llm_openai(cfg: dict, prompt: str, system: str, timeout: int) -> str:
+    """调用 OpenAI 协议兼容的远程 API 生成文本"""
+    api_url = cfg.get('online_api_url', 'https://api.openai.com/v1').rstrip('/')
+    model = cfg.get('online_model', 'gpt-4o-mini')
+    api_key = cfg.get('api_key', '')
+
+    if not api_url.endswith('/v1'):
+        if '/v1/' in api_url:
+            api_url = api_url[:api_url.index('/v1') + 3]
+        else:
+            api_url = api_url + '/v1'
+    url = api_url + '/chat/completions'
+
+    messages = []
+    if system:
+        messages.append({'role': 'system', 'content': system})
+    messages.append({'role': 'user', 'content': prompt})
+
+    payload = {
+        'model': model,
+        'messages': messages,
+        'temperature': 0.3,
+    }
+
+    try:
+        import urllib.request
+        headers = {'Content-Type': 'application/json'}
+        if api_key:
+            headers['Authorization'] = f'Bearer {api_key}'
+        req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'),
+                                    headers=headers)
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            result = json.loads(resp.read().decode('utf-8'))
+            choices = result.get('choices', [])
+            if choices:
+                return choices[0].get('message', {}).get('content', '').strip()
+            return ''
+    except Exception as e:
+        return f'[OpenAI API 调用失败: {e}]'
+
+
 def parse_intent(user_message: str) -> dict:
     """解析用户意图，返回结构化信息"""
     system_prompt = """你是一个数据库巡检助手。用户会用自然语言描述巡检需求。
@@ -3522,7 +3616,7 @@ def parse_intent(user_message: str) -> dict:
 只输出 JSON，不要输出其他内容。"""
 
     prompt = f'输入："{user_message}"'
-    response = _call_ollama(prompt, system_prompt)
+    response = _call_llm(prompt, system_prompt)
 
     # 解析 JSON
     try:

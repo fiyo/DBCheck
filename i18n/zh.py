@@ -228,6 +228,8 @@ ZI = {
     "webui.ai_title": "AI 诊断设置",
     "webui.ai_enable_desc": "开启 AI 诊断后，每次巡检完成后将自动把关键指标发给大语言模型，生成个性化优化建议，附加在报告中。",
     "webui.ai_warn": "注意：AI 诊断仅发送指标数值，不发送密码等敏感信息。",
+    "webui.ai_online_enable": "启用在线模型",
+    "webui.ai_online_enable_hint": "默认关闭，数据仅在本地处理。开启后可调用 OpenAI / DeepSeek 等远程 API，数据将通过网络发送至第三方",
     "webui.ai_save_ok": "AI 配置已保存",
     "webui.ai_save_fail": "保存失败",
     "webui.ai_ollama_url": "Ollama API 地址",

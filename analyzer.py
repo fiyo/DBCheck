@@ -1220,16 +1220,16 @@ class HistoryManager:
 
 
 # ═══════════════════════════════════════════════════════
-#  4. AI 诊断适配器（仅支持本地 Ollama）
+#  4. AI 诊断适配器
 # ═══════════════════════════════════════════════════════
 #
-# 安全限制：
-# 1. 仅支持本地 Ollama（backend='ollama'）或关闭（'disabled'）
-# 2. 不支持 OpenAI、DeepSeek 等任何远程 AI API（会被强制降级为 disabled）
-# 3. Ollama 的 API 地址必须为本地地址（localhost / 127.0.0.1），非本地地址将被拒绝
+# 安全策略：
+# 1. 默认仅支持本地 Ollama（backend='ollama'）或关闭（'disabled'）
+# 2. 必须在 ai_config.json 中设置 "online_enabled": true 才能调用远程模型
+# 3. 远程模型支持 OpenAI 协议兼容的 API（OpenAI/DeepSeek/自定义端点）
+# 4. Ollama 模式下 API 地址必须为本地地址（localhost/127.0.0.1）
 #
 # 配置优先级：代码传参 > ai_config.json > 环境变量
-# 所有诊断数据在本地处理，绝不外传。
 #
 
 def _is_localhost_url(url: str) -> bool:
@@ -1246,15 +1246,17 @@ def _is_localhost_url(url: str) -> bool:
 
 class AIAdvisor:
     """
-    AI 诊断适配器 —— **仅支持本地部署的 Ollama**。
+    AI 诊断适配器。
 
     支持模式：
     - ollama   : 本地 Ollama（默认 http://localhost:11434，地址必须是本地）
+    - openai   : OpenAI 协议兼容的远程模型（需在 ai_config.json 中启用 online_enabled）
     - disabled : 关闭 AI 诊断
 
-    为安全起见：
-    - 不支持任何远程 AI API（openai/deepseek/custom 等均被拒绝）
-    - API 地址必须为 localhost/127.0.0.1，非本地地址将导致 AI 诊断禁用
+    在线模型安全策略：
+    - 默认不启用（online_enabled: false），防止数据外泄
+    - 需用户明确在 AI 设置页开启「启用在线模型」开关
+    - 开启后可调用 OpenAI / DeepSeek 等兼容 /v1/chat/completions 的 API
     """
 
     METRIC_LABELS_ZH = {
@@ -1318,48 +1320,107 @@ class AIAdvisor:
     def __init__(self, backend: str = None, api_key: str = None,
                  api_url: str = None, model: str = None,
                  rag_enabled: bool = True):
-        # ── 安全限制 1: 只允许 ollama 或 disabled ──
+        # ── 加载 ai_config.json 获取在线模型开关 ──
+        _online_enabled = False
+        _online_backend = 'openai'
+        _online_api_url = 'https://api.openai.com/v1'
+        _online_model = 'gpt-4o-mini'
+        _config_api_key = ''
+        _config_rag = {}
+        try:
+            import os as _os
+            _cfg_path = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), 'ai_config.json')
+            if _os.path.exists(_cfg_path):
+                import json as _json
+                with open(_cfg_path, 'r', encoding='utf-8') as _f:
+                    _cfg = _json.load(_f)
+                _online_enabled = _cfg.get('online_enabled', False)
+                _online_backend = _cfg.get('online_backend', 'openai')
+                _online_api_url = _cfg.get('online_api_url', 'https://api.openai.com/v1')
+                _online_model = _cfg.get('online_model', 'gpt-4o-mini')
+                _config_api_key = _cfg.get('api_key', '')
+                _config_rag = _cfg.get('rag', {})
+        except Exception:
+            pass  # 配置文件读取失败时不阻塞
+
+        # ── 安全限制：默认只允许 ollama 或 disabled ──
         raw_backend = (backend or os.environ.get('DBCHECK_AI_BACKEND', 'disabled')).lower()
+
         if raw_backend == 'openai':
-            print("⚠️  安全限制：远程 AI API 已禁用，AI 诊断仅支持本地 Ollama")
-            raw_backend = 'disabled'
+            if not _online_enabled:
+                print("⚠️  在线模型未启用（online_enabled=false），已禁用 AI 诊断。请在 AI 设置中开启「启用在线模型」")
+                raw_backend = 'disabled'
+            # else: allow openai backend
         elif raw_backend not in ('ollama', 'disabled'):
-            print(f"⚠️  安全限制：不支持的 backend '{raw_backend}'，已禁用 AI 诊断")
+            print(f"⚠️  不支持的 backend '{raw_backend}'，已禁用 AI 诊断")
             raw_backend = 'disabled'
         self.backend = raw_backend
 
-        # ── 安全限制 2: URL 必须是本地地址 ──
+        # ── URL 校验：在线模型不限制地址，Ollama 必须是本地 ──
         resolved_url = api_url or os.environ.get('DBCHECK_AI_URL', 'http://localhost:11434')
-        if self.backend == 'ollama' and not _is_localhost_url(resolved_url):
-            print(f"⚠️  安全限制：API 地址 {resolved_url} 不是本地地址，AI 诊断已禁用")
-            self.backend = 'disabled'
+        if self.backend == 'ollama':
+            if not _is_localhost_url(resolved_url):
+                print(f"⚠️  安全限制：API 地址 {resolved_url} 不是本地地址，AI 诊断已禁用")
+                self.backend = 'disabled'
+        elif self.backend == 'openai':
+            # 在线模型：优先使用代码传参，其次 ai_config.json 中的 online_api_url
+            if not api_url:
+                resolved_url = _online_api_url or 'https://api.openai.com/v1'
 
-        self.api_key = ''  # 本地 Ollama 不需要 API Key
+        # ── API Key：在线模型需要，Ollama 不需要 ──
+        if self.backend == 'openai':
+            self.api_key = api_key or _config_api_key or os.environ.get('DBCHECK_AI_API_KEY', '')
+            if not self.api_key:
+                print("⚠️  在线模型已启用但未配置 API Key，AI 诊断可能失败")
+        else:
+            self.api_key = ''
+
         self.api_url = resolved_url
-        self.model   = model   or os.environ.get('DBCHECK_AI_MODEL', 'qwen3:8b')
 
-        if self.backend == 'ollama' and not model and not os.environ.get('DBCHECK_AI_MODEL'):
-            self.model = 'qwen3:8b'
+        # ── 模型选择 ──
+        if self.backend == 'openai':
+            self.model = model or _online_model or 'gpt-4o-mini'
+        elif self.backend == 'ollama':
+            self.model = model or os.environ.get('DBCHECK_AI_MODEL', 'qwen3:8b')
+            if not model and not os.environ.get('DBCHECK_AI_MODEL'):
+                self.model = 'qwen3:8b'
+        else:
+            self.model = model or ''
 
         # ── RAG 知识库初始化（静默降级，失败不影响 AI 诊断主流程）─────────
         self.rag_enabled = False
         self.rag_retriever = None
-        if rag_enabled and self.backend == 'ollama':
-            self._init_rag()
+        if rag_enabled and self.backend in ('ollama', 'openai'):
+            # 加载 RAG 配置
+            rag_cfg_enabled = _config_rag.get('enabled', True) if _config_rag else True
+            if rag_cfg_enabled:
+                self._init_rag(_config_rag)
 
-    def _init_rag(self):
+    def _init_rag(self, rag_config: dict = None):
         """初始化 RAG 知识库（失败时静默降级）"""
         try:
             from rag import RAGRetriever, VectorStore, OllamaEmbedding
             vs = VectorStore()
-            emb = OllamaEmbedding(api_url=self.api_url)
+            embedding_model_name = rag_config.get('embedding_model', 'nomic-embed-text') if rag_config else 'nomic-embed-text'
+
+            # 在线模型使用 OpenAI embedding，本地 Ollama 使用 OllamaEmbedding
+            if self.backend == 'openai':
+                # 使用 OpenAI 兼容的 embedding API
+                from rag import OpenAIEmbedding
+                emb = OpenAIEmbedding(
+                    api_url=self.api_url,
+                    api_key=self.api_key,
+                    model=embedding_model_name or 'text-embedding-3-small'
+                )
+            else:
+                emb = OllamaEmbedding(api_url=self.api_url, model=embedding_model_name)
+
             self.rag_retriever = RAGRetriever(vs, emb)
             self.rag_enabled = True
             print("[AIAdvisor] RAG 知识库已启用")
         except Exception as e:
             self.rag_enabled = False
             self.rag_retriever = None
-            # 仅 debug 级别输出，不影响用户体验
             import sys
             if '-v' in sys.argv or '--verbose' in sys.argv:
                 print(f"[AIAdvisor] RAG 初始化跳过: {e}")
@@ -1601,11 +1662,22 @@ Format requirement (output Markdown directly, no prefixes like "Here are"):
         try:
             if self.backend == 'ollama':
                 return self._call_ollama(prompt, timeout)
+            elif self.backend == 'openai':
+                return self._call_openai(prompt, timeout)
             else:
                 return ''
         except Exception as e:
             print(f"⚠️  AI 诊断调用失败 [{self.backend}]: {e}")
             import traceback; traceback.print_exc()
+            return ''
+
+    def _call_llm(self, prompt: str, timeout: int = 60) -> str:
+        """通用 LLM 调用入口，根据 backend 自动路由到对应后端方法"""
+        if self.backend == 'ollama':
+            return self._call_ollama(prompt, timeout)
+        elif self.backend == 'openai':
+            return self._call_openai(prompt, timeout)
+        else:
             return ''
 
     def _call_ollama(self, prompt: str, timeout: int) -> str:
@@ -1630,6 +1702,40 @@ Format requirement (output Markdown directly, no prefixes like "Here are"):
             import re
             raw = re.sub(r'<\|reserved_for_thinking\|>[\s\S]*?<\|end_of_thought\|>', '', raw)
             return raw
+
+    def _call_openai(self, prompt: str, timeout: int) -> str:
+        """调用 OpenAI 协议兼容的远程 API（/v1/chat/completions）"""
+        import urllib.request
+        import json as _json
+        # 规范化 URL：去掉尾部斜杠，确保以 /v1 结尾，追加 /chat/completions
+        url = self.api_url.rstrip('/')
+        if not url.endswith('/v1'):
+            if '/v1/' in url:
+                url = url[:url.index('/v1') + 3]
+            else:
+                url = url + '/v1'
+        url = url + '/chat/completions'
+
+        payload = _json.dumps({
+            'model': self.model,
+            'messages': [
+                {'role': 'user', 'content': prompt}
+            ],
+            'temperature': 0.3,
+        }).encode('utf-8')
+
+        req = urllib.request.Request(url, data=payload, method='POST')
+        req.add_header('Content-Type', 'application/json')
+        if self.api_key:
+            req.add_header('Authorization', f'Bearer {self.api_key}')
+
+        with urllib.request.urlopen(req, timeout=max(timeout, 300)) as resp:
+            data = _json.loads(resp.read().decode('utf-8'))
+            # OpenAI 协议响应格式: choices[0].message.content
+            choices = data.get('choices', [])
+            if choices:
+                return choices[0].get('message', {}).get('content', '').strip()
+            return ''
 
 
 # ═══════════════════════════════════════════════════════

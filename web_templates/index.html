@@ -3991,6 +3991,17 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
             <strong style="color:var(--warn)">注意：</strong>AI 诊断仅发送指标数值，不发送密码等敏感信息。
           </div>
 
+          <!-- 在线模型开关 -->
+          <div class="form-group" style="background:var(--surface2);border-radius:8px;padding:12px 14px">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+              <input type="checkbox" id="ai-online-enabled" style="width:auto;margin:0" onchange="onOnlineEnabledChange()"/>
+              <span style="font-weight:600" data-i18n="webui.ai_online_enable">启用在线模型</span>
+            </label>
+            <div style="font-size:11.5px;color:var(--text-muted);margin-top:4px;margin-left:24px" data-i18n="webui.ai_online_enable_hint">
+              默认关闭，数据仅在本地处理。开启后可调用 OpenAI / DeepSeek 等远程 API，数据将通过网络发送至第三方
+            </div>
+          </div>
+
           <div class="form-group">
             <label data-i18n="webui.ai_backend">后端类型</label>
             <select id="ai-backend" style="width:100%;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13.5px" onchange="onAIBackendChange()">
@@ -5979,10 +5990,16 @@ async function loadAIConfig() {
     const res = await fetch('/api/ai_config');
     const data = await res.json();
     const cfg = data;  // API 直接返回配置对象，无嵌套
+    // 在线模型开关
+    document.getElementById('ai-online-enabled').checked = cfg.online_enabled === true;
     document.getElementById('ai-backend').value = cfg.backend || 'disabled';
     document.getElementById('ai-api-key').value = cfg.api_key === '***' ? '' : (cfg.api_key || '');
     document.getElementById('ai-api-url').value = cfg.api_url || '';
     document.getElementById('ai-model').value = cfg.model || '';
+    if (cfg.online_enabled) {
+      document.getElementById('ai-api-url').value = cfg.online_api_url || 'https://api.openai.com/v1';
+      document.getElementById('ai-model').value = cfg.online_model || 'gpt-4o-mini';
+    }
     if (cfg.api_url && cfg.api_url.includes('localhost')) {
       document.getElementById('ai-ollama-url').value = cfg.api_url;
       document.getElementById('ai-ollama-model').value = cfg.model || '';
@@ -5994,6 +6011,7 @@ async function loadAIConfig() {
       document.getElementById('rag-embedding-model').value = cfg.rag.embedding_model || 'nomic-embed-text';
       document.getElementById('rag-top-k').value = cfg.rag.top_k || 3;
     }
+    onOnlineEnabledChange();
     onAIBackendChange();
   } catch(e) { console.error(e); }
 }
@@ -6061,21 +6079,56 @@ async function executeFixSql(taskId, sql) {
 //  i18n 初始化
 // ══════════════════════════════════════════════════════════════
 
+function onOnlineEnabledChange() {
+  const enabled = document.getElementById('ai-online-enabled').checked;
+  const backendSelect = document.getElementById('ai-backend');
+  // 控制 openai 选项是否可用
+  const openaiOption = backendSelect.querySelector('option[value="openai"]');
+  if (openaiOption) {
+    openaiOption.disabled = !enabled;
+    if (!enabled) {
+      openaiOption.textContent = '🔒 OpenAI / 兼容 API（需先开启「启用在线模型」）';
+    } else {
+      openaiOption.textContent = '🌐 OpenAI / 兼容 API（DeepSeek、Azure 等）';
+    }
+  }
+  // 如果当前选中 openai 但在线模型被关闭，切回 disabled
+  if (!enabled && backendSelect.value === 'openai') {
+    backendSelect.value = 'disabled';
+  }
+  onAIBackendChange();
+}
+
 function onAIBackendChange() {
   const b = document.getElementById('ai-backend').value;
-  document.getElementById('ai-openai-fields').style.display  = b === 'openai'  ? 'block' : 'none';
+  const onlineEnabled = document.getElementById('ai-online-enabled').checked;
+  document.getElementById('ai-openai-fields').style.display  = (b === 'openai' && onlineEnabled) ? 'block' : 'none';
   document.getElementById('ai-ollama-fields').style.display  = b === 'ollama'  ? 'block' : 'none';
-  document.getElementById('rag-config-fields').style.display  = b === 'ollama'  ? 'block' : 'none';
+  document.getElementById('rag-config-fields').style.display  = (b === 'ollama' || (b === 'openai' && onlineEnabled)) ? 'block' : 'none';
   document.getElementById('ai-save-banner').style.display = 'none';
 }
 
 async function saveAIConfig() {
   const backend = document.getElementById('ai-backend').value;
-  let cfg = { backend };
-  if (backend === 'openai') {
+  const onlineEnabled = document.getElementById('ai-online-enabled').checked;
+  let cfg = {
+    backend,
+    online_enabled: onlineEnabled,
+  };
+  if (backend === 'openai' && onlineEnabled) {
     cfg.api_key = document.getElementById('ai-api-key').value;
-    cfg.api_url = document.getElementById('ai-api-url').value || 'https://api.openai.com/v1';
-    cfg.model   = document.getElementById('ai-model').value || 'gpt-4o-mini';
+    cfg.online_backend = 'openai';
+    cfg.online_api_url = document.getElementById('ai-api-url').value || 'https://api.openai.com/v1';
+    cfg.online_model = document.getElementById('ai-model').value || 'gpt-4o-mini';
+    cfg.timeout = parseInt(document.getElementById('ai-timeout').value) || 600;
+    // 保存 RAG 配置（在线模型也可使用 RAG）
+    cfg.rag = {
+      enabled: document.getElementById('rag-enable').checked,
+      embedding_model: document.getElementById('rag-embedding-model').value.trim() || 'text-embedding-3-small',
+      top_k: parseInt(document.getElementById('rag-top-k').value) || 3,
+      chunk_size: 1000,
+      chunk_overlap: 100,
+    };
   } else if (backend === 'ollama') {
     cfg.api_key = '';
     cfg.api_url  = document.getElementById('ai-ollama-url').value || 'http://localhost:11434';

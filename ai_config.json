@@ -1,3 +1,11 @@
 {
-    "backend": "disabled"
+    "backend": "disabled",
+    "online_enabled": false,
+    "rag": {
+        "enabled": true,
+        "embedding_model": "nomic-embed-text",
+        "top_k": 3,
+        "chunk_size": 1000,
+        "chunk_overlap": 100
+    }
 }

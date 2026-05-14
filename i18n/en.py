@@ -205,6 +205,8 @@ EN = {
     "webui.ai_title": "AI Diagnosis Settings",
     "webui.ai_enable_desc": "When enabled, AI diagnosis automatically sends key metrics to the LLM after each inspection to generate personalized optimization recommendations appended to the report.",
     "webui.ai_warn": "Note: AI diagnosis only sends metric values, not passwords or other sensitive information.",
+    "webui.ai_online_enable": "Enable Online Models",
+    "webui.ai_online_enable_hint": "Disabled by default, data is processed locally only. When enabled, you can use OpenAI / DeepSeek and other remote APIs — data will be sent to third-party servers over the network",
     "webui.ai_save_ok": "AI configuration saved",
     "webui.ai_save_fail": "Save failed",
     "webui.ai_ollama_url": "Ollama API URL",

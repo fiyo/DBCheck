@@ -1,9 +1,9 @@
 """
-Ollama Embedding 接口 — 使用本地 Ollama 进行向量化
+Embedding 接口 — 支持本地 Ollama 和 OpenAI 协议兼容的远程服务
 
 安全约束：
-- 仅支持 localhost Ollama（复用 AIAdvisor 的安全检查逻辑）
-- 不支持任何远程 embedding API
+- 本地 Ollama 仅支持 localhost
+- 远程 OpenAI 协议需在 ai_config.json 中启用 online_enabled
 """
 
 import json
@@ -98,3 +98,85 @@ class OllamaEmbedding:
             return len(vec)
         except Exception:
             return 768  # nomic-embed-text 默认维度
+
+
+class OpenAIEmbedding:
+    """使用 OpenAI 协议兼容的远程 embedding API 进行向量化"""
+
+    def __init__(self, api_url: str = "https://api.openai.com/v1",
+                 api_key: str = "",
+                 model: str = "text-embedding-3-small",
+                 timeout: int = 30):
+        self.api_url = api_url.rstrip('/')
+        self.api_key = api_key
+        self.model = model
+        self.timeout = timeout
+
+    def embed_text(self, text: str) -> list[float]:
+        """
+        向量化单条文本，调用 /v1/embeddings
+
+        Args:
+            text: 待向量化的文本
+
+        Returns:
+            向量列表
+
+        Raises:
+            RuntimeError: API 连接失败或返回格式异常
+        """
+        url = f"{self.api_url}/embeddings"
+        payload = json.dumps({
+            "model": self.model,
+            "input": text
+        }).encode('utf-8')
+
+        req = urllib.request.Request(url, data=payload, method='POST')
+        req.add_header('Content-Type', 'application/json')
+        if self.api_key:
+            req.add_header('Authorization', f'Bearer {self.api_key}')
+
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                result = json.loads(resp.read().decode('utf-8'))
+                if 'data' in result and len(result['data']) > 0:
+                    return result['data'][0].get('embedding', [])
+                elif 'error' in result:
+                    raise RuntimeError(f"Embedding API 返回错误: {result['error']}")
+                else:
+                    raise RuntimeError(f"Embedding API 返回格式异常")
+        except urllib.error.HTTPError as e:
+            body = e.read().decode('utf-8', errors='replace')
+            try:
+                err_json = json.loads(body)
+                raise RuntimeError(f"Embedding API HTTP {e.code}: {err_json.get('error', {}).get('message', body)}")
+            except json.JSONDecodeError:
+                raise RuntimeError(f"Embedding API HTTP {e.code}: {body[:200]}")
+        except urllib.error.URLError as e:
+            raise RuntimeError(f"Embedding API 连接失败: {e}")
+
+    def embed_batch(self, texts: list[str], batch_size: int = 16) -> list[list[float]]:
+        """批量向量化"""
+        results = []
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i:i + batch_size]
+            for text in batch:
+                try:
+                    results.append(self.embed_text(text))
+                except RuntimeError:
+                    dim = self.get_dimension()
+                    results.append([0.0] * dim)
+        return results
+
+    def get_dimension(self) -> int:
+        """
+        获取向量维度（通过实际请求一次探测）
+
+        Returns:
+            向量维度，失败时返回默认值 1536
+        """
+        try:
+            vec = self.embed_text("dimension probe")
+            return len(vec)
+        except Exception:
+            return 1536  # text-embedding-3-small 默认维度
