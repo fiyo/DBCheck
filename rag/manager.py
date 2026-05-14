@@ -10,10 +10,11 @@ RAG 文档管理器 — 管理文档的完整生命周期
 
 import os
 import sqlite3
+import json
 
 from .vector_store import VectorStore
 from .document_processor import DocumentProcessor
-from .embeddings import OllamaEmbedding
+from .embeddings import OllamaEmbedding, OpenAIEmbedding
 
 
 class RAGManager:
@@ -33,11 +34,53 @@ class RAGManager:
 
     def __init__(self, db_path: str = "history.db",
                  api_url: str = "http://localhost:11434",
-                 embedding_model: str = "nomic-embed-text"):
+                 embedding_model: str = "nomic-embed-text",
+                 config_path: str = "ai_config.json"):
         self.db_path = db_path
         self.vector_store = VectorStore(db_path)
         self.processor = DocumentProcessor()
-        self.embedding = OllamaEmbedding(api_url=api_url, model=embedding_model)
+        self.api_url = api_url
+        self.embedding_model = embedding_model
+        self.config_path = config_path
+        self.embedding = None
+        self._ensure_embedding()
+
+    def _ensure_embedding(self):
+        """
+        根据 ai_config.json 确保使用正确的 Embedding 后端
+        每次需要 embedding 前调用，自动跟随 AI 配置切换
+        """
+        try:
+            with open(self.config_path, 'r', encoding='utf-8') as f:
+                cfg = json.load(f)
+        except Exception:
+            cfg = {}
+
+        backend = cfg.get('backend', 'ollama')
+        online_enabled = cfg.get('online_enabled', False)
+        rag_cfg = cfg.get('rag', {})
+        rag_model = rag_cfg.get('embedding_model', self.embedding_model)
+
+        use_openai = (backend == 'openai' and online_enabled)
+
+        # 已是正确的后端，跳过重建
+        if self.embedding is not None:
+            if use_openai and isinstance(self.embedding, OpenAIEmbedding):
+                return
+            if not use_openai and isinstance(self.embedding, OllamaEmbedding):
+                return
+
+        if use_openai:
+            self.embedding = OpenAIEmbedding(
+                api_url=cfg.get('online_api_url', 'https://api.openai.com/v1'),
+                api_key=cfg.get('api_key', '') or cfg.get('online_api_key', ''),
+                model=rag_model or 'text-embedding-3-small'
+            )
+        else:
+            self.embedding = OllamaEmbedding(
+                api_url=self.api_url,
+                model=rag_model or 'nomic-embed-text'
+            )
 
     def add_document(self, file_path: str, db_type: str,
                      title: str = None) -> tuple[bool, str]:
@@ -54,8 +97,11 @@ class RAGManager:
 
         Raises:
             ValueError: db_type 不合法或文件验证失败
-            RuntimeError: Ollama 连接失败或处理异常
+            RuntimeError: 向量化失败或处理异常
         """
+        # 确保使用正确的 embedding 后端
+        self._ensure_embedding()
+
         # 验证 db_type
         if db_type.lower() not in self.DB_TYPES:
             return False, (f"无效的数据库类型: {db_type}，"
@@ -82,7 +128,7 @@ class RAGManager:
         try:
             embeddings = self.embedding.embed_batch(texts)
         except Exception as e:
-            return False, f"向量化失败（Ollama 连接异常）: {e}"
+            return False, f"向量化失败: {e}"
 
         if not embeddings or len(embeddings) != len(chunks):
             return False, f"向量化结果数量({len(embeddings)})与分块数量({len(chunks)})不匹配"
@@ -188,9 +234,10 @@ class RAGManager:
                 'total_documents': int,
                 'total_chunks': int,
                 'by_db_type': {'mysql': n, ...},
-                'ollama_model': str,
+                'embedding_model': str,
             }
         """
+        self._ensure_embedding()
         vs_stats = self.vector_store.get_collection_stats()
 
         conn = sqlite3.connect(self.db_path)
@@ -205,18 +252,24 @@ class RAGManager:
             'total_documents': total_docs,
             'total_chunks': vs_stats['total_chunks'],
             'by_db_type': vs_stats['by_db_type'],
-            'ollama_model': self.embedding.model,
+            'embedding_model': self.embedding.model,
         }
 
-    def check_ollama_connection(self) -> tuple[bool, str]:
+    def check_embedding_connection(self) -> tuple[bool, str]:
         """
-        检查 Ollama 连接状态
+        检查当前 Embedding 后端连接状态（自动跟随 AI 配置）
 
         Returns:
             (连接正常?, 状态消息)
         """
+        self._ensure_embedding()
+        backend_name = self.embedding.__class__.__name__.replace('Embedding', '')
         try:
             dim = self.embedding.get_dimension()
-            return True, f"Ollama 连接正常（模型: {self.embedding.model}, 维度: {dim}）"
+            return True, f"{backend_name} 连接正常（模型: {self.embedding.model}, 维度: {dim}）"
         except Exception as e:
-            return False, f"Ollama 连接失败: {e}"
+            return False, f"{backend_name} 连接失败: {e}"
+
+    def check_ollama_connection(self) -> tuple[bool, str]:
+        """向后兼容：调用 check_embedding_connection()"""
+        return self.check_embedding_connection()

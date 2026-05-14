@@ -2152,7 +2152,7 @@ def _get_rag_manager():
 def api_rag_list_documents():
     mgr = _get_rag_manager()
     if mgr is None:
-        return jsonify({'ok': False, 'error': 'RAG 模块未加载，请检查 Ollama 是否运行'})
+        return jsonify({'ok': False, 'error': 'RAG 模块未加载，请检查 Embedding 服务连接'})
     try:
         docs = mgr.list_documents()
         return jsonify({'ok': True, 'documents': docs})
@@ -2200,14 +2200,33 @@ def api_rag_delete_document(doc_id):
 
 @app.route('/api/rag/ollama-status', methods=['GET'])
 def api_rag_ollama_status():
+    """向后兼容：检查当前 Embedding 后端连接状态，同时返回 backend 类型"""
+    mgr = _get_rag_manager()
+    if mgr is None:
+        return jsonify({'ok': False, 'error': 'RAG 模块未加载'})
     try:
-        from rag.embeddings import OllamaEmbedding
-        emb = OllamaEmbedding()
-        # 简单测试：向量化一个测试字符串
-        vec = emb.embed_text('test')
-        if vec and len(vec) > 0:
-            return jsonify({'ok': True, 'model': emb.model, 'dim': len(vec)})
-        return jsonify({'ok': False, 'error': '返回向量为空'})
+        # 读取当前 backend 配置
+        cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_config.json')
+        backend = 'ollama'
+        try:
+            with open(cfg_path, 'r', encoding='utf-8') as f:
+                cfg = json.load(f)
+            backend = cfg.get('backend', 'ollama')
+        except Exception:
+            pass
+
+        ok, msg = mgr.check_embedding_connection()
+        import re
+        result = {'ok': ok, 'backend': backend}
+        if ok:
+            m = re.search(r"模型: (.+?), 维度: (\d+)", msg)
+            if m:
+                result['model'] = m.group(1)
+                result['dim'] = int(m.group(2))
+            result['msg'] = msg
+        else:
+            result['error'] = msg
+        return jsonify(result)
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)})
 

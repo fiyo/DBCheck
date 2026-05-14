@@ -1846,6 +1846,9 @@ EN = {
     "webui.rag_ollama_checking": "Checking Ollama Embedding connection...",
     "webui.rag_ollama_ok": "Ollama Embedding connected ({})",
     "webui.rag_ollama_fail": "Ollama not connected. Please start Ollama and pull the {} model",
+    "webui.rag_embedding_checking": "Checking Embedding service...",
+    "webui.rag_embedding_ok": "Embedding service connected ({})",
+    "webui.rag_embedding_fail": "Embedding service not connected",
 
     # ── Scheduled Jobs ──
     "webui.scheduler_title": "Scheduled Jobs",

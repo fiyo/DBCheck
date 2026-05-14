@@ -2186,7 +2186,7 @@ async function showRagPage() {
   document.getElementById('rag-upload-btn').onclick = uploadRagDocument;
   // 并行加载，但各自捕获错误，互不影响
   loadRagDocuments().catch(e => console.error('loadRagDocuments failed', e));
-  checkRagOllama().catch(e => console.error('checkRagOllama failed', e));
+  checkEmbeddingStatus().catch(e => console.error('checkEmbeddingStatus failed', e));
 }
 
 async function loadRagDocuments() {
@@ -2439,10 +2439,10 @@ async function executeFixSql(taskId, sql) {
 //  i18n 初始化
 // ══════════════════════════════════════════════════════════════
 
-async function checkRagOllama() {
+async function checkEmbeddingStatus() {
   const status = document.getElementById('rag-ollama-status');
   status.style.display = 'block';
-  status.textContent = i18n('webui.rag_ollama_checking') || '正在检查...';
+  status.textContent = i18n('webui.rag_embedding_checking') || '正在检查 Embedding 服务...';
   status.style.background = 'var(--surface2)';
   status.style.color = 'var(--text-muted)';
   try {
@@ -2450,13 +2450,27 @@ async function checkRagOllama() {
     const data = await res.json();
     if (data.ok) {
       status.style.background = '#e8f5e9'; status.style.color = '#2e7d32';
-      status.textContent = (i18n('webui.rag_ollama_ok') || '✅ Ollama Embedding 已连接（{}）').replace('{}', data.model || '');
+      status.textContent = (i18n('webui.rag_embedding_ok') || '✅ Embedding 服务已连接（{}）').replace('{}', data.model || '');
+      updateRagEmbeddingHint(data.backend, data.model || '');
     } else {
       status.style.background = '#fff3e0'; status.style.color = '#e65100';
-      status.textContent = (i18n('webui.rag_ollama_fail') || '⚠ Ollama 未连接').replace('{}', 'nomic-embed-text');
+      status.textContent = (i18n('webui.rag_embedding_fail') || '⚠ Embedding 服务未连接').replace('{}', data.model || '');
+      if (data.backend) updateRagEmbeddingHint(data.backend, '');
     }
   } catch(e) { status.style.background = '#ffebee'; status.style.color = '#c62828'; status.textContent = '检查失败: ' + e.message; }
 }
+// ─── 根据 backend 类型更新 RAG Embedding 提示文本 ──────────────────
+function updateRagEmbeddingHint(backend, model) {
+  const hint = document.getElementById('rag-embedding-hint');
+  if (!hint) return;
+  if (backend === 'openai') {
+    hint.textContent = '使用在线 Embedding API（' + (model || 'text-embedding-ada-002') + '），请确保 API Key 已配置';
+  } else {
+    const m = model || 'nomic-embed-text';
+    hint.textContent = '需先用 Ollama 拉取：ollama pull ' + m;
+  }
+}
+
 
 // ─── 一键修复建议功能 ───────────────────────────────────────
 
@@ -4073,18 +4087,16 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
             </div>
             <div class="form-group">
               <label data-i18n="webui.ai_ollama_model">模型名称</label>
-              <input type="text" id="ai-ollama-model" class="form-input" placeholder="qwen2.5:7b"/>
+              <input type="text" id="ai-ollama-model" class="form-input" placeholder="qwen2.5:7b" oninput="updateOllamaTip()"/>
             </div>
             <div class="form-group">
               <label data-i18n="webui.ai_timeout">超时时间（秒）</label>
               <input type="number" id="ai-timeout" class="form-input" placeholder="600" value="600" min="30" max="3600" style="width:120px"/>
               <span style="font-size:12px;color:var(--text-muted);margin-left:8px" data-i18n="webui.ai_ollama_timeout_hint">建议 300~600 秒，大模型加载较慢</span>
             </div>
-            <div style="background:var(--surface2);border-radius:8px;padding:12px;font-size:12px;color:var(--text-muted);margin-bottom:8px" data-i18n="webui.ai_ollama_tip">
-              💡 完全本地运行，无需 API Key，数据不出本机。先安装 Ollama 并拉取模型：ollama pull qwen2.5:7b
-            </div>
+            <div id="ollama-tip" style="background:var(--surface2);border-radius:8px;padding:12px;font-size:12px;color:var(--text-muted);margin-bottom:8px"></div>
           </div>
-          <!-- RAG 知识库配置（仅在 Ollama 后端时显示） -->
+          <!-- RAG 知识库配置 -->
           <div id="rag-config-fields" style="display:none; margin-top:16px; padding:16px; background:var(--surface2); border-radius:10px;">
             <div class="card-title" style="font-size:14px; margin-bottom:12px;">
               📚 <span data-i18n="webui.rag_title">RAG 知识库</span>
@@ -4099,7 +4111,7 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
             <div class="form-group">
               <label data-i18n="webui.rag_embedding_model">Embedding 模型</label>
               <input type="text" id="rag-embedding-model" class="form-input" placeholder="nomic-embed-text"/>
-              <div style="font-size:11px;color:var(--text-muted);margin-top:4px">需先用 Ollama 拉取：ollama pull nomic-embed-text</div>
+              <div id="rag-embedding-hint" style="font-size:11px;color:var(--text-muted);margin-top:4px"></div>
             </div>
             <div class="form-group">
               <label data-i18n="webui.rag_top_k">检索返回条数 (Top K)</label>
@@ -6139,8 +6151,17 @@ function onAIBackendChange() {
   document.getElementById('ai-ollama-fields').style.display  = b === 'ollama'  ? 'block' : 'none';
   document.getElementById('rag-config-fields').style.display  = (b === 'ollama' || (b === 'openai' && onlineEnabled)) ? 'block' : 'none';
   document.getElementById('ai-save-banner').style.display = 'none';
+  updateOllamaTip();
+
 }
 
+
+function updateOllamaTip() {
+  const tip = document.getElementById('ollama-tip');
+  if (!tip) return;
+  const model = document.getElementById('ai-ollama-model').value.trim() || 'qwen2.5:7b';
+  tip.innerHTML = '💡 完全本地运行，无需 API Key，数据不出本机。先安装 Ollama 并拉取模型：<code>ollama pull ' + model + '</code>';
+}
 async function saveAIConfig() {
   const backend = document.getElementById('ai-backend').value;
   const onlineEnabled = document.getElementById('ai-online-enabled').checked;

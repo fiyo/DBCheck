@@ -1877,6 +1877,9 @@ ZI = {
     "webui.rag_ollama_checking": "正在检查 Ollama Embedding 连接...",
     "webui.rag_ollama_ok": "Ollama Embedding 已连接（{}）",
     "webui.rag_ollama_fail": "Ollama 未连接，请先启动 Ollama 并拉取 {} 模型",
+    "webui.rag_embedding_checking": "正在检查 Embedding 服务...",
+    "webui.rag_embedding_ok": "Embedding 服务已连接（{}）",
+    "webui.rag_embedding_fail": "Embedding 服务未连接",
 
     # ── 定时巡检 ──
     "webui.scheduler_title": "定时巡检任务",

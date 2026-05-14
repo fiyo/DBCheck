@@ -1,6 +1,11 @@
 {
-    "backend": "disabled",
-    "online_enabled": false,
+    "backend": "openai",
+    "online_enabled": true,
+    "api_key": "sk-388a6e67440546c69ca576f8d9e292ce",
+    "online_backend": "openai",
+    "online_api_url": "https://api.deepseek.com/v1",
+    "online_model": "deepseek-v4-pro",
+    "timeout": 600,
     "rag": {
         "enabled": true,
         "embedding_model": "nomic-embed-text",

@@ -81,9 +81,9 @@ class OllamaEmbedding:
             for text in batch:
                 try:
                     results.append(self.embed_text(text))
-                except RuntimeError as e:
+                except RuntimeError:
                     # 单条失败时返回零向量占位，避免中断整批
-                    results.append([0.0] * dim)
+                    results.append([0.0] * self.get_dimension())
         return results
 
     def get_dimension(self) -> int:
