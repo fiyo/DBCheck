@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>服务器巡检报告 - localhost.localdomain</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0d1117; color: #c9d1d9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; padding: 20px; line-height: 1.6; }
+  .container { max-width: 960px; margin: 0 auto; }
+  .header { text-align: center; padding: 40px 20px; background: linear-gradient(135deg, #161b22 0%, #0d1117 100%); border: 1px solid #30363d; border-radius: 12px; margin-bottom: 20px; }
+  .header h1 { font-size: 24px; color: #f0f6fc; margin-bottom: 8px; }
+  .header .subtitle { color: #8b949e; font-size: 14px; }
+  .score-box { font-size: 64px; font-weight: 700; color: #2ea043; margin: 16px 0 4px; }
+  .score-label { font-size: 18px; color: #2ea043; }
+  .meta { color: #8b949e; font-size: 13px; margin-top: 12px; }
+  .section { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+  .section h2 { font-size: 16px; color: #f0f6fc; margin-bottom: 12px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .metric { font-size: 13px; line-height: 2; }
+  .metric b { color: #f0f6fc; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 8px; border-bottom: 1px solid #30363d; color: #8b949e; font-weight: 500; }
+  td { padding: 8px; border-bottom: 1px solid #21262d; }
+  .issue-item { padding: 8px 12px; margin-bottom: 6px; background: rgba(248,81,73,.08); border-left: 3px solid #f85149; border-radius: 4px; font-size: 13px; }
+  .footer { text-align: center; color: #484f58; font-size: 12px; padding: 20px; }
+  @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>🖥️ 服务器巡检报告</h1>
+    <div class="subtitle">localhost.localdomain (192.168.42.219)</div>
+    <div class="score-box">100</div>
+    <div class="score-label">优秀</div>
+    <div class="meta">巡检时间: 2026-05-17 22:28:31 | 内核: 5.10.134-16.2.an8.x86_64 | 运行: 438.2 天</div>
+  </div>
+
+  
+
+  <div class="section">
+    <h2>📊 系统资源</h2>
+    <div class="grid">
+      <div class="metric">
+        <b>🔲 CPU</b><br/>
+        使用率: <b>0.0%</b><br/>
+        物理核心: 16 | 逻辑核心: 16<br/>
+        频率: 2.29 / 2.29 GHz<br/>
+        负载: 0.00 / 0.01 / 0.00
+      </div>
+      <div class="metric">
+        <b>💾 内存</b><br/>
+        总内存: <b>31.10 GB</b><br/>
+        已使用: 3.12 GB (10.0%)<br/>
+        可用: 27.32 GB<br/>
+        Swap: 0.03 / 7.87 GB
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>💿 磁盘</h2>
+    <table>
+      <tr><th>挂载点</th><th>设备</th><th>文件系统</th><th>总量</th><th>已用</th><th>使用率</th></tr>
+      <tr>
+          <td>/</td><td>/dev/mapper/ao-root</td>
+          <td>xfs</td><td>62.0 GB</td>
+          <td>6.2 GB</td>
+          <td style="color:#c9d1d9;font-weight:600">11.0%</td></tr><tr>
+          <td>/home</td><td>/dev/mapper/ao-home</td>
+          <td>xfs</td><td>30.0 GB</td>
+          <td>0.2 GB</td>
+          <td style="color:#c9d1d9;font-weight:600">1.0%</td></tr><tr>
+          <td>/boot</td><td>/dev/vda1</td>
+          <td>xfs</td><td>1.0 GB</td>
+          <td>0.2 GB</td>
+          <td style="color:#c9d1d9;font-weight:600">23.0%</td></tr><tr>
+          <td>/data</td><td>/dev/vda3</td>
+          <td>xfs</td><td>900.0 GB</td>
+          <td>53.0 GB</td>
+          <td style="color:#c9d1d9;font-weight:600">6.0%</td></tr>
+    </table>
+  </div>
+
+  <div class="section"><h2>🌐 网络连通性检测</h2>
+          <table><tr><th>检测项</th><th>状态</th><th>结果</th></tr><tr><td>Ping 114.114.114.114</td><td>❌</td><td>超时</td></tr><tr><td>Ping 8.8.8.8</td><td>❌</td><td>超时</td></tr><tr><td>DNS baidu.com</td><td>❌</td><td>解析失败</td></tr><tr><td>DNS google.com</td><td>❌</td><td>解析失败</td></tr><tr><td>端口 22 (SSH)</td><td>➖</td><td>未监听</td></tr><tr><td>端口 80 (HTTP)</td><td>➖</td><td>未监听</td></tr><tr><td>端口 443 (HTTPS)</td><td>➖</td><td>未监听</td></tr><tr><td>端口 3306 (MySQL)</td><td>➖</td><td>未监听</td></tr><tr><td>端口 5432 (PostgreSQL)</td><td>➖</td><td>未监听</td></tr><tr><td>端口 1521 (Oracle)</td><td>➖</td><td>未监听</td></tr><tr><td>端口 6379 (Redis)</td><td>➖</td><td>未监听</td></tr><tr><td>端口 27017 (MongoDB)</td><td>➖</td><td>未监听</td></tr><tr><td>端口 8080 (HTTP-Alt)</td><td>➖</td><td>未监听</td></tr></table></div>
+  <div class="section"><h2>🔧 服务状态</h2>
+          <table><tr><th>服务</th><th>状态</th></tr><tr><td>nginx</td><td style="color:#8b949e">➖ 未安装</td></tr><tr><td>httpd</td><td style="color:#8b949e">➖ 未安装</td></tr><tr><td>apache2</td><td style="color:#8b949e">➖ 未安装</td></tr><tr><td>mysqld</td><td style="color:#8b949e">➖ 未安装</td></tr><tr><td>mariadb</td><td style="color:#8b949e">➖ 未安装</td></tr><tr><td>postgresql</td><td style="color:#f85149">❌ 已停止</td></tr><tr><td>redis</td><td style="color:#8b949e">➖ 未安装</td></tr><tr><td>redis-server</td><td style="color:#8b949e">➖ 未安装</td></tr><tr><td>mongod</td><td style="color:#8b949e">➖ 未安装</td></tr><tr><td>docker</td><td style="color:#8b949e">➖ 未安装</td></tr><tr><td>containerd</td><td style="color:#8b949e">➖ 未安装</td></tr><tr><td>firewalld</td><td style="color:#2ea043">✅ 运行中</td></tr><tr><td>iptables</td><td style="color:#8b949e">➖ 未安装</td></tr><tr><td>crond</td><td style="color:#2ea043">✅ 运行中</td></tr><tr><td>cron</td><td style="color:#8b949e">➖ 未安装</td></tr><tr><td>sshd</td><td style="color:#2ea043">✅ 运行中</td></tr><tr><td>ntpd</td><td style="color:#8b949e">➖ 未安装</td></tr><tr><td>chronyd</td><td style="color:#2ea043">✅ 运行中</td></tr></table></div>
+
+  <div class="section">
+    <h2>⚙️ Top 进程</h2>
+    <table>
+      <tr><th>PID</th><th>用户</th><th>CPU%</th><th>内存%</th><th>命令</th></tr>
+      <tr>
+          <td>880</td><td>root</td>
+          <td>1.7</td><td>0.1</td>
+          <td style="font-size:12px">/usr/libexec/platform-python -Es /usr/sbin/tuned -l -P</td></tr><tr>
+          <td>4185127</td><td>root</td>
+          <td>1.0</td><td>0.0</td>
+          <td style="font-size:12px">sshd-session: root [priv]</td></tr><tr>
+          <td>1427689</td><td>root</td>
+          <td>0.7</td><td>0.9</td>
+          <td style="font-size:12px">/opt/qaxsafe/qaxsafed</td></tr><tr>
+          <td>409950</td><td>root</td>
+          <td>0.2</td><td>4.8</td>
+          <td style="font-size:12px">java -jar HbgWebCollector-2.30.jar</td></tr><tr>
+          <td>3599188</td><td>root</td>
+          <td>0.2</td><td>0.3</td>
+          <td style="font-size:12px">python main.py</td></tr>
+    </table>
+  </div>
+
+  <div class="footer">
+    Generated by DBCheck — Database Intelligent Inspection Tool<br/>
+    2026-05-17 22:28:31
+  </div>
+</div>
+</body>
+</html>

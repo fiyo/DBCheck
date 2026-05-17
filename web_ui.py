@@ -133,7 +133,8 @@ def get_reports():
     if os.path.isdir(reports_dir):
         try:
             files = [f for f in os.listdir(reports_dir)
-                     if f.endswith('.docx') and not f.startswith('~$')]
+                     if f.endswith('.docx') and not f.startswith('~$')
+                     and not f.startswith('服务器巡检_')]
         except Exception:
             files = []
         for f in sorted(files, key=lambda x: os.path.getmtime(os.path.join(reports_dir, x)), reverse=True):
@@ -1544,6 +1545,83 @@ def api_reports():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/report_detail/<path:filename>')
+def api_report_detail(filename):
+    """获取报告详情（用于分享）"""
+    try:
+        reports_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reports')
+        fp = os.path.join(reports_dir, filename)
+        if not os.path.isfile(fp):
+            return jsonify({'ok': False, 'msg': '报告文件不存在'}), 404
+
+        # 从 pro_history.db 获取详情
+        result = {'filename': filename, 'db_type': '', 'host': ''}
+        try:
+            pro_db = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pro_data', 'pro_history.db')
+            if os.path.isfile(pro_db):
+                conn = sqlite3.connect(pro_db)
+                cursor = conn.cursor()
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='inspection_history'")
+                if cursor.fetchone():
+                    # 先尝试用 report_path 匹配
+                    cursor.execute(
+                        "SELECT report_path, auto_analyze, health_score, risk_count, risk_level, db_type, instance_name, inspect_time FROM inspection_history WHERE report_path LIKE ?",
+                        ('%' + filename,))
+                    row = cursor.fetchone()
+                    # 如果没找到，尝试用文件名中的时间戳匹配
+                    if not row:
+                        # 从文件名提取时间戳，如 Oracle巡检报告_192.168.42.220_ORACLE19_20260517212935.docx
+                        import re
+                        ts_match = re.search(r'(\d{14})', filename)
+                        if ts_match:
+                            ts = ts_match.group(1)
+                            # 转换为 inspect_time 格式: 2026-05-17T21:29:35
+                            dt_str = f"{ts[:4]}-{ts[4:6]}-{ts[6:8]}T{ts[8:10]}:{ts[10:12]}:{ts[12:14]}"
+                            cursor.execute(
+                                "SELECT report_path, auto_analyze, health_score, risk_count, risk_level, db_type, instance_name, inspect_time FROM inspection_history WHERE inspect_time LIKE ? ORDER BY id DESC LIMIT 1",
+                                (dt_str[:13] + '%',))
+                            row = cursor.fetchone()
+                    # 如果还没找到，用最新的记录
+                    if not row:
+                        cursor.execute(
+                            "SELECT report_path, auto_analyze, health_score, risk_count, risk_level, db_type, instance_name, inspect_time FROM inspection_history ORDER BY id DESC LIMIT 1")
+                        row = cursor.fetchone()
+                    if row:
+                        report_path, auto_analyze_json, health_score, risk_count, risk_level, db_type_db, instance_name, inspect_time = row
+                        result['health_score'] = health_score
+                        result['risk_level'] = risk_level
+                        result['risk_count'] = risk_count
+                        result['db_type'] = db_type_db or ''
+                        result['host'] = instance_name or ''
+                        result['inspect_time'] = inspect_time or ''
+                        if auto_analyze_json:
+                            try:
+                                items = json.loads(auto_analyze_json)
+                                issues = []
+                                for it in items:
+                                    lvl = str(it.get('col4', '') or it.get('col2', ''))
+                                    desc = it.get('col3', '') or it.get('col1', '')
+                                    suggestion = it.get('col5', '') or it.get('suggestion', '')
+                                    issues.append({'level': lvl, 'description': desc, 'suggestion': suggestion})
+                                result['issues'] = issues
+                            except Exception:
+                                pass
+                conn.close()
+        except Exception:
+            pass
+
+        # 推断数据库类型（如果数据库中没有）
+        if not result['db_type']:
+            result['db_type'] = 'DM8' if 'DM8' in filename or '达梦' in filename else \
+                                'Oracle' if 'Oracle' in filename else \
+                                'PostgreSQL' if 'PG' in filename or 'PostgreSQL' in filename else 'MySQL'
+        if not result['inspect_time']:
+            result['inspect_time'] = datetime.datetime.fromtimestamp(os.path.getmtime(fp)).strftime('%Y-%m-%d %H:%M:%S')
+
+        return jsonify({'ok': True, 'result': result})
+    except Exception as e:
+        return jsonify({'ok': False, 'msg': str(e)}), 500
+
 @app.route('/api/download/<task_id>')
 def api_download_by_task(task_id):
     task = tasks.get(task_id)
@@ -1922,6 +2000,271 @@ def api_start_config_baseline():
         import traceback, sys
         traceback.print_exc(file=sys.stdout)
         return jsonify({'ok': False, 'msg': repr(e)})
+
+
+@app.route('/api/test_server_ssh', methods=['POST'])
+def api_test_server_ssh():
+    """测试服务器 SSH 连接"""
+    try:
+        data = request.json or {}
+        from server_inspect import test_ssh_connection
+        ok, msg = test_ssh_connection(
+            ssh_host=data.get('ssh_host', ''),
+            ssh_port=int(data.get('ssh_port', 22)),
+            ssh_user=data.get('ssh_user', 'root'),
+            ssh_password=data.get('ssh_password', ''),
+            ssh_key_file=data.get('ssh_key_file', ''),
+        )
+        return jsonify({'ok': ok, 'msg': msg})
+    except Exception as e:
+        return jsonify({'ok': False, 'msg': str(e)})
+
+
+@app.route('/api/server_inspect', methods=['POST'])
+def api_start_server_inspect():
+    """启动服务器巡检任务"""
+    try:
+        data = request.json or {}
+        ssh_host = data.get('ssh_host', '').strip()
+        if not ssh_host:
+            return jsonify({'ok': False, 'msg': '请填写 SSH 主机地址'})
+
+        task_id = str(uuid.uuid4())
+        tasks[task_id] = {
+            'id': task_id,
+            'db_type': 'server',
+            'status': 'running',
+            'started_at': datetime.datetime.now().isoformat(),
+            'log': [],
+        }
+
+        ssh_info = {
+            'ssh_host': ssh_host,
+            'ssh_port': int(data.get('ssh_port', 22)),
+            'ssh_user': data.get('ssh_user', 'root'),
+            'ssh_password': data.get('ssh_password', ''),
+            'ssh_key_file': data.get('ssh_key_file', ''),
+        }
+
+        t = threading.Thread(target=_run_server_inspect_task, args=(task_id, ssh_info))
+        t.daemon = True
+        t.start()
+        return jsonify({'ok': True, 'task_id': task_id})
+    except Exception as e:
+        return jsonify({'ok': False, 'msg': str(e)})
+
+
+def _run_server_inspect_task(task_id, ssh_info):
+    """后台执行服务器巡检"""
+    emit = socketio.emit
+    task = tasks.get(task_id)
+
+    def _emit(event, data):
+        msg = data.get('msg', '')
+        if msg and task is not None:
+            task.setdefault('log', []).append(msg)
+        emit(event, data, room=task_id)
+
+    _emit('log', {'msg': f"[{_ts()}] 🖥️ 开始服务器巡检: {ssh_info['ssh_host']}:{ssh_info['ssh_port']}"})
+
+    try:
+        from server_inspect import run_server_inspection, generate_server_report
+
+        _emit('log', {'msg': f"[{_ts()}] 🔗 正在建立 SSH 连接..."})
+        result = run_server_inspection(
+            ssh_host=ssh_info['ssh_host'],
+            ssh_port=ssh_info['ssh_port'],
+            ssh_user=ssh_info['ssh_user'],
+            ssh_password=ssh_info['ssh_password'],
+            ssh_key_file=ssh_info['ssh_key_file'],
+        )
+
+        if 'error' in result:
+            _emit('error', {'msg': f"[{_ts()}] ❌ {result['error']}"})
+            if task:
+                task['status'] = 'error'
+                task['error'] = result['error']
+            return
+
+        hostname = result.get('hostname', 'unknown')
+        _emit('log', {'msg': f"[{_ts()}] ✅ 连接成功，主机名: {hostname}"})
+        _emit('log', {'msg': f"[{_ts()}] 📊 健康评分: {result.get('health_score', 0)} 分 ({result.get('health_status', '')})"})
+
+        for issue in result.get('issues', []):
+            _emit('log', {'msg': f"[{_ts()}] ⚠️ {issue}"})
+
+        # 网络检测日志
+        net = result.get('network', {})
+        if net.get('ping'):
+            for target, info in net['ping'].items():
+                if info.get('ok'):
+                    _emit('log', {'msg': f"[{_ts()}] 🌐 Ping {target}: {info.get('latency_ms', 0):.1f} ms"})
+                else:
+                    _emit('log', {'msg': f"[{_ts()}] ❌ Ping {target}: 超时"})
+
+        # 服务状态日志
+        services = result.get('services', [])
+        running_count = sum(1 for s in services if s.get('status') == 'running')
+        stopped_count = sum(1 for s in services if s.get('status') == 'stopped')
+        if services:
+            _emit('log', {'msg': f"[{_ts()}] 🔧 服务状态: {running_count} 运行中, {stopped_count} 已停止"})
+
+        _emit('log', {'msg': f"[{_ts()}] 📄 正在生成巡检报告..."})
+        ok, report_path = generate_server_report(result)
+
+        if ok:
+            _emit('log', {'msg': f"[{_ts()}] ✅ 报告已生成: {os.path.basename(report_path)}"})
+        else:
+            _emit('log', {'msg': f"[{_ts()}] ⚠️ 报告生成失败: {report_path}"})
+            report_path = None
+
+        # 保存巡检历史
+        try:
+            from server_inspect import save_server_inspection
+            save_server_inspection(
+                host=ssh_info['ssh_host'],
+                port=ssh_info['ssh_port'],
+                result=result,
+                report_path=report_path or '',
+            )
+            _emit('log', {'msg': f"[{_ts()}] 💾 巡检历史已保存"})
+        except Exception as e:
+            _emit('log', {'msg': f"[{_ts()}] ⚠️ 历史保存失败: {e}"})
+
+        if task:
+            task['status'] = 'done'
+            task['result'] = result
+            task['report_file'] = report_path
+            task['report_name'] = os.path.basename(report_path) if report_path else ''
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        _emit('error', {'msg': f"[{_ts()}] ❌ 巡检异常: {e}"})
+        if task:
+            task['status'] = 'error'
+            task['error'] = str(e)
+
+
+# ── 服务器巡检历史 API ──────────────────────────────────────────
+
+@app.route('/api/server_inspect_history', methods=['GET'])
+def api_server_inspect_history():
+    """获取服务器巡检历史列表"""
+    try:
+        from server_inspect import get_server_inspection_history
+        host = request.args.get('host', '').strip() or None
+        limit = int(request.args.get('limit', 50))
+        history = get_server_inspection_history(host=host, limit=limit)
+        return jsonify({'ok': True, 'history': history})
+    except Exception as e:
+        return jsonify({'ok': False, 'msg': str(e)})
+
+
+@app.route('/api/server_inspect_history/<int:record_id>', methods=['GET'])
+def api_server_inspection_detail(record_id):
+    """获取单条巡检详情"""
+    try:
+        from server_inspect import get_server_inspection_detail
+        record = get_server_inspection_detail(record_id)
+        if not record:
+            return jsonify({'ok': False, 'msg': '记录不存在'}), 404
+        return jsonify({'ok': True, 'record': record})
+    except Exception as e:
+        return jsonify({'ok': False, 'msg': str(e)})
+
+
+@app.route('/api/server_inspect_history/<int:record_id>', methods=['DELETE'])
+def api_delete_server_inspection(record_id):
+    """删除巡检历史记录"""
+    try:
+        from server_inspect import delete_server_inspection
+        ok = delete_server_inspection(record_id)
+        return jsonify({'ok': ok})
+    except Exception as e:
+        return jsonify({'ok': False, 'msg': str(e)})
+
+
+@app.route('/api/server_inspect_share', methods=['POST'])
+def api_server_inspect_share():
+    """生成服务器巡检分享链接"""
+    try:
+        data = request.json or {}
+        result = data.get('result', {})
+        if not result:
+            return jsonify({'ok': False, 'msg': '缺少巡检结果数据'})
+        from server_inspect import create_share
+        title = f"服务器巡检 - {result.get('hostname', result.get('host', 'unknown'))}"
+        share_id = create_share('server_inspect', title, result)
+        share_url = f"/share/{share_id}"
+        return jsonify({'ok': True, 'share_id': share_id, 'share_url': share_url})
+    except Exception as e:
+        return jsonify({'ok': False, 'msg': str(e)})
+
+
+@app.route('/api/db_inspect_share', methods=['POST'])
+def api_db_inspect_share():
+    """生成数据库巡检分享链接"""
+    try:
+        data = request.json or {}
+        result = data.get('result', {})
+        task_id = data.get('task_id', '')
+        if not result:
+            return jsonify({'ok': False, 'msg': '缺少巡检结果数据'})
+        from server_inspect import create_share
+        db_type = result.get('db_type', '数据库')
+        host = result.get('host', result.get('ip', 'unknown'))
+        title = f"{db_type}巡检 - {host}"
+        share_data = {'task_id': task_id, 'result': result}
+        share_id = create_share('db_inspect', title, share_data)
+        share_url = f"/share/{share_id}"
+        return jsonify({'ok': True, 'share_id': share_id, 'share_url': share_url})
+    except Exception as e:
+        return jsonify({'ok': False, 'msg': str(e)})
+
+
+@app.route('/share/<share_id>')
+def view_share(share_id):
+    """查看分享的巡检报告（独立页面，无导航）"""
+    from server_inspect import get_share
+    share = get_share(share_id)
+    if not share:
+        return render_template('index.html'), 404
+    return render_template('share.html',
+                         share_id=share_id,
+                         share_type=share['share_type'],
+                         title=share['title'],
+                         data_json=json.dumps(share['data'], ensure_ascii=False),
+                         created_at=share['created_at'])
+
+
+@app.route('/api/share/<share_id>', methods=['GET'])
+def api_get_share(share_id):
+    """获取分享数据的 API"""
+    from server_inspect import get_share
+    share = get_share(share_id)
+    if not share:
+        return jsonify({'ok': False, 'msg': '分享链接不存在或已过期'})
+    return jsonify({'ok': True, **share})
+
+
+@app.route('/api/share/<share_id>', methods=['DELETE'])
+def api_delete_share(share_id):
+    """删除分享链接"""
+    from server_inspect import delete_share
+    ok = delete_share(share_id)
+    return jsonify({'ok': ok})
+
+
+@app.route('/api/shares', methods=['GET'])
+def api_list_shares():
+    """获取所有分享链接列表"""
+    try:
+        from server_inspect import list_shares
+        shares = list_shares()
+        return jsonify({'ok': True, 'shares': shares})
+    except Exception as e:
+        return jsonify({'ok': False, 'msg': str(e)})
 
 
 @app.route('/api/start_index_health', methods=['POST'])

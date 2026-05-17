@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ title }} - DBCheck 分享报告</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    padding: 20px;
+    line-height: 1.6;
+  }
+  .container { max-width: 960px; margin: 0 auto; }
+  .header {
+    text-align: center;
+    padding: 40px 20px;
+    background: linear-gradient(135deg, #161b22 0%, #0d1117 100%);
+    border: 1px solid #30363d;
+    border-radius: 12px;
+    margin-bottom: 20px;
+  }
+  .header h1 { font-size: 24px; color: #f0f6fc; margin-bottom: 8px; }
+  .header .subtitle { color: #8b949e; font-size: 14px; }
+  .score-box { font-size: 64px; font-weight: 700; margin: 16px 0 4px; }
+  .score-label { font-size: 18px; }
+  .meta { color: #8b949e; font-size: 13px; margin-top: 12px; }
+  .section {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .section h2 { font-size: 16px; color: #f0f6fc; margin-bottom: 12px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .metric { font-size: 13px; line-height: 2; }
+  .metric b { color: #f0f6fc; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    text-align: left;
+    padding: 8px;
+    border-bottom: 1px solid #30363d;
+    color: #8b949e;
+    font-weight: 500;
+  }
+  td { padding: 8px; border-bottom: 1px solid #21262d; }
+  .issue-item {
+    padding: 8px 12px;
+    margin-bottom: 6px;
+    background: rgba(248,81,73,.08);
+    border-left: 3px solid #f85149;
+    border-radius: 4px;
+    font-size: 13px;
+  }
+  .advice-item {
+    padding: 8px 12px;
+    margin-bottom: 6px;
+    background: rgba(56,139,253,.08);
+    border-left: 3px solid #388bfd;
+    border-radius: 4px;
+    font-size: 13px;
+  }
+  .footer {
+    text-align: center;
+    color: #484f58;
+    font-size: 12px;
+    padding: 20px;
+    border-top: 1px solid #21262d;
+    margin-top: 20px;
+  }
+  .footer a { color: #58a6ff; text-decoration: none; }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  @media (max-width: 600px) {
+    .grid { grid-template-columns: 1fr; }
+    .score-box { font-size: 48px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div id="report-content"></div>
+  <div class="footer">
+    <p>由 <a href="/">DBCheck</a> 生成 | 分享于 {{ created_at }}</p>
+    <p style="margin-top:8px;font-size:11px;color:#484f58">此报告为只读分享，仅包含巡检结果数据</p>
+  </div>
+</div>
+
+<script>
+const shareType = '{{ share_type }}';
+const data = {{ data_json | safe }};
+
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function scoreColor(s) {
+  if (s >= 90) return '#2ea043';
+  if (s >= 75) return '#388bfd';
+  if (s >= 60) return '#e3b341';
+  return '#f85149';
+}
+
+function pctColor(p) {
+  if (p > 90) return '#f85149';
+  if (p > 80) return '#e3b341';
+  return '#c9d1d9';
+}
+
+function renderServerReport(r) {
+  const score = r.health_score || 0;
+  const sc = scoreColor(score);
+  const host = r.host || '';
+  const hostname = r.hostname || host;
+
+  let html = `
+    <div class="header">
+      <h1>🖥️ 服务器巡检报告</h1>
+      <div class="subtitle">${esc(hostname)} ${host ? '(' + esc(host) + ')' : ''}</div>
+      <div class="score-box" style="color:${sc}">${score}</div>
+      <div class="score-label" style="color:${sc}">${esc(r.health_status || '未知')}</div>
+      <div class="meta">巡检时间: ${esc(r.inspect_time || '-')} | 内核: ${esc(r.kernel || '-')} | 运行: ${r.uptime_days || 0} 天</div>
+    </div>`;
+
+  // 问题
+  if (r.issues && r.issues.length > 0) {
+    html += '<div class="section"><h2>⚠️ 发现的问题</h2>';
+    r.issues.forEach(i => { html += `<div class="issue-item">${esc(i)}</div>`; });
+    html += '</div>';
+  }
+
+  // 系统资源
+  const cpu = r.cpu || {};
+  const mem = r.memory || {};
+  html += `
+    <div class="section">
+      <h2>📊 系统资源</h2>
+      <div class="grid">
+        <div class="metric">
+          <b>🔲 CPU</b><br/>
+          使用率: <b>${(cpu.usage_percent || 0).toFixed(1)}%</b><br/>
+          物理核心: ${cpu.physical_cores || '-'} | 逻辑核心: ${cpu.logical_cores || '-'}<br/>
+          频率: ${cpu.current_frequency || '-'} / ${cpu.max_frequency || '-'} GHz<br/>
+          负载: ${(cpu.load_1m || 0).toFixed(2)} / ${(cpu.load_5m || 0).toFixed(2)} / ${(cpu.load_15m || 0).toFixed(2)}
+        </div>
+        <div class="metric">
+          <b>💾 内存</b><br/>
+          总内存: <b>${(mem.total_gb || 0).toFixed(2)} GB</b><br/>
+          已使用: ${(mem.used_gb || 0).toFixed(2)} GB (${(mem.usage_percent || 0).toFixed(1)}%)<br/>
+          可用: ${(mem.available_gb || 0).toFixed(2)} GB<br/>
+          Swap: ${(mem.swap_total_gb || 0).toFixed(2)} GB (使用 ${(mem.swap_usage_percent || 0).toFixed(1)}%)
+        </div>
+      </div>
+    </div>`;
+
+  // 磁盘
+  if (r.disk && r.disk.length > 0) {
+    html += `<div class="section"><h2>💿 磁盘使用</h2><table>
+      <tr><th>挂载点</th><th>设备</th><th>类型</th><th>总容量</th><th>已使用</th><th>使用率</th></tr>`;
+    r.disk.forEach(d => {
+      const p = d.usage_percent || 0;
+      html += `<tr>
+        <td>${esc(d.mountpoint)}</td><td>${esc(d.device)}</td><td>${esc(d.fstype)}</td>
+        <td>${(d.total_gb || 0).toFixed(1)} GB</td><td>${(d.used_gb || 0).toFixed(1)} GB</td>
+        <td style="color:${pctColor(p)};font-weight:600">${p.toFixed(1)}%</td></tr>`;
+    });
+    html += '</table></div>';
+  }
+
+  // 网络
+  if (r.network) {
+    let netRows = '';
+    const ping = r.network.ping || {};
+    for (const [target, info] of Object.entries(ping)) {
+      const ok = info.ok;
+      netRows += `<tr><td>Ping ${esc(target)}</td><td>${ok ? '✅' : '❌'}</td><td>${ok ? info.latency_ms.toFixed(1) + ' ms' : '超时'}</td></tr>`;
+    }
+    const dns = r.network.dns || {};
+    for (const [domain, info] of Object.entries(dns)) {
+      netRows += `<tr><td>DNS ${esc(domain)}</td><td>${info.ok ? '✅' : '❌'}</td><td>${info.ok ? '正常' : '解析失败'}</td></tr>`;
+    }
+    const ports = r.network.ports || [];
+    ports.forEach(p => {
+      netRows += `<tr><td>端口 ${p.port} (${esc(p.name)})</td><td>${p.listening ? '✅' : '➖'}</td><td>${p.listening ? '监听中' : '未监听'}</td></tr>`;
+    });
+    if (netRows) {
+      html += `<div class="section"><h2>🌐 网络连通性检测</h2>
+        <table><tr><th>检测项</th><th>状态</th><th>结果</th></tr>${netRows}</table></div>`;
+    }
+  }
+
+  // 服务
+  if (r.services && r.services.length > 0) {
+    html += `<div class="section"><h2>🔧 服务状态</h2>
+      <table><tr><th>服务</th><th>状态</th></tr>`;
+    r.services.forEach(s => {
+      let icon, color, label;
+      if (s.status === 'running') { icon = '✅'; color = '#2ea043'; label = '运行中'; }
+      else if (s.status === 'stopped') { icon = '❌'; color = '#f85149'; label = '已停止'; }
+      else { icon = '➖'; color = '#8b949e'; label = '未安装'; }
+      html += `<tr><td>${esc(s.name)}</td><td style="color:${color}">${icon} ${label}</td></tr>`;
+    });
+    html += '</table></div>';
+  }
+
+  // 进程
+  if (r.top_processes && r.top_processes.length > 0) {
+    html += `<div class="section"><h2>📈 Top 进程</h2>
+      <table><tr><th>PID</th><th>用户</th><th>CPU%</th><th>内存%</th><th>命令</th></tr>`;
+    r.top_processes.forEach(p => {
+      html += `<tr><td>${p.pid}</td><td>${esc(p.user)}</td><td>${(p.cpu || 0).toFixed(1)}</td>
+        <td>${(p.mem || 0).toFixed(1)}</td><td style="font-size:12px">${esc((p.command || '').substring(0, 80))}</td></tr>`;
+    });
+    html += '</table></div>';
+  }
+
+  return html;
+}
+
+function renderDbReport(data) {
+  // 数据库巡检报告渲染
+  const r = data.result || data;
+  const dbType = r.db_type || '数据库';
+  const host = r.host || r.ip || '';
+  const score = r.health_score || 0;
+  const sc = scoreColor(score);
+  const riskLevel = r.risk_level || '';
+  const riskColor = riskLevel === 'high' ? '#f85149' : riskLevel === 'medium' ? '#e3b341' : '#2ea043';
+  const riskLabel = riskLevel === 'high' ? '高风险' : riskLevel === 'medium' ? '中风险' : riskLevel === 'low' ? '低风险' : '';
+
+  let html = `
+    <div class="header">
+      <h1>🗄️ ${esc(dbType)}巡检报告</h1>
+      <div class="subtitle">${esc(host)}</div>
+      ${score > 0 ? `<div class="score-box" style="color:${sc}">${score}</div>
+      <div class="score-label" style="color:${sc}">${riskLabel || '健康评分'}</div>` : ''}
+      <div class="meta">巡检时间: ${esc(r.inspect_time || r.created_at || '-')}</div>
+    </div>`;
+
+  // 风险统计卡片
+  if (r.risk_count !== undefined && r.risk_count > 0) {
+    html += `<div class="section">
+      <h2>📊 风险概览</h2>
+      <div style="display:flex;gap:20px;align-items:center">
+        <div style="text-align:center">
+          <div style="font-size:36px;font-weight:700;color:${sc}">${score}</div>
+          <div style="font-size:12px;color:#8b949e">健康评分</div>
+        </div>
+        <div style="flex:1">
+          <div style="display:flex;gap:16px;margin-bottom:8px">
+            <span style="color:#8b949e">风险数量: <b style="color:#f0f6fc">${r.risk_count}</b></span>
+            <span style="color:${riskColor};font-weight:600">${riskLabel}</span>
+          </div>
+          <div style="background:#21262d;border-radius:4px;height:8px;overflow:hidden">
+            <div style="background:${sc};height:100%;width:${score}%;transition:width 0.3s"></div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // 问题列表
+  if (r.issues && r.issues.length > 0) {
+    html += '<div class="section"><h2>⚠️ 发现的问题</h2>';
+    r.issues.forEach(i => {
+      const text = typeof i === 'string' ? i : (i.description || i.title || JSON.stringify(i));
+      const level = i.level || '';
+      const levelColor = level.includes('高') || level.includes('high') ? '#f85149' :
+                         level.includes('中') || level.includes('mid') ? '#e3b341' : '#8b949e';
+      const suggestion = i.suggestion || '';
+      html += `<div class="issue-item">
+        ${level ? `<span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;margin-right:8px;background:${levelColor}20;color:${levelColor}">${esc(level)}</span>` : ''}
+        ${esc(text)}
+        ${suggestion ? `<div style="margin-top:6px;padding-left:12px;color:#58a6ff;font-size:12px">💡 ${esc(suggestion)}</div>` : ''}
+      </div>`;
+    });
+    html += '</div>';
+  }
+
+  // 如果有详细结果，尝试渲染
+  if (r.summary) {
+    html += `<div class="section"><h2>📋 巡检摘要</h2><div class="metric">${esc(r.summary)}</div></div>`;
+  }
+
+  if (r.advice && r.advice.length > 0) {
+    html += '<div class="section"><h2>💡 优化建议</h2>';
+    r.advice.forEach(a => {
+      const text = typeof a === 'string' ? a : (a.description || a.title || JSON.stringify(a));
+      html += `<div class="advice-item">${esc(text)}</div>`;
+    });
+    html += '</div>';
+  }
+
+  // 如果有数据库参数
+  if (r.db_params && Object.keys(r.db_params).length > 0) {
+    html += `<div class="section"><h2>⚙️ 数据库参数</h2><table><tr><th>参数</th><th>值</th></tr>`;
+    for (const [k, v] of Object.entries(r.db_params)) {
+      html += `<tr><td>${esc(k)}</td><td>${esc(String(v))}</td></tr>`;
+    }
+    html += '</table></div>';
+  }
+
+  // 如果有表空间等信息
+  if (r.tablespaces && r.tablespaces.length > 0) {
+    html += `<div class="section"><h2>💾 表空间</h2>
+      <table><tr><th>表空间</th><th>大小</th><th>已使用</th><th>使用率</th></tr>`;
+    r.tablespaces.forEach(t => {
+      html += `<tr><td>${esc(t.name)}</td><td>${esc(t.size || '-')}</td>
+        <td>${esc(t.used || '-')}</td><td>${esc(t.usage || '-')}</td></tr>`;
+    });
+    html += '</table></div>';
+  }
+
+  // 如果没有任何详细数据，显示基本信息
+  if (!r.summary && !r.issues && !r.advice && !r.db_params && !r.tablespaces && !r.risk_count) {
+    html += `<div class="section"><h2>📋 报告信息</h2>
+      <div class="metric">
+        <b>文件名:</b> ${esc(r.filename || '-')}<br/>
+        <b>数据库类型:</b> ${esc(r.db_type || '-')}<br/>
+        <b>主机:</b> ${esc(r.host || '-')}<br/>
+        <b>巡检时间:</b> ${esc(r.inspect_time || '-')}
+      </div></div>`;
+  }
+
+  return html;
+}
+
+// 渲染报告
+const container = document.getElementById('report-content');
+if (shareType === 'server_inspect') {
+  container.innerHTML = renderServerReport(data);
+} else if (shareType === 'db_inspect') {
+  container.innerHTML = renderDbReport(data);
+} else {
+  container.innerHTML = '<div class="section"><h2>未知的报告类型</h2></div>';
+}
+</script>
+</body>
+</html>

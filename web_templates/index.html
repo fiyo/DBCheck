@@ -2180,6 +2180,77 @@ var phrases = ['DBCheck', 'MySQL', 'PostgreSQL', 'Oracle', 'DM'];
   mk(); setInterval(mk, 3200);
 })();
 
+// ─── 通用工具函数 ─────────────────────────────────────
+
+function copyToClipboard(text, msg) {
+  const successMsg = msg || '已复制到剪贴板';
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      toastSuccess(successMsg);
+    }).catch(() => {
+      fallbackCopy(text, successMsg);
+    });
+  } else {
+    fallbackCopy(text, successMsg);
+  }
+}
+
+function fallbackCopy(text, msg) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try {
+    document.execCommand('copy');
+    toastSuccess(msg || '已复制到剪贴板');
+  } catch(e) {
+    // 复制失败，显示链接让用户手动复制
+    showShareLinkDialog(text);
+  }
+  document.body.removeChild(ta);
+}
+
+function showShareLinkDialog(url) {
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:10000';
+  const inputId = 'share-input-' + Date.now();
+  modal.innerHTML = `
+    <div style="background:#1c2128;border:1px solid #30363d;border-radius:12px;padding:24px;max-width:500px;width:90%">
+      <h3 style="margin:0 0 12px;color:#f0f6fc;font-size:16px">📤 分享链接</h3>
+      <p style="margin:0 0 12px;color:#8b949e;font-size:13px">链接已生成，请复制后分享：</p>
+      <input id="${inputId}" type="text" value="${url}" readonly style="width:100%;padding:10px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#58a6ff;font-size:13px;margin-bottom:16px" onclick="this.select()">
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button id="copy-btn-${inputId}" style="padding:8px 16px;background:#238636;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">复制链接</button>
+        <button onclick="this.closest('div[style*=fixed]').remove()" style="padding:8px 16px;background:#30363d;color:#c9d1d9;border:none;border-radius:6px;cursor:pointer;font-size:13px">关闭</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  // 绑定复制按钮事件
+  document.getElementById('copy-btn-' + inputId).onclick = function() {
+    const input = document.getElementById(inputId);
+    input.select();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(() => {
+        this.textContent = '已复制';
+        this.style.background = '#2ea043';
+        setTimeout(() => modal.remove(), 1500);
+      }).catch(() => {
+        document.execCommand('copy');
+        this.textContent = '已复制';
+        this.style.background = '#2ea043';
+        setTimeout(() => modal.remove(), 1500);
+      });
+    } else {
+      document.execCommand('copy');
+      this.textContent = '已复制';
+      this.style.background = '#2ea043';
+      setTimeout(() => modal.remove(), 1500);
+    }
+  };
+}
+
 // ─── RAG 知识库 ─────────────────────────────────────
 async function showRagPage() {
   // 先绑定按钮，不受后续加载影响
@@ -3063,25 +3134,37 @@ function formatBytes(bytes) {
       <p data-i18n="webui.logo_subtitle">基于 AI 的智能数据库巡检工具</p>
     </div>
 
-    <div class="nav-section" data-i18n="webui.nav_section_feature">功能</div>
+    <!-- ── 首页 ── -->
     <div class="nav-item active" onclick="showPage('home')" id="nav-home">
       <span class="icon">🏠</span> <span data-i18n="webui.nav_home">首页</span>
     </div>
+
+    <!-- ── 巡检 ── -->
+    <div class="nav-section" data-i18n="webui.nav_section_inspect">巡检</div>
     <div class="nav-item" onclick="showPage('wizard')" id="nav-wizard">
-      <span class="icon">🔍</span> <span data-i18n="webui.nav_wizard">新建巡检</span>
+      <span class="icon">🔍</span> <span data-i18n="webui.nav_wizard">数据库巡检</span>
+    </div>
+    <div class="nav-item" onclick="showPage('server-inspect')" id="nav-server-inspect">
+      <span class="icon">🖥️</span> <span data-i18n="webui.nav_server_inspect">服务器巡检</span>
     </div>
     <div class="nav-item" onclick="showPage('scheduler')" id="nav-scheduler">
       <span class="icon">⏰</span> <span data-i18n="webui.nav_scheduler">定时巡检</span>
     </div>
-    <!-- <div class="nav-item" onclick="showPage('backup')" id="nav-backup">
-      <span class="icon">💾</span> <span data-i18n="webui.nav_backup">数据库备份</span>
-    </div> -->
+
+    <!-- ── 巡检历史 ── -->
+    <div class="nav-section" data-i18n="webui.nav_section_history">巡检历史</div>
     <div class="nav-item" onclick="showPage('reports')" id="nav-reports">
-      <span class="icon">📄</span> <span data-i18n="webui.reports_title">历史巡检报告</span>
+      <span class="icon">📄</span> <span data-i18n="webui.reports_title">数据库巡检历史</span>
+    </div>
+    <div class="nav-item" onclick="showPage('server-history')" id="nav-server-history">
+      <span class="icon">📜</span> <span data-i18n="webui.nav_server_history">服务器巡检历史</span>
     </div>
     <div class="nav-item" onclick="showPage('trend')" id="nav-trend">
       <span class="icon">📈</span> <span data-i18n="webui.trend_title">历史趋势分析</span>
     </div>
+
+    <!-- ── 巡检配置 ── -->
+    <div class="nav-section" data-i18n="webui.nav_section_inspect_config">巡检配置</div>
     <div class="nav-item" onclick="showPage('datasources')" id="nav-datasources">
       <span class="icon">🗄️</span> <span data-i18n="webui.nav_datasources">数据源管理</span>
     </div>
@@ -3093,21 +3176,26 @@ function formatBytes(bytes) {
     <div class="nav-item" onclick="showPage('rag')" id="nav-rag">
       <span class="icon">📚</span> <span data-i18n="webui.rag_nav">RAG 知识库</span>
     </div>
-    <div class="nav-section" data-i18n="webui.nav_section_setting">设置</div>
-    <div class="nav-item" onclick="showPage('notifier')" id="nav-notifier">
-      <span class="icon">📧</span> <span data-i18n="webui.nav_notifier">通知设置</span>
-    </div>
+
+    <!-- ── 系统配置 ── -->
+    <div class="nav-section" data-i18n="webui.nav_section_system">系统配置</div>
     <div class="nav-item" onclick="showPage('ai')" id="nav-ai">
       <span class="icon">🤖</span> <span data-i18n="webui.nav_ai">AI 诊断设置</span>
     </div>
     <div class="nav-item" onclick="showPage('oracle-client')" id="nav-oracle-client">
-      <span class="icon">🗄️</span> <span data-i18n="webui.nav_oracle_client">Oracle Client 设置</span>
+      <span class="icon">🔧</span> <span data-i18n="webui.nav_oracle_client">Oracle Client</span>
     </div>
-    <div class="nav-item" onclick="showPage('license')" id="nav-license" style="display:none;">
-      <span class="icon">🔑</span> <span data-i18n="webui.nav_license">许可证</span>
+    <div class="nav-item" onclick="showPage('notifier')" id="nav-notifier">
+      <span class="icon">📧</span> <span data-i18n="webui.nav_notifier">通知设置</span>
     </div>
     <div class="nav-item" onclick="showPage('apikey')" id="nav-apikey">
       <span class="icon">🔐</span> <span data-i18n="webui.nav_apikey">API Key 管理</span>
+    </div>
+    <div class="nav-item" onclick="showPage('shares')" id="nav-shares">
+      <span class="icon">🔗</span> <span>分享管理</span>
+    </div>
+    <div class="nav-item" onclick="showPage('license')" id="nav-license" style="display:none;">
+      <span class="icon">🔑</span> <span data-i18n="webui.nav_license">许可证</span>
     </div>
 
     <div class="sidebar-footer">
@@ -4030,6 +4118,17 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
 
       </div>
 
+      <!-- ══ Page: Share Management ══ -->
+      <div class="page" id="page-shares">
+        <div class="card">
+          <div class="card-title"><span>🔗</span> <span>分享管理</span></div>
+          <div style="color:var(--text-muted);font-size:13px;margin-bottom:16px">管理已生成的巡检报告分享链接，可以查看访问次数和删除不需要的链接。</div>
+          <div id="shares-list" style="min-height:100px">
+            <div style="text-align:center;color:var(--text-muted);padding:32px">加载中...</div>
+          </div>
+        </div>
+      </div>
+
       <!-- ══ Page: AI Settings ══ -->
       <div class="page" id="page-ai">
         <div class="card">
@@ -4158,6 +4257,207 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
           <div class="btn-row">
             <button class="btn btn-ghost" onclick="loadOracleClientConfig()" data-i18n="webui.oracle_client_reload">↻ 重新加载</button>
             <button class="btn btn-primary" onclick="saveOracleClientConfig()" data-i18n="webui.oracle_client_save_btn">💾 保存配置</button>
+          </div>
+        </div>
+      </div>
+      <!-- ══ Page: Server Inspection ══ -->
+      <div class="page" id="page-server-inspect">
+        <div class="card">
+          <div class="card-title"><span>🖥️</span> <span data-i18n="webui.server_inspect_title">服务器巡检</span></div>
+          <div style="color:var(--text-muted);font-size:13px;margin-bottom:20px;line-height:1.7;white-space:pre-line" data-i18n="webui.server_inspect_desc">通过 SSH 连接远程服务器，采集 CPU、内存、磁盘、进程等系统指标，生成独立巡检报告。</div>
+
+          <!-- SSH 连接表单 -->
+          <div class="form-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div class="form-group">
+              <label data-i18n="webui.server_inspect_host">SSH 主机地址 *</label>
+              <input type="text" id="si-ssh-host" class="form-input" placeholder="192.168.1.100"/>
+            </div>
+            <div class="form-group">
+              <label data-i18n="webui.server_inspect_port">SSH 端口</label>
+              <input type="number" id="si-ssh-port" class="form-input" value="22" placeholder="22"/>
+            </div>
+            <div class="form-group">
+              <label data-i18n="webui.server_inspect_user">SSH 用户名</label>
+              <input type="text" id="si-ssh-user" class="form-input" value="root" placeholder="root"/>
+            </div>
+            <div class="form-group">
+              <label data-i18n="webui.server_inspect_auth">认证方式</label>
+              <select id="si-ssh-auth" class="form-input" onchange="toggleSiAuth()">
+                <option value="password" data-i18n="webui.server_inspect_auth_pwd">密码认证</option>
+                <option value="key" data-i18n="webui.server_inspect_auth_key">私钥文件</option>
+              </select>
+            </div>
+            <div class="form-group" id="si-pwd-wrap">
+              <label data-i18n="webui.server_inspect_password">SSH 密码</label>
+              <input type="password" id="si-ssh-password" class="form-input" placeholder="SSH 登录密码"/>
+            </div>
+            <div class="form-group" id="si-key-wrap" style="display:none">
+              <label data-i18n="webui.server_inspect_keyfile">私钥文件路径</label>
+              <input type="text" id="si-ssh-key" class="form-input" placeholder="/root/.ssh/id_rsa"/>
+            </div>
+          </div>
+
+          <div id="si-ssh-test-status" style="font-size:12px;margin-top:8px;color:var(--text-muted)"></div>
+
+          <div class="btn-row" style="margin-top:12px">
+            <button class="btn btn-ghost" onclick="testServerSSH()" data-i18n="webui.server_inspect_test_ssh">🔗 测试 SSH 连接</button>
+            <button class="btn btn-primary" onclick="startServerInspect()" data-i18n="webui.server_inspect_start">🚀 开始巡检</button>
+          </div>
+        </div>
+
+        <!-- 巡检日志 -->
+        <div class="card" id="si-log-card" style="margin-top:16px;display:none">
+          <div class="card-title"><span>📋</span> <span data-i18n="webui.server_inspect_log">巡检日志</span></div>
+          <div id="si-log-area" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;font-family:Consolas,Monaco,monospace;font-size:12px;max-height:300px;overflow-y:auto;line-height:1.8;white-space:pre-wrap"></div>
+        </div>
+
+        <!-- 巡检结果 -->
+        <div class="card" id="si-result-card" style="margin-top:16px;display:none">
+          <div class="card-title"><span>📊</span> <span data-i18n="webui.server_inspect_result">巡检结果</span></div>
+
+          <!-- 健康评分 -->
+          <div id="si-health-score" style="text-align:center;padding:20px;margin-bottom:16px"></div>
+
+          <!-- 指标卡片网格 -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <!-- CPU -->
+            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px">
+              <div style="font-weight:600;margin-bottom:10px">🔲 CPU</div>
+              <div id="si-cpu-info" style="font-size:13px;line-height:1.8"></div>
+            </div>
+            <!-- 内存 -->
+            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px">
+              <div style="font-weight:600;margin-bottom:10px">💾 内存</div>
+              <div id="si-mem-info" style="font-size:13px;line-height:1.8"></div>
+            </div>
+          </div>
+
+          <!-- 磁盘 -->
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-top:12px">
+            <div style="font-weight:600;margin-bottom:10px">💿 磁盘</div>
+            <div id="si-disk-info" style="font-size:13px;overflow-x:auto"></div>
+          </div>
+
+          <!-- Top 进程 -->
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-top:12px">
+            <div style="font-weight:600;margin-bottom:10px">⚙️ Top 进程</div>
+            <div id="si-proc-info" style="font-size:13px;overflow-x:auto"></div>
+          </div>
+
+          <!-- 系统信息 -->
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-top:12px">
+            <div style="font-weight:600;margin-bottom:10px">ℹ️ 系统信息</div>
+            <div id="si-sys-info" style="font-size:13px;line-height:1.8"></div>
+          </div>
+
+          <!-- 网络检测 -->
+          <div id="si-network-wrap" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-top:12px;display:none">
+            <div style="font-weight:600;margin-bottom:10px">🌐 <span data-i18n="webui.server_inspect_network">网络连通性检测</span></div>
+            <div id="si-network-info" style="font-size:13px;overflow-x:auto"></div>
+          </div>
+
+          <!-- 服务状态 -->
+          <div id="si-services-wrap" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-top:12px;display:none">
+            <div style="font-weight:600;margin-bottom:10px">🔧 <span data-i18n="webui.server_inspect_services">服务状态</span></div>
+            <div id="si-services-info" style="font-size:13px;overflow-x:auto"></div>
+          </div>
+
+          <!-- 问题列表 -->
+          <div id="si-issues-wrap" style="margin-top:12px;display:none">
+            <div style="font-weight:600;margin-bottom:10px">⚠️ <span data-i18n="webui.server_inspect_issues">发现的问题</span></div>
+            <div id="si-issues" style="font-size:13px"></div>
+          </div>
+
+          <!-- 报告下载 & 分享 -->
+          <div id="si-report-wrap" style="margin-top:16px;display:none;gap:12px;justify-content:center;flex-wrap:wrap">
+            <button class="btn btn-primary" onclick="downloadServerReport()" data-i18n="webui.server_inspect_download">📥 下载巡检报告</button>
+            <button class="btn btn-ghost" onclick="shareServerReport()" data-i18n="webui.server_inspect_share">📤 分享报告</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ Page: Server Inspection History ══ -->
+      <div class="page" id="page-server-history">
+        <div class="card">
+          <div class="card-title"><span>📜</span> <span data-i18n="webui.server_inspect_history">服务器巡检历史</span></div>
+          <div style="color:var(--text-muted);font-size:13px;margin-bottom:16px" data-i18n="webui.server_history_desc">查看历史服务器巡检记录，支持查看详情和删除。</div>
+
+          <!-- 按主机过滤 -->
+          <div style="display:flex;gap:8px;margin-bottom:16px;align-items:center">
+            <input type="text" id="sh-filter-host" class="form-input" style="max-width:300px" placeholder="按主机地址过滤..." data-i18n-placeholder="webui.sh_filter_placeholder"/>
+            <button class="btn btn-ghost" onclick="loadServerHistory()" data-i18n="webui.sh_filter_btn">🔍 筛选</button>
+            <button class="btn btn-ghost" onclick="document.getElementById('sh-filter-host').value='';loadServerHistory()" data-i18n="webui.sh_filter_reset">↻ 重置</button>
+          </div>
+
+          <div id="sh-empty" style="color:var(--text-muted);font-size:13px;padding:40px;text-align:center" data-i18n="webui.server_inspect_history_empty">暂无巡检历史记录</div>
+          <div id="sh-table-wrap" style="display:none;overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:12px">
+              <thead>
+                <tr style="border-bottom:1px solid var(--border)">
+                  <th style="text-align:left;padding:8px" data-i18n="webui.si_hist_time">时间</th>
+                  <th style="padding:8px" data-i18n="webui.si_hist_host">主机</th>
+                  <th style="padding:8px" data-i18n="webui.si_hist_score">评分</th>
+                  <th style="padding:8px">CPU</th>
+                  <th style="padding:8px" data-i18n="webui.si_hist_mem">内存</th>
+                  <th style="padding:8px" data-i18n="webui.si_hist_disk">磁盘</th>
+                  <th style="padding:8px" data-i18n="webui.si_hist_issues">问题</th>
+                  <th style="padding:8px" data-i18n="webui.si_hist_ops">操作</th>
+                </tr>
+              </thead>
+              <tbody id="sh-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 巡检详情弹窗 -->
+        <div class="card" id="sh-detail-card" style="margin-top:16px;display:none">
+          <div class="card-title"><span>📊</span> <span data-i18n="webui.sh_detail_title">巡检详情</span>
+            <button class="btn btn-ghost" style="margin-left:auto;font-size:12px" onclick="document.getElementById('sh-detail-card').style.display='none'" data-i18n="webui.sh_close_detail">✕ 关闭</button>
+          </div>
+          <div id="sh-detail-host-info" style="font-size:13px;color:var(--text-muted);margin-bottom:12px"></div>
+
+          <!-- 健康评分 -->
+          <div id="sh-health-score" style="text-align:center;padding:20px;margin-bottom:16px"></div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px">
+              <div style="font-weight:600;margin-bottom:10px">🔲 CPU</div>
+              <div id="sh-cpu-info" style="font-size:13px;line-height:1.8"></div>
+            </div>
+            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px">
+              <div style="font-weight:600;margin-bottom:10px">💾 内存</div>
+              <div id="sh-mem-info" style="font-size:13px;line-height:1.8"></div>
+            </div>
+          </div>
+
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-top:12px">
+            <div style="font-weight:600;margin-bottom:10px">💿 磁盘</div>
+            <div id="sh-disk-info" style="font-size:13px;overflow-x:auto"></div>
+          </div>
+
+          <div id="sh-network-wrap" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-top:12px;display:none">
+            <div style="font-weight:600;margin-bottom:10px">🌐 网络检测</div>
+            <div id="sh-network-info" style="font-size:13px;overflow-x:auto"></div>
+          </div>
+
+          <div id="sh-services-wrap" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-top:12px;display:none">
+            <div style="font-weight:600;margin-bottom:10px">🔧 服务状态</div>
+            <div id="sh-services-info" style="font-size:13px;overflow-x:auto"></div>
+          </div>
+
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-top:12px">
+            <div style="font-weight:600;margin-bottom:10px">⚙️ Top 进程</div>
+            <div id="sh-proc-info" style="font-size:13px;overflow-x:auto"></div>
+          </div>
+
+          <div id="sh-issues-wrap" style="margin-top:12px;display:none">
+            <div style="font-weight:600;margin-bottom:10px">⚠️ 发现的问题</div>
+            <div id="sh-issues" style="font-size:13px"></div>
+          </div>
+
+          <div id="sh-report-wrap" style="margin-top:16px;display:none;gap:12px;justify-content:center;flex-wrap:wrap">
+            <button class="btn btn-primary" id="sh-download-btn">📥 下载巡检报告</button>
+            <button class="btn btn-ghost" id="sh-share-btn">📤 分享报告</button>
           </div>
         </div>
       </div>
@@ -4476,8 +4776,8 @@ function showPage(name) {
   if (navEl) navEl.classList.add('active');
   const titles = {
     home:    [i18n('webui.home_title'),     i18n('webui.home_subtitle')],
-    wizard:  [i18n('webui.nav_wizard'),    i18n('webui.wizard_desc')],
-    reports: [i18n('webui.reports_title'), i18n('webui.reports_desc')],
+    wizard:  [i18n('webui.nav_wizard') || '数据库巡检',    i18n('webui.wizard_desc')],
+    reports: [i18n('webui.reports_title') || '数据库巡检历史', i18n('webui.reports_desc')],
     trend:   [i18n('webui.trend_title'), i18n('webui.trend_desc')],
     scheduler: [i18n('webui.nav_scheduler'), '管理定时巡检任务'],
     notifier: [i18n('webui.nav_notifier'), '配置邮件和 Webhook 通知'],
@@ -4488,6 +4788,9 @@ function showPage(name) {
     backup:  ['💾 ' + (i18n('webui.backup_title') || '数据库备份管理'), ''],
     apikey:  ['🔐 API Key 管理', '创建和管理 API 访问密钥'],
     account: ['👤 用户中心', '管理账户信息和安全设置'],
+    'server-inspect': [i18n('webui.server_inspect_title') || '🖥️ 服务器巡检', i18n('webui.server_inspect_desc') || 'SSH 远程采集主机指标'],
+    'server-history': [i18n('webui.nav_server_history') || '📜 服务器巡检历史', i18n('webui.server_history_desc') || '查看历史服务器巡检记录'],
+    shares: ['🔗 分享管理', '管理已生成的巡检报告分享链接'],
   };
   const t = titles[name] || [name, ''];
   document.getElementById('topbar-title').textContent = t[0];
@@ -4503,10 +4806,84 @@ function showPage(name) {
   if (name === 'ai') loadAIConfig();
   if (name === 'rag') showRagPage();
   if (name === 'home') loadHomeStats();
+  if (name === 'shares') loadShares();
   if (name === 'backup') loadBackupPage();
   if (name === 'apikey') loadApiKeys();
+  if (name === 'server-history') loadServerHistory();
   if (name === 'account') loadAccountPage();
   if (name === 'oracle-client') loadOracleClientConfig();
+}
+
+// ─── 分享管理 ─────────────────────────────────────
+async function loadShares() {
+  const listEl = document.getElementById('shares-list');
+  listEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:32px">加载中...</div>';
+  try {
+    const res = await fetch('/api/shares');
+    const data = await res.json();
+    if (!data.ok || !data.shares || data.shares.length === 0) {
+      listEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:48px">暂无分享链接</div>';
+      return;
+    }
+    const typeIcon = t => t === 'server_inspect' ? '🖥️' : '🗄️';
+    const typeLabel = t => t === 'server_inspect' ? '服务器巡检' : '数据库巡检';
+    listEl.innerHTML = `
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border)">
+            <th style="text-align:left;padding:10px 12px;color:var(--text-muted);font-weight:500">类型</th>
+            <th style="text-align:left;padding:10px 12px;color:var(--text-muted);font-weight:500">标题</th>
+            <th style="text-align:center;padding:10px 12px;color:var(--text-muted);font-weight:500">访问次数</th>
+            <th style="text-align:left;padding:10px 12px;color:var(--text-muted);font-weight:500">创建时间</th>
+            <th style="text-align:center;padding:10px 12px;color:var(--text-muted);font-weight:500">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${data.shares.map(s => `
+            <tr style="border-bottom:1px solid var(--border)" id="share-row-${s.id}">
+              <td style="padding:10px 12px">${typeIcon(s.share_type)} ${typeLabel(s.share_type)}</td>
+              <td style="padding:10px 12px">
+                <a href="/share/${s.id}" target="_blank" style="color:#58a6ff;text-decoration:none">${escHtml(s.title || '-')}</a>
+              </td>
+              <td style="padding:10px 12px;text-align:center">${s.access_count || 0}</td>
+              <td style="padding:10px 12px;color:var(--text-muted)">${s.created_at || '-'}</td>
+              <td style="padding:10px 12px;text-align:center">
+                <button class="btn btn-ghost" style="font-size:12px;padding:4px 10px" onclick="copyShareLink('${s.id}')">📋 复制</button>
+                <button class="btn btn-danger" style="font-size:12px;padding:4px 10px" onclick="deleteShareItem('${s.id}')">🗑️ 删除</button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>`;
+  } catch(e) {
+    listEl.innerHTML = `<div style="text-align:center;color:var(--error);padding:32px">加载失败: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function copyShareLink(shareId) {
+  const url = window.location.origin + '/share/' + shareId;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(() => toastSuccess('链接已复制'));
+  } else {
+    prompt('请手动复制：', url);
+  }
+}
+
+async function deleteShareItem(shareId) {
+  if (!confirm('确定删除这条分享链接？删除后将无法访问。')) return;
+  try {
+    const res = await fetch('/api/share/' + shareId, {method: 'DELETE'});
+    const data = await res.json();
+    if (data.ok) {
+      const row = document.getElementById('share-row-' + shareId);
+      if (row) row.remove();
+      toastSuccess('已删除');
+    } else {
+      toastError(data.msg || '删除失败');
+    }
+  } catch(e) {
+    toastError('请求失败: ' + e.message);
+  }
 }
 
 function startWizard() {
@@ -5443,6 +5820,7 @@ function pollStatus() {
               <p>${escHtml(data.report_name || '')}</p>
             </div>
             <a class="btn btn-success" href="/api/download/${currentTaskId}" download>${i18n('webui.btn_download_report')}</a>
+            <button class="btn btn-ghost" onclick="shareDbInspectReport('${currentTaskId}')">${i18n('webui.btn_share_report') || '📤 分享报告'}</button>
           </div>
           ${analyzeHtml}
           ${aiHtml}`;
@@ -5456,6 +5834,45 @@ function pollStatus() {
     .catch(() => {
       pollTimer = setTimeout(pollStatus, 2000);
     });
+}
+
+async function shareDbInspectReport(taskId) {
+  try {
+    // 先获取任务状态和结果
+    const res = await fetch('/api/task_status/' + taskId);
+    const data = await res.json();
+    if (!data.ok) { toastError('获取巡检结果失败'); return; }
+
+    // 获取报告文件路径
+    const reportPath = data.result_path || data.report_path || '';
+    const result = {
+      db_type: data.db_type || '数据库',
+      host: data.host || data.ip || '',
+      health_score: data.health_score || 0,
+      health_status: data.health_status || '',
+      inspect_time: data.finished_at || new Date().toISOString(),
+      issues: data.issues || [],
+      advice: data.advice || [],
+      summary: data.summary || '',
+      db_params: data.db_params || {},
+      tablespaces: data.tablespaces || []
+    };
+
+    const shareRes = await fetch('/api/db_inspect_share', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({task_id: taskId, result: result})
+    });
+    const shareData = await shareRes.json();
+    if (shareData.ok) {
+      const shareUrl = window.location.origin + shareData.share_url;
+      showShareLinkDialog(shareUrl);
+    } else {
+      toastError(shareData.msg || '生成分享链接失败');
+    }
+  } catch(e) {
+    toastError('请求失败: ' + e.message);
+  }
 }
 
 // ─── Reports ───
@@ -5502,12 +5919,42 @@ async function loadReports() {
             ${issueBtn}
             <a class="btn btn-ghost" style="font-size:12px;padding:7px 14px"
                href="/api/download_file?name=${encodeURIComponent(f.name)}" download>${i18n('webui.btn_download_report')}</a>
+            <button class="btn btn-ghost" style="font-size:12px;padding:7px 12px" onclick="shareReportFile('${escHtml(f.name).replace(/'/g, "\\'")}')">📤 分享</button>
             <button class="btn btn-danger" style="font-size:12px;padding:7px 12px" onclick="deleteReport('${escHtml(f.name).replace(/'/g, "\\'")}')">${i18n('webui.btn_delete_report')}</button>
           </div>
         </div>`;
     }).join('');
   } catch(e) {
     list.innerHTML = `<div class="status-banner err">${i18n('webui.reports_load_fail')}: ${escHtml(e.message)}</div>`;
+  }
+}
+
+// ─── 数据库巡检历史分享 ─────────────────────────────────────
+async function shareReportFile(filename) {
+  try {
+    // 先获取报告详情
+    const detailRes = await fetch('/api/report_detail/' + encodeURIComponent(filename));
+    const detailData = await detailRes.json();
+    if (!detailData.ok) {
+      toastError(detailData.msg || '获取报告详情失败');
+      return;
+    }
+
+    // 再创建分享链接
+    const res = await fetch('/api/db_inspect_share', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({result: detailData.result})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      const shareUrl = window.location.origin + data.share_url;
+      showShareLinkDialog(shareUrl);
+    } else {
+      toastError(data.msg || '生成分享链接失败');
+    }
+  } catch(e) {
+    toastError('请求失败: ' + e.message);
   }
 }
 
@@ -9566,6 +10013,493 @@ async function deleteBackupHistory(recordId) {
   </div>
 </div>
 
+  <!-- Server Inspection -->
+  <script>
+  // ─── Server Inspection ──────────────────────────────
+  let _si_task_id = null;
+  let _si_socket = null;
+  let _si_report_file = '';
+
+  function toggleSiAuth() {
+    const auth = document.getElementById('si-ssh-auth').value;
+    document.getElementById('si-pwd-wrap').style.display = auth === 'password' ? '' : 'none';
+    document.getElementById('si-key-wrap').style.display = auth === 'key' ? '' : 'none';
+  }
+
+  async function testServerSSH() {
+    const host = document.getElementById('si-ssh-host').value.trim();
+    if (!host) { toastError('请输入 SSH 主机地址'); return; }
+    const statusEl = document.getElementById('si-ssh-test-status');
+    statusEl.textContent = '⏳ 测试中...';
+    statusEl.style.color = 'var(--text-muted)';
+    try {
+      const res = await fetch('/api/test_server_ssh', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          ssh_host: host,
+          ssh_port: parseInt(document.getElementById('si-ssh-port').value) || 22,
+          ssh_user: document.getElementById('si-ssh-user').value.trim() || 'root',
+          ssh_password: document.getElementById('si-ssh-password').value || '',
+          ssh_key_file: document.getElementById('si-ssh-key').value.trim() || '',
+        })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        statusEl.textContent = '✅ ' + (data.msg || 'SSH 连接成功');
+        statusEl.style.color = 'var(--success)';
+      } else {
+        statusEl.textContent = '❌ ' + (data.msg || 'SSH 连接失败');
+        statusEl.style.color = 'var(--danger)';
+      }
+    } catch(e) {
+      statusEl.textContent = '❌ 请求失败: ' + e.message;
+      statusEl.style.color = 'var(--danger)';
+    }
+  }
+
+  async function startServerInspect() {
+    const host = document.getElementById('si-ssh-host').value.trim();
+    if (!host) { toastError('请输入 SSH 主机地址'); return; }
+
+    // 重置 UI
+    document.getElementById('si-log-card').style.display = '';
+    document.getElementById('si-log-area').innerHTML = '';
+    document.getElementById('si-result-card').style.display = 'none';
+
+    try {
+      const res = await fetch('/api/server_inspect', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          ssh_host: host,
+          ssh_port: parseInt(document.getElementById('si-ssh-port').value) || 22,
+          ssh_user: document.getElementById('si-ssh-user').value.trim() || 'root',
+          ssh_password: document.getElementById('si-ssh-password').value || '',
+          ssh_key_file: document.getElementById('si-ssh-key').value.trim() || '',
+        })
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        toastError(data.msg || '启动失败');
+        return;
+      }
+      _si_task_id = data.task_id;
+      _si_report_file = '';
+      pollServerInspect();
+    } catch(e) {
+      toastError('请求失败: ' + e.message);
+    }
+  }
+
+  async function pollServerInspect() {
+    if (!_si_task_id) return;
+    const logEl = document.getElementById('si-log-area');
+    let lastLen = 0;
+
+    const poll = async () => {
+      try {
+        const res = await fetch('/api/task_status/' + _si_task_id);
+        const data = await res.json();
+        const logs = data.log || [];
+        if (logs.length > lastLen) {
+          for (let i = lastLen; i < logs.length; i++) {
+            logEl.innerHTML += escHtml(logs[i]) + '\n';
+          }
+          logEl.scrollTop = logEl.scrollHeight;
+          lastLen = logs.length;
+        }
+        if (data.status === 'done' || data.status === 'error') {
+          if (data.result) {
+            renderServerResult(data.result);
+          }
+          if (data.report_file) {
+            _si_report_file = data.report_file;
+            document.getElementById('si-report-wrap').style.display = 'flex';
+          }
+          return;
+        }
+        setTimeout(poll, 1500);
+      } catch(e) {
+        setTimeout(poll, 3000);
+      }
+    };
+    poll();
+  }
+
+  function renderServerResult(r) {
+    document.getElementById('si-result-card').style.display = '';
+
+    // 健康评分
+    const score = r.health_score || 0;
+    const status = r.health_status || '';
+    let color = 'var(--success)';
+    if (score < 60) color = 'var(--danger)';
+    else if (score < 75) color = 'var(--warn)';
+    else if (score < 90) color = 'var(--accent2)';
+    document.getElementById('si-health-score').innerHTML =
+      '<div style="font-size:48px;font-weight:700;color:' + color + '">' + score + '</div>' +
+      '<div style="font-size:16px;color:' + color + ';margin-top:4px">' + status + '</div>';
+
+    // CPU
+    const cpu = r.cpu || {};
+    document.getElementById('si-cpu-info').innerHTML =
+      '使用率: <b>' + (cpu.usage_percent || 0).toFixed(1) + '%</b><br/>' +
+      '物理核心: ' + (cpu.physical_cores || '-') + ' | 逻辑核心: ' + (cpu.logical_cores || '-') + '<br/>' +
+      '频率: ' + (cpu.current_frequency || '-') + ' / ' + (cpu.max_frequency || '-') + ' GHz<br/>' +
+      '负载: ' + (cpu.load_1m || 0).toFixed(2) + ' / ' + (cpu.load_5m || 0).toFixed(2) + ' / ' + (cpu.load_15m || 0).toFixed(2);
+
+    // 内存
+    const mem = r.memory || {};
+    document.getElementById('si-mem-info').innerHTML =
+      '总内存: <b>' + (mem.total_gb || 0).toFixed(2) + ' GB</b><br/>' +
+      '已使用: ' + (mem.used_gb || 0).toFixed(2) + ' GB (' + (mem.usage_percent || 0).toFixed(1) + '%)<br/>' +
+      '可用: ' + (mem.available_gb || 0).toFixed(2) + ' GB<br/>' +
+      'Swap: ' + (mem.swap_used_gb || 0).toFixed(2) + ' / ' + (mem.swap_total_gb || 0).toFixed(2) + ' GB (' + (mem.swap_usage_percent || 0).toFixed(1) + '%)';
+
+    // 磁盘
+    const disks = r.disk || [];
+    if (disks.length > 0) {
+      let html = '<table style="width:100%;border-collapse:collapse;font-size:12px"><tr style="border-bottom:1px solid var(--border)"><th style="text-align:left;padding:4px 8px">挂载点</th><th>设备</th><th>文件系统</th><th>总量</th><th>已用</th><th>使用率</th></tr>';
+      disks.forEach(d => {
+        let pctColor = d.usage_percent > 90 ? 'var(--danger)' : (d.usage_percent > 80 ? 'var(--warn)' : 'var(--text)');
+        html += '<tr style="border-bottom:1px solid var(--border)">' +
+          '<td style="padding:4px 8px">' + escHtml(d.mountpoint) + '</td>' +
+          '<td style="text-align:center">' + escHtml(d.device) + '</td>' +
+          '<td style="text-align:center">' + escHtml(d.fstype) + '</td>' +
+          '<td style="text-align:center">' + (d.total_gb || 0).toFixed(1) + ' GB</td>' +
+          '<td style="text-align:center">' + (d.used_gb || 0).toFixed(1) + ' GB</td>' +
+          '<td style="text-align:center;color:' + pctColor + ';font-weight:600">' + (d.usage_percent || 0).toFixed(1) + '%</td>' +
+          '</tr>';
+      });
+      html += '</table>';
+      document.getElementById('si-disk-info').innerHTML = html;
+    } else {
+      document.getElementById('si-disk-info').innerHTML = '<span style="color:var(--text-muted)">未采集到磁盘信息</span>';
+    }
+
+    // Top 进程
+    const procs = r.top_processes || [];
+    if (procs.length > 0) {
+      let html = '<table style="width:100%;border-collapse:collapse;font-size:12px"><tr style="border-bottom:1px solid var(--border)"><th style="text-align:left;padding:4px 8px">PID</th><th>用户</th><th>CPU%</th><th>内存%</th><th style="text-align:left">命令</th></tr>';
+      procs.forEach(p => {
+        html += '<tr style="border-bottom:1px solid var(--border)">' +
+          '<td style="padding:4px 8px">' + p.pid + '</td>' +
+          '<td style="text-align:center">' + escHtml(p.user) + '</td>' +
+          '<td style="text-align:center">' + p.cpu.toFixed(1) + '</td>' +
+          '<td style="text-align:center">' + p.mem.toFixed(1) + '</td>' +
+          '<td style="text-align:left;font-size:11px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(p.command) + '</td>' +
+          '</tr>';
+      });
+      html += '</table>';
+      document.getElementById('si-proc-info').innerHTML = html;
+    } else {
+      document.getElementById('si-proc-info').innerHTML = '<span style="color:var(--text-muted)">未采集到进程信息</span>';
+    }
+
+    // 系统信息
+    document.getElementById('si-sys-info').innerHTML =
+      '主机名: <b>' + escHtml(r.hostname || '-') + '</b><br/>' +
+      '内核: ' + escHtml(r.kernel || '-') + '<br/>' +
+      '平台: ' + escHtml(r.platform || '-') + '<br/>' +
+      '启动时间: ' + escHtml(r.boot_time || '-') + '<br/>' +
+      '运行天数: ' + (r.uptime_days || 0) + ' 天';
+
+    // 网络检测
+    const network = r.network || {};
+    const netWrap = document.getElementById('si-network-wrap');
+    if (network.ping || network.dns || (network.ports && network.ports.length)) {
+      netWrap.style.display = '';
+      let html = '<table style="width:100%;border-collapse:collapse;font-size:12px"><tr style="border-bottom:1px solid var(--border)"><th style="text-align:left;padding:4px 8px">检测项</th><th>状态</th><th>结果</th></tr>';
+      // Ping
+      if (network.ping) {
+        Object.entries(network.ping).forEach(([target, info]) => {
+          const ok = info.ok;
+          html += '<tr style="border-bottom:1px solid var(--border)"><td style="padding:4px 8px">Ping ' + escHtml(target) + '</td><td style="text-align:center">' + (ok ? '✅' : '❌') + '</td><td style="text-align:center">' + (ok ? info.latency_ms.toFixed(1) + ' ms' : '超时') + '</td></tr>';
+        });
+      }
+      // DNS
+      if (network.dns) {
+        Object.entries(network.dns).forEach(([domain, info]) => {
+          html += '<tr style="border-bottom:1px solid var(--border)"><td style="padding:4px 8px">DNS ' + escHtml(domain) + '</td><td style="text-align:center">' + (info.ok ? '✅' : '❌') + '</td><td style="text-align:center">' + (info.ok ? '正常' : '解析失败') + '</td></tr>';
+        });
+      }
+      // Ports
+      if (network.ports) {
+        network.ports.forEach(p => {
+          html += '<tr style="border-bottom:1px solid var(--border)"><td style="padding:4px 8px">端口 ' + p.port + ' (' + escHtml(p.name) + ')</td><td style="text-align:center">' + (p.listening ? '✅' : '➖') + '</td><td style="text-align:center">' + (p.listening ? '监听中' : '未监听') + '</td></tr>';
+        });
+      }
+      html += '</table>';
+      document.getElementById('si-network-info').innerHTML = html;
+    } else {
+      netWrap.style.display = 'none';
+    }
+
+    // 服务状态
+    const services = r.services || [];
+    const svcWrap = document.getElementById('si-services-wrap');
+    if (services.length > 0) {
+      svcWrap.style.display = '';
+      let html = '<table style="width:100%;border-collapse:collapse;font-size:12px"><tr style="border-bottom:1px solid var(--border)"><th style="text-align:left;padding:4px 8px">服务</th><th>状态</th></tr>';
+      services.forEach(s => {
+        let color, label;
+        if (s.status === 'running') { color = 'var(--success)'; label = '✅ 运行中'; }
+        else if (s.status === 'stopped') { color = 'var(--danger)'; label = '❌ 已停止'; }
+        else { color = 'var(--text-muted)'; label = '➖ 未安装'; }
+        html += '<tr style="border-bottom:1px solid var(--border)"><td style="padding:4px 8px">' + escHtml(s.name) + '</td><td style="text-align:center;color:' + color + '">' + label + '</td></tr>';
+      });
+      html += '</table>';
+      document.getElementById('si-services-info').innerHTML = html;
+    } else {
+      svcWrap.style.display = 'none';
+    }
+
+    // 问题列表
+    const issues = r.issues || [];
+    if (issues.length > 0) {
+      document.getElementById('si-issues-wrap').style.display = '';
+      document.getElementById('si-issues').innerHTML = issues.map(i =>
+        '<div style="padding:6px 10px;margin-bottom:4px;background:rgba(248,81,73,.08);border-left:3px solid var(--danger);border-radius:4px">' + escHtml(i) + '</div>'
+      ).join('');
+    } else {
+      document.getElementById('si-issues-wrap').style.display = 'none';
+    }
+
+    // 保存最新结果用于分享
+    window._si_last_result = r;
+  }
+
+  function downloadServerReport() {
+    if (_si_report_file) {
+      window.open('/api/download/' + encodeURIComponent(_si_report_file.split(/[\\/]/).pop()), '_blank');
+    }
+  }
+
+  async function shareServerReport() {
+    const result = window._si_last_result;
+    if (!result) { toastError('暂无巡检结果'); return; }
+    try {
+      const res = await fetch('/api/server_inspect_share', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({result: result})
+      });
+      const data = await res.json();
+      if (data.ok) {
+        const shareUrl = window.location.origin + data.share_url;
+        showShareLinkDialog(shareUrl);
+      } else {
+        toastError(data.msg || '生成分享链接失败');
+      }
+    } catch(e) {
+      toastError('请求失败: ' + e.message);
+    }
+  }
+
+  // ─── 服务器巡检历史（独立页面） ──────────────────────────
+  async function loadServerHistory() {
+    const filterHost = (document.getElementById('sh-filter-host')?.value || '').trim();
+    let url = '/api/server_inspect_history?limit=100';
+    if (filterHost) url += '&host=' + encodeURIComponent(filterHost);
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!data.ok) return;
+      const history = data.history || [];
+      const emptyEl = document.getElementById('sh-empty');
+      const tableEl = document.getElementById('sh-table-wrap');
+      const bodyEl = document.getElementById('sh-table-body');
+      if (history.length === 0) {
+        emptyEl.style.display = '';
+        tableEl.style.display = 'none';
+        return;
+      }
+      emptyEl.style.display = 'none';
+      tableEl.style.display = '';
+      bodyEl.innerHTML = history.map(h => {
+        const scoreColor = h.health_score >= 90 ? 'var(--success)' : (h.health_score >= 75 ? 'var(--accent2)' : (h.health_score >= 60 ? 'var(--warn)' : 'var(--danger)'));
+        const time = h.inspect_time ? h.inspect_time.replace('T', ' ').substring(0, 16) : '-';
+        return '<tr style="border-bottom:1px solid var(--border)">' +
+          '<td style="padding:8px;font-size:12px">' + time + '</td>' +
+          '<td style="padding:8px;text-align:center;font-size:12px">' + escHtml(h.hostname || h.host) + '</td>' +
+          '<td style="padding:8px;text-align:center;font-weight:600;color:' + scoreColor + '">' + (h.health_score || 0) + '</td>' +
+          '<td style="padding:8px;text-align:center">' + (h.cpu_usage || 0).toFixed(1) + '%</td>' +
+          '<td style="padding:8px;text-align:center">' + (h.memory_usage || 0).toFixed(1) + '%</td>' +
+          '<td style="padding:8px;text-align:center">' + (h.disk_usage_max || 0).toFixed(1) + '%</td>' +
+          '<td style="padding:8px;text-align:center">' + (h.issues_count || 0) + '</td>' +
+          '<td style="padding:8px;text-align:center;white-space:nowrap">' +
+            '<button class="btn btn-ghost" style="font-size:11px;padding:2px 8px" onclick="viewServerHistoryDetail(' + h.id + ')">查看</button> ' +
+            '<button class="btn btn-ghost" style="font-size:11px;padding:2px 8px;color:var(--danger)" onclick="deleteServerHistory(' + h.id + ')">删除</button>' +
+          '</td></tr>';
+      }).join('');
+    } catch(e) {
+      console.error('Load server history failed:', e);
+    }
+  }
+
+  async function viewServerHistoryDetail(id) {
+    try {
+      const res = await fetch('/api/server_inspect_history/' + id);
+      const data = await res.json();
+      if (!data.ok || !data.record) { toastError('获取详情失败'); return; }
+      const record = data.record;
+      const result = record.result || {};
+      if (!result || Object.keys(result).length === 0) { toastError('无巡检结果数据'); return; }
+
+      const card = document.getElementById('sh-detail-card');
+      card.style.display = '';
+
+      // 主机信息
+      document.getElementById('sh-detail-host-info').innerHTML =
+        '主机: <b>' + escHtml(record.hostname || record.host) + '</b> | ' +
+        '巡检时间: ' + (record.inspect_time || '-');
+
+      // 健康评分
+      const score = result.health_score || 0;
+      const status = result.health_status || '';
+      let scoreColor = 'var(--success)';
+      if (score < 60) scoreColor = 'var(--danger)';
+      else if (score < 75) scoreColor = 'var(--warn)';
+      else if (score < 90) scoreColor = 'var(--accent2)';
+      document.getElementById('sh-health-score').innerHTML =
+        '<div style="font-size:48px;font-weight:700;color:' + scoreColor + '">' + score + '</div>' +
+        '<div style="font-size:16px;color:' + scoreColor + ';margin-top:4px">' + escHtml(status) + '</div>';
+
+      // CPU
+      const cpu = result.cpu || {};
+      document.getElementById('sh-cpu-info').innerHTML =
+        '使用率: <b>' + (cpu.usage_percent || 0).toFixed(1) + '%</b><br/>' +
+        '物理核心: ' + (cpu.physical_cores || '-') + ' | 逻辑核心: ' + (cpu.logical_cores || '-') + '<br/>' +
+        '频率: ' + (cpu.current_frequency || '-') + ' / ' + (cpu.max_frequency || '-') + ' GHz<br/>' +
+        '负载: ' + (cpu.load_1m || 0).toFixed(2) + ' / ' + (cpu.load_5m || 0).toFixed(2) + ' / ' + (cpu.load_15m || 0).toFixed(2);
+
+      // 内存
+      const mem = result.memory || {};
+      document.getElementById('sh-mem-info').innerHTML =
+        '总内存: <b>' + (mem.total_gb || 0).toFixed(2) + ' GB</b><br/>' +
+        '已使用: ' + (mem.used_gb || 0).toFixed(2) + ' GB (' + (mem.usage_percent || 0).toFixed(1) + '%)<br/>' +
+        '可用: ' + (mem.available_gb || 0).toFixed(2) + ' GB<br/>' +
+        'Swap: ' + (mem.swap_used_gb || 0).toFixed(2) + ' / ' + (mem.swap_total_gb || 0).toFixed(2) + ' GB';
+
+      // 磁盘
+      const disks = result.disk || [];
+      if (disks.length > 0) {
+        let html = '<table style="width:100%;border-collapse:collapse;font-size:12px"><tr style="border-bottom:1px solid var(--border)"><th style="text-align:left;padding:4px 8px">挂载点</th><th>设备</th><th>文件系统</th><th>总量</th><th>已用</th><th>使用率</th></tr>';
+        disks.forEach(d => {
+          let pctColor = d.usage_percent > 90 ? 'var(--danger)' : (d.usage_percent > 80 ? 'var(--warn)' : 'var(--text)');
+          html += '<tr style="border-bottom:1px solid var(--border)"><td style="padding:4px 8px">' + escHtml(d.mountpoint) + '</td><td style="text-align:center">' + escHtml(d.device) + '</td><td style="text-align:center">' + escHtml(d.fstype) + '</td><td style="text-align:center">' + (d.total_gb||0).toFixed(1) + ' GB</td><td style="text-align:center">' + (d.used_gb||0).toFixed(1) + ' GB</td><td style="text-align:center;color:' + pctColor + ';font-weight:600">' + (d.usage_percent||0).toFixed(1) + '%</td></tr>';
+        });
+        html += '</table>';
+        document.getElementById('sh-disk-info').innerHTML = html;
+      } else {
+        document.getElementById('sh-disk-info').innerHTML = '<span style="color:var(--text-muted)">无磁盘信息</span>';
+      }
+
+      // 网络
+      const network = result.network || {};
+      const netWrap = document.getElementById('sh-network-wrap');
+      if (network.ping || network.dns || (network.ports && network.ports.length)) {
+        netWrap.style.display = '';
+        let html = '<table style="width:100%;border-collapse:collapse;font-size:12px"><tr style="border-bottom:1px solid var(--border)"><th style="text-align:left;padding:4px 8px">检测项</th><th>状态</th><th>结果</th></tr>';
+        if (network.ping) Object.entries(network.ping).forEach(([t, i]) => { html += '<tr style="border-bottom:1px solid var(--border)"><td style="padding:4px 8px">Ping ' + escHtml(t) + '</td><td style="text-align:center">' + (i.ok?'✅':'❌') + '</td><td style="text-align:center">' + (i.ok ? i.latency_ms.toFixed(1)+' ms' : '超时') + '</td></tr>'; });
+        if (network.dns) Object.entries(network.dns).forEach(([d, i]) => { html += '<tr style="border-bottom:1px solid var(--border)"><td style="padding:4px 8px">DNS ' + escHtml(d) + '</td><td style="text-align:center">' + (i.ok?'✅':'❌') + '</td><td style="text-align:center">' + (i.ok?'正常':'解析失败') + '</td></tr>'; });
+        if (network.ports) network.ports.forEach(p => { html += '<tr style="border-bottom:1px solid var(--border)"><td style="padding:4px 8px">端口 ' + p.port + ' (' + escHtml(p.name) + ')</td><td style="text-align:center">' + (p.listening?'✅':'➖') + '</td><td style="text-align:center">' + (p.listening?'监听中':'未监听') + '</td></tr>'; });
+        html += '</table>';
+        document.getElementById('sh-network-info').innerHTML = html;
+      } else { netWrap.style.display = 'none'; }
+
+      // 服务
+      const services = result.services || [];
+      const svcWrap = document.getElementById('sh-services-wrap');
+      if (services.length > 0) {
+        svcWrap.style.display = '';
+        let html = '<table style="width:100%;border-collapse:collapse;font-size:12px"><tr style="border-bottom:1px solid var(--border)"><th style="text-align:left;padding:4px 8px">服务</th><th>状态</th></tr>';
+        services.forEach(s => {
+          let color, label;
+          if (s.status==='running') { color='var(--success)'; label='✅ 运行中'; }
+          else if (s.status==='stopped') { color='var(--danger)'; label='❌ 已停止'; }
+          else { color='var(--text-muted)'; label='➖ 未安装'; }
+          html += '<tr style="border-bottom:1px solid var(--border)"><td style="padding:4px 8px">' + escHtml(s.name) + '</td><td style="text-align:center;color:' + color + '">' + label + '</td></tr>';
+        });
+        html += '</table>';
+        document.getElementById('sh-services-info').innerHTML = html;
+      } else { svcWrap.style.display = 'none'; }
+
+      // 进程
+      const procs = result.top_processes || [];
+      if (procs.length > 0) {
+        let html = '<table style="width:100%;border-collapse:collapse;font-size:12px"><tr style="border-bottom:1px solid var(--border)"><th style="text-align:left;padding:4px 8px">PID</th><th>用户</th><th>CPU%</th><th>内存%</th><th style="text-align:left">命令</th></tr>';
+        procs.forEach(p => { html += '<tr style="border-bottom:1px solid var(--border)"><td style="padding:4px 8px">' + p.pid + '</td><td style="text-align:center">' + escHtml(p.user) + '</td><td style="text-align:center">' + p.cpu.toFixed(1) + '</td><td style="text-align:center">' + p.mem.toFixed(1) + '</td><td style="font-size:11px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(p.command) + '</td></tr>'; });
+        html += '</table>';
+        document.getElementById('sh-proc-info').innerHTML = html;
+      } else {
+        document.getElementById('sh-proc-info').innerHTML = '<span style="color:var(--text-muted)">无进程信息</span>';
+      }
+
+      // 问题
+      const issues = result.issues || [];
+      const issuesWrap = document.getElementById('sh-issues-wrap');
+      if (issues.length > 0) {
+        issuesWrap.style.display = '';
+        document.getElementById('sh-issues').innerHTML = issues.map(i => '<div style="padding:6px 10px;margin-bottom:4px;background:rgba(248,81,73,.08);border-left:3px solid var(--danger);border-radius:4px">' + escHtml(i) + '</div>').join('');
+      } else { issuesWrap.style.display = 'none'; }
+
+      // 报告下载 & 分享
+      const reportWrap = document.getElementById('sh-report-wrap');
+      if (record.report_path) {
+        reportWrap.style.display = 'flex';
+        document.getElementById('sh-download-btn').onclick = function() {
+          window.open('/api/download_file?name=' + encodeURIComponent(record.report_path.split(/[\\/]/).pop()), '_blank');
+        };
+        document.getElementById('sh-share-btn').onclick = function() {
+          shareResultDirect(result);
+        };
+      } else {
+        reportWrap.style.display = 'none';
+      }
+
+      card.scrollIntoView({behavior: 'smooth'});
+    } catch(e) {
+      toastError('请求失败: ' + e.message);
+    }
+  }
+
+  async function deleteServerHistory(id) {
+    if (!confirm('确定删除这条巡检记录？')) return;
+    try {
+      const res = await fetch('/api/server_inspect_history/' + id, {method: 'DELETE'});
+      const data = await res.json();
+      if (data.ok) {
+        loadServerHistory();
+        document.getElementById('sh-detail-card').style.display = 'none';
+      } else {
+        toastError(data.msg || '删除失败');
+      }
+    } catch(e) {
+      toastError('请求失败: ' + e.message);
+    }
+  }
+
+  async function shareResultDirect(result) {
+    try {
+      const res = await fetch('/api/server_inspect_share', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({result: result})
+      });
+      const data = await res.json();
+      if (data.ok) {
+        const shareUrl = window.location.origin + data.share_url;
+        showShareLinkDialog(shareUrl);
+      } else {
+        toastError(data.msg || '生成分享链接失败');
+      }
+    } catch(e) {
+      toastError('请求失败: ' + e.message);
+    }
+  }
+  </script>
 
   <!-- Oracle Client Config -->
   <script>
