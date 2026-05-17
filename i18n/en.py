@@ -2241,4 +2241,15 @@ EN = {
     "report.no_long_trx": "No long transactions (>60s)",
     "report.innodb_lock_chapter": "InnoDB Lock Diagnosis",
     "report.pg_lock_chapter": "PostgreSQL Lock Diagnosis",
+    # ── Login Page ──
+    "webui.login_title": "DBCheck",
+    "webui.login_subtitle": "Database Intelligent Inspection Tool",
+    "webui.login_username": "Username",
+    "webui.login_username_placeholder": "Enter username",
+    "webui.login_password": "Password",
+    "webui.login_password_placeholder": "Enter password",
+    "webui.login_btn": "Login",
+    "webui.login_error": "Incorrect username or password",
+    "webui.login_error_empty": "Please enter username and password",
+    "webui.network_error": "Network error, please try again later",
 }

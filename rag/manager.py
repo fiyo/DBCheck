@@ -35,7 +35,7 @@ class RAGManager:
     def __init__(self, db_path: str = "history.db",
                  api_url: str = "http://localhost:11434",
                  embedding_model: str = "nomic-embed-text",
-                 config_path: str = "ai_config.json"):
+                 config_path: str = "dbc_config.json"):
         self.db_path = db_path
         self.vector_store = VectorStore(db_path)
         self.processor = DocumentProcessor()
@@ -47,18 +47,19 @@ class RAGManager:
 
     def _ensure_embedding(self):
         """
-        根据 ai_config.json 确保使用正确的 Embedding 后端
+        根据 dbc_config.json 的 ai 字段确保使用正确的 Embedding 后端
         每次需要 embedding 前调用，自动跟随 AI 配置切换
         """
         try:
             with open(self.config_path, 'r', encoding='utf-8') as f:
                 cfg = json.load(f)
+            ai_cfg = cfg.get('ai', {})
         except Exception:
-            cfg = {}
+            ai_cfg = {}
 
-        backend = cfg.get('backend', 'ollama')
-        online_enabled = cfg.get('online_enabled', False)
-        rag_cfg = cfg.get('rag', {})
+        backend = ai_cfg.get('backend', 'ollama')
+        online_enabled = ai_cfg.get('online_enabled', False)
+        rag_cfg = ai_cfg.get('rag', {})
         rag_model = rag_cfg.get('embedding_model', self.embedding_model)
 
         use_openai = (backend == 'openai' and online_enabled)

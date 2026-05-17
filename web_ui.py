@@ -1623,19 +1623,20 @@ def api_trend():
 
 @app.route('/api/ai_config', methods=['GET'])
 def api_ai_config():
-    cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_config.json')
+    cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dbc_config.json')
     if os.path.exists(cfg_path):
         with open(cfg_path, 'r', encoding='utf-8') as f:
             cfg = json.load(f)
+        ai_cfg = cfg.get('ai', {})
         # 确保返回的配置包含 online_enabled 字段
-        cfg.setdefault('online_enabled', False)
-        cfg.setdefault('online_backend', 'openai')
-        cfg.setdefault('online_api_url', 'https://api.openai.com/v1')
-        cfg.setdefault('online_model', 'gpt-4o-mini')
+        ai_cfg.setdefault('online_enabled', False)
+        ai_cfg.setdefault('online_backend', 'openai')
+        ai_cfg.setdefault('online_api_url', 'https://api.openai.com/v1')
+        ai_cfg.setdefault('online_model', 'gpt-4o-mini')
         # 脱敏：不返回真实 api_key
-        if cfg.get('api_key'):
-            cfg['api_key'] = '***' if cfg['api_key'] else ''
-        return jsonify(cfg)
+        if ai_cfg.get('api_key'):
+            ai_cfg['api_key'] = '***' if ai_cfg['api_key'] else ''
+        return jsonify(ai_cfg)
     return jsonify({
         'enabled': False, 'backend': 'disabled', 'model': '',
         'online_enabled': False, 'online_backend': 'openai',
@@ -1646,7 +1647,7 @@ def api_ai_config():
 @app.route('/api/ai_config', methods=['POST'])
 def api_save_ai_config():
     data = request.json or {}
-    cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_config.json')
+    cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dbc_config.json')
 
     # 加载现有配置作为基础
     existing = {}
@@ -1654,17 +1655,22 @@ def api_save_ai_config():
         with open(cfg_path, 'r', encoding='utf-8') as f:
             existing = json.load(f)
 
+    # 获取现有 ai 配置
+    ai_existing = existing.get('ai', {})
+
     # 合并：如果 api_key 为空字符串，保留旧的 api_key（防止误覆盖）
-    if 'api_key' in data and not data['api_key'] and existing.get('api_key'):
-        data['api_key'] = existing['api_key']
+    if 'api_key' in data and not data['api_key'] and ai_existing.get('api_key'):
+        data['api_key'] = ai_existing['api_key']
 
     # 深度合并：保持已有配置中未提交的字段
     for key in ('rag',):
-        if key not in data and key in existing:
-            data[key] = existing[key]
+        if key not in data and key in ai_existing:
+            data[key] = ai_existing[key]
 
+    # 写回 dbc_config.json 的 ai 字段
+    existing['ai'] = data
     with open(cfg_path, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
+        json.dump(existing, f, ensure_ascii=False, indent=4)
     return jsonify({'ok': True, 'msg': _t('webui.ai_config_saved')})
 
 @app.route('/api/test_db', methods=['POST'])
@@ -2731,17 +2737,18 @@ def api_pro_datasources_test_conn():
             if ssh_host:
                 # 配了 SSH → 只走隧道，不 fallback 直连
                 try:
-                    import paramiko
-                    _tunnel = paramiko.SSHClient()
-                    _tunnel.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-                    ssh_port = data.get('ssh_port', 22)
-                    ssh_user = data.get('ssh_user', 'root')
-                    ssh_pass = data.get('ssh_password', '')
-                    _tunnel.connect(ssh_host, port=int(ssh_port), username=ssh_user,
-                                   password=ssh_pass or '', timeout=10,
-                                   look_for_keys=False, allow_agent=False)
-                    _t = _tunnel.get_transport()
-                    _local = _t.request_port_forward('', 0, host, int(port))
+                    from ssh_tunnel import SSHTunnel
+                    
+                    _tunnel = SSHTunnel(
+                        ssh_host=ssh_host,
+                        ssh_port=int(data.get('ssh_port', 22)),
+                        ssh_user=data.get('ssh_user', 'root'),
+                        ssh_password=data.get('ssh_password', ''),
+                        remote_host=host,
+                        remote_port=int(port)
+                    )
+                    _tunnel.__enter__()
+                    _local = _tunnel.local_port
                     dsn = f"localhost:{_local}/{service_name}" if service_name else f"localhost:{_local}"
                 except Exception as te:
                     return jsonify({'ok': False, 'error': f'SSH 隧道建立失败: {te}'})

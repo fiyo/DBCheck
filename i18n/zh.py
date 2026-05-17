@@ -2272,4 +2272,15 @@ ZI = {
     "report.no_long_trx": "✅ 当前无长事务（>60秒）",
     "report.innodb_lock_chapter": "InnoDB 锁诊断",
     "report.pg_lock_chapter": "PostgreSQL 锁诊断",
+    # ── 登录页 ──
+    "webui.login_title": "DBCheck",
+    "webui.login_subtitle": "数据库智能巡检工具",
+    "webui.login_username": "用户名",
+    "webui.login_username_placeholder": "请输入用户名",
+    "webui.login_password": "密码",
+    "webui.login_password_placeholder": "请输入密码",
+    "webui.login_btn": "登 录",
+    "webui.login_error": "用户名或密码错误",
+    "webui.login_error_empty": "请输入用户名和密码",
+    "webui.network_error": "网络错误，请稍后重试",
 }

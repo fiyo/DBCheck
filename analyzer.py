@@ -1225,11 +1225,11 @@ class HistoryManager:
 #
 # 安全策略：
 # 1. 默认仅支持本地 Ollama（backend='ollama'）或关闭（'disabled'）
-# 2. 必须在 ai_config.json 中设置 "online_enabled": true 才能调用远程模型
+# 2. 必须在 dbc_config.json 的 ai 字段中设置 "online_enabled": true 才能调用远程模型
 # 3. 远程模型支持 OpenAI 协议兼容的 API（OpenAI/DeepSeek/自定义端点）
 # 4. Ollama 模式下 API 地址必须为本地地址（localhost/127.0.0.1）
 #
-# 配置优先级：代码传参 > ai_config.json > 环境变量
+# 配置优先级：代码传参 > dbc_config.json 的 ai 字段 > 环境变量
 #
 
 def _is_localhost_url(url: str) -> bool:
@@ -1250,7 +1250,7 @@ class AIAdvisor:
 
     支持模式：
     - ollama   : 本地 Ollama（默认 http://localhost:11434，地址必须是本地）
-    - openai   : OpenAI 协议兼容的远程模型（需在 ai_config.json 中启用 online_enabled）
+    - openai   : OpenAI 协议兼容的远程模型（需在 dbc_config.json 的 ai 字段中启用 online_enabled）
     - disabled : 关闭 AI 诊断
 
     在线模型安全策略：
@@ -1320,7 +1320,7 @@ class AIAdvisor:
     def __init__(self, backend: str = None, api_key: str = None,
                  api_url: str = None, model: str = None,
                  rag_enabled: bool = True):
-        # ── 加载 ai_config.json 获取在线模型开关 ──
+        # ── 加载 dbc_config.json 的 ai 字段获取在线模型开关 ──
         _online_enabled = False
         _online_backend = 'openai'
         _online_api_url = 'https://api.openai.com/v1'
@@ -1329,11 +1329,12 @@ class AIAdvisor:
         _config_rag = {}
         try:
             import os as _os
-            _cfg_path = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), 'ai_config.json')
+            _cfg_path = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), 'dbc_config.json')
             if _os.path.exists(_cfg_path):
                 import json as _json
                 with open(_cfg_path, 'r', encoding='utf-8') as _f:
-                    _cfg = _json.load(_f)
+                    _full_cfg = _json.load(_f)
+                _cfg = _full_cfg.get('ai', {})
                 _online_enabled = _cfg.get('online_enabled', False)
                 _online_backend = _cfg.get('online_backend', 'openai')
                 _online_api_url = _cfg.get('online_api_url', 'https://api.openai.com/v1')
@@ -1363,7 +1364,7 @@ class AIAdvisor:
                 print(f"⚠️  安全限制：API 地址 {resolved_url} 不是本地地址，AI 诊断已禁用")
                 self.backend = 'disabled'
         elif self.backend == 'openai':
-            # 在线模型：优先使用代码传参，其次 ai_config.json 中的 online_api_url
+            # 在线模型：优先使用代码传参，其次 dbc_config.json 的 ai 字段中的 online_api_url
             if not api_url:
                 resolved_url = _online_api_url or 'https://api.openai.com/v1'
 

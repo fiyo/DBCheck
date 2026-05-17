@@ -103,22 +103,24 @@ def _get_oracle_conn_thunk_first(dsn, user, password, mode=None,
     _real_dsn = dsn
     if ssh_host:
         try:
-            import paramiko
-            _tunnel = paramiko.SSHClient()
-            _tunnel.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            if ssh_key:
-                _tunnel.connect(ssh_host, port=int(ssh_port), username=ssh_user,
-                               key_filename=ssh_key, timeout=15,
-                               look_for_keys=False, allow_agent=False)
-            else:
-                _tunnel.connect(ssh_host, port=int(ssh_port), username=ssh_user,
-                               password=ssh_password or '', timeout=15,
-                               look_for_keys=False, allow_agent=False)
+            from ssh_tunnel import SSHTunnel
+            
             # 从 DSN 解析 Oracle 主机和端口
             _dsn_part = dsn.replace('//', '').split('/')[0]
             _ora_host, _ora_port = (_dsn_part.split(':') + ['1521'])[:2]
-            _t = _tunnel.get_transport()
-            _local_port = _t.request_port_forward('', 0, _ora_host, int(_ora_port))
+            
+            # 创建 SSH 隧道
+            _tunnel = SSHTunnel(
+                ssh_host=ssh_host,
+                ssh_port=int(ssh_port),
+                ssh_user=ssh_user,
+                ssh_password=ssh_password,
+                ssh_key=ssh_key,
+                remote_host=_ora_host,
+                remote_port=int(_ora_port)
+            )
+            _tunnel.__enter__()
+            _local_port = _tunnel.local_port
             _real_dsn = dsn.replace(f'{_ora_host}:{_ora_port}', f'localhost:{_local_port}')
             print(f"  🔗 SSH 隧道: localhost:{_local_port} → {_ora_host}:{_ora_port}")
         except Exception as e:

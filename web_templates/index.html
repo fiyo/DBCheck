@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="{{ lang }}">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7673,26 +7673,85 @@ async function executeFixSql(taskId, sql) {
 <!-- Toast 通知容器 -->
 <div id="toast-container" style="position:fixed;top:20px;right:20px;z-index:999999;display:flex;flex-direction:column;gap:10px;pointer-events:none"></div>
 
+
+<style>
+  #login-overlay {
+    background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%);
+  }
+  [data-theme="light"] #login-overlay {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 50%, #dee2e6 100%);
+  }
+  #login-overlay .login-card {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px;
+    padding: 28px;
+    width: 360px;
+    backdrop-filter: blur(10px);
+  }
+  [data-theme="light"] #login-overlay .login-card {
+    background: rgba(0,0,0,0.03);
+    border: 1px solid rgba(0,0,0,0.08);
+  }
+  #login-overlay .login-label {
+    text-align: left;
+    font-size: 11px;
+    color: rgba(255,255,255,0.4);
+    margin-bottom: 4px;
+  }
+  [data-theme="light"] #login-overlay .login-label {
+    color: rgba(0,0,0,0.5);
+  }
+  #login-overlay .login-input {
+    width: 100%;
+    padding: 11px 14px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 10px;
+    color: #fff;
+    font-size: 14px;
+    box-sizing: border-box;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  [data-theme="light"] #login-overlay .login-input {
+    background: rgba(0,0,0,0.03);
+    border: 1px solid rgba(0,0,0,0.12);
+    color: #1f2328;
+  }
+  #login-overlay .login-btn {
+    width: 100%;
+    padding: 12px;
+    background: linear-gradient(135deg, var(--accent), #6c5ce7);
+    border: none;
+    border-radius: 10px;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+</style>
 <!-- 登录遮罩 -->
-<div id="login-overlay" style="position:fixed;top:0;left:0;right:0;bottom:0;background:linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%);z-index:999999;display:flex;align-items:center;justify-content:center;">
+<div id="login-overlay" style="position:fixed;top:0;left:0;right:0;bottom:0;z-index:999999;display:flex;align-items:center;justify-content:center;">
   <div style="text-align:center;animation:fadeInUp 0.6s ease;">
     <!-- Logo -->
     <img src="/dbcheck_logo.png" style="width:80px;height:80px;margin:0 auto 16px;border-radius:18px;box-shadow:0 8px 32px rgba(108,92,231,0.3);" alt="DBCheck">
     <!-- Title -->
-    <div style="font-size:32px;font-weight:800;color:#fff;letter-spacing:-1px;margin-bottom:4px;">DBCheck</div>
-    <div style="font-size:13px;color:rgba(255,255,255,0.5);margin-bottom:32px;">数据库智能巡检工具</div>
+    <div style="font-size:32px;font-weight:800;color:#fff;letter-spacing:-1px;margin-bottom:4px;" data-i18n="webui.login_title">DBCheck</div>
+    <div style="font-size:13px;color:rgba(255,255,255,0.5);margin-bottom:32px;" data-i18n="webui.login_subtitle">数据库智能巡检工具</div>
     <!-- Form card -->
-    <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:28px;width:360px;backdrop-filter:blur(10px);">
+    <div class="login-card">
       <div style="margin-bottom:14px;">
-        <div style="text-align:left;font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:4px;">用户名</div>
-        <input id="login-user" type="text" placeholder="请输入用户名" style="width:100%;padding:11px 14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:#fff;font-size:14px;box-sizing:border-box;outline:none;transition:border-color 0.2s;" autocomplete="username" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='rgba(255,255,255,0.15)'">
+        <div class="login-label" data-i18n="webui.login_username">用户名</div>
+        <input id="login-user" type="text" placeholder="请输入用户名" data-i18n-placeholder="webui.login_username_placeholder" style="width:100%;padding:11px 14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:#fff;font-size:14px;box-sizing:border-box;outline:none;transition:border-color 0.2s;" autocomplete="username" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='rgba(255,255,255,0.15)'">
       </div>
       <div style="margin-bottom:6px;">
-        <div style="text-align:left;font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:4px;">密码</div>
-        <input id="login-pass" type="password" placeholder="请输入密码" style="width:100%;padding:11px 14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:#fff;font-size:14px;box-sizing:border-box;outline:none;transition:border-color 0.2s;" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='rgba(255,255,255,0.15)'">
+        <div class="login-label" data-i18n="webui.login_password">密码</div>
+        <input id="login-pass" type="password" placeholder="请输入密码" data-i18n-placeholder="webui.login_password_placeholder" style="width:100%;padding:11px 14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:#fff;font-size:14px;box-sizing:border-box;outline:none;transition:border-color 0.2s;" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='rgba(255,255,255,0.15)'">
       </div>
-      <div id="login-error" style="color:#ff6b6b;font-size:12px;margin-bottom:14px;min-height:18px;text-align:left;"></div>
-      <button id="btn-login" style="width:100%;padding:12px;background:linear-gradient(135deg, var(--accent), #6c5ce7);border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:600;cursor:pointer;transition:transform 0.15s,box-shadow 0.15s;" onmouseover="this.style.transform='scale(1.02)';this.style.boxShadow='0 4px 16px rgba(108,92,231,0.4)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+      <div id="login-error" style="color:#ff6b6b;font-size:12px;margin-bottom:14px;min-height:18px;text-align:left;display:none;"></div>
+      <button id="btn-login" style="width:100%;padding:12px;background:linear-gradient(135deg, var(--accent), #6c5ce7);border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:600;cursor:pointer;transition:transform 0.15s,box-shadow 0.15s;" onmouseover="this.style.transform='scale(1.02)';this.style.boxShadow='0 4px 16px rgba(108,92,231,0.4)'" onmouseout="this.style.transform='';this.style.boxShadow=''" data-i18n="webui.login_btn">
         登 录
       </button>
     </div>
@@ -8246,6 +8305,7 @@ async function checkLogin() {
 }
 
 function showLogin() {
+  applyI18N();  // 确保登录页翻译生效
   document.getElementById('login-overlay').style.display = 'flex';
   document.body.style.overflow = 'hidden';
 }
@@ -8267,8 +8327,9 @@ async function doLogin() {
   var u = document.getElementById('login-user').value.trim();
   var p = document.getElementById('login-pass').value;
   var err = document.getElementById('login-error');
-  if (!u || !p) { err.textContent = '请输入用户名和密码'; return; }
+  err.style.display = 'none';
   err.textContent = '';
+  if (!u || !p) { err.textContent = i18n('webui.login_error_empty'); err.style.display = ''; return; }
   try {
     var r = await fetch('/api/auth/login', {
       method: 'POST',
@@ -8284,9 +8345,10 @@ async function doLogin() {
       ue.style.display = '';
       document.getElementById('topbar-user-name').textContent = d.user.display_name || d.user.username;
     } else {
-      err.textContent = d.error || '登录失败';
+      err.textContent = i18n(d.error) || i18n('webui.login_error');
+      err.style.display = '';
     }
-  } catch(e) { err.textContent = '网络错误'; }
+  } catch(e) { err.textContent = i18n('webui.network_error'); err.style.display = ''; }
 }
 
 async function doLogout() {
