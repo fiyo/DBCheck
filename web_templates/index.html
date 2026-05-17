@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="{{ lang }}">
 <head>
 <meta charset="UTF-8" />
@@ -3100,6 +3100,9 @@ function formatBytes(bytes) {
     <div class="nav-item" onclick="showPage('ai')" id="nav-ai">
       <span class="icon">🤖</span> <span data-i18n="webui.nav_ai">AI 诊断设置</span>
     </div>
+    <div class="nav-item" onclick="showPage('oracle-client')" id="nav-oracle-client">
+      <span class="icon">🗄️</span> <span data-i18n="webui.nav_oracle_client">Oracle Client 设置</span>
+    </div>
     <div class="nav-item" onclick="showPage('license')" id="nav-license" style="display:none;">
       <span class="icon">🔑</span> <span data-i18n="webui.nav_license">许可证</span>
     </div>
@@ -4130,6 +4133,34 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
           </div>
         </div>
       </div>
+      <!-- ══ Page: Oracle Client Settings ══ -->
+      <div class="page" id="page-oracle-client">
+        <div class="card">
+          <div class="card-title"><span>🗄️</span> <span data-i18n="webui.oracle_client_title">Oracle Client 设置</span></div>
+          <div style="color:var(--text-muted);font-size:13px;margin-bottom:20px;line-height:1.7;white-space:pre-line" data-i18n="webui.oracle_client_desc">
+            Oracle 11g 及以下版本需要 Oracle Instant Client 才能连接。<br/>
+            请指定 Instant Client 的安装路径（包含 <code>oci.dll</code> / <code>libclntsh.so</code> 的目录）。<br/>
+            <strong style="color:var(--warn)">注意：</strong>修改后需要重启 DBCheck 才能生效。
+          </div>
+
+          <div class="form-group">
+            <label data-i18n="webui.oracle_client_path">Oracle Instant Client 路径</label>
+            <input type="text" id="oracle-client-path" class="form-input" placeholder="例如：C:\oracle\instantclient_21_12 或 /usr/lib/oracle/21/client64/lib"/>
+            <div style="font-size:11.5px;color:var(--text-muted);margin-top:6px;white-space:pre-line" data-i18n="webui.oracle_client_path_hint">
+               Windows 示例：C:\oracle\instantclient_21_12<br/>
+               Linux 示例：/usr/lib/oracle/21/client64/lib<br/>
+               留空则自动检测系统环境变量
+            </div>
+          </div>
+
+          <div id="oracle-client-status" style="display:none;padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:12px"></div>
+
+          <div class="btn-row">
+            <button class="btn btn-ghost" onclick="loadOracleClientConfig()" data-i18n="webui.oracle_client_reload">↻ 重新加载</button>
+            <button class="btn btn-primary" onclick="saveOracleClientConfig()" data-i18n="webui.oracle_client_save_btn">💾 保存配置</button>
+          </div>
+        </div>
+      </div>
       <div class="page" id="page-rag">
         <div class="card">
           <div class="card-title"><span>📚</span> <span data-i18n="webui.rag_upload_title">RAG 知识库</span></div>
@@ -4475,6 +4506,7 @@ function showPage(name) {
   if (name === 'backup') loadBackupPage();
   if (name === 'apikey') loadApiKeys();
   if (name === 'account') loadAccountPage();
+  if (name === 'oracle-client') loadOracleClientConfig();
 }
 
 function startWizard() {
@@ -9533,6 +9565,52 @@ async function deleteBackupHistory(recordId) {
     <button class="chat-send-btn" id="chat-send-btn" onclick="sendChatMessage()">➤</button>
   </div>
 </div>
+
+
+  <!-- Oracle Client Config -->
+  <script>
+  // ─── Oracle Client Config ──────────────────────
+  async function loadOracleClientConfig() {
+    try {
+      const res = await fetch('/api/config');
+      const data = await res.json();
+      document.getElementById('oracle-client-path').value = data.oracle_client_lib_dir || '';
+      const statusEl = document.getElementById('oracle-client-status');
+      statusEl.style.display = 'none';
+    } catch(e) {
+      console.error(e);
+      toastError('加载配置失败: ' + e.message);
+    }
+  }
+
+  async function saveOracleClientConfig() {
+    const path = document.getElementById('oracle-client-path').value.trim();
+    const statusEl = document.getElementById('oracle-client-status');
+    try {
+      const res = await fetch('/api/config', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ oracle_client_lib_dir: path })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        statusEl.className = 'status-banner ok';
+        statusEl.textContent = '✅ 配置已保存，重启后生效';
+        statusEl.style.display = 'block';
+        setTimeout(() => { statusEl.style.display = 'none'; }, 4000);
+      } else {
+        statusEl.className = 'status-banner err';
+        statusEl.textContent = '❌ 保存失败: ' + (data.error || '未知错误');
+        statusEl.style.display = 'block';
+      }
+    } catch(e) {
+      console.error(e);
+      statusEl.className = 'status-banner err';
+      statusEl.textContent = '❌ 保存失败: ' + e.message;
+      statusEl.style.display = 'block';
+    }
+  }
+  </script>
 
 </body>
 </html>

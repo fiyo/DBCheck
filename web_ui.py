@@ -1673,6 +1673,35 @@ def api_save_ai_config():
         json.dump(existing, f, ensure_ascii=False, indent=4)
     return jsonify({'ok': True, 'msg': _t('webui.ai_config_saved')})
 
+@app.route('/api/config', methods=['GET'])
+def api_get_config():
+    cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dbc_config.json')
+    if not os.path.exists(cfg_path):
+        return jsonify({})
+    with open(cfg_path, 'r', encoding='utf-8') as f:
+        cfg = json.load(f)
+    return jsonify({
+        'oracle_client_lib_dir': cfg.get('oracle_client_lib_dir', ''),
+        'language': cfg.get('language', 'zh'),
+        'notification': cfg.get('notification', {'enabled': False})
+    })
+
+@app.route('/api/config', methods=['POST'])
+def api_save_config():
+    data = request.json or {}
+    cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dbc_config.json')
+    existing = {}
+    if os.path.exists(cfg_path):
+        with open(cfg_path, 'r', encoding='utf-8') as f:
+            existing = json.load(f)
+    if 'oracle_client_lib_dir' in data:
+        existing['oracle_client_lib_dir'] = data['oracle_client_lib_dir']
+    if 'notification' in data:
+        existing['notification'] = data['notification']
+    with open(cfg_path, 'w', encoding='utf-8') as f:
+        json.dump(existing, f, ensure_ascii=False, indent=4)
+    return jsonify({'ok': True})
+
 @app.route('/api/test_db', methods=['POST'])
 def api_test_db():
     data = request.json
@@ -2762,18 +2791,35 @@ def api_pro_datasources_test_conn():
                 err_msg = str(e)
                 if 'DPY-3010' in err_msg:
                     # thin mode 不支持 Oracle 11g 及以下，尝试 thick mode
+                    _thick_ok = False
+                    # 1. 先尝试自动检测
                     try:
                         oracledb.init_oracle_client()
+                        _thick_ok = True
                     except Exception:
+                        pass
+                    # 2. 自动检测失败，尝试读用户配置的路径
+                    if not _thick_ok:
                         try:
-                            oracledb.init_oracle_client(
-                                lib_dir=r"C:\oracle\instantclient")
+                            import json
+                            with open('dbc_config.json') as f:
+                                _cfg = json.load(f)
+                            _lib_dir = _cfg.get('oracle_client_lib_dir', '')
+                            if _lib_dir and os.path.isdir(_lib_dir):
+                                oracledb.init_oracle_client(lib_dir=_lib_dir)
+                                _thick_ok = True
                         except Exception:
-                            return jsonify(ok=False, error='Oracle 11g 及以下版本需要 Instant Client，请在数据源中配置 SSH 或安装 Instant Client')
+                            pass
+                    if not _thick_ok:
+                        return jsonify(
+                            ok=False,
+                            error='Oracle 11g 及以下版本需要 Oracle Instant Client。'
+                                  '请在设置中配置"Oracle Client 路径"，或启用 SSH 隧道直连。'
+                        )
                     try:
                         conn = oracledb.connect(**params)
                     except Exception as e2:
-                        return jsonify(ok=False, error=f'Oracle 连接失败（已尝试 thick mode）: {e2}')
+                        return jsonify(ok=False, error=f'Oracle 连接失败（thick mode）: {e2}')
                 elif 'timed out' in err_msg.lower() or 'timeout' in err_msg.lower():
                     return jsonify(ok=False, error='连接超时，Oracle 可能无法直连，请在数据源中配置 SSH')
                 else:
