@@ -2761,12 +2761,26 @@ def api_pro_datasources_test_conn():
             except Exception as e:
                 err_msg = str(e)
                 if 'DPY-3010' in err_msg:
-                    return jsonify({'ok': False, 'error': 'Oracle 11g 及以下版本不支持直连，请在数据源中配置 SSH'})
-                if 'timed out' in err_msg.lower() or 'timeout' in err_msg.lower():
-                    return jsonify({'ok': False, 'error': '连接超时，Oracle 可能无法直连，请在数据源中配置 SSH'})
-                raise
+                    # thin mode 不支持 Oracle 11g 及以下，尝试 thick mode
+                    try:
+                        oracledb.init_oracle_client()
+                    except Exception:
+                        try:
+                            oracledb.init_oracle_client(
+                                lib_dir=r"C:\oracle\instantclient")
+                        except Exception:
+                            return jsonify(ok=False, error='Oracle 11g 及以下版本需要 Instant Client，请在数据源中配置 SSH 或安装 Instant Client')
+                    try:
+                        conn = oracledb.connect(**params)
+                    except Exception as e2:
+                        return jsonify(ok=False, error=f'Oracle 连接失败（已尝试 thick mode）: {e2}')
+                elif 'timed out' in err_msg.lower() or 'timeout' in err_msg.lower():
+                    return jsonify(ok=False, error='连接超时，Oracle 可能无法直连，请在数据源中配置 SSH')
+                else:
+                    return jsonify(ok=False, error=str(e))
             conn.close()
-            if _tunnel: _tunnel.close()
+            if _tunnel:
+                _tunnel.close()
         elif db_type == 'dm':
             import dmPython
             try:
