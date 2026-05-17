@@ -1,12 +1,12 @@
 # DBCheck - Database Inspection Tool
 
-DBCheck is an open-source, cross-platform automated database health check tool that supports six mainstream relational databases: **MySQL**, **PostgreSQL**, **Oracle**, **SQL Server**, **DM8**, and **TiDB**. The tool automatically generates standardized Microsoft Word inspection reports by executing predefined SQL checks and collecting system resources. It also provides advanced features such as historical trend analysis, AI-powered intelligent diagnostics, configuration baseline compliance checks, index health analysis, in-depth slow query analysis, and data-masked export. DBCheck aims to free DBAs from repetitive and time-consuming manual inspection work, improving database operation and maintenance efficiency and risk detection capabilities.
+DBCheck is an open-source, cross-platform automated database health check tool that supports six mainstream relational databases: **MySQL**, **PostgreSQL**, **Oracle**, **SQL Server**, **DM8**, and **TiDB**. The tool automatically generates standardized Microsoft Word inspection reports by executing predefined SQL checks and collecting system resources. It also provides advanced features such as historical trend analysis, AI-powered intelligent diagnostics, configuration baseline compliance checks, index health analysis, in-depth slow query analysis, server inspection, share links, and data-masked export. DBCheck aims to free DBAs from repetitive and time-consuming manual inspection work, improving database operation and maintenance efficiency and risk detection capabilities.
 > website：https://dbcheck.top
 
 > Language: [English](./README.md) | [中文](./README_zh.md)
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://dbcheck.top)
-[![Version](https://img.shields.io/badge/version-v2.4.4-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-v2.4.7-blue.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-green.svg)]()
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)]()
 [![AI](https://img.shields.io/badge/AI-Ollama+RAG-orange.svg)]()
@@ -109,7 +109,7 @@ Each risk is presented as a card: **Risk Level (High/Medium/Low) → Issue Descr
 
 ---
 
-## Four Core Capabilities
+## Six Core Capabilities
 
 | Capability | Description |
 |-----------|-------------|
@@ -117,10 +117,120 @@ Each risk is presented as a card: **Risk Level (High/Medium/Low) → Issue Descr
 | 📊 Historical Trend Analysis | Automatically aggregates data from multiple inspection runs on the same database, generates metric trend line charts, and compares against previous results to surface changes |
 | 🤖 AI-Powered Diagnosis | Calls local Ollama based on inspection metrics to generate personalized optimization recommendations |
 | 🔍 130+ Enhanced Rules | Full-dimensional risk detection across six databases (MySQL 35+, PG 27+, Oracle 20+, SQL Server 15+, DM8 16+, TiDB 18+) — including 28 new slow query deep analysis rules |
+| 🖥️ Server Inspection | Comprehensive check of server hardware and system resource status, generating professional server inspection reports |
+| 🔗 Share Links | Generate online share links with one click, supporting both server and database inspection report sharing |
 
 ---
 
-## Five Ways to Use DBCheck
+## Server Inspection 🖥️
+
+> Comprehensive server health check covering CPU, memory, disk, network, services, and other critical metrics, generating professional server inspection reports.
+
+### Overview
+
+The server inspection feature operates independently from database inspections, focusing on server hardware and system resource health checks:
+
+- **CPU Monitoring**: Usage rate, core count, frequency, load balancing
+- **Memory Analysis**: Total, used, available, usage rate, Swap status
+- **Disk Check**: Mount point capacity, usage rate, I/O performance
+- **Network Monitoring**: Network interface status, traffic statistics, connection count
+- **Service Status**: Critical service running status detection
+- **Process Analysis**: Top process resource usage ranking
+
+### Web UI Operation
+
+On the **🖥️ Server Inspection** page in Web UI:
+
+| Feature | Description |
+|---------|-------------|
+| One-Click Inspection | Select target server, execute comprehensive inspection with one click |
+| Real-Time Progress | SSE push inspection progress, view detection results in real-time |
+| Report Preview | Online preview of server status report after inspection completion |
+| History Records | View historical server inspection report list |
+| Share Links | Generate online share links for team collaboration |
+
+### Report Content
+
+Server inspection report includes the following chapters:
+
+| Chapter | Content |
+|---------|---------|
+| Basic Information | Server name, IP address, operating system, uptime |
+| CPU Status | Usage rate, core count, frequency, load status |
+| Memory Status | Total, used, available, Swap usage |
+| Disk Status | Partition capacity, usage rate, I/O performance metrics |
+| Network Status | Network interfaces, traffic statistics, connection count |
+| Service Status | Critical service running status |
+| Process Analysis | Top process resource usage ranking |
+| Overall Score | Comprehensive health score based on all metrics |
+
+---
+
+## Share Link Feature 🔗
+
+> Generate online share links with one click, view inspection reports without login, supporting both server and database inspection report sharing.
+
+### Features
+
+| Feature | Description |
+|---------|-------------|
+| Online Viewing | View complete reports directly in browser via link |
+| Permission Isolation | Share links can only view current report, no access to other pages |
+| Access Statistics | Automatically record link visit count |
+| Delete Anytime | Support deleting shared links, immediately invalid |
+| Bilingual Support | Share page automatically adapts to Chinese/English interface |
+
+### Use Cases
+
+- **Team Collaboration**: Share inspection reports with team members without file transfer
+- **Leadership Reporting**: Generate links for leadership review without software installation
+- **Problem Discussion**: Open links directly in meetings to discuss inspection findings
+- **Archive Memo**: Save links as historical records, accessible anytime
+
+### Web UI Operation
+
+#### Share Report
+
+1. In **📋 Inspection History** or **🖥️ Server Inspection History** page
+2. Click the **🔗 Share** button corresponding to the report
+3. System automatically generates share link
+4. Copy link and send to people who need to view
+
+#### Manage Share Links
+
+On the **🔗 Share Management** page:
+
+| Feature | Description |
+|---------|-------------|
+| View List | Display all shared links, including title, type, visit count |
+| Copy Link | One-click copy share link to clipboard |
+| Delete Link | Delete share link, link immediately invalid |
+| Access Statistics | View visit count for each link |
+
+### Share Link Format
+
+```
+http://localhost:5003/share/{share_id}
+```
+
+- `share_id`: 12-character unique identifier, auto-generated
+- Link accessible without login
+- Can only view shared report, cannot access other feature pages
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/server_inspect_share` | POST | Create server inspection share link |
+| `/api/db_inspect_share` | POST | Create database inspection share link |
+| `/share/<share_id>` | GET | View share report (standalone page) |
+| `/api/share/<share_id>` | GET | Get share data |
+| `/api/share/<share_id>` | DELETE | Delete share link |
+| `/api/shares` | GET | Get all share list |
+
+---
+
+## Six Ways to Use DBCheck
 
 | Method | Description |
 |--------|-------------|
@@ -129,12 +239,67 @@ Each risk is presented as a card: **Risk Level (High/Medium/Low) → Issue Descr
 | 💬 AI Chat Inspection | Open the AI panel in the bottom-right corner of Web UI, use natural language to start inspection, zero manual steps |
 | 🤖 OpenClaw Skill | Tell your AI assistant "inspect the Oracle Database" — fully automated |
 | 📦 Packaged Distribution | PyInstaller bundles everything into a single executable for team distribution |
+| 🔗 Share Links | Generate online share links with one click, view inspection reports without login |
 
 ---
 
 ## Features
 
 ### Database Inspection
+
+> Comprehensive inspection for six mainstream relational databases, covering 130+ enhanced rules.
+
+| Dimension | MySQL | PostgreSQL | Oracle | SQL Server | DM8 | TiDB |
+|-----------|:-----:|:----------:|:------:|:-----------:|:---:|:----:|
+| Basic Info (version / instance / database) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Session and Connection Status | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Memory and Cache Configuration | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Tablespace Usage | — | — | ✅ | ✅ | ✅ | — |
+| SGA / PGA Memory Analysis | — | — | ✅ | — | ✅ | — |
+| Redo Log Status | — | — | ✅ | — | ✅ | — |
+| Archiving and Backup Checks | — | — | ✅ | ✅ | ✅ | — |
+| Key Parameter Configuration | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Invalid Object Detection | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| User Security Audit | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Top SQL / Slow Queries | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Master-Slave Replication / Data Guard | ✅ | ✅ | — | — | — | ✅ |
+| RAC Cluster Information | — | — | ✅ | — | — | — |
+| ASM Disk Groups | — | — | ✅ | — | — | — |
+| Undo Tablespace Management | — | — | ✅ | — | ✅ | — |
+| Recycle Bin / Flashback Recovery Area | — | — | ✅ | — | ✅ | — |
+| Profile Password Policy | — | — | ✅ | — | — | — |
+| Top Wait Events | — | — | ✅ | ✅ | ✅ | — |
+| Locks and Blocking Detection | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Stale Statistics Detection | — | — | ✅ | ✅ | ✅ | ✅ |
+| Partitioned Table Information | — | — | ✅ | ✅ | ✅ | ✅ |
+| Datafile Status | — | — | ✅ | ✅ | ✅ | — |
+| DM8 Buffer Pool Details | — | — | — | — | ✅ | — |
+| Placement & Affinity Policy | — | — | — | — | — | ✅ |
+
+### Server Inspection
+
+> Comprehensive check of server hardware and system resource status, generating professional server inspection reports.
+
+| Inspection Dimension | Description |
+|---------------------|-------------|
+| CPU | Usage rate, core count, frequency, load status |
+| Memory | Total, used, available, usage rate, Swap status |
+| Disk | Mount point capacity, usage rate, I/O performance |
+| Network | Network interface status, traffic statistics, connection count |
+| Services | Critical service running status detection |
+| Processes | Top process resource usage ranking |
+| Overall Score | Comprehensive health score based on all metrics |
+
+### Share Links
+
+> Generate online share links with one click, supporting both server and database inspection report sharing.
+
+| Feature | Description |
+|---------|-------------|
+| Online Viewing | View complete reports directly in browser via link |
+| Permission Isolation | Share links can only view current report, no access to other pages |
+| Access Statistics | Automatically record link visit count |
+| Delete Anytime | Support deleting shared links, immediately invalid |
 
 | Dimension | MySQL | PostgreSQL | Oracle | SQL Server | DM8 | TiDB |
 |-----------|:-----:|:----------:|:------:|:-----------:|:---:|:----:|
@@ -853,6 +1018,8 @@ python web_ui.py
 | 10 | ⏰ Scheduled Inspection | Configure cron-based recurring inspections |
 | 11 | 📧🔔 Notification Settings | Email and Webhook alerting configuration |
 | 12 | 📚 RAG Knowledge Base | Upload and manage database documentation for AI-enhanced diagnostics |
+| 13 | 🖥️ Server Inspection | Comprehensive check of server hardware and system resource status |
+| 14 | 🔗 Share Management | Manage shared report links, support viewing, copying, and deletion |
 
 ### OpenClaw Skill
 
@@ -1067,6 +1234,12 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
 | `POST` | `/api/v1/inspect` | Trigger inspection |
 | `GET` | `/api/v1/inspect/{task_id}` | Query task result |
 | `GET` | `/api/v1/inspects` | List recent tasks |
+| `POST` | `/api/server_inspect_share` | Create server inspection share link |
+| `POST` | `/api/db_inspect_share` | Create database inspection share link |
+| `GET` | `/share/<share_id>` | View share report (standalone page) |
+| `GET` | `/api/share/<share_id>` | Get share data |
+| `DELETE` | `/api/share/<share_id>` | Delete share link |
+| `GET` | `/api/shares` | Get all share list |
 
 ### Parameters
 
@@ -1142,6 +1315,12 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
 
 ![Reports](snapshot/report-en.png)
 *Fig. 14: AI diagnosis report (Markdown auto-rendered to Word format)*
+
+![Server Inspection](snapshot/server_inspect.png)
+*Fig. 15: Server inspection report*
+
+![Share Management](snapshot/share_management.png)
+*Fig. 16: Share management page*
 
 ---
 
