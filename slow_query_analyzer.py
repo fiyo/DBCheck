@@ -872,28 +872,35 @@ class PGSlowQueryAnalyzer(BaseSlowQueryAnalyzer):
     def collect(self, conn) -> dict:
         result = {}
 
-        # 1. Top SQL by total time（需要 pg_stat_statements）
-        result['top_by_total_time'] = self._exec_sql(conn,
-            PG_SLOW_QUERIES['pg_top_by_total_time'])
+        # 先检查 pg_stat_statements 是否启用，未启用则跳过依赖查询
+        pg_ss_enabled = self._check_extension(conn)
+        result['pg_statements_enabled'] = pg_ss_enabled
 
-        # 2. Top SQL by avg time
-        result['top_by_avg_time'] = self._exec_sql(conn,
-            PG_SLOW_QUERIES['pg_top_by_avg_time'])
+        if pg_ss_enabled:
+            # 1. Top SQL by total time（需要 pg_stat_statements）
+            result['top_by_total_time'] = self._exec_sql(conn,
+                PG_SLOW_QUERIES['pg_top_by_total_time'])
 
-        # 3. Top SQL by IO
-        result['top_by_io'] = self._exec_sql(conn,
-            PG_SLOW_QUERIES['pg_top_by_io'])
+            # 2. Top SQL by avg time
+            result['top_by_avg_time'] = self._exec_sql(conn,
+                PG_SLOW_QUERIES['pg_top_by_avg_time'])
 
-        # 4. Top SQL by temp blocks
-        result['top_by_temp'] = self._exec_sql(conn,
-            PG_SLOW_QUERIES['pg_top_by_temp'])
+            # 3. Top SQL by IO
+            result['top_by_io'] = self._exec_sql(conn,
+                PG_SLOW_QUERIES['pg_top_by_io'])
 
-        # 5. 当前长查询快照
+            # 4. Top SQL by temp blocks
+            result['top_by_temp'] = self._exec_sql(conn,
+                PG_SLOW_QUERIES['pg_top_by_temp'])
+        else:
+            result['top_by_total_time'] = []
+            result['top_by_avg_time'] = []
+            result['top_by_io'] = []
+            result['top_by_temp'] = []
+
+        # 5. 当前长查询快照（不依赖 pg_stat_statements）
         result['long_running'] = self._exec_sql(conn,
             PG_SLOW_QUERIES['pg_long_running'])
-
-        # 检查 pg_stat_statements 是否启用
-        result['pg_statements_enabled'] = self._check_extension(conn)
 
         return result
 

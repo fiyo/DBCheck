@@ -65,6 +65,7 @@ class DatabaseInstance:
     port: int
     user: str
     password: str = ""  # 加密存储
+    database: str = ""  # PG/IvorySQL 数据库名
     service_name: str = ""  # Oracle 专用
     sysdba: bool = False  # Oracle SYSDBA 连接
     ssh_host: str = ""     # SSH 跳板主机
@@ -218,12 +219,18 @@ class InstanceManager:
         # ── 保存实例到 instances.db ──
         conn = sqlite3.connect(self.instances_db)
         c = conn.cursor()
+        # 迁移：为旧表添加 database 列
+        try:
+            c.execute('ALTER TABLE instances ADD COLUMN "database" TEXT DEFAULT \'\'')
+        except Exception:
+            pass
         # 确保表存在
         c.execute("""
             CREATE TABLE IF NOT EXISTS instances (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL, db_type TEXT NOT NULL, host TEXT NOT NULL,
-                port INTEGER NOT NULL, "user" TEXT NOT NULL, password TEXT DEFAULT '',
+                port INTEGER NOT NULL, "user" TEXT NOT NULL,                 password TEXT DEFAULT '',
+                "database" TEXT DEFAULT '',
                 service_name TEXT DEFAULT '', sysdba INTEGER DEFAULT 0,
                 ssh_host TEXT DEFAULT '', ssh_port INTEGER DEFAULT 22,
                 ssh_user TEXT DEFAULT '', ssh_password TEXT DEFAULT '',
@@ -237,14 +244,14 @@ class InstanceManager:
             d = inst.to_dict() if not isinstance(inst, dict) else inst
             c.execute("""
                 INSERT OR REPLACE INTO instances
-                (id, name, db_type, host, port, "user", password, service_name, sysdba,
+                (id, name, db_type, host, port, "user", password, "database", service_name, sysdba,
                  ssh_host, ssh_port, ssh_user, ssh_password, ssh_key_file, ssh_enabled,
                  tags, "group", enabled, description, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 d.get("id", ""), d.get("name", ""), d.get("db_type", ""),
                 d.get("host", ""), d.get("port", 0), d.get("user", ""),
-                d.get("password", ""), d.get("service_name", ""),
+                d.get("password", ""), d.get("database", ""), d.get("service_name", ""),
                 1 if d.get("sysdba") else 0,
                 d.get("ssh_host", ""), d.get("ssh_port", 22),
                 d.get("ssh_user", ""), d.get("ssh_password", ""),
@@ -379,6 +386,16 @@ class InstanceManager:
                 )
                 conn.close()
                 return {'ok': True, 'message': '连接成功 (PostgreSQL %s:%d)' % (inst.host, inst.port)}
+
+            elif db_type == 'ivorysql':
+                import psycopg2
+                conn = psycopg2.connect(
+                    host=inst.host, port=inst.port,
+                    user=inst.user, password=password,
+                    dbname='postgres', connect_timeout=10,
+                )
+                conn.close()
+                return {'ok': True, 'message': '连接成功 (IvorySQL %s:%d)' % (inst.host, inst.port)}
 
             elif db_type == 'oracle':
                 import oracledb
@@ -609,6 +626,7 @@ class InstanceManager:
         risk_level: str,
         report_path: str,
         duration: float,
+        host: str = '',
         auto_analyze: Optional[List[Dict]] = None
     ) -> Dict[str, Any]:
         """记录巡检历史"""
@@ -621,6 +639,12 @@ class InstanceManager:
         except Exception:
             pass
 
+        # 确保 host 字段存在
+        try:
+            cursor.execute("ALTER TABLE inspection_history ADD COLUMN host TEXT")
+        except Exception:
+            pass
+
         try:
             auto_analyze_json = json.dumps(auto_analyze, ensure_ascii=False) if auto_analyze else None
 
@@ -628,12 +652,12 @@ class InstanceManager:
             cursor.execute("""
                 INSERT INTO inspection_history
                 (instance_id, instance_name, db_type, inspect_time, health_score,
-                 risk_count, risk_level, report_path, duration, auto_analyze)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 risk_count, risk_level, report_path, duration, auto_analyze, host)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 instance_id, instance_name, db_type, datetime.now().isoformat(),
                 health_score, risk_count, risk_level, report_path, duration,
-                auto_analyze_json
+                auto_analyze_json, host
             ))
 
             # 更新趋势数据

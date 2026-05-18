@@ -41,9 +41,9 @@ socketio = SocketIO(cors_allowed_origins='*', async_mode='threading')
 
 # ── 本地模块 ──────────────────────────────────────────────
 try:
-    import main_mysql, main_pg, main_dm, main_oracle_full, main_sqlserver, main_tidb
+    import main_mysql, main_pg, main_dm, main_oracle_full, main_sqlserver, main_tidb, main_ivorysql
 except ImportError:
-    main_mysql = main_pg = main_dm = main_oracle_full = main_sqlserver = main_tidb = None
+    main_mysql = main_pg = main_dm = main_oracle_full = main_sqlserver = main_tidb = main_ivorysql = None
 
 app = Flask(__name__, template_folder='web_templates', static_folder='web_templates', static_url_path='/')
 app.config['SECRET_KEY'] = os.urandom(24)
@@ -216,7 +216,8 @@ def run_mysql_task(task_id, db_info, inspector_name):
         # ── 生成 Word 报告 ───────────────────────────────────
         _emit('log', {'msg': _t('webui.log_generating_report').format(ts=_ts())})
         label_name = db_info.get('name', db_info.get('ip', 'unknown'))
-        ret.update({"co_name": [{'CO_NAME': label_name}]})
+        db_name = db_info.get('database') or 'postgres'
+        ret.update({"co_name": [{'CO_NAME': db_name}]})
         ret.update({"port": [{'PORT': db_info['port']}]})
         ret.update({"ip": [{'IP': db_info['ip']}]})
 
@@ -322,8 +323,25 @@ def run_mysql_task(task_id, db_info, inspector_name):
                 risk_level=risk_level,
                 report_path=ofile,
                 duration=0,  # 暂不计算耗时
+                host=db_info['ip'],
                 auto_analyze=auto_analyze if auto_analyze else []
             )
+            # ── 保存结果用于分享 ──────────────────────────
+            if task:
+                task['result'] = {
+                    'db_type': 'mysql',
+                    'host': db_info['ip'],
+                    'port': db_info['port'],
+                    'label': label_name,
+                    'health_score': health_score,
+                    'health_status': health_status,
+                    'risk_count': risk_count,
+                    'risk_level': risk_level,
+                    'finished_at': datetime.datetime.now().isoformat(),
+                    'issues': [{'level': item.get('col2', ''), 'description': item.get('col1', ''), 'suggestion': item.get('col3', '')} for item in (task.get('auto_analyze') or [])],
+                    'report_file': ofile,
+                    'report_name': file_name,
+                }
         except Exception as e:
             _emit('log', {'msg': f"[警告] Pro 巡检记录保存失败: {e}"})
 
@@ -389,7 +407,8 @@ def run_pg_task(task_id, db_info, inspector_name):
         # ── 生成 Word 报告 ───────────────────────────────────
         _emit('log', {'msg': _t('webui.log_generating_report').format(ts=_ts())})
         label_name = db_info.get('name', db_info.get('ip', 'unknown'))
-        ret.update({"co_name": [{'CO_NAME': label_name}]})
+        db_name = db_info.get('database') or 'postgres'
+        ret.update({"co_name": [{'CO_NAME': db_name}]})
         ret.update({"port": [{'PORT': db_info['port']}]})
         ret.update({"ip": [{'IP': db_info['ip']}]})
 
@@ -491,8 +510,25 @@ def run_pg_task(task_id, db_info, inspector_name):
                 risk_level=risk_level,
                 report_path=ofile,
                 duration=0,
+                host=db_info['ip'],
                 auto_analyze=auto_analyze if auto_analyze else []
             )
+            # ── 保存结果用于分享 ──────────────────────────
+            if task:
+                task['result'] = {
+                    'db_type': 'postgresql',
+                    'host': db_info['ip'],
+                    'port': db_info['port'],
+                    'label': label_name,
+                    'health_score': health_score,
+                    'health_status': health_status,
+                    'risk_count': risk_count,
+                    'risk_level': risk_level,
+                    'finished_at': datetime.datetime.now().isoformat(),
+                    'issues': [{'level': item.get('col2', ''), 'description': item.get('col1', ''), 'suggestion': item.get('col3', '')} for item in (task.get('auto_analyze') or [])],
+                    'report_file': ofile,
+                    'report_name': file_name,
+                }
         except Exception as e:
             _emit('log', {'msg': f"[警告] Pro 巡检记录保存失败: {e}"})
 
@@ -633,9 +669,34 @@ def run_oracle_full_task(task_id, db_info, inspector_name):
                 risk_level=risk_level,
                 report_path='',
                 duration=0,
+                host=db_info['ip'],
                 auto_analyze=auto_analyze if auto_analyze else []
             )
             _emit('log', {'msg': "[记录] 巡检记录已保存"})
+            # ── 保存结果用于分享 ──────────────────────────
+            if task:
+                _issues = []
+                for a in (auto_analyze or []):
+                    _issues.append({
+                        'level': str(a.get('col2', '')),
+                        'description': str(a.get('col3', a.get('col1', ''))),
+                        'suggestion': str(a.get('col5', a.get('suggestion', '')))
+                    })
+                _h_status = 'healthy' if health_score >= 85 else ('good' if health_score >= 70 else ('fair' if health_score >= 50 else 'poor'))
+                task['result'] = {
+                    'db_type': 'oracle',
+                    'host': db_info.get('host', db_info['ip']),
+                    'port': db_info.get('port', 1521),
+                    'label': db_label,
+                    'health_score': health_score,
+                    'health_status': _h_status,
+                    'risk_count': risk_count,
+                    'risk_level': risk_level,
+                    'finished_at': datetime.datetime.now().isoformat(),
+                    'issues': _issues,
+                    'report_file': '',
+                    'report_name': '',
+                }
         except Exception as e:
             _emit('log', {'msg': "[警告] 巡检记录保存失败: %s" % str(e)})
 
@@ -810,6 +871,22 @@ def run_dm_task(task_id, db_info, inspector_name):
                 duration=0,
                 auto_analyze=auto_analyze if auto_analyze else []
             )
+            # ── 保存结果用于分享 ──────────────────────────
+            if task:
+                task['result'] = {
+                    'db_type': 'dm',
+                    'host': db_info['ip'],
+                    'port': db_info['port'],
+                    'label': label_name,
+                    'health_score': health_score,
+                    'health_status': health_status,
+                    'risk_count': risk_count,
+                    'risk_level': risk_level,
+                    'finished_at': datetime.datetime.now().isoformat(),
+                    'issues': [{'level': item.get('col2', ''), 'description': item.get('col1', ''), 'suggestion': item.get('col3', '')} for item in (task.get('auto_analyze') or [])],
+                    'report_file': ofile,
+                    'report_name': os.path.basename(ofile) if ofile else '',
+                }
         except Exception as e:
             _emit('log', {'msg': f"[警告] Pro 巡检记录保存失败: {e}"})
 
@@ -994,6 +1071,22 @@ def run_sqlserver_task(task_id, db_info, inspector_name):
                 duration=0,
                 auto_analyze=auto_analyze if auto_analyze else []
             )
+            # ── 保存结果用于分享 ──────────────────────────
+            if task:
+                task['result'] = {
+                    'db_type': 'sqlserver',
+                    'host': db_info['ip'],
+                    'port': db_info['port'],
+                    'label': label_name,
+                    'health_score': health_score,
+                    'health_status': health_status,
+                    'risk_count': risk_count,
+                    'risk_level': risk_level,
+                    'finished_at': datetime.datetime.now().isoformat(),
+                    'issues': [{'level': item.get('col2', ''), 'description': item.get('col1', ''), 'suggestion': item.get('col3', '')} for item in (task.get('auto_analyze') or [])],
+                    'report_file': ofile,
+                    'report_name': os.path.basename(ofile) if ofile else '',
+                }
         except Exception as e:
             _emit('log', {'msg': f"[警告] Pro 巡检记录保存失败: {e}"})
 
@@ -1063,7 +1156,8 @@ def run_tidb_task(task_id, db_info, inspector_name):
         # ── 生成 Word 报告 ──────────────────────────────────────────
         _emit('log', {'msg': _t('webui.log_generating_report').format(ts=_ts())})
         label_name = db_info.get('name', db_info.get('ip', 'unknown'))
-        ret.update({"co_name": [{'CO_NAME': label_name}]})
+        db_name = db_info.get('database') or 'postgres'
+        ret.update({"co_name": [{'CO_NAME': db_name}]})
         ret.update({"port": [{'PORT': db_info['port']}]})
         ret.update({"ip": [{'IP': db_info['ip']}]})
 
@@ -1165,6 +1259,22 @@ def run_tidb_task(task_id, db_info, inspector_name):
                 report_path=ofile,
                 duration=0
             )
+            # ── 保存结果用于分享 ──────────────────────────
+            if task:
+                task['result'] = {
+                    'db_type': 'tidb',
+                    'host': db_info['ip'],
+                    'port': db_info['port'],
+                    'label': label_name,
+                    'health_score': health_score,
+                    'health_status': health_status,
+                    'risk_count': risk_count,
+                    'risk_level': risk_level,
+                    'finished_at': datetime.datetime.now().isoformat(),
+                    'issues': [{'level': item.get('col2', ''), 'description': item.get('col1', ''), 'suggestion': item.get('col3', '')} for item in (task.get('auto_analyze') or [])],
+                    'report_file': ofile,
+                    'report_name': file_name,
+                }
         except Exception as e:
             _emit('log', {'msg': f"[警告] Pro 巡检记录保存失败: {e}"})
 
@@ -1173,6 +1283,207 @@ def run_tidb_task(task_id, db_info, inspector_name):
         import traceback
         traceback.print_exc(file=sys.stdout)
         _emit('error', {'msg': _t('webui.err_inspection').format(task='TiDB', e=f"{e}\n{traceback.format_exc()}")})
+        if task:
+            task['status'] = 'error'
+            task['error_msg'] = str(e)
+
+
+# ── IvorySQL 巡检任务 ──────────────────────────────────────────
+def run_ivorysql_task(task_id, db_info, inspector_name):
+    """IvorySQL 巡检 Web UI 任务"""
+    emit = socketio.emit
+    task = tasks.get(task_id)
+    def _emit(event, data):
+        msg = data.get('msg', '')
+        if msg and task is not None:
+            task.setdefault('log', []).append(msg)
+        emit(event, data, room=task_id)
+
+    _emit('log', {'msg': _t('webui.log_ivorysql_start').format(ts=_ts())})
+
+    if not main_ivorysql:
+        _emit('error', {'msg': _t('webui.err_ivorysql_module')})
+        return
+
+    try:
+        import main_ivorysql as mod
+        _emit('log', {'msg': _t('webui.log_connecting').format(ts=_ts(), host=db_info['ip'], port=db_info['port'])})
+        ok, ver = test_ivorysql_connection(db_info['ip'], db_info['port'], db_info['user'], db_info['password'], db_info.get('database'))
+        if not ok:
+            raise RuntimeError(_t('webui.err_db_connect').format(ver=ver))
+        _emit('log', {'msg': _t('webui.log_connected').format(ts=_ts(), ver=ver)})
+
+        ssh_info = {}
+        if db_info.get('ssh_host'):
+            ssh_info = {k: db_info[k] for k in ('ssh_host','ssh_port','ssh_user','ssh_password','ssh_key_file') if k in db_info}
+
+        _emit('log', {'msg': _t('webui.log_executing_sql').format(ts=_ts())})
+        data = mod.getData(db_info['ip'], db_info['port'], db_info['user'], db_info['password'],
+                           database=db_info.get('database', 'postgres'), ssh_info=ssh_info, label=db_info.get('name'))
+        if data is None or data.conn_db2 is None:
+            raise RuntimeError(_t('webui.err_getdata_none'))
+
+        # ── stdout 重定向：捕获 checkdb() 内部的 AI 诊断 print 输出 ──
+        import builtins as _bi
+        _orig_print = _bi.print
+        def _web_print(*_a, **_kw):
+            _sep = _kw.get('sep', ' ')
+            _msg = _sep.join(str(x) for x in _a)
+            _msg_clean = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', _msg)
+            if _msg_clean.strip():
+                _emit('log', {'msg': _msg_clean})
+            _orig_print(*_a, **_kw)
+        _bi.print = _web_print
+        try:
+            ret = data.checkdb('builtin')
+        finally:
+            _bi.print = _orig_print
+
+        if not ret:
+            raise RuntimeError(_t('webui.err_checkdb_false'))
+
+        # ── 生成 Word 报告 ──────────────────────────────────────────
+        _emit('log', {'msg': _t('webui.log_generating_report').format(ts=_ts())})
+        label_name = db_info.get('name', db_info.get('ip', 'unknown'))
+        db_name = db_info.get('database') or 'postgres'
+        ret.update({"co_name": [{'CO_NAME': db_name}]})
+        ret.update({"port": [{'PORT': db_info['port']}]})
+        ret.update({"ip": [{'IP': db_info['ip']}]})
+
+        inspector_name = db_info.get('inspector_name') or 'Jack'
+        ifile = mod.create_word_template(inspector_name)
+        if not ifile:
+            raise RuntimeError(_t('webui.err_template_create'))
+
+        reports_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reports')
+        if not os.path.exists(reports_dir):
+            os.makedirs(reports_dir)
+        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        ext_name = _t('webui.ivorysql_report_filename').format(ip=db_info['ip'], name=label_name, ts=timestamp)
+        file_name = ext_name + '.docx'
+        ofile = os.path.join(reports_dir, file_name)
+
+        if db_info.get('desensitize'):
+            from desensitize import apply_desensitization
+            ret = apply_desensitization(ret)
+
+        savedoc = mod.saveDoc(context=ret, ofile=ofile, ifile=ifile, inspector_name=inspector_name)
+        if not savedoc.contextsave():
+            raise RuntimeError(_t('webui.err_report_generate'))
+        _emit('log', {'msg': _t('webui.log_report_ok').format(fname=file_name)})
+
+        # ── 智能分析 ────────────────────────────────────────────
+        try:
+            from analyzer import smart_analyze_pg
+            auto_analyze = smart_analyze_pg(ret)
+            if task:
+                task['auto_analyze'] = auto_analyze
+            _emit('log', {'msg': f"[智能分析] 完成，发现 {len(auto_analyze)} 个可优化项"})
+        except Exception as e:
+            _emit('log', {'msg': f"[警告] 智能分析失败: {e}"})
+
+        if task:
+            task['status'] = 'done'
+            task['report_file'] = ofile
+            task['report_name'] = file_name
+
+        # ── 保存历史记录 ────────────────────────────────────────
+        try:
+            from analyzer import HistoryManager
+            hm = HistoryManager(os.path.dirname(os.path.abspath(__file__)))
+            hm.save_snapshot(
+                db_type='ivorysql',
+                host=db_info['ip'],
+                port=db_info['port'],
+                label=db_info.get('name', db_info['ip']),
+                context=ret
+            )
+        except Exception as e:
+            _emit('log', {'msg': f"[警告] 历史快照保存失败: {e}"})
+
+        # ── 保存巡检记录到 Pro 模块 ──────────────────────────
+        try:
+            from pro import get_instance_manager
+            risk_count = ret.get('risk_count', 0)
+            if not risk_count:
+                issues = ret.get('issues', [])
+                risk_count = len(issues) if isinstance(issues, list) else 0
+
+            health_status = ret.get('health_status', '')
+            if '优秀' in health_status or 'Excellent' in health_status:
+                health_score = 100
+            elif '良好' in health_status or 'Good' in health_status:
+                health_score = 80
+            elif '一般' in health_status or 'Fair' in health_status:
+                health_score = 60
+            elif '需关注' in health_status or 'Attention' in health_status:
+                health_score = 40
+            else:
+                health_score = 100 - min(risk_count * 5, 50)
+
+            if health_score >= 85:
+                risk_level = 'healthy'
+            elif health_score >= 70:
+                risk_level = 'low'
+            elif health_score >= 50:
+                risk_level = 'medium'
+            elif health_score >= 30:
+                risk_level = 'high'
+            else:
+                risk_level = 'critical'
+
+            import hashlib
+            raw = f"ivorysql-{db_info['ip']}-{db_info['port']}".encode()
+            instance_id = hashlib.md5(raw).hexdigest()[:12]
+
+            im = get_instance_manager()
+            im.record_inspection(
+                instance_id=instance_id,
+                instance_name=label_name,
+                db_type='ivorysql',
+                health_score=health_score,
+                risk_count=risk_count,
+                risk_level=risk_level,
+                report_path=ofile,
+                duration=0,
+                host=db_info['ip'],
+                auto_analyze=auto_analyze if auto_analyze else []
+            )
+
+            # ── 保存巡检结果到 task，供分享报告使用 ──
+            # issues 从 auto_analyze 构造，context(ret) 里没有 issues 键
+            _issues = []
+            if isinstance(auto_analyze, list):
+                for item in auto_analyze:
+                    if isinstance(item, dict):
+                        _issues.append({
+                            'level': item.get('col2', ''),
+                            'description': item.get('col1', ''),
+                            'suggestion': item.get('col3', ''),
+                        })
+            if task:
+                task['result'] = {
+                    'db_type': 'ivorysql',
+                    'host': db_info['ip'],
+                    'port': db_info['port'],
+                    'label': label_name,
+                    'health_score': health_score,
+                    'health_status': health_status,
+                    'risk_count': risk_count,
+                    'risk_level': risk_level,
+                    'finished_at': datetime.datetime.now().isoformat(),
+                    'issues': _issues,
+                    'report_file': ofile,
+                    'report_name': file_name,
+                }
+        except Exception as e:
+            _emit('log', {'msg': f"[警告] Pro 巡检记录保存失败: {e}"})
+
+        _emit('done', {'msg': _t('webui.log_inspection_done').format(ver=ver), 'task_id': task_id})
+    except Exception as e:
+        import traceback
+        traceback.print_exc(file=sys.stdout)
+        _emit('error', {'msg': _t('webui.err_inspection').format(task='IvorySQL', e=f"{e}\n{traceback.format_exc()}")})
         if task:
             task['status'] = 'error'
             task['error_msg'] = str(e)
@@ -1206,14 +1517,14 @@ def run_config_task(task_id, db_info, output_format='txt'):
                 charset='utf8mb4'
             )
             db_label = 'MySQL'
-        elif db_type == 'pg':
+        elif db_type in ('pg', 'ivorysql'):
             import psycopg2
             conn = psycopg2.connect(
                 host=db_info['host'], port=int(db_info['port']),
                 user=db_info['user'], password=db_info['password'],
                 database=db_info.get('database', 'postgres')
             )
-            db_label = 'PostgreSQL'
+            db_label = 'IvorySQL' if db_type == 'ivorysql' else 'PostgreSQL'
         else:
             raise ValueError(f"Unsupported db_type: {db_type}")
 
@@ -1286,14 +1597,14 @@ def run_index_task(task_id, db_info, output_format='txt'):
                 charset='utf8mb4'
             )
             db_label = 'MySQL'
-        elif db_type == 'pg':
+        elif db_type in ('pg', 'ivorysql'):
             import psycopg2
             conn = psycopg2.connect(
                 host=db_info['host'], port=int(db_info['port']),
                 user=db_info['user'], password=db_info['password'],
                 database=db_info.get('database', 'postgres')
             )
-            db_label = 'PostgreSQL'
+            db_label = 'IvorySQL' if db_type == 'ivorysql' else 'PostgreSQL'
         else:
             raise ValueError(f"Unsupported db_type: {db_type}")
 
@@ -1390,6 +1701,21 @@ def test_pg_connection(host, port, user, password, database='postgres'):
         cur.close()
         conn.close()
         return True, f"PostgreSQL {ver}"
+    except Exception as e:
+        return False, str(e)
+
+def test_ivorysql_connection(host, port, user, password, database='postgres'):
+    """测试 IvorySQL 连接（使用 psycopg2，与 PostgreSQL 协议兼容）"""
+    try:
+        import psycopg2
+        conn = psycopg2.connect(host=host, port=int(port), user=user, password=password,
+                                database=database, connect_timeout=10)
+        cur = conn.cursor()
+        cur.execute('SELECT version()')
+        ver = cur.fetchone()[0]
+        cur.close()
+        conn.close()
+        return True, ver
     except Exception as e:
         return False, str(e)
 
@@ -1565,7 +1891,7 @@ def api_report_detail(filename):
                 if cursor.fetchone():
                     # 先尝试用 report_path 匹配
                     cursor.execute(
-                        "SELECT report_path, auto_analyze, health_score, risk_count, risk_level, db_type, instance_name, inspect_time FROM inspection_history WHERE report_path LIKE ?",
+                        "SELECT report_path, auto_analyze, health_score, risk_count, risk_level, db_type, instance_name, inspect_time, host FROM inspection_history WHERE report_path LIKE ?",
                         ('%' + filename,))
                     row = cursor.fetchone()
                     # 如果没找到，尝试用文件名中的时间戳匹配
@@ -1578,32 +1904,36 @@ def api_report_detail(filename):
                             # 转换为 inspect_time 格式: 2026-05-17T21:29:35
                             dt_str = f"{ts[:4]}-{ts[4:6]}-{ts[6:8]}T{ts[8:10]}:{ts[10:12]}:{ts[12:14]}"
                             cursor.execute(
-                                "SELECT report_path, auto_analyze, health_score, risk_count, risk_level, db_type, instance_name, inspect_time FROM inspection_history WHERE inspect_time LIKE ? ORDER BY id DESC LIMIT 1",
+                                "SELECT report_path, auto_analyze, health_score, risk_count, risk_level, db_type, instance_name, inspect_time, host FROM inspection_history WHERE inspect_time LIKE ? ORDER BY id DESC LIMIT 1",
                                 (dt_str[:13] + '%',))
                             row = cursor.fetchone()
                     # 如果还没找到，用最新的记录
                     if not row:
                         cursor.execute(
-                            "SELECT report_path, auto_analyze, health_score, risk_count, risk_level, db_type, instance_name, inspect_time FROM inspection_history ORDER BY id DESC LIMIT 1")
+                            "SELECT report_path, auto_analyze, health_score, risk_count, risk_level, db_type, instance_name, inspect_time, host FROM inspection_history ORDER BY id DESC LIMIT 1")
                         row = cursor.fetchone()
                     if row:
-                        report_path, auto_analyze_json, health_score, risk_count, risk_level, db_type_db, instance_name, inspect_time = row
+                        report_path, auto_analyze_json, health_score, risk_count, risk_level, db_type_db, instance_name, inspect_time, host = row
                         result['health_score'] = health_score
                         result['risk_level'] = risk_level
                         result['risk_count'] = risk_count
                         result['db_type'] = db_type_db or ''
-                        result['host'] = instance_name or ''
+                        result['host'] = host or ''
+                        # 如果 host 为空，尝试从文件名提取 IP
+                        if not result['host']:
+                            import re
+                            _ip_match = re.search(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})', filename)
+                            if _ip_match:
+                                result['host'] = _ip_match.group(1)
                         result['inspect_time'] = inspect_time or ''
                         if auto_analyze_json:
                             try:
                                 items = json.loads(auto_analyze_json)
-                                issues = []
-                                for it in items:
-                                    lvl = str(it.get('col4', '') or it.get('col2', ''))
-                                    desc = it.get('col3', '') or it.get('col1', '')
-                                    suggestion = it.get('col5', '') or it.get('suggestion', '')
-                                    issues.append({'level': lvl, 'description': desc, 'suggestion': suggestion})
-                                result['issues'] = issues
+                                # auto_analyze 结构: list of dicts with keys col1(描述), col2(等级), col3(建议)
+                                result['issues'] = [
+                                    {'level': it.get('col2', ''), 'description': it.get('col1', ''), 'suggestion': it.get('col3', '')}
+                                    for it in items
+                                ]
                             except Exception:
                                 pass
                 conn.close()
@@ -1797,6 +2127,8 @@ def api_test_db():
         ok, msg = test_sqlserver_connection(data['host'], data['port'], data['user'], data['password'], data.get('database', 'master'))
     elif db_type == 'tidb':
         ok, msg = test_tidb_connection(data['host'], data['port'], data['user'], data['password'], data.get('database'))
+    elif db_type == 'ivorysql':
+        ok, msg = test_ivorysql_connection(data['host'], data['port'], data['user'], data['password'], data.get('database', 'postgres'))
     else:
         return jsonify({'ok': False, 'msg': _t('webui.err_unknown_db_type')})
 
@@ -1953,6 +2285,7 @@ def api_start_inspection():
             'dm':         run_dm_task,
             'sqlserver':  run_sqlserver_task,
             'tidb':       run_tidb_task,
+            'ivorysql':   run_ivorysql_task,
         }.get(db_type, run_mysql_task), args=(task_id, db_info, inspector_name))
         t.daemon = True
         t.start()
@@ -1969,15 +2302,15 @@ def api_start_config_baseline():
     try:
         data = request.json
         db_type = data.get('db_type', 'mysql')
-        if db_type not in ('mysql', 'pg'):
-            return jsonify({'ok': False, 'msg': 'Only MySQL and PostgreSQL are supported'})
+        if db_type not in ('mysql', 'pg', 'ivorysql'):
+            return jsonify({'ok': False, 'msg': 'Only MySQL, PostgreSQL and IvorySQL are supported'})
 
         db_info = {
             'host': data.get('host', ''),
             'port': int(data.get('port', 0) or (3306 if db_type == 'mysql' else 5432)),
             'user': data.get('user', ''),
             'password': data.get('password', ''),
-            'database': data.get('database') or ('postgres' if db_type == 'pg' else ''),
+            'database': data.get('database') or ('postgres' if db_type in ('pg', 'ivorysql') else ''),
             'label': data.get('name', data.get('host', 'unknown')),
             'db_type': db_type,
         }
@@ -2273,15 +2606,15 @@ def api_start_index_health():
     try:
         data = request.json
         db_type = data.get('db_type', 'mysql')
-        if db_type not in ('mysql', 'pg'):
-            return jsonify({'ok': False, 'msg': 'Only MySQL and PostgreSQL are supported'})
+        if db_type not in ('mysql', 'pg', 'ivorysql'):
+            return jsonify({'ok': False, 'msg': 'Only MySQL, PostgreSQL and IvorySQL are supported'})
 
         db_info = {
             'host': data.get('host', ''),
             'port': int(data.get('port', 0) or (3306 if db_type == 'mysql' else 5432)),
             'user': data.get('user', ''),
             'password': data.get('password', ''),
-            'database': data.get('database') or ('postgres' if db_type == 'pg' else ''),
+            'database': data.get('database') or ('postgres' if db_type in ('pg', 'ivorysql') else ''),
             'label': data.get('name', data.get('host', 'unknown')),
             'db_type': db_type,
         }
@@ -2313,13 +2646,17 @@ def api_task_status(task_id):
         return jsonify({'ok': False, 'msg': _t('webui.task_not_found')}), 404
     offset = int(request.args.get('offset', 0))
     log_list = task.get('log', [])
-    return jsonify({
+    result = task.get('result', {})
+    resp = {
         'ok': True,
         'status': task.get('status', 'running'),
         'log': log_list[offset:],
         'offset': len(log_list),
         'auto_analyze': task.get('auto_analyze', []),
-    })
+    }
+    if isinstance(result, dict):
+        resp.update(result)
+    return jsonify(resp)
 
 
 # ── WebSocket 事件 ──────────────────────────────────────────
@@ -2584,11 +2921,11 @@ def api_rag_ollama_status():
         return jsonify({'ok': False, 'error': 'RAG 模块未加载'})
     try:
         # 读取当前 backend 配置
-        cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_config.json')
+        cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dbc_config.json')
         backend = 'ollama'
         try:
             with open(cfg_path, 'r', encoding='utf-8') as f:
-                cfg = json.load(f)
+                cfg = json.load(f).get('ai', {})
             backend = cfg.get('backend', 'ollama')
         except Exception:
             pass
@@ -3095,7 +3432,7 @@ def api_pro_datasources_test_conn():
             import pymysql
             conn = pymysql.connect(host=host, port=port, user=user, password=password, connect_timeout=10)
             conn.close()
-        elif db_type == 'pg' or db_type == 'postgresql':
+        elif db_type in ('pg', 'postgresql', 'ivorysql'):
             import psycopg2
             db = data.get('database', 'postgres')
             conn = psycopg2.connect(host=host, port=port, user=user, password=password, dbname=db, connect_timeout=10)
@@ -3817,7 +4154,7 @@ def api_inspection_execute_sql():
             cursor.close()
             conn.close()
 
-        elif db_type == 'postgresql' or db_type == 'pg':
+        elif db_type in ('postgresql', 'pg', 'ivorysql'):
             import psycopg2
             conn = psycopg2.connect(
                 host=db_info.get('host', ''),
@@ -3970,10 +4307,10 @@ def api_inspection_sql_logs():
 
 def _load_ai_config():
     """加载 AI 配置"""
-    cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_config.json')
+    cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dbc_config.json')
     if os.path.exists(cfg_path):
         with open(cfg_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
+            return json.load(f).get('ai', {})
     return {
         'backend': 'ollama',
         'online_enabled': False,
@@ -4230,7 +4567,7 @@ def execute_simple_query(db_info: dict, db_type: str, scope: str) -> str:
             cur.close()
             conn.close()
 
-        elif db_type == 'pg':
+        elif db_type in ('pg', 'ivorysql'):
             import psycopg2
             conn = psycopg2.connect(
                 host=db_info.get('host', ''),
@@ -4532,6 +4869,7 @@ def api_chat():
                 'dm': run_dm_task,
                 'sqlserver': run_sqlserver_task,
                 'tidb': run_tidb_task,
+                'ivorysql': run_ivorysql_task,
             }
             task_func = task_func_map.get(db_type, run_mysql_task)
             t = threading.Thread(target=task_func, args=(task_id, db_info, inspector_name))

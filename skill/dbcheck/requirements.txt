@@ -14,7 +14,7 @@ flask-socketio>=5.0.0
 
 # ── Database Drivers ──────────────────────────────────────────────────────────
 pymysql>=1.0.0          # MySQL / TiDB
-psycopg2-binary>=2.9.0   # PostgreSQL
+psycopg2-binary>=2.9.0   # PostgreSQL / IvorySQL
 oracledb>=1.4.0         # Oracle (recommended, pure Python, no Instant Client)
 # cx_Oracle>=8.0.0      # Oracle (legacy, requires Oracle Instant Client)
 dmpython>=1.0.0         # Dameng DM8

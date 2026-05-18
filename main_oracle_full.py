@@ -1905,7 +1905,7 @@ def build_html_report(db_info, os_data, check_results, db_version, ai_advice='',
         if ai_lines:
             ai_section = _html_section('🤖  AI 诊断建议', '<br>'.join(ai_lines), 'ai_diagnosis')
     else:
-        ai_section = _html_section('🤖  AI 诊断建议', '<p style="color:#888;">AI 诊断未启用或无可用建议。请在 ai_config.json 中配置 Ollama 后重新巡检以获取 AI 诊断。</p>', 'ai_diagnosis')
+        ai_section = _html_section('🤖  AI 诊断建议', '<p style="color:#888;">AI 诊断未启用或无可用建议。请在 dbc_config.json 中配置 Ollama 后重新巡检以获取 AI 诊断。</p>', 'ai_diagnosis')
 
     # ── 组合 ─────────────────────────────────────────────────────────────────
     body = (
@@ -3070,11 +3070,11 @@ def single_inspection(args):
     risk_items = []  # 在 try 块外初始化，确保 AI 禁用时也能被 history 引用
     try:
         from analyzer import AIAdvisor
-        cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_config.json')
+        cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dbc_config.json')
         ai_cfg = {}
         if os.path.exists(cfg_path):
             with open(cfg_path, 'r', encoding='utf-8') as f:
-                ai_cfg = json.load(f)
+                ai_cfg = json.load(f).get('ai', {})
         advisor = AIAdvisor(
             backend=ai_cfg.get('backend'),
             api_key=ai_cfg.get('api_key'),

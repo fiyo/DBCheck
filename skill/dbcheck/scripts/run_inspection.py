@@ -45,6 +45,65 @@ from datetime import datetime
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
+def _record_inspection(db_type, db_info, ret, report_path):
+    """保存巡检记录到 Pro 模块"""
+    try:
+        import sys
+        sys.path.insert(0, SCRIPT_DIR)
+        from pro import get_instance_manager
+        import hashlib
+
+        # 计算风险数量
+        risk_count = ret.get('risk_count', 0)
+        if not risk_count:
+            issues = ret.get('issues', [])
+            risk_count = len(issues) if isinstance(issues, list) else 0
+
+        # 根据健康状态计算评分
+        health_status = ret.get('health_status', '')
+        if '优秀' in health_status or 'Excellent' in health_status:
+            health_score = 100
+        elif '良好' in health_status or 'Good' in health_status:
+            health_score = 80
+        elif '一般' in health_status or 'Fair' in health_status:
+            health_score = 60
+        elif '需关注' in health_status or 'Attention' in health_status:
+            health_score = 40
+        else:
+            health_score = max(0, 100 - risk_count * 5)
+
+        # 计算风险等级
+        if health_score >= 85:
+            risk_level = 'healthy'
+        elif health_score >= 70:
+            risk_level = 'low'
+        elif health_score >= 50:
+            risk_level = 'medium'
+        elif health_score >= 30:
+            risk_level = 'high'
+        else:
+            risk_level = 'critical'
+
+        # 生成实例ID
+        raw = f"{db_type}-{db_info.get('host')}-{db_info.get('port')}".encode()
+        instance_id = hashlib.md5(raw).hexdigest()[:12]
+
+        im = get_instance_manager()
+        im.record_inspection(
+            instance_id=instance_id,
+            instance_name=db_info.get('label', db_info.get('host', 'unknown')),
+            db_type=db_type,
+            health_score=health_score,
+            risk_count=risk_count,
+            risk_level=risk_level,
+            report_path=report_path,
+            duration=0
+        )
+    except Exception as e:
+        import logging
+        logging.getLogger('run_inspection').warning('Pro 巡检记录保存失败: %s', e)
+
+
 def run_mysql(db_info, inspector_name, ssh_info=None):
     """执行 MySQL 巡检"""
     import importlib.util
@@ -97,6 +156,9 @@ def run_mysql(db_info, inspector_name, ssh_info=None):
 
     if not success:
         raise RuntimeError("Word 报告渲染失败")
+
+    # 保存巡检记录到 Pro 模块
+    _record_inspection('mysql', db_info, ret, ofile)
 
     return ofile, file_name
 
@@ -155,6 +217,9 @@ def run_pg(db_info, inspector_name, ssh_info=None):
     if not success:
         raise RuntimeError("Word 报告渲染失败")
 
+    # 保存巡检记录到 Pro 模块
+    _record_inspection('pg', db_info, ret, ofile)
+
     return ofile, file_name
 
 
@@ -194,6 +259,9 @@ def run_oracle_full(db_info, inspector_name, ssh_info=None):
 
     if not success:
         raise RuntimeError("Word 报告渲染失败")
+
+    # 保存巡检记录到 Pro 模块
+    _record_inspection('oracle_full', db_info, ret, ofile)
 
     return ofile, file_name
 
@@ -240,6 +308,9 @@ def run_dm(db_info, inspector_name, ssh_info=None):
     if not success:
         raise RuntimeError("Word 报告渲染失败")
 
+    # 保存巡检记录到 Pro 模块
+    _record_inspection('dm', db_info, ret, ofile)
+
     return ofile, file_name
 
 
@@ -271,6 +342,9 @@ def run_sqlserver(db_info, inspector_name, ssh_info=None):
     # SQL Server 的 _save_report 会自动生成报告
     if not data.report_path or not os.path.exists(data.report_path):
         raise RuntimeError("报告生成失败")
+
+    # 保存巡检记录到 Pro 模块
+    _record_inspection('sqlserver', db_info, data.data, data.report_path)
 
     return data.report_path, os.path.basename(data.report_path)
 
@@ -327,6 +401,69 @@ def run_tidb(db_info, inspector_name, ssh_info=None):
 
     if not success:
         raise RuntimeError("Word 报告渲染失败")
+
+    # 保存巡检记录到 Pro 模块
+    _record_inspection('tidb', db_info, ret, ofile)
+
+    return ofile, file_name
+
+
+def run_ivorysql(db_info, inspector_name, ssh_info=None):
+    """执行 IvorySQL 巡检"""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("main_ivorysql", os.path.join(SCRIPT_DIR, "main_ivorysql.py"))
+    mod = importlib.util.module_from_spec(spec)
+
+    class _FakeInfos:
+        label = db_info.get('label', 'DBCheck')
+        sqltemplates = 'builtin'
+        batch = False
+    mod.infos = _FakeInfos()
+    spec.loader.exec_module(mod)
+    mod.infos = _FakeInfos()
+
+    ifile = mod.create_word_template(inspector_name)
+    if not ifile:
+        raise RuntimeError("Word 模板创建失败")
+
+    reports_dir = os.path.join(SCRIPT_DIR, "reports")
+    os.makedirs(reports_dir, exist_ok=True)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    file_name = f"IvorySQL巡检报告_{db_info['label']}_{timestamp}.docx"
+    ofile = os.path.join(reports_dir, file_name)
+
+    data = mod.getData(
+        db_info['host'], db_info['port'],
+        db_info['user'], db_info['password'],
+        database=db_info.get('database', 'postgres'),
+        ssh_info=ssh_info or {},
+        label=db_info.get('label')
+    )
+    if data is None or data.conn_db2 is None:
+        raise RuntimeError("无法建立数据库连接，请检查连接参数")
+
+    ret = data.checkdb('builtin')
+    if not ret:
+        raise RuntimeError("巡检执行失败（checkdb 返回空）")
+
+    ret.update({"co_name": [{'CO_NAME': db_info['label']}]})
+    ret.update({"port": [{'PORT': db_info['port']}]})
+    ret.update({"ip": [{'IP': db_info['host']}]})
+
+    savedoc = mod.saveDoc(context=ret, ofile=ofile, ifile=ifile, inspector_name=inspector_name)
+    success = savedoc.contextsave()
+
+    try:
+        if os.path.exists(ifile):
+            os.remove(ifile)
+    except Exception:
+        pass
+
+    if not success:
+        raise RuntimeError("Word 报告渲染失败")
+
+    _record_inspection('ivorysql', db_info, ret, ofile)
 
     return ofile, file_name
 
@@ -523,8 +660,8 @@ def main():
                         help='配置基线/索引分析输出格式（默认 txt）')
     
     # 数据库连接参数（完整巡检模式需要）
-    parser.add_argument('--type', required=False, choices=['mysql', 'pg', 'oracle', 'sqlserver', 'dm', 'tidb'],
-                        help='数据库类型: mysql / pg / oracle / sqlserver / dm / tidb（完整巡检必需）')
+    parser.add_argument('--type', required=False, choices=['mysql', 'pg', 'oracle', 'sqlserver', 'dm', 'tidb', 'ivorysql'],
+                        help='数据库类型: mysql / pg / oracle / sqlserver / dm / tidb / ivorysql（完整巡检必需）')
     parser.add_argument('--host', help='数据库主机 IP 或域名')
     parser.add_argument('--port', type=int, default=None,
                         help='数据库端口（默认: MySQL/TiDB 3306/4000, PG 5432, Oracle 1521, SQL Server 1433, DM8 5236）')
@@ -624,7 +761,7 @@ def main():
         sys.exit(1)
     
     if args.port is None:
-        defaults = {'mysql': 3306, 'pg': 5432, 'oracle': 1521, 'sqlserver': 1433, 'dm': 5236, 'tidb': 4000}
+        defaults = {'mysql': 3306, 'pg': 5432, 'oracle': 1521, 'sqlserver': 1433, 'dm': 5236, 'tidb': 4000, 'ivorysql': 5333}
         args.port = defaults.get(args.type, 3306)
 
     db_info = {
@@ -647,7 +784,7 @@ def main():
             'ssh_key_file': args.ssh_key or '',
         }
 
-    type_labels = {'mysql': 'MySQL', 'pg': 'PostgreSQL', 'oracle': 'Oracle', 'sqlserver': 'SQL Server', 'dm': 'DM8', 'tidb': 'TiDB'}
+    type_labels = {'mysql': 'MySQL', 'pg': 'PostgreSQL', 'oracle': 'Oracle', 'sqlserver': 'SQL Server', 'dm': 'DM8', 'tidb': 'TiDB', 'ivorysql': 'IvorySQL'}
     print(f"\n[{type_labels.get(args.type, args.type)}] 开始巡检: {args.label} ({args.host}:{args.port})")
     print("-" * 50)
 
@@ -664,6 +801,8 @@ def main():
             ofile, fname = run_dm(db_info, args.inspector, ssh_info)
         elif args.type == 'tidb':
             ofile, fname = run_tidb(db_info, args.inspector, ssh_info)
+        elif args.type == 'ivorysql':
+            ofile, fname = run_ivorysql(db_info, args.inspector, ssh_info)
 
         print("-" * 50)
         print(f"✅ 巡检完成！")

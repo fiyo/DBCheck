@@ -3,7 +3,7 @@ Embedding 接口 — 支持本地 Ollama 和 OpenAI 协议兼容的远程服务
 
 安全约束：
 - 本地 Ollama 仅支持 localhost
-- 远程 OpenAI 协议需在 ai_config.json 中启用 online_enabled
+- 远程 OpenAI 协议需在 dbc_config.json 的 ai 字段中启用 online_enabled
 """
 
 import json

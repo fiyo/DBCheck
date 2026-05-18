@@ -508,10 +508,10 @@ class RemoteSystemInfoCollector:
         聚合采集远程主机的全部系统信息。
 
         依次调用 connect()、get_cpu_info()、get_memory_info()、get_disk_info()，
-        并额外采集主机名（hostname）、内核版本（uname -a）、启动时间（who -b）。
+        并额外采集内核版本（uname -a）、启动时间（who -b）。
         无论成功与否，最终都会调用 disconnect() 断开 SSH 连接。
 
-        :return: 包含系统信息的字典，字段：cpu、memory、disk、hostname、platform、boot_time；
+        :return: 包含系统信息的字典，字段：cpu、memory、disk、platform、boot_time；
                  SSH 连接失败时返回空字典
         """
         if not self.connect():
@@ -521,14 +521,10 @@ class RemoteSystemInfoCollector:
                 'cpu': self.get_cpu_info(),
                 'memory': self.get_memory_info(),
                 'disk': self.get_disk_info(),
-                'hostname': "",
                 'platform': "",
                 'boot_time': "",
                 'mysql_datadir': ""
             }
-            cmd = "hostname"
-            output, _ = self.execute_command(cmd)
-            if output: system_info['hostname'] = output.strip()
             cmd = "uname -a"
             output, _ = self.execute_command(cmd)
             if output: system_info['platform'] = output.strip()
@@ -547,8 +543,7 @@ class LocalSystemInfoCollector:
     """本地系统信息收集器 - 使用 psutil 库采集当前主机系统信息，无需 SSH"""
 
     def __init__(self):
-        """初始化本地系统信息收集器（无需任何参数）。"""
-        pass
+        """初始化本地系统信息收集器。"""
 
     def get_cpu_info(self):
         """
@@ -655,16 +650,15 @@ class LocalSystemInfoCollector:
         """
         聚合采集本机全部系统信息。
 
-        整合 CPU、内存、磁盘信息，以及主机名、操作系统平台描述和系统启动时间。
+        整合 CPU、内存、磁盘信息，以及操作系统平台描述和系统启动时间。
 
         :return: 包含系统信息的字典，字段：
-                 cpu、memory、disk、hostname、platform、boot_time
+                 cpu、memory、disk、platform、boot_time
         """
         return {
             'cpu': self.get_cpu_info(),
             'memory': self.get_memory_info(),
             'disk': self.get_disk_info(),
-            'hostname': socket.gethostname(),
             'platform': platform.platform(),
             'boot_time': datetime.fromtimestamp(psutil.boot_time()).strftime('%Y-%m-%d %H:%M:%S')
         }
@@ -922,7 +916,6 @@ class WordTemplateGenerator:
             (self._t('report.fallback_db_name'), "{{ co_name[0]['CO_NAME'] }}"),
             (self._t('report.fallback_server_addr'), "{{ ip[0]['IP'] }}:{{ port[0]['PORT'] }}"),
             (self._t('report.fallback_mysql_version'), "{{ myversion[0]['version'] }}"),
-            (self._t('report.fallback_hostname'), "{{ system_info.hostname }}"),
             (self._t('report.fallback_start_time'), "{% if instancetime %}{{ instancetime[0]['started_at'] }}{% else %}N/A{% endif %}"),
             (self._t('report.fallback_inspector'), "{{ inspector_name }}"),
             (self._t('report.fallback_platform'), "{% if platform_info and platform_info|length > 0 %}{% for item in platform_info %}{% if item.variable_name == 'version_compile_os' %}{{ item.variable_value }}{% endif %}{% endfor %}{% else %}N/A{% endif %}"),
@@ -2018,7 +2011,7 @@ class getData(object):
         except Exception as e:
             print("\n❌ " + _t("mysql_cli_sysinfo_fail").format(e=e))
             self.context.update({"system_info": {
-                'hostname': '未知', 'platform': '未知', 'boot_time': '未知',
+                'platform': '未知', 'boot_time': '未知',
                 'cpu': {}, 'memory': {},
                 'disk_list': [{'device': '/dev/sda1', 'mountpoint': '/', 'fstype': 'ext4', 'total_gb': 0, 'used_gb': 0, 'free_gb': 0, 'usage_percent': 0}]
             }})
@@ -2052,16 +2045,16 @@ class getData(object):
         except Exception as e:
             print(f"\n❌ 风险分析失败: {e}")
 
-        # AI 智能诊断（从 ai_config.json 读取配置，传递给 analyzer.AIAdvisor）
+        # AI 智能诊断（从 dbc_config.json 读取配置，传递给 analyzer.AIAdvisor）
         self.context['ai_advice'] = ''
         try:
             from analyzer import AIAdvisor
             import json as _json
-            cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_config.json')
+            cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dbc_config.json')
             ai_cfg = {}
             if os.path.exists(cfg_path):
                 with open(cfg_path, 'r', encoding='utf-8') as f:
-                    ai_cfg = _json.load(f)
+                    ai_cfg = _json.load(f).get('ai', {})
             advisor = AIAdvisor(
                 backend=ai_cfg.get('backend'),
                 api_key=ai_cfg.get('api_key'),
@@ -2089,11 +2082,11 @@ class getData(object):
                 try:
                     from analyzer import AIAdvisor
                     import json as _json
-                    cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_config.json')
+                    cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dbc_config.json')
                     ai_cfg = {}
                     if os.path.exists(cfg_path):
                         with open(cfg_path, 'r', encoding='utf-8') as f:
-                            ai_cfg = _json.load(f)
+                            ai_cfg = _json.load(f).get('ai', {})
                     ai_advisor = AIAdvisor(
                         backend=ai_cfg.get('backend'),
                         api_key=ai_cfg.get('api_key'),
@@ -2882,7 +2875,6 @@ class saveDoc(object):
                 (self._t("report.fallback_db_name"), self.context.get('co_name', [{}])[0].get('CO_NAME', 'N/A')),
                 (self._t("report.fallback_server_addr"), f"{self.context.get('ip', [{}])[0].get('IP', 'N/A')}:{self.context.get('port', [{}])[0].get('PORT', 'N/A')}"),
                 (self._t("report.fallback_mysql_version"), self.context.get('myversion', [{}])[0].get('version', 'N/A')),
-                (self._t("report.fallback_hostname"), self.context.get('system_info', {}).get('hostname', 'N/A')),
                 (self._t("report.fallback_start_time"), self.context.get('instancetime', [{}])[0].get('started_at', 'N/A') if self.context.get('instancetime') else 'N/A'),
                 (self._t("report.fallback_inspector"), self.inspector_name),
                 (self._t("report.fallback_platform"), self._get_platform_info()),

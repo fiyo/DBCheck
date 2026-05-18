@@ -1854,6 +1854,15 @@ def smart_analyze_tidb(context: dict) -> list:
     return issues
 
 
+def smart_analyze_ivorysql(context: dict) -> list:
+    """
+    对 IvorySQL 巡检结果执行风险规则分析。
+    IvorySQL 兼容 PostgreSQL 协议，复用 PG 规则。
+    """
+    # 复用 PostgreSQL 的风险规则
+    return smart_analyze_pg(context)
+
+
 # ═══════════════════════════════════════════════════════
 #  5. 综合分析入口（供 main_mysql.py / main_pg.py 调用）
 # ═══════════════════════════════════════════════════════
@@ -1892,6 +1901,8 @@ def run_full_analysis(db_type: str, host: str, port, label: str,
         issues = smart_analyze_sqlserver(context)
     elif db_type == 'tidb':
         issues = smart_analyze_tidb(context)
+    elif db_type == 'ivorysql':
+        issues = smart_analyze_ivorysql(context)
     else:
         issues = []  # 未知类型，返回空列表
 

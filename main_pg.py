@@ -445,7 +445,7 @@ class RemoteSystemInfoCollector:
 
     def get_system_info(self):
         """
-        聚合采集远程主机全部系统信息（CPU/内存/磁盘/主机名/平台/启动时间）。
+        聚合采集远程主机全部系统信息（CPU/内存/磁盘/平台/启动时间）。
 
         :return: 系统信息字典；SSH 连接失败时返回空字典
         """
@@ -456,13 +456,9 @@ class RemoteSystemInfoCollector:
                 'cpu': self.get_cpu_info(),
                 'memory': self.get_memory_info(),
                 'disk': self.get_disk_info(),
-                'hostname': "",
                 'platform': "",
                 'boot_time': ""
             }
-            cmd = "hostname"
-            output, _ = self.execute_command(cmd)
-            if output: system_info['hostname'] = output.strip()
             cmd = "uname -a"
             output, _ = self.execute_command(cmd)
             if output: system_info['platform'] = output.strip()
@@ -478,8 +474,7 @@ class LocalSystemInfoCollector:
     """本地系统信息收集器 - 使用 psutil 库采集当前主机系统信息，无需 SSH"""
 
     def __init__(self):
-        """初始化本地系统信息收集器（无需任何参数）。"""
-        pass
+        """初始化本地系统信息收集器。"""
 
     def get_cpu_info(self):
         """
@@ -580,7 +575,6 @@ class LocalSystemInfoCollector:
             'cpu': self.get_cpu_info(),
             'memory': self.get_memory_info(),
             'disk': self.get_disk_info(),
-            'hostname': socket.gethostname(),
             'platform': platform.platform(),
             'boot_time': datetime.fromtimestamp(psutil.boot_time()).strftime('%Y-%m-%d %H:%M:%S')
         }
@@ -719,7 +713,6 @@ class WordTemplateGenerator:
             'db_name':         self._t('report.fallback_db_name'),
             'server_addr':     self._t('report.fallback_server_addr'),
             'pg_version':      self._t('report.fallback_pg_version'),
-            'hostname':        self._t('report.fallback_hostname'),
             'instance_time':   self._t('report.fallback_instance_time'),
             'inspector':       self._t('report.fallback_inspector'),
             'platform':        self._t('report.fallback_platform'),
@@ -800,7 +793,7 @@ class WordTemplateGenerator:
             'hit_ratio':       self._t('report.pg_hit_ratio'),
             # 5.1 Security
             'superuser':       self._t('report.pg_superuser'),
-            'locked':          self._t('report.pg已锁定'),
+            'locked':          self._t('report.pg_locked'),
             # Chapter 2 - System Resources
             'ch2_title':       self._t('report.pg_ch2_title'),
             'ch2_cpu':         self._t('report.pg_ch2_cpu'),
@@ -947,7 +940,6 @@ class WordTemplateGenerator:
             (self._l['db_name'], "{{ co_name[0]['CO_NAME'] }}"),
             (self._l['server_addr'], "{{ ip[0]['IP'] }}:{{ port[0]['PORT'] }}"),
             (self._l['pg_version'], "{{ myversion[0]['version'] }}"),
-            (self._l['hostname'], "{{ system_info.hostname }}"),
             (self._l['instance_time'], "{% if instancetime %}{{ instancetime[0]['started_at'] }}{% else %}N/A{% endif %}"),
             (self._l['inspector'], "{{ inspector_name }}"),
             (self._l['platform'], "{% if platform_info and platform_info|length > 0 %}{% for item in platform_info %}{% if item.variable_name == 'version_compile_os' %}{{ item.variable_value }}{% endif %}{% endfor %}{% else %}N/A{% endif %}"),
@@ -1427,11 +1419,11 @@ class WordTemplateGenerator:
         （用户名、超级用户、创建数据库权限、创建角色权限、密码过期时间），
         通过 Jinja2 按索引访问 pg_users 列表，最多展示 15 行。
         """
-        heading = self.doc.add_heading('6. ' + self._l['ch5'], level=1)
+        heading = self.doc.add_heading('6. ' + self._l['ch6'], level=1)
         heading_run = heading.runs[0]
         heading_run.font.size = Pt(14)
         heading_run.font.bold = True
-        sub_heading = self.doc.add_heading('6.1 ' + self._l['ch51'], level=2)
+        sub_heading = self.doc.add_heading('6.1 ' + self._t('report.pg_ch61'), level=2)
         sub_heading_run = sub_heading.runs[0]
         sub_heading_run.font.size = Pt(12)
         sub_heading_run.font.bold = True
@@ -2051,6 +2043,17 @@ class getData(object):
                     self.context[name] = result
                     time.sleep(0.05)
                 except Exception as e:
+                    # pg_bgwriter 在 PG16+ 中列名变化，尝试备选查询
+                    if name == 'pg_bgwriter':
+                        try:
+                            self.conn_db2.rollback()  # 先回滚失败的事务
+                            cursor2.execute("SELECT num_timed AS checkpoints_timed, num_requested AS checkpoints_req, buffers_written AS buffers_checkpoint, 0 AS buffers_clean, 0 AS buffers_backend FROM pg_stat_checkpointer")
+                            result = [dict((cursor2.description[i][0], value) for i, value in enumerate(row)) for row in cursor2.fetchall()]
+                            self.context[name] = result
+                            time.sleep(0.05)
+                            continue
+                        except Exception as e2:
+                            print("\n⚠️  pg_bgwriter fallback also failed: %s" % e2)
                     print("\n⚠️  " + _t("pg_cli_step_fail").format(name=name, e=e))
                     self.context[name] = []
                     try:
@@ -2089,7 +2092,7 @@ class getData(object):
         except Exception as e:
             print("\n❌ " + _t("pg_cli_sysinfo_fail").format(e=e))
             self.context.update({"system_info": {
-                'hostname': '未知', 'platform': '未知', 'boot_time': '未知',
+                'platform': '未知', 'boot_time': '未知',
                 'cpu': {}, 'memory': {},
                 'disk_list': [{'device': '/dev/sda1', 'mountpoint': '/', 'fstype': 'ext4', 'total_gb': 0, 'used_gb': 0, 'free_gb': 0, 'usage_percent': 0}]
             }})
@@ -2128,16 +2131,16 @@ class getData(object):
         except Exception as e:
             print("\n❌ " + _t("pg_cli_risk_fail").format(e=e))
 
-        # AI 智能诊断（从 ai_config.json 读取配置，传递给 analyzer.AIAdvisor）
+        # AI 智能诊断（从 dbc_config.json 读取配置，传递给 analyzer.AIAdvisor）
         self.context['ai_advice'] = ''
         try:
             from analyzer import AIAdvisor
             import json as _json
-            cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_config.json')
+            cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dbc_config.json')
             ai_cfg = {}
             if os.path.exists(cfg_path):
                 with open(cfg_path, 'r', encoding='utf-8') as f:
-                    ai_cfg = _json.load(f)
+                    ai_cfg = _json.load(f).get('ai', {})
             advisor = AIAdvisor(
                 backend=ai_cfg.get('backend'),
                 api_key=ai_cfg.get('api_key'),
@@ -2162,11 +2165,11 @@ class getData(object):
                 try:
                     from analyzer import AIAdvisor
                     import json as _json
-                    cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_config.json')
+                    cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dbc_config.json')
                     ai_cfg = {}
                     if os.path.exists(cfg_path):
                         with open(cfg_path, 'r', encoding='utf-8') as f:
-                            ai_cfg = _json.load(f)
+                            ai_cfg = _json.load(f).get('ai', {})
                     ai_advisor = AIAdvisor(
                         backend=ai_cfg.get('backend'),
                         api_key=ai_cfg.get('api_key'),
@@ -2461,16 +2464,20 @@ class saveDoc(object):
                 # 先彻底清除 docxtpl 渲染后的第7章及之后所有内容（含旧的未格式化第8章）
                 doc2 = Document(self.ofile)
                 ns_w = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
-                # 找第7章或第8章标题位置
+                # 找第7章或第8章标题位置——在 body_children (含表格) 中定位，避免索引错位
+                body = doc2._element.body
+                body_children = list(body)
                 cutoff_idx = None
-                for i, para in enumerate(doc2.paragraphs):
+                for para in doc2.paragraphs:
                     t = para.text.strip()
                     if t.startswith('7.') or t.startswith('8.'):
-                        cutoff_idx = i
+                        # 在 body_children 中找到该段落元素对应的索引
+                        for j, child in enumerate(body_children):
+                            if child is para._element:
+                                cutoff_idx = j
+                                break
                         break
                 if cutoff_idx is not None:
-                    body = doc2._element.body
-                    body_children = list(body.iterchildren())
                     to_remove = []
                     for el in body_children[cutoff_idx:]:
                         tag = el.tag.split('}')[1] if '}' in el.tag else el.tag
@@ -2950,7 +2957,6 @@ class saveDoc(object):
                 (self._t("report.fallback_db_name"), self.context.get('co_name', [{}])[0].get('CO_NAME', 'N/A')),
                 (self._t("report.fallback_server_addr"), f"{self.context.get('ip', [{}])[0].get('IP', 'N/A')}:{self.context.get('port', [{}])[0].get('PORT', 'N/A')}"),
                 (self._t("report.fallback_pg_version"), self.context.get('myversion', [{}])[0].get('version', 'N/A')),
-                (self._t("report.fallback_hostname"), self.context.get('system_info', {}).get('hostname', 'N/A')),
                 (self._t("report.fallback_pg_start_time"), self.context.get('pg_uptime', [{}])[0].get('started_at', 'N/A') if self.context.get('pg_uptime') else 'N/A'),
                 (self._t("report.fallback_inspector"), self.inspector_name),
                 (self._t("report.fallback_platform"), self._get_platform_info()),

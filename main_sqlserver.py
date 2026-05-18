@@ -1361,7 +1361,7 @@ class RemoteSystemInfoCollector:
         """
         聚合采集远程主机的全部系统信息。
 
-        :return: 包含系统信息的字典，字段：cpu、memory、disk_list、hostname、platform、boot_time
+        :return: 包含系统信息的字典，字段：cpu、memory、disk_list、platform、boot_time
         """
         if not self.connect():
             return {}
@@ -1371,7 +1371,6 @@ class RemoteSystemInfoCollector:
                 'cpu': {},
                 'memory': {},
                 'disk_list': [],
-                'hostname': '',
                 'platform': '',
                 'boot_time': '',
             }
@@ -1382,19 +1381,11 @@ class RemoteSystemInfoCollector:
 
             sys_info = platform.system().lower()
             if sys_info == 'windows':
-                cmd = "hostname"
-                output, _ = self.execute_command(cmd)
-                if output:
-                    system_info['hostname'] = output.strip()
                 cmd = "systeminfo | findstr /B /C:\"OS Name\" /C:\"OS Version\""
                 output, _ = self.execute_command(cmd)
                 if output:
                     system_info['platform'] = output.strip()
             else:
-                cmd = "hostname"
-                output, _ = self.execute_command(cmd)
-                if output:
-                    system_info['hostname'] = output.strip()
                 cmd = "uname -a"
                 output, _ = self.execute_command(cmd)
                 if output:
@@ -1413,7 +1404,7 @@ class LocalSystemInfoCollector:
     """本地系统信息收集器 - 使用 psutil 库采集当前主机系统信息"""
 
     def __init__(self):
-        pass
+        """初始化本地系统信息收集器。"""
 
     def get_cpu_info(self):
         """采集本机 CPU 信息。"""
@@ -1476,7 +1467,6 @@ class LocalSystemInfoCollector:
             'cpu': self.get_cpu_info(),
             'memory': self.get_memory_info(),
             'disk_list': self.get_disk_info(),
-            'hostname': plat.node(),
             'platform': f"{plat.system()} {plat.release()}",
             'boot_time': '',
         }
@@ -1831,11 +1821,11 @@ class DBCheckSQLServer:
         try:
             from analyzer import AIAdvisor
             import json as _json
-            cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_config.json')
+            cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dbc_config.json')
             ai_cfg = {}
             if os.path.exists(cfg_path):
                 with open(cfg_path, 'r', encoding='utf-8') as f:
-                    ai_cfg = _json.load(f)
+                    ai_cfg = _json.load(f).get('ai', {})
             advisor = AIAdvisor(
                 backend=ai_cfg.get('backend'),
                 api_key=ai_cfg.get('api_key'),
@@ -1859,11 +1849,11 @@ class DBCheckSQLServer:
                 try:
                     from analyzer import AIAdvisor
                     import json as _json
-                    cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_config.json')
+                    cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dbc_config.json')
                     ai_cfg = {}
                     if os.path.exists(cfg_path):
                         with open(cfg_path, 'r', encoding='utf-8') as f:
-                            ai_cfg = _json.load(f)
+                            ai_cfg = _json.load(f).get('ai', {})
                     ai_advisor = AIAdvisor(
                         backend=ai_cfg.get('backend'),
                         api_key=ai_cfg.get('api_key'),

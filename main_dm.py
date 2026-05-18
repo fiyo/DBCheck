@@ -259,7 +259,6 @@ class RemoteSystemInfoCollector:
 
     def get_system_info(self):
         import re
-        hostname_out, _ = self._run("hostname")
         boot_out, _ = self._run("uptime -s")
         platform_out, _ = self._run("uname -sr")
         os_release_out, _ = self._run("cat /etc/os-release 2>/dev/null || uname -a")
@@ -274,7 +273,6 @@ class RemoteSystemInfoCollector:
                 parts = os_release_out.strip().split(maxsplit=3)
                 platform_text = ' '.join(parts[:3]) if len(parts) >= 3 else os_release_out.strip()
         return {
-            'hostname': hostname_out.strip() if hostname_out.strip() else '未知',
             'platform': platform_out.strip() if platform_out.strip() else 'Linux',
             'platform_text': platform_text,
             'boot_time': boot_out.strip() if boot_out.strip() else '未知',
@@ -286,6 +284,9 @@ class RemoteSystemInfoCollector:
 
 class LocalSystemInfoCollector:
     """本地系统信息收集器"""
+
+    def __init__(self):
+        """初始化本地系统信息收集器。"""
 
     def get_cpu_info(self):
         info = {'Model name': '', 'usage_percent': 0.0}
@@ -328,13 +329,11 @@ class LocalSystemInfoCollector:
         return disks
 
     def get_system_info(self):
-        import socket as _sock
         import platform as _pf
         boot_time = ''
         try: boot_time = datetime.fromtimestamp(psutil.boot_time()).strftime('%Y-%m-%d %H:%M:%S')
         except: pass
         return {
-            'hostname': _sock.gethostname(),
             'platform': f"{_pf.system()} {_pf.release()} {_pf.machine()}",
             'platform_text': f"{_pf.system()} {_pf.release()} ({_pf.machine()})",
             'boot_time': boot_time,
@@ -669,12 +668,11 @@ def create_word_template(inspector_name="Jack"):
     doc.add_paragraph("")
 
     # 封面信息表（深蓝表头样式）
-    info_table = doc.add_table(rows=8, cols=2, style='Table Grid')
+    info_table = doc.add_table(rows=7, cols=2, style='Table Grid')
     info_cells = [
         (self._t('report.dm_fallback_db_name'),     "{{{ co_name }}}"),
         (self._t('report.dm_fallback_server_addr'), "{{{ server_addr }}}"),
         (self._t('report.dm_fallback_version'),      "{{{ dm_version }}}"),
-        (self._t('report.dm_fallback_hostname'),    "{{{ hostname }}}"),
         (self._t('report.dm_fallback_instance_time'), "{{{ uptime_text }}}"),
         (self._t('report.dm_fallback_inspector'),   inspector_name),
         (self._t('report.dm_fallback_platform'),   "{{{ platform_text }}}"),
@@ -986,7 +984,7 @@ class getData(object):
         except Exception as e:
             print(_t("dm8_sysinfo_fail").format(e=e))
             self.context.update({"system_info": {
-                'hostname': '未知', 'platform': '未知', 'boot_time': '未知',
+                'platform': '未知', 'boot_time': '未知',
                 'cpu': {}, 'memory': {},
                 'disk_list': [{'device':'C:','mountpoint':'C:\\','fstype':'NTFS',
                                'total_gb':0,'used_gb':0,'free_gb':0,'usage_percent':0}]
@@ -1038,11 +1036,11 @@ class getData(object):
         try:
             from analyzer import AIAdvisor
             import json as _json
-            cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_config.json')
+            cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dbc_config.json')
             ai_cfg = {}
             if os.path.exists(cfg_path):
                 with open(cfg_path, 'r', encoding='utf-8') as f:
-                    ai_cfg = _json.load(f)
+                    ai_cfg = _json.load(f).get('ai', {})
             advisor = AIAdvisor(
                 backend=ai_cfg.get('backend'),
                 api_key=ai_cfg.get('api_key'),
@@ -1067,11 +1065,11 @@ class getData(object):
                 try:
                     from analyzer import AIAdvisor
                     import json as _json
-                    cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_config.json')
+                    cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dbc_config.json')
                     ai_cfg = {}
                     if os.path.exists(cfg_path):
                         with open(cfg_path, 'r', encoding='utf-8') as f:
-                            ai_cfg = _json.load(f)
+                            ai_cfg = _json.load(f).get('ai', {})
                     ai_advisor = AIAdvisor(
                         backend=ai_cfg.get('backend'),
                         api_key=ai_cfg.get('api_key'),
@@ -1300,7 +1298,6 @@ class saveDoc(object):
 
             # 系统信息
             sys_info = self.context.get('system_info') or {}
-            self.context['hostname'] = str(sys_info.get('hostname', 'N/A') or 'N/A')
             platform_info = sys_info.get('platform', {})
             if isinstance(platform_info, dict):
                 plat_str = platform_info.get('platform', '') or ''
@@ -1816,7 +1813,6 @@ class saveDoc(object):
                 (self._t('report.dm_fallback_db_name'),   _v('co_name', 'DB_NAME')),
                 (self._t('report.dm_fallback_server_addr'),  _v('server_addr')),
                 (self._t('report.dm_fallback_version'),    _v('dm_version', 'BANNER')),
-                (self._t('report.dm_fallback_hostname'), _v('hostname')),
                 (self._t('report.dm_fallback_instance_time'), _v('uptime_text')),
                 (self._t('report.dm_fallback_inspector'),    self.inspector_name),
                 (self._t('report.dm_fallback_platform'),  _v('platform_text')),

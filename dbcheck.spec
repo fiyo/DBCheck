@@ -121,6 +121,7 @@ a = Analysis(
         'main_sqlserver',
         'main_dm',
         'main_tidb',
+        'main_ivorysql',
         'web_ui',
         # ── 定时巡检 & 通知（v2.4.0+ 新增）────────────────────
         'scheduler',

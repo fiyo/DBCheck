@@ -853,6 +853,7 @@ select option { background: var(--surface2); }
 .db-support-card.db-dm:hover { border-color: #f5a623; }
 .db-support-card.db-sqlserver:hover { border-color: #cc2927; }
 .db-support-card.db-tidb:hover { border-color: #00b140; }
+.db-support-card.db-ivorysql:hover { border-color: #336791; }
 
 /* 旧样式保留但隐藏 */
 .feature-grid {
@@ -1034,6 +1035,7 @@ select option { background: var(--surface2); }
 .tag-dm    { background: rgba(255,193,7,.12); color: #ffc107; }
 .tag-sqlserver { background: rgba(244,67,54,.12); color: #ff5722; }
 .tag-tidb    { background: rgba(76,175,80,.12); color: #4caf50; }
+.tag-ivorysql { background: rgba(51,103,145,.12); color: #336791; }
 
 /* ─── Responsive ─── */
 /* ─── 响应式断点 ─── */
@@ -2251,6 +2253,31 @@ function showShareLinkDialog(url) {
   };
 }
 
+function showConfirmDialog(title, message) {
+  return new Promise((resolve) => {
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:10000';
+    modal.innerHTML = `
+      <div style="background:#1c2128;border:1px solid #30363d;border-radius:12px;padding:24px;max-width:420px;width:90%">
+        <h3 style="margin:0 0 12px;color:#f0f6fc;font-size:16px">${escHtml(title)}</h3>
+        <p style="margin:0 0 20px;color:#c9d1d9;font-size:14px;white-space:pre-wrap">${escHtml(message)}</p>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button id="confirm-cancel" style="padding:8px 16px;background:#30363d;color:#c9d1d9;border:none;border-radius:6px;cursor:pointer;font-size:13px">取消</button>
+          <button id="confirm-ok" style="padding:8px 16px;background:#f85149;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">确定</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    document.getElementById('confirm-cancel').onclick = () => {
+      modal.remove();
+      resolve(false);
+    };
+    document.getElementById('confirm-ok').onclick = () => {
+      modal.remove();
+      resolve(true);
+    };
+  });
+}
+
 // ─── RAG 知识库 ─────────────────────────────────────
 async function showRagPage() {
   // 先绑定按钮，不受后续加载影响
@@ -2636,7 +2663,7 @@ function formatBytes(bytes) {
               return;
             }
             listEl.innerHTML = list.map(ds => {
-              const dbIcons = {mysql:'🐬', pg:'🐘', oracle:'🔴', dm:'🟡', sqlserver:'🟠', tidb:'🟢'};
+              const dbIcons = {mysql:'🐬', pg:'🐘', oracle:'🔴', dm:'🟡', sqlserver:'🟠', tidb:'🟢', ivorysql:'🐘'};
               const icon = dbIcons[ds.db_type] || '🗄️';
               const tagClass = 'tag-' + (ds.db_type === 'oracle' ? 'oracle' : ds.db_type === 'sqlserver' ? 'sqlserver' : ds.db_type);
               const groupLabel = ds.group || 'default';
@@ -2790,6 +2817,7 @@ function formatBytes(bytes) {
                   '<option value="dm">达梦 DM8</option>' +
                   '<option value="sqlserver">SQL Server</option>' +
                   '<option value="tidb">TiDB</option>' +
+                  '<option value="ivorysql">IvorySQL</option>' +
                 '</select></div>' +
               '<div><label style="font-size:12px;color:var(--text-muted)">' + i18n('webui.pro_ds_label_req') + '</label>' +
                 '<input id="ds-label" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="' + i18n('webui.pro_ds_placeholder_name') + '"></div>' +
@@ -2864,8 +2892,8 @@ function formatBytes(bytes) {
       let _editSshPassword = '';
       function onDsDbTypeChange() {
         const dbType = document.getElementById('ds-db-type').value;
-        const portMap = {mysql:3306, pg:5432, dm:5236, oracle:1521, sqlserver:1433, tidb:4000};
-        const userMap = {mysql:'root', pg:'postgres', dm:'SYSDBA', oracle:'system', sqlserver:'sa', tidb:'root'};
+        const portMap = {mysql:3306, pg:5432, dm:5236, oracle:1521, sqlserver:1433, tidb:4000, ivorysql:5333};
+        const userMap = {mysql:'root', pg:'postgres', dm:'SYSDBA', oracle:'system', sqlserver:'sa', tidb:'root', ivorysql:'postgres'};
         document.getElementById('ds-port').value = portMap[dbType] || 3306;
         const userEl = document.getElementById('ds-user');
         // 类型改变时强制更新用户名
@@ -2873,7 +2901,7 @@ function formatBytes(bytes) {
           userEl.value = userMap[dbType] || 'root';
         }
         _currentDbType = dbType;
-        document.getElementById('ds-database-wrap').style.display = dbType === 'pg' ? '' : 'none';
+        document.getElementById('ds-database-wrap').style.display = (dbType === 'pg' || dbType === 'ivorysql') ? '' : 'none';
         document.getElementById('ds-service-wrap').style.display = dbType === 'oracle' ? '' : 'none';
         document.getElementById('ds-sysdba-wrap').style.display = dbType === 'oracle' ? '' : 'none';
       }
@@ -2937,7 +2965,7 @@ function formatBytes(bytes) {
         payload.ssh_user = sshOn ? document.getElementById('ds-ssh-user').value.trim() : '';
         payload.ssh_password = sshOn ? (document.getElementById('ds-ssh-password').value || undefined) : '';
         payload.ssh_key_file = sshOn ? document.getElementById('ds-ssh-key').value.trim() : '';
-        if (payload.db_type === 'pg') payload.database = document.getElementById('ds-database').value.trim();
+        if (payload.db_type === 'pg' || payload.db_type === 'ivorysql') payload.database = document.getElementById('ds-database').value.trim();
         if (payload.db_type === 'oracle') {
           payload.service_name = document.getElementById('ds-service-name').value.trim();
           payload.sysdba = document.getElementById('ds-sysdba').checked;
@@ -2989,6 +3017,9 @@ function formatBytes(bytes) {
             // 填充表单
             setTimeout(() => {
               document.getElementById('ds-db-type').value = ds.db_type || 'mysql';
+              // 先触发类型切换，显示正确的输入框（如数据库名）
+              _currentDbType = ds.db_type || 'mysql';
+              onDsDbTypeChange();
               document.getElementById('ds-label').value = ds.name || '';
               document.getElementById('ds-host').value = ds.host || '';
               document.getElementById('ds-user').value = ds.user || '';
@@ -2996,8 +3027,8 @@ function formatBytes(bytes) {
               document.getElementById('ds-password').placeholder = '（不修改请留空）';
               document.getElementById('ds-password').value = '';
               document.getElementById('ds-group').value = ds.group || 'default';
-              if (ds.db_type === 'pg') {
-                document.getElementById('ds-database').value = ds.database || '';
+              if (ds.db_type === 'pg' || ds.db_type === 'ivorysql') {
+                document.getElementById('ds-database').value = ds.database || 'postgres';
               }
               if (ds.db_type === 'oracle') {
                 document.getElementById('ds-service-name').value = ds.service_name || '';
@@ -3018,9 +3049,6 @@ function formatBytes(bytes) {
                 }
                 onDsSshAuthChange();
               }
-              // 防止 onDsDbTypeChange 覆盖已填充的用户名
-              _currentDbType = ds.db_type || 'mysql';
-              onDsDbTypeChange();
               // 端口放在 onDsDbTypeChange 之后，避免被默认值覆盖
               document.getElementById('ds-port').value = ds.port ?? 3306;
               // 添加隐藏字段存储ID
@@ -3199,7 +3227,7 @@ function formatBytes(bytes) {
     </div>
 
     <div class="sidebar-footer">
-      Oracle · MySQL · PostgreSQL · SQL Server<br/>DM · TiDB<br/>
+      Oracle · MySQL · PostgreSQL · SQL Server<br/>DM · TiDB · IvorySQL<br/>
       <span style="opacity:.5">© 2026 DBCheck · Powered by <a href="https://dbcheck.top" style="color:inherit;text-decoration:none">dbcheck.top</a></span>
       <span class="version-badge" id="version-badge">{{ version }}</span>
     </div>
@@ -3234,7 +3262,7 @@ function formatBytes(bytes) {
         <!-- <div class="home-hero">
           <img src="/dbcheck_logo.png" alt="DBCheck" style="width:80px;height:80px;margin-bottom:16px;">
           <h2 data-i18n="webui.hero_title">数据库健康巡检</h2>
-          <p data-i18n="webui.hero_desc">自动采集 MySQL / PostgreSQL / Oracle / SQL Server/ 达梦（DM）/ TiDB 数据库关键指标，结合系统资源监控，一键生成专业 Word 巡检报告。</p>
+          <p data-i18n="webui.hero_desc">自动采集 MySQL / PostgreSQL / Oracle / SQL Server/ 达梦（DM）/ TiDB / IvorySQL 数据库关键指标，结合系统资源监控，一键生成专业 Word 巡检报告。</p>
           <div class="quick-actions">
             <button class="btn btn-primary" onclick="startWizard()" data-i18n="webui.btn_start_inspection">▶ 开始巡检</button>
             <button class="btn btn-ghost" onclick="showPage('reports')" data-i18n="webui.view_history_reports">📄 查看历史报告</button>
@@ -3335,7 +3363,7 @@ function formatBytes(bytes) {
               <div class="fc-icon">🗄️</div>
               <div class="fc-content">
                 <h3 data-i18n="webui.home_multi_db">多数据库支持</h3>
-                <p data-i18n="webui.home_multi_db_desc">MySQL · PostgreSQL · Oracle · SQL Server · DM8 · TiDB</p>
+                <p data-i18n="webui.home_multi_db_desc">MySQL · PostgreSQL · Oracle · SQL Server · DM8 · TiDB · IvorySQL</p>
               </div>
             </div>
             <div class="feature-card">
@@ -3418,6 +3446,13 @@ function formatBytes(bytes) {
                 <span data-i18n="webui.db_tidb_ver">6.5+ / MySQL 8.0 兼容</span>
               </div>
             </div>
+            <div class="db-support-card db-ivorysql">
+              <div class="db-logo">🐘</div>
+              <div class="db-info">
+                <h4 data-i18n="webui.db_ivorysql_name">IvorySQL</h4>
+                <span data-i18n="webui.db_ivorysql_ver">基于 PostgreSQL，Oracle 兼容</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -3492,6 +3527,14 @@ function formatBytes(bytes) {
               </div>
               <div class="tc-name-row"><span data-i18n="webui.db_tidb_name">TiDB</span><span class="beta-tag">Beta</span></div>
               <div class="tc-desc" data-i18n="webui.db_tidb_desc">适用于 TiDB 6.5+ / MySQL 8.0 兼容集群，采集集群拓扑、存储、事务、SQL 统计等核心指标。</div>
+            </div>
+            <div class="type-card" id="tc-ivorysql" onclick="selectDbType('ivorysql')">
+              <div class="tc-header">
+                <div class="tc-logo"><img src="/ivorysql.png" alt="IvorySQL" style="width:36px;height:36px;"></div>
+                <div class="tc-check" id="chk-ivorysql"></div>
+              </div>
+              <div class="tc-name" data-i18n="webui.db_ivorysql_name">IvorySQL</div>
+              <div class="tc-desc" data-i18n="webui.db_ivorysql_desc">适用于瀚高 IvorySQL（PostgreSQL + Oracle 兼容），复用 PG 巡检模板并增加 Oracle 兼容模式检查。</div>
             </div>
           </div>
           <div class="btn-row">
@@ -4480,6 +4523,8 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
                 <option value="sqlserver">SQL Server</option>
                 <option value="dm">DM8</option>
                 <option value="tidb">TiDB</option>
+              <option value="ivorysql">IvorySQL</option>
+                <option value="ivorysql">IvorySQL</option>
                 <option value="all">全部类型</option>
               </select>
             </div>
@@ -4557,6 +4602,7 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
               <option value="dm">达梦 DM8</option>
               <option value="sqlserver">SQL Server</option>
               <option value="tidb">TiDB</option>
+              <option value="ivorysql">IvorySQL</option>
             </select>
           </div>
           <div id="rules-list" style="margin-top:12px;">
@@ -4863,14 +4909,19 @@ async function loadShares() {
 function copyShareLink(shareId) {
   const url = window.location.origin + '/share/' + shareId;
   if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(url).then(() => toastSuccess('链接已复制'));
+    navigator.clipboard.writeText(url).then(() => {
+      toastSuccess('链接已复制');
+    }).catch(() => {
+      showShareLinkDialog(url);
+    });
   } else {
-    prompt('请手动复制：', url);
+    showShareLinkDialog(url);
   }
 }
 
 async function deleteShareItem(shareId) {
-  if (!confirm('确定删除这条分享链接？删除后将无法访问。')) return;
+  const confirmed = await showConfirmDialog('确认删除', '确定删除这条分享链接？删除后将无法访问。');
+  if (!confirmed) return;
   try {
     const res = await fetch('/api/share/' + shareId, {method: 'DELETE'});
     const data = await res.json();
@@ -5060,8 +5111,8 @@ function onDatasourceChange() {
       document.getElementById('f-user').value = ds.user || '';
       document.getElementById('f-password').value = ds.password || '';
       document.getElementById('f-password').placeholder = '数据库密码';
-      if (ds.db_type === 'pg') {
-        document.getElementById('f-database').value = ds.database || '';
+      if (ds.db_type === 'pg' || ds.db_type === 'ivorysql') {
+        document.getElementById('f-database').value = ds.database || 'postgres';
       }
       if (ds.db_type === 'oracle') {
         document.getElementById('f-service-name').value = ds.service_name || '';
@@ -5120,17 +5171,20 @@ function selectDbType(type, skipReload) {
   document.getElementById('tc-oracle').classList.toggle('selected', type === 'oracle');
   document.getElementById('tc-sqlserver').classList.toggle('selected', type === 'sqlserver');
   document.getElementById('tc-tidb').classList.toggle('selected', type === 'tidb');
+  document.getElementById('tc-ivorysql').classList.toggle('selected', type === 'ivorysql');
   document.getElementById('chk-mysql').textContent = type === 'mysql' ? '✓' : '';
   document.getElementById('chk-pg').textContent   = type === 'pg'    ? '✓' : '';
   document.getElementById('chk-dm').textContent = type === 'dm' ? '✓' : '';
   document.getElementById('chk-oracle').textContent = type === 'oracle' ? '✓' : '';
   document.getElementById('chk-sqlserver').textContent = type === 'sqlserver' ? '✓' : '';
+  document.getElementById('chk-tidb').textContent = type === 'tidb' ? '✓' : '';
+  document.getElementById('chk-ivorysql').textContent = type === 'ivorysql' ? '✓' : '';
   // 默认端口 & 用户名
-  const portMap = { mysql: 3306, pg: 5432, dm: 5236, oracle: 1521, sqlserver: 1433, tidb: 4000 };
-  const userMap = { mysql: 'root', pg: 'postgres', dm: 'SYSDBA', oracle: 'system', sqlserver: 'sa', tidb: 'root' };
+  const portMap = { mysql: 3306, pg: 5432, dm: 5236, oracle: 1521, sqlserver: 1433, tidb: 4000, ivorysql: 5333 };
+  const userMap = { mysql: 'root', pg: 'postgres', dm: 'SYSDBA', oracle: 'system', sqlserver: 'sa', tidb: 'root', ivorysql: 'postgres' };
   document.getElementById('f-port').value = portMap[type] || 3306;
   document.getElementById('f-user').value = userMap[type] || 'root';
-  document.getElementById('f-database-wrap').style.display = type === 'pg' ? '' : 'none';
+  document.getElementById('f-database-wrap').style.display = (type === 'pg' || type === 'ivorysql') ? '' : 'none';
   // Oracle全面巡检：显示服务名输入框
   var svcWrap = document.getElementById('f-service-wrap');
   if (svcWrap) svcWrap.style.display = type === 'oracle' ? '' : 'none';
@@ -5153,7 +5207,7 @@ async function testDb() {
         port:     parseInt(document.getElementById('f-port').value) || (dbType==='oracle'?1521:(dbType==='mysql'?3306:5432)),
         user:     document.getElementById('f-user').value.trim(),
         password: document.getElementById('f-password').value,
-        database: dbType === 'pg' ? (document.getElementById('f-database').value.trim() || 'postgres') : (document.getElementById('f-database').value.trim() || ''),
+        database: (dbType === 'pg' || dbType === 'ivorysql') ? (document.getElementById('f-database').value.trim() || 'postgres') : (document.getElementById('f-database').value.trim() || ''),
         service_name: document.getElementById('f-service-name') ? document.getElementById('f-service-name').value.trim() : null,
         sysdba: document.getElementById('f-sysdba').checked,
       })
@@ -5507,7 +5561,7 @@ function fillConfirmPanel() {
   };
   const nameDefaults = { mysql: 'MySQL_Server', pg: 'PG_Server', oracle: 'Oracle_Server', dm: 'DM8_Server', sqlserver: 'SQLServer', tidb: 'TiDB_Cluster' };
   const portDefaults = { mysql: '3306', pg: '5432', oracle: '1521', dm: '5236', sqlserver: '1433', tidb: '4000' };
-  const userDefaults = { mysql: 'root', pg: 'postgres', oracle: 'system', dm: 'SYSDBA', sqlserver: 'sa', tidb: 'root' };
+  const userDefaults = { mysql: 'root', pg: 'postgres', oracle: 'system', dm: 'SYSDBA', sqlserver: 'sa', tidb: 'root', ivorysql: 'postgres' };
   const typeLabel = typeLabels[dbType] || dbType;
   const name = document.getElementById('f-name').value.trim() || (nameDefaults[dbType]||'_Server');
   const host = document.getElementById('f-host').value.trim() || 'localhost';
@@ -5528,12 +5582,12 @@ async function startInspection() {
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> ' + i18n('webui.btn_starting');
 
-  const name = document.getElementById('f-name').value.trim() || (dbType==='mysql'?'MySQL_Server':dbType==='oracle'?'Oracle_Server':dbType==='oracle'?'Oracle_Full':dbType==='dm'?'DM8_Server':'PG_Server');
+  const name = document.getElementById('f-name').value.trim() || (dbType==='mysql'?'MySQL_Server':dbType==='oracle'?'Oracle_Server':dbType==='dm'?'DM8_Server':dbType==='ivorysql'?'IvorySQL_Server':'PG_Server');
   const host = document.getElementById('f-host').value.trim() || 'localhost';
-  const port = parseInt(document.getElementById('f-port').value) || (dbType==='mysql'?3306:dbType==='oracle'||dbType==='oracle'?1521:dbType==='dm'?5236:5432);
+  const port = parseInt(document.getElementById('f-port').value) || (dbType==='mysql'?3306:dbType==='oracle'?1521:dbType==='dm'?5236:dbType==='ivorysql'?5333:5432);
   const user = document.getElementById('f-user').value.trim() || (userDefaults[dbType]||'root');
   const password = document.getElementById('f-password').value;
-  const database = dbType === 'pg' ? (document.getElementById('f-database').value.trim() || 'postgres') : (document.getElementById('f-database').value.trim() || '');
+  const database = (dbType === 'pg' || dbType === 'ivorysql') ? (document.getElementById('f-database').value.trim() || 'postgres') : (document.getElementById('f-database').value.trim() || '');
   const svcName = document.getElementById('f-service-name') ? document.getElementById('f-service-name').value.trim() : null;
   const inspector = document.getElementById('f-inspector').value.trim() || 'Jack';
 
@@ -5703,7 +5757,8 @@ function pollStatus() {
           // 统计风险等级
           let highCnt = 0, midCnt = 0;
           for (let i=0; i < issues.length; i++) {
-            const c = (issues[i].col2||'');
+            const cRaw = (issues[i].col2||'');
+            const c = cRaw.startsWith('report.') ? i18n(cRaw) : cRaw;
             if (c.indexOf('高')>=0 || c.toLowerCase().indexOf('high')>=0) highCnt++;
             else if (c.indexOf('中')>=0 || c.toLowerCase().indexOf('mid')>=0) midCnt++;
           }
@@ -5717,13 +5772,16 @@ function pollStatus() {
           </div>
           <div class="issues-list" style="margin-top:16px">
             ${issues.map(issue => {
-              const c2 = (issue.col2||'');
+              const c2Raw = (issue.col2||'');
+              const c2 = c2Raw.startsWith('report.') ? i18n(c2Raw) : c2Raw;
               const cls = c2.indexOf('高')>=0||c2.toLowerCase().indexOf('high')>=0?'severity-high':c2.indexOf('中')>=0||c2.toLowerCase().indexOf('mid')>=0?'severity-mid':'severity-low';
+              const c1Raw = (issue.col1||'');
+              const c1 = c1Raw.startsWith('report.') ? i18n(c1Raw) : c1Raw;
               return `
               <div class="issue-card">
                 <div class="issue-header">
                   <span class="severity-tag ${cls}">${c2}</span>
-                  <span class="issue-title">${issue.col1||''}</span>
+                  <span class="issue-title">${c1}</span>
                 </div>
                 <div class="issue-desc">${issue.col3||''}</div>
                 ${(issue.fix_sql||'').trim()?`
@@ -5982,14 +6040,19 @@ function showReportIssues(filename, autoAnalyzeB64) {
       </div>
       <div class="issues-list" style="overflow-y:auto;flex:1">
         ${issues.map((issue) => {
-          const c2 = issue.col2 || '';
-          const c4 = issue.col4 || '';
+          const c2Raw = issue.col2 || '';
+          const c4Raw = issue.col4 || '';
+          const c2 = c2Raw.startsWith('report.') ? i18n(c2Raw) : c2Raw;
+          const c4 = c4Raw.startsWith('report.') ? i18n(c4Raw) : c4Raw;
+          const c2Display = c2 || c4;
           const cls = (c2+c4).indexOf('高')>=0||(c2+c4).toLowerCase().indexOf('high')>=0?'severity-high':(c2+c4).indexOf('中')>=0||(c2+c4).toLowerCase().indexOf('mid')>=0?'severity-mid':'severity-low';
+          const c1Raw = (issue.col1||'');
+          const c1 = c1Raw.startsWith('report.') ? i18n(c1Raw) : c1Raw;
           return `
           <div class="issue-card" style="margin-bottom:12px">
             <div class="issue-header">
-              <span class="severity-tag ${cls}">${issue.col2||issue.col4||''}</span>
-              <span class="issue-title">${issue.col1||''}</span>
+              <span class="severity-tag ${cls}">${c2Display}</span>
+              <span class="issue-title">${c1}</span>
             </div>
             <div class="issue-desc">${issue.col3||''}</div>
             ${(issue.fix_sql||'').trim()?
@@ -10466,7 +10529,8 @@ async function deleteBackupHistory(recordId) {
   }
 
   async function deleteServerHistory(id) {
-    if (!confirm('确定删除这条巡检记录？')) return;
+    const confirmed = await showConfirmDialog('确认删除', '确定删除这条巡检记录？');
+    if (!confirmed) return;
     try {
       const res = await fetch('/api/server_inspect_history/' + id, {method: 'DELETE'});
       const data = await res.json();

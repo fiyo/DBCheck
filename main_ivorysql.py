@@ -11,7 +11,8 @@
 from version import __version__ as VER
 
 """
-PostgreSQL 数据库自动化健康巡检工具 {VER}
+IvorySQL 数据库自动化健康巡检工具 {VER}
+基于 PostgreSQL 协议，复用 PG SQL 模板，增加 IvorySQL 特有检查项。
 依赖: psycopg2, python-docx, docxtpl, openpyxl, psutil, paramiko
 """
 import warnings
@@ -66,14 +67,14 @@ importlib.reload(sys)
 # ── i18n setup for CLI ─────────────────────────────────────────────
 try:
     from i18n import get_lang
-    _PG_LANG = get_lang()
+    _IVORYSQL_LANG = get_lang()
 except Exception:
-    _PG_LANG = 'zh'
+    _IVORYSQL_LANG = 'zh'
 
 def _t(key):
     try:
         from i18n import t as _tt
-        return _tt(key, _PG_LANG)
+        return _tt(key, _IVORYSQL_LANG)
     except Exception:
         return key
 
@@ -215,11 +216,11 @@ def _render_markdown_to_doc(doc, text, default_size=11, ch8_prefix=False):
 # ============================================================
 # 内置 PostgreSQL 巡检 SQL 模板
 # ============================================================
-PG_SQL_TEMPLATES_CONTENT = """
+IVORYSQL_SQL_TEMPLATES_CONTENT = """
 [report]
-name = PostgreSQL HealthCheck Report
+name = IvorySQL HealthCheck Report
 template = ./templates/pg_wordtemplates_v1.0.docx
-output = /tmp/PGCheckReport.docx
+output = /tmp/IvorySQLCheckReport.docx
 
 [variables]
 pg_version       = SELECT version() AS version;
@@ -235,6 +236,7 @@ pg_index_usage   = SELECT schemaname, relname AS tablename, indexrelname AS inde
 pg_replication   = SELECT pid, usename, application_name, client_addr, state, sent_lsn, write_lsn, flush_lsn, replay_lsn, sync_state FROM pg_stat_replication;
 pg_cache_hit     = SELECT datname, blks_read, blks_hit, round(blks_hit*100.0/NULLIF(blks_hit+blks_read,0),2) AS cache_hit_ratio, tup_returned, tup_fetched, tup_inserted, tup_updated, tup_deleted FROM pg_stat_database WHERE datname NOT IN ('template0','template1') ORDER BY blks_hit DESC;
 pg_bgwriter      = SELECT checkpoints_timed, checkpoints_req, buffers_checkpoint, buffers_clean, buffers_backend FROM pg_stat_bgwriter;
+pg_bgwriter_alt  = SELECT num_timed AS checkpoints_timed, num_requested AS checkpoints_req, buffers_written AS buffers_checkpoint, 0 AS buffers_clean, 0 AS buffers_backend FROM pg_stat_checkpointer;
 pg_settings_key  = SELECT name, setting, unit, short_desc FROM pg_settings WHERE name IN ('max_connections','shared_buffers','work_mem','maintenance_work_mem','effective_cache_size','wal_level','archive_mode','max_wal_size','checkpoint_completion_target','random_page_cost','log_min_duration_statement','autovacuum','autovacuum_vacuum_scale_factor','autovacuum_analyze_scale_factor') ORDER BY name;
 pg_users         = SELECT rolname AS username, rolsuper AS is_superuser, rolcreatedb AS can_createdb, rolcreaterole AS can_createrole, rolvaliduntil AS password_expiry FROM pg_roles ORDER BY rolname;
 pg_databases     = SELECT datname, pg_encoding_to_char(encoding) AS encoding, datcollate, datctype, datallowconn, datconnlimit FROM pg_database WHERE datistemplate=false ORDER BY datname;
@@ -244,6 +246,9 @@ pg_blocking_chain = SELECT blocked_locks.pid AS blocked_pid, blocked_activity.us
 pg_deadlock_count = SELECT datname, deadlocks FROM pg_stat_database WHERE deadlocks > 0 ORDER BY deadlocks DESC;
 pg_long_xact      = SELECT pid, usename, datname, application_name, state, xact_start, EXTRACT(EPOCH FROM (now() - xact_start)) AS xact_seconds, left(query, 200) AS query FROM pg_stat_activity WHERE xact_start IS NOT NULL AND EXTRACT(EPOCH FROM (now() - xact_start)) > 60 AND state != 'idle' ORDER BY xact_start;
 pg_lock_type_stats = SELECT locktype, mode, granted, COUNT(*) AS count FROM pg_locks GROUP BY locktype, mode, granted ORDER BY count DESC;
+ivorysql_compat_mode = SELECT name, setting, short_desc FROM pg_settings WHERE name LIKE 'ivorysql.%' OR name LIKE 'compatible%%' ORDER BY name;
+ivorysql_plsql_objects = SELECT CASE WHEN pronamespace IN (SELECT oid FROM pg_namespace WHERE nspname = 'pg_catalog') THEN 'system' ELSE 'user' END AS scope, CASE WHEN prokind = 'f' THEN 'function' WHEN prokind = 'p' THEN 'procedure' WHEN prokind = 'a' THEN 'aggregate' WHEN prokind = 'w' THEN 'window' ELSE 'other' END AS type, count(*) AS count FROM pg_proc GROUP BY scope, type ORDER BY scope, type;
+ivorysql_sequences = SELECT sequencename, sequenceowner, data_type, start_value, min_value, max_value, increment_by, cycle, cache_size FROM pg_sequences LIMIT 20;
 """
 
 
@@ -445,7 +450,7 @@ class RemoteSystemInfoCollector:
 
     def get_system_info(self):
         """
-        聚合采集远程主机全部系统信息（CPU/内存/磁盘/主机名/平台/启动时间）。
+        聚合采集远程主机全部系统信息（CPU/内存/磁盘/平台/启动时间）。
 
         :return: 系统信息字典；SSH 连接失败时返回空字典
         """
@@ -456,13 +461,9 @@ class RemoteSystemInfoCollector:
                 'cpu': self.get_cpu_info(),
                 'memory': self.get_memory_info(),
                 'disk': self.get_disk_info(),
-                'hostname': "",
                 'platform': "",
                 'boot_time': ""
             }
-            cmd = "hostname"
-            output, _ = self.execute_command(cmd)
-            if output: system_info['hostname'] = output.strip()
             cmd = "uname -a"
             output, _ = self.execute_command(cmd)
             if output: system_info['platform'] = output.strip()
@@ -478,8 +479,7 @@ class LocalSystemInfoCollector:
     """本地系统信息收集器 - 使用 psutil 库采集当前主机系统信息，无需 SSH"""
 
     def __init__(self):
-        """初始化本地系统信息收集器（无需任何参数）。"""
-        pass
+        """初始化本地系统信息收集器。"""
 
     def get_cpu_info(self):
         """
@@ -572,7 +572,7 @@ class LocalSystemInfoCollector:
 
     def get_system_info(self):
         """
-        聚合采集本机全部系统信息（CPU/内存/磁盘/主机名/平台/启动时间）。
+        聚合采集本机全部系统信息（CPU/内存/磁盘/平台/启动时间）。
 
         :return: 系统信息字典
         """
@@ -580,7 +580,6 @@ class LocalSystemInfoCollector:
             'cpu': self.get_cpu_info(),
             'memory': self.get_memory_info(),
             'disk': self.get_disk_info(),
-            'hostname': socket.gethostname(),
             'platform': platform.platform(),
             'boot_time': datetime.fromtimestamp(psutil.boot_time()).strftime('%Y-%m-%d %H:%M:%S')
         }
@@ -719,12 +718,12 @@ class WordTemplateGenerator:
             'db_name':         self._t('report.fallback_db_name'),
             'server_addr':     self._t('report.fallback_server_addr'),
             'pg_version':      self._t('report.fallback_pg_version'),
-            'hostname':        self._t('report.fallback_hostname'),
             'instance_time':   self._t('report.fallback_instance_time'),
             'inspector':       self._t('report.fallback_inspector'),
             'platform':        self._t('report.fallback_platform'),
             'report_time':     self._t('report.fallback_report_time'),
             'pg_title':        self._t('report.pg_title'),
+            'ivorysql_title':  self._t('ivorysql.report_title'),
             'overall_health':  self._t('report.fallback_overall_health'),
             'issue_count':    self._t('report.fallback_issue_count'),
             # Chapter headings
@@ -822,7 +821,7 @@ class WordTemplateGenerator:
     def _t(self, key):
         try:
             from i18n import t
-            return t(key, _PG_LANG)
+            return t(key, _IVORYSQL_LANG)
         except Exception:
             return key
 
@@ -869,7 +868,7 @@ class WordTemplateGenerator:
         按顺序组装完整的巡检报告模板，包含封面及 11 个章节。
 
         依次调用以下方法：
-          封面 → 健康状态概览 → 系统资源检查 → PostgreSQL 配置检查
+          封面 → 健康状态概览 → 系统资源检查 → IvorySQL 配置检查
           → 性能分析 → 数据库信息 → 安全信息 → 风险与建议
           → AI 智能诊断 → 配置基线检查 → 索引健康分析 → 报告说明
 
@@ -908,7 +907,7 @@ class WordTemplateGenerator:
         # ── 报告标题 ────────────────────────────────────────────────
         title = self.doc.add_paragraph()
         title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        title_run = title.add_run('PostgreSQL ' + self._l['pg_title'].replace('PostgreSQL ', ''))
+        title_run = title.add_run(self._l['ivorysql_title'])
         title_run.font.size = Pt(28)
         title_run.font.bold = True
         title_run.font.color.rgb = RGBColor(15, 75, 135)  # 深蓝色
@@ -947,7 +946,6 @@ class WordTemplateGenerator:
             (self._l['db_name'], "{{ co_name[0]['CO_NAME'] }}"),
             (self._l['server_addr'], "{{ ip[0]['IP'] }}:{{ port[0]['PORT'] }}"),
             (self._l['pg_version'], "{{ myversion[0]['version'] }}"),
-            (self._l['hostname'], "{{ system_info.hostname }}"),
             (self._l['instance_time'], "{% if instancetime %}{{ instancetime[0]['started_at'] }}{% else %}N/A{% endif %}"),
             (self._l['inspector'], "{{ inspector_name }}"),
             (self._l['platform'], "{% if platform_info and platform_info|length > 0 %}{% for item in platform_info %}{% if item.variable_name == 'version_compile_os' %}{{ item.variable_value }}{% endif %}{% endfor %}{% else %}N/A{% endif %}"),
@@ -1112,7 +1110,7 @@ class WordTemplateGenerator:
         self.doc.add_paragraph()
     def _add_pg_config_section(self):
         """
-        生成第 3 章「PostgreSQL 配置检查」，包含三个小节。
+        生成第 3 章「IvorySQL 配置检查」，包含三个小节。
 
         - 3.1 连接配置：最大连接数、当前连接数、使用率
         - 3.2 内存配置：shared_buffers、work_mem、maintenance_work_mem、effective_cache_size
@@ -1468,11 +1466,11 @@ class WordTemplateGenerator:
         heading_run.font.size = Pt(14)
         heading_run.font.bold = True
         notes = [
-            self._t('report.fallback_pg_note_1'),
-            self._t('report.fallback_pg_note_2'),
-            self._t('report.fallback_pg_note_3'),
-            self._t('report.fallback_pg_note_4'),
-            self._t('report.fallback_pg_note_5'),
+            self._t('report.fallback_ivorysql_note_1'),
+            self._t('report.fallback_ivorysql_note_2'),
+            self._t('report.fallback_ivorysql_note_3'),
+            self._t('report.fallback_ivorysql_note_4'),
+            self._t('report.fallback_ivorysql_note_5'),
         ]
         for note in notes:
             p = self.doc.add_paragraph()
@@ -1624,16 +1622,16 @@ class ExcelTemplateManager:
         """
         初始化 Excel 模板管理器。
 
-        设置默认模板文件名为 "pg_batch_template.xlsx"。
+        设置默认模板文件名为 "ivorysql_batch_template.xlsx"。
         """
-        self.template_file = "pg_batch_template.xlsx"
+        self.template_file = "ivorysql_batch_template.xlsx"
 
     def create_template(self):
         """
         创建批量巡检 Excel 配置模板文件。
 
         模板包含两个工作表：
-        - 「PostgreSQL数据库配置」：13 列表头，包含 PostgreSQL 连接信息和 SSH 连接信息，
+        - 「IvorySQL数据库配置」：13 列表头，包含 PostgreSQL 连接信息和 SSH 连接信息，
           并预填 2 行示例数据；密码列用红色字体提醒
         - 「使用说明」：字段说明及注意事项
 
@@ -1642,7 +1640,7 @@ class ExcelTemplateManager:
         try:
             wb = Workbook()
             ws = wb.active
-            ws.title = "PostgreSQL数据库配置"
+            ws.title = "IvorySQL数据库配置"
             headers = [
                 "序号", "数据库标签", "主机地址", "端口", "用户名", 
                 "密码", "数据库名称", 
@@ -1673,17 +1671,17 @@ class ExcelTemplateManager:
                         cell.font = Font(color="FF0000")
             ws2 = wb.create_sheet("使用说明")
             instructions = [
-                ["PostgreSQL批量巡检配置模板使用说明"],
+                ["IvorySQL批量巡检配置模板使用说明"],
                 [""],
                 ["字段说明:"],
                 ["序号", "自动生成的序号，用于标识"],
                 ["数据库标签", "用于报告标识的名称，如'生产数据库'"],
-                ["主机地址", "PostgreSQL服务器IP地址或主机名"],
-                ["端口", "PostgreSQL服务端口，默认5432"],
+                ["主机地址", "IvorySQL服务器IP地址或主机名"],
+                ["端口", "IvorySQL服务端口，默认5333"],
                 ["用户名", "连接数据库的用户名"],
                 ["密码", "连接数据库的密码"],
                 ["数据库名称", "要连接的数据库名称(可选)"],
-                ["SSH主机", "远程主机的IP地址或主机名（用于获取系统信息），如果为空则使用PostgreSQL主机地址"],
+                ["SSH主机", "远程主机的IP地址或主机名（用于获取系统信息），如果为空则使用IvorySQL主机地址"],
                 ["SSH端口", "SSH服务端口，默认22"],
                 ["SSH用户名", "SSH连接用户名"],
                 ["SSH密码", "SSH连接密码（与密钥文件二选一）"],
@@ -1691,10 +1689,10 @@ class ExcelTemplateManager:
                 ["备注", "额外的说明信息"],
                 [""],
                 ["注意事项:"],
-                ["1. 请确保PostgreSQL服务器允许远程连接"],
+                ["1. 请确保IvorySQL服务器允许远程连接"],
                 ["2. 建议使用只读权限的账户进行巡检"],
                 ["3. 密码会以明文保存，请妥善保管Excel文件"],
-                ["4. 支持同时巡检多个不同的PostgreSQL实例"],
+                ["4. 支持同时巡检多个不同的IvorySQL实例"],
                 ["5. 如需获取系统信息（CPU、内存、磁盘等），请填写SSH连接信息"],
                 ["6. SSH连接支持密码和密钥两种认证方式，优先使用密钥"],
             ]
@@ -1707,20 +1705,20 @@ class ExcelTemplateManager:
                 if row == 1:
                     ws2.cell(row=row, column=1).font = Font(bold=True, size=14)
             wb.save(self.template_file)
-            print(_t("pg_cli_excel_created").format(path=self.template_file))
-            print(_t("pg_cli_excel_fill_note"))
-            print(_t("pg_cli_excel_ssh_note"))
+            print(_t("ivorysql_cli_excel_created").format(path=self.template_file))
+            print(_t("ivorysql_cli_excel_fill_note"))
+            print(_t("ivorysql_cli_excel_ssh_note"))
             return True
         except Exception as e:
-            print(_t("pg_cli_excel_create_fail").format(e=e))
+            print(_t("ivorysql_cli_excel_create_fail").format(e=e))
             return False
     def read_template(self, file_path=None):
         """
         读取 Excel 配置模板，解析并返回数据库连接信息列表。
 
-        从「PostgreSQL数据库配置」工作表的第 2 行开始逐行读取，跳过标签列（B列）为空的行。
+        从「IvorySQL数据库配置」工作表的第 2 行开始逐行读取，跳过标签列（B列）为空的行。
         自动处理端口、密码、SSH 信息的默认值及类型转换。
-        若 SSH 主机列为空，则默认使用 PostgreSQL 主机地址作为 SSH 主机。
+        若 SSH 主机列为空，则默认使用 IvorySQL 主机地址作为 SSH 主机。
 
         :param file_path: Excel 文件路径，默认使用 self.template_file
         :return: 数据库配置字典列表，每项包含：
@@ -1731,11 +1729,11 @@ class ExcelTemplateManager:
         if file_path is None:
             file_path = self.template_file
         if not os.path.exists(file_path):
-            print(_t("pg_cli_excel_not_exist_batch").format(path=file_path))
+            print(_t("ivorysql_cli_excel_not_exist_batch").format(path=file_path))
             return None
         try:
             wb = openpyxl.load_workbook(file_path)
-            ws = wb["PostgreSQL数据库配置"]
+            ws = wb["IvorySQL数据库配置"]
             db_list = []
             for row in range(2, ws.max_row + 1):
                 if not ws.cell(row=row, column=2).value:
@@ -1797,14 +1795,14 @@ class ExcelTemplateManager:
                 }
                 db_list.append(db_info)
             if not db_list:
-                print(_t("pg_cli_excel_no_valid_config"))
+                print(_t("ivorysql_cli_excel_no_valid_config"))
                 return None
-            print(_t("pg_cli_excel_read_count").format(n=len(db_list)))
+            print(_t("ivorysql_cli_excel_read_count").format(n=len(db_list)))
             ssh_count = sum(1 for db in db_list if db['ssh_host'] and (db['ssh_password'] or db['ssh_key_file']))
-            print(_t("pg_cli_excel_ssh_count").format(n=ssh_count))
+            print(_t("ivorysql_cli_excel_ssh_count").format(n=ssh_count))
             return db_list
         except Exception as e:
-            print(_t("pg_cli_excel_read_fail").format(e=e))
+            print(_t("ivorysql_cli_excel_read_fail").format(e=e))
             return None
 
 def input_db_info():
@@ -1813,7 +1811,7 @@ def input_db_info():
 
     依次提示用户输入：主机地址、端口、用户名、密码、数据库标签名称，
     以及可选的 SSH 连接信息（主机、端口、用户名、认证方式：密码或私钥文件）。
-    输入完成后自动验证 PostgreSQL 连接；若配置了 SSH 信息，同时验证 SSH 连接。
+    输入完成后自动验证 IvorySQL 连接；若配置了 SSH 信息，同时验证 SSH 连接。
     连接验证失败时可选择重新输入或退出。
 
     :return: 包含数据库连接信息的字典（含 SSH 信息字段）；
@@ -1871,20 +1869,20 @@ def input_db_info():
             'ssh_password': ssh_password,
             'ssh_key_file': ssh_key_file
         }
-    print("\n🔍 " + _t("pg_cli_verifying_pg").format(host=host, port=port))
+    print("\n🔍 " + _t("ivorysql_cli_verifying_pg").format(host=host, port=port))
     try:
         conn = psycopg2.connect(host=host, port=port, user=user, password=password, dbname=db_name, client_encoding='UTF8', connect_timeout=10)
         conn.close()
-        print(_t("pg_cli_pg_success").format(host=host, port=port))
+        print(_t("ivorysql_cli_pg_success").format(host=host, port=port))
     except Exception as e:
-        print(_t("pg_cli_pg_fail").format(e=e))
-        retry = input(_t("pg_cli_retry_no")).strip().lower()
+        print(_t("ivorysql_cli_pg_fail").format(e=e))
+        retry = input(_t("ivorysql_cli_retry_no")).strip().lower()
         if retry == 'y':
             return input_db_info()
         else:
             return None
     if ssh_info:
-        print("🔍 " + _t("pg_cli_verifying_ssh").format(host=ssh_info['ssh_host'], port=ssh_info['ssh_port']))
+        print("🔍 " + _t("ivorysql_cli_verifying_ssh").format(host=ssh_info['ssh_host'], port=ssh_info['ssh_port']))
         try:
             collector = RemoteSystemInfoCollector(
                 host=ssh_info['ssh_host'], port=ssh_info['ssh_port'], username=ssh_info['ssh_user'],
@@ -1906,48 +1904,48 @@ def show_main_menu():
     """
     显示程序主菜单并等待用户选择。
 
-    打印 PostgreSQL 数据库巡检工具 的主菜单，
+    打印 IvorySQL 数据库巡检工具 的主菜单，
     菜单选项：1 单机巡检、2 批量巡检、3 创建 Excel 模板、4 退出。
     循环接受输入，直到用户输入有效选项（1-4）为止。
 
     :return: 用户选择的菜单项字符串（"1"/"2"/"3"/"4"）
     """
     print("\n" + "=" * 60)
-    print("            " + _t("pg_cli_banner") + " " + VER)
+    print("            " + _t("ivorysql_cli_banner") + " " + VER)
     print("=" * 60)
-    print(_t("pg_cli_menu_item1"))
-    print(_t("pg_cli_menu_item2"))
-    print(_t("pg_cli_menu_item3"))
-    print(_t("pg_cli_menu_item4"))
+    print(_t("ivorysql_cli_menu_item1"))
+    print(_t("ivorysql_cli_menu_item2"))
+    print(_t("ivorysql_cli_menu_item3"))
+    print(_t("ivorysql_cli_menu_item4"))
     print("=" * 60)
     while True:
-        choice = input(_t("pg_cli_choose_prompt")).strip()
+        choice = input(_t("ivorysql_cli_choose_prompt")).strip()
         if choice in ['1', '2', '3', '4']:
             return choice
         else:
-            print("\u274c " + _t("pg_cli_invalid_choice"))
+            print("\u274c " + _t("ivorysql_cli_invalid_choice"))
 
 class getData(object):
-    """数据采集类 - 负责连接 PostgreSQL 数据库并执行全量巡检 SQL，同步采集系统信息和风险分析"""
+    """数据采集类 - 负责连接 IvorySQL 数据库并执行全量巡检 SQL，同步采集系统信息和风险分析"""
 
     def __init__(self, ip, port, user, password, database='postgres', ssh_info=None, label=None):
         """
-        初始化数据采集实例并建立 PostgreSQL 连接。
+        初始化数据采集实例并建立 IvorySQL 连接。
 
         通过 passArgu 解析命令行参数获取标签名，
         使用 psycopg2 建立数据库连接；连接失败时 conn_db2 置为 None。
         初始化空的 context 字典，用于存储所有巡检结果。
 
-        :param ip: PostgreSQL 服务器 IP 地址或主机名
-        :param port: PostgreSQL 服务端口
-        :param user: PostgreSQL 登录用户名
-        :param password: PostgreSQL 登录密码
+        :param ip: IvorySQL 服务器 IP 地址或主机名
+        :param port: IvorySQL 服务端口（默认 5333）
+        :param user: IvorySQL 登录用户名
+        :param password: IvorySQL 登录密码
         :param ssh_info: SSH 连接信息字典（可选），含 ssh_host、ssh_port、ssh_user、
                          ssh_password、ssh_key_file 字段；为空则使用本地采集模式
         :param label: 巡检标签名（可选）；CLI模式通过 infos.label 传入，
                       直接调用时通过此参数传入
         """
-        self.label = str(label if label is not None else infos.label) if 'infos' in dir() else str(label or 'pg_inspection')
+        self.label = str(label if label is not None else infos.label) if 'infos' in dir() else str(label or 'ivorysql_inspection')
         self.H = ip
         self.P = int(port)
         self.user = user
@@ -1957,7 +1955,7 @@ class getData(object):
         try:
             self.conn_db2 = psycopg2.connect(host=self.H, port=self.P, user=self.user, password=self.password, dbname=self.database, client_encoding='UTF8', connect_timeout=10)
         except Exception as e:
-            print(_t("pg_cli_db_conn_fail").format(e=e))
+            print(_t("ivorysql_cli_db_conn_fail").format(e=e))
             self.conn_db2 = None
         self.context = {}
         try:
@@ -1993,7 +1991,7 @@ class getData(object):
             print()
     def checkdb(self, sqlfile=''):
         """
-        执行 PostgreSQL 数据库健康巡检，采集系统信息并进行风险分析。
+        执行 IvorySQL 数据库健康巡检，采集系统信息并进行风险分析。
 
         主要流程：
         1. 读取 SQL 模板（内置 builtin 模式 或 外部 .ini 文件）
@@ -2002,21 +2000,21 @@ class getData(object):
         4. 自动分析风险项（连接数使用率 > 80%、内存使用率 > 90%、磁盘使用率 > 90%）
         5. 全程打印进度条
 
-        :param sqlfile: SQL 模板文件路径，传入 'builtin' 时使用内置模板（PG_SQL_TEMPLATES_CONTENT），
+        :param sqlfile: SQL 模板文件路径，传入 'builtin' 时使用内置模板（IVORYSQL_SQL_TEMPLATES_CONTENT），
                         传入空字符串或文件路径时从文件加载
         :return: 包含所有巡检结果的 context 字典；连接异常或读取模板失败时返回当前已有内容
         """
-        print("\n" + _t("pg_cli_starting"))
+        print("\n" + _t("ivorysql_cli_starting"))
         total_steps = 15
         current_step = 0
         cfg = configparser.RawConfigParser()
         try:
             if sqlfile == 'builtin':
-                cfg.read_string(PG_SQL_TEMPLATES_CONTENT)
+                cfg.read_string(IVORYSQL_SQL_TEMPLATES_CONTENT)
             else:
                 cfg.read(sqlfile, encoding='utf-8')
         except Exception as e:
-            print(_t("pg_cli_sql_template_fail").format(e=e))
+            print(_t("ivorysql_cli_sql_template_fail").format(e=e))
             return self.context
         init_keys = ["myversion", "pg_uptime", "pg_connections", "pg_conn_detail",
                     "pg_wait_events", "pg_long_queries", "pg_lock_info", "pg_db_size",
@@ -2024,7 +2022,8 @@ class getData(object):
                     "pg_bgwriter", "pg_settings_key", "pg_users", "pg_databases",
                     "pg_extensions", "pg_processlist", "instancetime", "platform_info",
                     "pg_blocking_chain", "pg_deadlock_count",
-                    "pg_long_xact", "pg_lock_type_stats"]
+                    "pg_long_xact", "pg_lock_type_stats",
+                    "ivorysql_compat_mode", "ivorysql_plsql_objects", "ivorysql_sequences"]
         for key in init_keys:
             self.context.update({key: []})
         try:
@@ -2036,7 +2035,7 @@ class getData(object):
             self.context.update({"myversion": [{'version': pg_version_str}]})
             self.context.update({"health_summary": [{'health_summary': self._t("report.pg_fallback_health_ok")}]})
         except Exception as e:
-            print(_t("pg_cli_version_fail").format(e=e))
+            print(_t("ivorysql_cli_version_fail").format(e=e))
             self.context.update({"myversion": [{'version': 'Unknown'}]})
             self.context.update({"health_summary": [{'health_summary': self._t("report.pg_fallback_health_ok")}]})
         try:
@@ -2045,7 +2044,7 @@ class getData(object):
             for i, (name, stmt) in enumerate(variables_items):
                 try:
                     current_step = int((i / len(variables_items)) * total_steps)
-                    self.print_progress_bar(current_step, total_steps, prefix=_t('pg_cli_progress_prefix'), suffix=_t('pg_cli_progress_step').format(i=i+1, total=len(variables_items)))
+                    self.print_progress_bar(current_step, total_steps, prefix=_t('ivorysql_cli_progress_prefix'), suffix=_t('ivorysql_cli_progress_step').format(i=i+1, total=len(variables_items)))
                     cursor2.execute(stmt.replace('\n', ' ').replace('\r', ' '))
                     result = [dict((cursor2.description[i][0], value) for i, value in enumerate(row)) for row in cursor2.fetchall()]
                     self.context[name] = result
@@ -2062,7 +2061,7 @@ class getData(object):
                             continue
                         except Exception as e2:
                             print("\n⚠️  pg_bgwriter fallback also failed: %s" % e2)
-                    print("\n⚠️  " + _t("pg_cli_step_fail").format(name=name, e=e))
+                    print("\n⚠️  " + _t("ivorysql_cli_step_fail").format(name=name, e=e))
                     self.context[name] = []
                     try:
                         self.conn_db2.rollback()
@@ -2070,12 +2069,12 @@ class getData(object):
                         pass
                     time.sleep(0.05)
         except Exception as e:
-            print("\n❌ " + _t("pg_cli_query_fail").format(e=e))
+            print("\n❌ " + _t("ivorysql_cli_query_fail").format(e=e))
         finally:
             if 'cursor2' in locals():
                 cursor2.close()
         current_step = total_steps - 2
-        self.print_progress_bar(current_step, total_steps, prefix=_t('pg_cli_progress_prefix'), suffix=_t('pg_cli_sysinfo_suffix'))
+        self.print_progress_bar(current_step, total_steps, prefix=_t('ivorysql_cli_progress_prefix'), suffix=_t('ivorysql_cli_sysinfo_suffix'))
         try:
             if self.ssh_info and self.ssh_info.get('ssh_host'):
                 print("\n🔍 " + _t("cli_ssh_collecting").format(host=self.ssh_info['ssh_host']))
@@ -2085,7 +2084,7 @@ class getData(object):
                     password=self.ssh_info.get('ssh_password'), key_file=self.ssh_info.get('ssh_key_file')
                 )
             else:
-                print("\n🔍 " + _t("pg_cli_local_sysinfo"))
+                print("\n🔍 " + _t("ivorysql_cli_local_sysinfo"))
                 collector = LocalSystemInfoCollector()
             system_info = collector.get_system_info()
             if isinstance(system_info.get('disk'), dict):
@@ -2098,14 +2097,14 @@ class getData(object):
                 system_info['disk_list'] = disk_info
             self.context.update({"system_info": system_info})
         except Exception as e:
-            print("\n❌ " + _t("pg_cli_sysinfo_fail").format(e=e))
+            print("\n❌ " + _t("ivorysql_cli_sysinfo_fail").format(e=e))
             self.context.update({"system_info": {
-                'hostname': '未知', 'platform': '未知', 'boot_time': '未知',
+                'platform': '未知', 'boot_time': '未知',
                 'cpu': {}, 'memory': {},
                 'disk_list': [{'device': '/dev/sda1', 'mountpoint': '/', 'fstype': 'ext4', 'total_gb': 0, 'used_gb': 0, 'free_gb': 0, 'usage_percent': 0}]
             }})
         current_step = total_steps - 1
-        self.print_progress_bar(current_step, total_steps, prefix=_t('pg_cli_progress_prefix'), suffix=_t('pg_cli_risk_suffix'))
+        self.print_progress_bar(current_step, total_steps, prefix=_t('ivorysql_cli_progress_prefix'), suffix=_t('ivorysql_cli_risk_suffix'))
         self.context.update({"auto_analyze": []})
         try:
             # 使用增强智能分析模块（15+ 条规则）
@@ -2137,18 +2136,18 @@ class getData(object):
                         "fix_sql": ""
                     })
         except Exception as e:
-            print("\n❌ " + _t("pg_cli_risk_fail").format(e=e))
+            print("\n❌ " + _t("ivorysql_cli_risk_fail").format(e=e))
 
-        # AI 智能诊断（从 ai_config.json 读取配置，传递给 analyzer.AIAdvisor）
+        # AI 智能诊断（从 dbc_config.json 读取配置，传递给 analyzer.AIAdvisor）
         self.context['ai_advice'] = ''
         try:
             from analyzer import AIAdvisor
             import json as _json
-            cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_config.json')
+            cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dbc_config.json')
             ai_cfg = {}
             if os.path.exists(cfg_path):
                 with open(cfg_path, 'r', encoding='utf-8') as f:
-                    ai_cfg = _json.load(f)
+                    ai_cfg = _json.load(f).get('ai', {})
             advisor = AIAdvisor(
                 backend=ai_cfg.get('backend'),
                 api_key=ai_cfg.get('api_key'),
@@ -2156,8 +2155,8 @@ class getData(object):
                 model=ai_cfg.get('model')
             )
             if advisor.enabled:
-                label = self.context.get('co_name', [{}])[0].get('CO_NAME', 'PostgreSQL')
-                print("\n🤖 " + _t("pg_cli_ai_calling").format(backend=advisor.backend, model=advisor.model))
+                label = self.context.get('co_name', [{}])[0].get('CO_NAME', 'IvorySQL')
+                print("\n🤖 " + _t("ivorysql_cli_ai_calling").format(backend=advisor.backend, model=advisor.model))
                 ai_advice = advisor.diagnose('pg', label, self.context, issues, lang=self._lang)
                 self.context['ai_advice'] = ai_advice
         except Exception as e:
@@ -2173,11 +2172,11 @@ class getData(object):
                 try:
                     from analyzer import AIAdvisor
                     import json as _json
-                    cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_config.json')
+                    cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dbc_config.json')
                     ai_cfg = {}
                     if os.path.exists(cfg_path):
                         with open(cfg_path, 'r', encoding='utf-8') as f:
-                            ai_cfg = _json.load(f)
+                            ai_cfg = _json.load(f).get('ai', {})
                     ai_advisor = AIAdvisor(
                         backend=ai_cfg.get('backend'),
                         api_key=ai_cfg.get('api_key'),
@@ -2186,13 +2185,13 @@ class getData(object):
                     )
                 except Exception:
                     pass
-                print("\n\U0001f50d " + self._t('pg_cli_slow_query_analyzing'))
+                print("\n\U0001f50d " + self._t('ivorysql_cli_slow_query_analyzing'))
                 result = analyzer.analyze(self.conn_db2, ai_advisor=ai_advisor, lang=self._lang)
                 self.context['slow_query_result'] = result.to_dict()
                 if result.is_empty():
-                    print("  \u2139\ufe0f  " + self._t('pg_cli_slow_query_pg_stat_unavailable'))
+                    print("  \u2139\ufe0f  " + self._t('ivorysql_cli_slow_query_pg_stat_unavailable'))
                 else:
-                    print("  \u2705  " + self._t('pg_cli_slow_query_ok').format(
+                    print("  \u2705  " + self._t('ivorysql_cli_slow_query_ok').format(
                         count=len(result.top_sql_by_latency)))
         except ImportError:
             pass
@@ -2204,14 +2203,14 @@ class getData(object):
         try:
             from config_baseline import check_pg_config_baseline
             if self.conn_db2:
-                print("\n\U0001f539 " + self._t('pg_cli_config_baseline_checking'))
+                print("\n\U0001f539 " + self._t('ivorysql_cli_config_baseline_checking'))
                 cb_result = check_pg_config_baseline(self.conn_db2)
                 self.context['config_baseline_result'] = cb_result
                 summary = cb_result.get('summary', {})
                 crit = summary.get('critical_count', 0)
                 warn = summary.get('warning_count', 0)
                 info = summary.get('info_count', 0)
-                print("  \u2705  " + self._t('pg_cli_config_baseline_ok').format(
+                print("  \u2705  " + self._t('ivorysql_cli_config_baseline_ok').format(
                     critical=crit, warning=warn, info=info))
         except ImportError:
             pass
@@ -2223,21 +2222,21 @@ class getData(object):
         try:
             from index_health import analyze_pg_indexes
             if self.conn_db2:
-                print("\n\U0001f50d " + self._t('pg_cli_index_health_checking'))
+                print("\n\U0001f50d " + self._t('ivorysql_cli_index_health_checking'))
                 ih_result = analyze_pg_indexes(self.conn_db2)
                 self.context['index_health_result'] = ih_result
                 summary = ih_result.get('summary', {})
                 missing = summary.get('missing_count', 0)
                 redundant = summary.get('redundant_count', 0)
                 unused = summary.get('unused_count', 0)
-                print("  \u2705  " + self._t('pg_cli_index_health_ok').format(
+                print("  \u2705  " + self._t('ivorysql_cli_index_health_ok').format(
                     missing=missing, redundant=redundant, unused=unused))
         except ImportError:
             pass
         except Exception as e:
             print("\u26a0\ufe0f 索引健康分析失败: %s" % e)
 
-        self.print_progress_bar(total_steps, total_steps, prefix=_t('pg_cli_progress_prefix'), suffix=_t('pg_cli_complete_suffix'))
+        self.print_progress_bar(total_steps, total_steps, prefix=_t('ivorysql_cli_progress_prefix'), suffix=_t('ivorysql_cli_complete_suffix'))
         return self.context
 
 class saveDoc(object):
@@ -2839,7 +2838,7 @@ class saveDoc(object):
                 # 第 12 章 报告说明
                 doc2.add_heading('12. ' + self._t('report.fallback_pg_notes_chapter'), level=1)
                 notes = [
-                    self._t("report.note_1_pg"),
+                    self._t("report.note_1_ivorysql"),
                     self._t("report.fallback_note_2"),
                     self._t("report.fallback_note_3"),
                     self._t("report.fallback_note_4"),
@@ -2862,7 +2861,7 @@ class saveDoc(object):
                 return self._fallback_render()
 
         except Exception as e:
-            print("❌ " + _t("pg_cli_word_fail_gen").format(e=e))
+            print("❌ " + _t("ivorysql_cli_word_fail_gen").format(e=e))
             import traceback
             traceback.print_exc()
             return False
@@ -2965,7 +2964,6 @@ class saveDoc(object):
                 (self._t("report.fallback_db_name"), self.context.get('co_name', [{}])[0].get('CO_NAME', 'N/A')),
                 (self._t("report.fallback_server_addr"), f"{self.context.get('ip', [{}])[0].get('IP', 'N/A')}:{self.context.get('port', [{}])[0].get('PORT', 'N/A')}"),
                 (self._t("report.fallback_pg_version"), self.context.get('myversion', [{}])[0].get('version', 'N/A')),
-                (self._t("report.fallback_hostname"), self.context.get('system_info', {}).get('hostname', 'N/A')),
                 (self._t("report.fallback_pg_start_time"), self.context.get('pg_uptime', [{}])[0].get('started_at', 'N/A') if self.context.get('pg_uptime') else 'N/A'),
                 (self._t("report.fallback_inspector"), self.inspector_name),
                 (self._t("report.fallback_platform"), self._get_platform_info()),
@@ -3400,12 +3398,12 @@ class saveDoc(object):
             # ── 9. 报告说明 ──
             doc.add_heading('9. ' + self._t('report.fallback_pg_notes_chapter'), level=1)
             notes = [
-                self._t("report.fallback_pg_note_1"),
-                self._t("report.fallback_pg_note_2"),
-                self._t("report.fallback_pg_note_3"),
-                self._t("report.fallback_pg_note_4"),
-                self._t("report.fallback_pg_note_5"),
-                self._t("report.fallback_pg_note_6")
+                self._t("report.fallback_ivorysql_note_1"),
+                self._t("report.fallback_ivorysql_note_2"),
+                self._t("report.fallback_ivorysql_note_3"),
+                self._t("report.fallback_ivorysql_note_4"),
+                self._t("report.fallback_ivorysql_note_5"),
+                self._t("report.fallback_ivorysql_note_6")
             ]
             for note in notes:
                 doc.add_paragraph(note)
@@ -3533,9 +3531,9 @@ def print_banner():
   ██║  ██║██╔══██╗██║     ██╔══██║██╔══╝  ██║     ██╔═██╗
   ██████╔╝██████╔╝╚██████╗██║  ██║███████╗╚██████╗██║  ██╗
   ╚═════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝ ╚═════╝╚═╝  ╚═╝{RESET}
-{GREEN}{BOLD}             🐘  {_t('pg_cli_banner_title')}  {VER}{RESET}
+{GREEN}{BOLD}             🦣  {_t('ivorysql_cli_banner_title')}  {VER}{RESET}
 {DIM}  ──────────────────────────────────────────────────────────{RESET}
-{YELLOW}  {_t('pg_cli_banner_subtitle')}{RESET}
+{YELLOW}  {_t('ivorysql_cli_banner_subtitle')}{RESET}
 {DIM}  ──────────────────────────────────────────────────────────{RESET}
 """
     print(art)
@@ -3547,7 +3545,7 @@ def single_inspection():
     调用 input_db_info() 进行交互式连接信息输入，
     输入有效后调用 run_inspection() 执行巡检并生成报告。
     """
-    print("\n=== " + _t("pg_cli_single_mode") + " ===")
+    print("\n=== " + _t("ivorysql_cli_single_mode") + " ===")
     db_info = input_db_info()
     if not db_info:
         return
@@ -3562,32 +3560,32 @@ def batch_inspection():
     逐一调用 run_inspection() 完成每个数据库的巡检，
     最终汇总输出成功 / 失败统计。
     """
-    print("\n=== " + _t("pg_cli_batch_mode") + " ===")
+    print("\n=== " + _t("ivorysql_cli_batch_mode") + " ===")
     excel_manager = ExcelTemplateManager()
     if not os.path.exists(excel_manager.template_file):
-        print("\u274c " + _t("pg_cli_excel_not_exist"))
-        create_template = input(_t("pg_cli_create_template_now")).strip().lower()
+        print("\u274c " + _t("ivorysql_cli_excel_not_exist"))
+        create_template = input(_t("ivorysql_cli_create_template_now")).strip().lower()
         if create_template in ['', 'y', 'yes']:
             excel_manager.create_template()
         return
     db_list = excel_manager.read_template()
     if not db_list:
         return
-    print("\n\U0001f4cb " + _t("pg_cli_will_inspect_n").format(n=len(db_list)))
+    print("\n\U0001f4cb " + _t("ivorysql_cli_will_inspect_n").format(n=len(db_list)))
     for i, db in enumerate(db_list, 1):
         ssh_suffix = " " + _t("cli_ssh_suffix") if db.get("ssh_host") and (db.get("ssh_password") or db.get("ssh_key_file")) else ""
         print("  " + str(i) + ". " + db["name"] + " - " + db["ip"] + ":" + str(db["port"]) + ssh_suffix)
-    confirm = input("\n" + _t("pg_cli_confirm_batch")).strip().lower()
+    confirm = input("\n" + _t("ivorysql_cli_confirm_batch")).strip().lower()
     if confirm in ['', 'y', 'yes']:
         total_dbs = len(db_list)
         success_count = 0
         for i, db_info in enumerate(db_list, 1):
-            print("\n[" + str(i) + "/" + str(total_dbs) + "] " + _t("pg_cli_start_inspect_n").format(name=db_info["name"]))
+            print("\n[" + str(i) + "/" + str(total_dbs) + "] " + _t("ivorysql_cli_start_inspect_n").format(name=db_info["name"]))
             if run_inspection(db_info):
                 success_count += 1
-        print("\n=== " + _t("pg_cli_batch_done") + " ===")
-        print(_t("pg_cli_success_count").format(s=success_count, t=total_dbs))
-        print(_t("pg_cli_report_dir"))
+        print("\n=== " + _t("ivorysql_cli_batch_done") + " ===")
+        print(_t("ivorysql_cli_success_count").format(s=success_count, t=total_dbs))
+        print(_t("ivorysql_cli_report_dir"))
 
 def create_excel_template():
     """
@@ -3596,7 +3594,7 @@ def create_excel_template():
     实例化 ExcelTemplateManager 并调用其 create_template() 方法，
     在当前目录生成 pg_batch_template.xlsx 文件。
     """
-    print("\n=== " + _t("pg_cli_create_excel") + " ===")
+    print("\n=== " + _t("ivorysql_cli_create_excel") + " ===")
     excel_manager = ExcelTemplateManager()
     excel_manager.create_template()
 
@@ -3611,14 +3609,14 @@ def create_word_template(inspector_name="Jack"):
     """
     try:
         temp_dir = tempfile.gettempdir()
-        template_path = os.path.join(temp_dir, "pg_inspection_template.docx")
+        template_path = os.path.join(temp_dir, "ivorysql_inspection_template.docx")
         generator = WordTemplateGenerator(inspector_name)
         doc = generator.create_template()
         doc.save(template_path)
-        print("\u2705 " + _t("pg_cli_word_ok").format(path=template_path))
+        print("\u2705 " + _t("ivorysql_cli_word_ok").format(path=template_path))
         return template_path
     except Exception as e:
-        print("\u274c " + _t("pg_cli_word_fail").format(e=e))
+        print("\u274c " + _t("ivorysql_cli_word_fail").format(e=e))
         import traceback
         traceback.print_exc()
         return None
@@ -3631,7 +3629,7 @@ def run_inspection(db_info):
     1. 从 db_info 中提取连接参数和 SSH 信息
     2. 调用 create_word_template() 生成临时 Word 模板文件
     3. 在 reports/ 目录下以时间戳命名输出文件
-    4. 预先测试 PostgreSQL 连接并获取版本号
+    4. 预先测试 IvorySQL 连接并获取版本号
     5. 实例化 getData 执行巡检（checkdb）
     6. 将结果通过 saveDoc.contextsave() 渲染为最终报告
     7. 清理临时模板文件
@@ -3654,7 +3652,7 @@ def run_inspection(db_info):
             'ssh_password': db_info.get('ssh_password', ''),
             'ssh_key_file': db_info.get('ssh_key_file', '')
         }
-    inspector_name = input(_t("pg_cli_inspector_prompt")).strip() or "Jack"
+    inspector_name = input(_t("ivorysql_cli_inspector_prompt")).strip() or "Jack"
     ifile = create_word_template(inspector_name)
     if not ifile:
         return False
@@ -3662,10 +3660,10 @@ def run_inspection(db_info):
     if not os.path.exists(dir_path):
         os.makedirs(dir_path)
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    file_name = _t("pg_cli_report_filename").format(name=label_name, ts=timestamp) + ".docx"
+    file_name = _t("ivorysql_cli_report_filename").format(name=label_name, ts=timestamp) + ".docx"
     ofile = os.path.join(dir_path, file_name)
     try:
-        print("\U0001f50d " + _t("pg_cli_testing_connection").format(ip=ip, port=port))
+        print("\U0001f50d " + _t("ivorysql_cli_testing_connection").format(ip=ip, port=port))
         conn_test = psycopg2.connect(
             host=ip, port=int(port), user=user, password=password,
             dbname='postgres', client_encoding='UTF8', connect_timeout=10
@@ -3675,22 +3673,22 @@ def run_inspection(db_info):
         version = cursor.fetchone()[0]
         cursor.close()
         conn_test.close()
-        print("\U0001f4ca " + _t("pg_cli_version").format(ver=version))
+        print("\U0001f4ca " + _t("ivorysql_cli_version").format(ver=version))
     except Exception as e:
-        print("\u274c " + _t("pg_cli_conn_fail").format(e=e))
+        print("\u274c " + _t("ivorysql_cli_conn_fail").format(e=e))
     data = getData(ip, port, user, password, database=db_info.get('database', 'postgres'), ssh_info=ssh_info, label=label_name)
     if data is None or data.conn_db2 is None:
         return False
     ret = data.checkdb('builtin')
     if not ret:
         return False
-    ret.update({"co_name": [{'CO_NAME': label_name}]})
+    ret.update({"co_name": [{'CO_NAME': db_info.get('database', 'postgres')}]})
     ret.update({"port": [{'PORT': port}]})
     ret.update({"ip": [{'IP': ip}]})
     savedoc = saveDoc(context=ret, ofile=ofile, ifile=ifile, inspector_name=inspector_name)
     success = savedoc.contextsave()
     if success:
-        print("\u2705 " + _t("pg_cli_report_ok").format(fname=file_name))
+        print("\u2705 " + _t("ivorysql_cli_report_ok").format(fname=file_name))
         try:
             if os.path.exists(ifile):
                 os.remove(ifile)
@@ -3698,7 +3696,7 @@ def run_inspection(db_info):
             pass
         return True
     else:
-        print("❌ " + _t("pg_cli_report_fail").format(name=label_name))
+        print("❌ " + _t("ivorysql_cli_report_fail").format(name=label_name))
         return False
 
 def main():
@@ -3733,17 +3731,17 @@ def main():
         elif choice == '3':
             create_excel_template()
         elif choice == '4':
-            print("\n" + _t("pg_cli_thanks"))
+            print("\n" + _t("ivorysql_cli_thanks"))
             break
         if choice != '4':
-            continue_choice = input("\n" + _t("pg_cli_back_menu")).strip().lower()
+            continue_choice = input("\n" + _t("ivorysql_cli_back_menu")).strip().lower()
             if continue_choice in ['', 'y', 'yes']:
                 continue
             else:
-                print("\n" + _t("pg_cli_thanks"))
+                print("\n" + _t("ivorysql_cli_thanks"))
                 break
     end_time = time.time()
-    print("\n" + _t("pg_cli_total_time").format(t=end_time - start_time))
+    print("\n" + _t("ivorysql_cli_total_time").format(t=end_time - start_time))
 
 if __name__ == '__main__':
     infos = passArgu().get_argus()

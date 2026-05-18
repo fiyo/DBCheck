@@ -103,6 +103,17 @@ function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// 风险等级翻译
+function translateRiskLevel(level) {
+  if (!level) return '';
+  const m = {
+    'high': '高风险', 'medium': '中风险', 'low': '低风险',
+    'HIGH': '高风险', 'MEDIUM': '中风险', 'LOW': '低风险',
+    'report.risk_high': '高风险', 'report.risk_mid': '中风险', 'report.risk_low': '低风险'
+  };
+  return m[level] || level;
+}
+
 function scoreColor(s) {
   if (s >= 90) return '#2ea043';
   if (s >= 75) return '#388bfd';
@@ -234,8 +245,8 @@ function renderDbReport(data) {
   const score = r.health_score || 0;
   const sc = scoreColor(score);
   const riskLevel = r.risk_level || '';
-  const riskColor = riskLevel === 'high' ? '#f85149' : riskLevel === 'medium' ? '#e3b341' : '#2ea043';
-  const riskLabel = riskLevel === 'high' ? '高风险' : riskLevel === 'medium' ? '中风险' : riskLevel === 'low' ? '低风险' : '';
+  const riskLabel = translateRiskLevel(riskLevel);
+  const riskColor = riskLabel === '高风险' ? '#f85149' : riskLabel === '中风险' ? '#e3b341' : '#2ea043';
 
   let html = `
     <div class="header">
@@ -273,9 +284,9 @@ function renderDbReport(data) {
     html += '<div class="section"><h2>⚠️ 发现的问题</h2>';
     r.issues.forEach(i => {
       const text = typeof i === 'string' ? i : (i.description || i.title || JSON.stringify(i));
-      const level = i.level || '';
-      const levelColor = level.includes('高') || level.includes('high') ? '#f85149' :
-                         level.includes('中') || level.includes('mid') ? '#e3b341' : '#8b949e';
+      const rawLevel = i.level || '';
+      const level = translateRiskLevel(rawLevel);
+      const levelColor = level === '高风险' ? '#f85149' : level === '中风险' ? '#e3b341' : '#8b949e';
       const suggestion = i.suggestion || '';
       html += `<div class="issue-item">
         ${level ? `<span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;margin-right:8px;background:${levelColor}20;color:${levelColor}">${esc(level)}</span>` : ''}

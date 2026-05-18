@@ -1,6 +1,6 @@
 ---
 name: dbcheck
-description: 执行 MySQL、PostgreSQL、Oracle、SQL Server、DM8、TiDB 数据库健康巡检，内置 130+ 条增强风险分析规则 + 慢查询深度分析引擎 + 本地 Ollama AI 大模型诊断建议，一键生成专业 Word 巡检报告。适用于 DBA 和运维人员快速掌握数据库运行状况、排查风险。项目地址：https://github.com/fiyo/DBCheck.git
+description: 执行 MySQL、PostgreSQL、Oracle、SQL Server、DM8、TiDB、IvorySQL 数据库健康巡检，内置 130+ 条增强风险分析规则 + 慢查询深度分析引擎 + 本地 Ollama AI 大模型诊断建议，一键生成专业 Word 巡检报告。适用于 DBA 和运维人员快速掌握数据库运行状况、排查风险。项目地址：https://github.com/fiyo/DBCheck.git
 license: MIT
 metadata:
   {
@@ -32,8 +32,8 @@ metadata:
 
 | 能力 | 说明 |
 |------|------|
-| 📊 130+ 条增强风险规则 | 覆盖 MySQL 35+ / PostgreSQL 27+ / Oracle 20+ / SQL Server 15+ / DM8 16+ / TiDB 18+ 全维度，含 28 条慢查询深度分析专项规则，每条附修复 SQL |
-| 🔍 慢查询深度分析引擎 | 跨 6 种数据库多维度采集 Top SQL（延迟/I/O/锁等待/临时表），自动注入 AI 诊断生成根因优化建议 |
+| 📊 130+ 条增强风险规则 | 覆盖 MySQL 35+ / PostgreSQL 27+ / Oracle 20+ / SQL Server 15+ / DM8 16+ / TiDB 18+ / IvorySQL 27+ 全维度，含 28 条慢查询深度分析专项规则，每条附修复 SQL |
+| 🔍 慢查询深度分析引擎 | 跨 7 种数据库多维度采集 Top SQL（延迟/I/O/锁等待/临时表），自动注入 AI 诊断生成根因优化建议 |
 | 🤖 AI 智能诊断（仅本地 Ollama） | 调用本地部署的大模型（需安装 Ollama）生成个性化优化建议，**API 地址强制校验为 localhost，数据绝不外传** |
 | 📈 历史趋势分析 | 多次巡检数据聚合，生成指标趋势折线图（存储在本地 SQLite / history.json） |
 | 🔒 脱敏报告导出 | 导出 Word 时自动掩码 IP、端口、用户名、服务名，防止信息泄露 |
@@ -68,21 +68,24 @@ metadata:
 | 🟠 SQL Server | pyodbc (ODBC Driver 17) | 1433 | ❌ 不支持 | 等待统计、锁与阻塞、备份检查 |
 | 🟡 DM8 | dmpython | 5236 | ✅ 支持 | 表空间、SGA/PGA、DM8 缓冲池、备份、DM8 特有视图 |
 | 🐬 TiDB | pymysql | 4000 | ✅ 支持 | Placement Rules、亲和性策略、TiCDC/PD 心跳、Follower 延迟 |
+| 🐘 IvorySQL | psycopg2 | 5333 | ✅ 支持 | PG 兼容巡检项、复制状态、扩展、数据库用户 |
 
 > **DM8 SSH 说明**：通过 SSH 采集达梦服务器的主机级系统信息（CPU/内存/磁盘）。连接失败时自动降级为本地采集器。
 >
 > **TiDB 说明**：TiDB 使用 MySQL 协议，连接参数与 MySQL 相同（默认端口 4000）。
+>
+> **IvorySQL 说明**：IvorySQL 基于 PostgreSQL 协议，共享 PG 巡检规则集（共 27+ 规则），默认端口 5333。
 
 ## 触发条件
 
 当用户请求以下任意一项时，加载本 Skill 并执行：
 
 - 对数据库做健康检查 / 健康巡检 / 体检
-- 检查 MySQL / PostgreSQL / Oracle / SQL Server / DM8 / TiDB 的运行状态、连接数、缓存命中率等
+- 检查 MySQL / PostgreSQL / Oracle / SQL Server / DM8 / TiDB / IvorySQL 的运行状态、连接数、缓存命中率等
 - 生成数据库巡检报告 / 健康报告
 - 数据库风险排查 / 巡检
 - "帮我巡检一下 XX 数据库"
-- "生成一份 MySQL/PostgreSQL/Oracle/SQL Server/DM8/TiDB 巡检报告"
+- "生成一份 MySQL/PostgreSQL/Oracle/SQL Server/DM8/TiDB/IvorySQL 巡检报告"
 
 ## 前置准备
 
@@ -92,9 +95,9 @@ metadata:
 
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
-| `db_type` | 数据库类型 | 需用户确认：`mysql` / `pg` / `oracle` / `sqlserver` / `dm` / `tidb` |
+| `db_type` | 数据库类型 | 需用户确认：`mysql` / `pg` / `oracle` / `sqlserver` / `dm` / `tidb` / `ivorysql` |
 | `host` | 数据库主机 IP 或域名 | 需用户确认 |
-| `port` | 数据库端口 | MySQL 默认 3306，PG 默认 5432，Oracle 默认 1521，SQL Server 默认 1433，DM8 默认 5236，TiDB 默认 4000 |
+| `port` | 数据库端口 | MySQL 默认 3306，PG 默认 5432，Oracle 默认 1521，SQL Server 默认 1433，DM8 默认 5236，TiDB 默认 4000，IvorySQL 默认 5333 |
 | `user` | 数据库用户名 | 需用户确认 |
 | `password` | 数据库密码 | 需用户确认 |
 | `label` | 数据库标签（用于报告命名） | 需用户确认，如 "生产库-MySQL" |

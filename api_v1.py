@@ -236,7 +236,7 @@ def api_v1_inspect():
                 'error_code': 'MISSING_PARAMS',
             }), 400
 
-        valid_types = ['mysql', 'pg', 'postgresql', 'oracle', 'dm', 'sqlserver', 'tidb']
+        valid_types = ['mysql', 'pg', 'postgresql', 'oracle', 'dm', 'sqlserver', 'tidb', 'ivorysql']
         if db_type == 'postgresql':
             db_type = 'pg'
         if db_type not in valid_types:
@@ -329,11 +329,11 @@ def _parse_iso(iso_str):
 
 
 def _default_port(db_type):
-    return {'mysql': 3306, 'pg': 5432, 'oracle': 1521, 'dm': 5236, 'sqlserver': 1433, 'tidb': 4000}.get(db_type, 3306)
+    return {'mysql': 3306, 'pg': 5432, 'oracle': 1521, 'dm': 5236, 'sqlserver': 1433, 'tidb': 4000, 'ivorysql': 5333}.get(db_type, 3306)
 
 
 def _default_user(db_type):
-    return {'mysql': 'root', 'pg': 'postgres', 'oracle': 'system', 'dm': 'SYSDBA', 'sqlserver': 'sa', 'tidb': 'root'}.get(db_type, 'root')
+    return {'mysql': 'root', 'pg': 'postgres', 'oracle': 'system', 'dm': 'SYSDBA', 'sqlserver': 'sa', 'tidb': 'root', 'ivorysql': 'postgres'}.get(db_type, 'root')
 
 
 # ── 查询任务状态 ──────────────────────────────────────────────
@@ -460,6 +460,7 @@ def _execute_inspect(db_type, host, port, user, password, inspector, body, ssh):
         'dm': ri.run_dm,
         'sqlserver': ri.run_sqlserver,
         'tidb': ri.run_tidb,
+        'ivorysql': ri.run_ivorysql,
     }
     runner = runner_map.get(db_type)
     if not runner:

@@ -130,6 +130,11 @@ def _run_tidb():
     main_tidb.main()
 
 
+def _run_ivorysql():
+    import main_ivorysql
+    main_ivorysql.main()
+
+
 def _run_oracle_full():
     """Oracle 全面巡检（增强版，基于 OS 层 + 数据库层）"""
     import main_oracle_full
@@ -138,13 +143,123 @@ def _run_oracle_full():
     main_oracle_full.main()
 
 
+# ── 配置基线检查 ─────────────────────────────────────────────────
+
+def _run_config_baseline():
+    """启动配置基线检查向导"""
+    from i18n import t
+    import subprocess
+    import sys
+
+    print(f"\n{BOLD}{'='*50}{RESET}")
+    print(f"{GREEN}{BOLD}   {t('cli.config_menu_title')}{RESET}")
+    print(f"{DIM}{'='*50}{RESET}")
+
+    # 选择数据库类型
+    print(f"\n  {GREEN}1{RESET}. MySQL")
+    print(f"  {CYAN}2{RESET}. PostgreSQL")
+    print(f"  {DIM}0{RESET}. {t('cli.batch_menu_opt0')}")
+    sub = input(f"\n{t('cli.batch_menu_prompt')}").strip()
+
+    if sub == '1':
+        db_type = 'mysql'
+    elif sub == '2':
+        db_type = 'pg'
+    elif sub in ('0', ''):
+        return
+    else:
+        print(f"\n{t('cli.batch_menu_invalid')}")
+        return
+
+    # 收集连接信息
+    print(f"\n{t('cli_db_info_title')}")
+    host = input(f"{t('cli_db_host').format(default='localhost')}").strip() or 'localhost'
+    port = input(f"{t('cli_db_port').format(default='3306' if db_type == 'mysql' else '5432')}").strip()
+    user = input(f"{t('cli_db_user').format(default='root' if db_type == 'mysql' else 'postgres')}").strip()
+    password = input(f"{t('cli_db_password')}").strip()
+    label = input(f"{t('cli_db_name').format(default='config_baseline')}").strip() or 'config_baseline'
+
+    if not host or not user or not password:
+        print(f"\n{t('cli.input_required_missing')}")
+        return
+
+    # 调用巡检脚本，带 --check-config 参数
+    try:
+        script_map = {'mysql': 'main_mysql.py', 'pg': 'main_pg.py'}
+        script = script_map.get(db_type)
+        if not script:
+            return
+
+        cmd = [sys.executable, script, '--check-config',
+               '--host', host, '--port', port or ('3306' if db_type == 'mysql' else '5432'),
+               '--user', user, '--password', password, '--label', label]
+        subprocess.run(cmd)
+    except Exception as e:
+        print(f"\n{t('cli.config_baseline_error')}: {e}")
+
+
+# ── 索引健康分析 ─────────────────────────────────────────────────
+
+def _run_index_health():
+    """启动索引健康分析向导"""
+    from i18n import t
+    import subprocess
+    import sys
+
+    print(f"\n{BOLD}{'='*50}{RESET}")
+    print(f"{YELLOW}{BOLD}   {t('cli.index_menu_title')}{RESET}")
+    print(f"{DIM}{'='*50}{RESET}")
+
+    # 选择数据库类型
+    print(f"\n  {GREEN}1{RESET}. MySQL")
+    print(f"  {CYAN}2{RESET}. PostgreSQL")
+    print(f"  {DIM}0{RESET}. {t('cli.batch_menu_opt0')}")
+    sub = input(f"\n{t('cli.batch_menu_prompt')}").strip()
+
+    if sub == '1':
+        db_type = 'mysql'
+    elif sub == '2':
+        db_type = 'pg'
+    elif sub in ('0', ''):
+        return
+    else:
+        print(f"\n{t('cli.batch_menu_invalid')}")
+        return
+
+    # 收集连接信息
+    print(f"\n{t('cli_db_info_title')}")
+    host = input(f"{t('cli_db_host').format(default='localhost')}").strip() or 'localhost'
+    port = input(f"{t('cli_db_port').format(default='3306' if db_type == 'mysql' else '5432')}").strip()
+    user = input(f"{t('cli_db_user').format(default='root' if db_type == 'mysql' else 'postgres')}").strip()
+    password = input(f"{t('cli_db_password')}").strip()
+    label = input(f"{t('cli_db_name').format(default='index_health')}").strip() or 'index_health'
+
+    if not host or not user or not password:
+        print(f"\n{t('cli.input_required_missing')}")
+        return
+
+    # 调用巡检脚本，带 --check-indexes 参数
+    try:
+        script_map = {'mysql': 'main_mysql.py', 'pg': 'main_pg.py'}
+        script = script_map.get(db_type)
+        if not script:
+            return
+
+        cmd = [sys.executable, script, '--check-indexes',
+               '--host', host, '--port', port or ('3306' if db_type == 'mysql' else '5432'),
+               '--user', user, '--password', password, '--label', label]
+        subprocess.run(cmd)
+    except Exception as e:
+        print(f"\n{t('cli.index_health_error')}: {e}")
+
+
 # ── 批量模板生成 ─────────────────────────────────────────────────
 
 def _run_template_menu():
     from i18n import t
     while True:
         print(f"\n{BOLD}{'='*50}{RESET}")
-        print(f"{YELLOW}{BOLD}   {t('cli.batch_menu_title')}{RESET}")
+        print(f"{CYAN}{BOLD}   {t('cli.batch_menu_title')}{RESET}")
         print(f"{DIM}{'='*50}{RESET}")
         print(f"  {GREEN}1{RESET}. {t('cli.template_mysql')}")
         print(f"  {CYAN}2{RESET}. {t('cli.template_pg')}")
@@ -218,9 +333,12 @@ def main():
             print(f"\n{t('cli.main_menu_tidb_starting')}\n")
             _run_tidb()
         elif choice == '7':
-            _run_web_ui()
+            print(f"\n{t('cli.main_menu_ivorysql_starting')}\n")
+            _run_ivorysql()
         elif choice == '8':
             _run_template_menu()
+        elif choice == '9':
+            _run_web_ui()
         elif choice == '0':
             print(f"\n{t('cli.main_menu_exiting')}")
             break
