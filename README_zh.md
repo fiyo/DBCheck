@@ -15,6 +15,8 @@ DBCheck 是一款开源、跨平台的数据库自动化健康巡检工具，支
 [![WeChat](https://img.shields.io/badge/公众号-山东Oracle用户组-brightgreen?logo=WeChat)]()
 [![Stars](https://img.shields.io/github/stars/fiyo/dbcheck?style=flat-square&label=仓库星标)]()
 [![Followers](https://img.shields.io/github/forks/fiyo/dbcheck?style=flat-square)]()
+[![Downloads](https://img.shields.io/github/downloads/fiyo/dbcheck/total?style=flat-square&label=下载量)]()
+[![Downloads Latest](https://img.shields.io/github/downloads/fiyo/dbcheck/latest/total?style=flat-square&label=最新版下载)]()
 [![WebSite](https://img.shields.io/badge/网址-www.dbcheck.top-green.svg)](https://dbcheck.top)
 
 

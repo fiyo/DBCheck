@@ -14,6 +14,8 @@ DBCheck is an open-source, cross-platform automated database health check tool t
 [![WeChat](https://img.shields.io/badge/WeChat_Official_Account-sdougwx-brightgreen?logo=WeChat)]()
 [![Stars](https://img.shields.io/github/stars/fiyo/dbcheck?style=flat-square&label=Star)]()
 [![Followers](https://img.shields.io/github/forks/fiyo/dbcheck?style=flat-square)]()
+[![Downloads](https://img.shields.io/github/downloads/fiyo/dbcheck/total?style=flat-square&label=Downloads)]()
+[![Downloads Latest](https://img.shields.io/github/downloads/fiyo/dbcheck/latest/total?style=flat-square&label=Latest)]()
 [![WebSite](https://img.shields.io/badge/WebSite-www.dbcheck.top-green.svg)]()
 
 
