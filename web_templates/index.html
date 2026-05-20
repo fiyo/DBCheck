@@ -8330,19 +8330,20 @@ function toastError(msg, duration)   { return toast(msg, 'error', duration || 50
 
 function toastConfirm(msg) {
   return new Promise(resolve => {
-    const container = document.getElementById('toast-container');
-    const el = document.createElement('div');
-    el.className = 'toast toast-info';
-    el.innerHTML = `
-      <span class="toast-icon">🤔</span>
-      <span class="toast-msg">${escHtml(String(msg))}</span>
-      <div style="display:flex;gap:8px;flex-shrink:0;">
-        <button class="toast-confirm-btn btn btn-primary" style="padding:4px 12px;font-size:13px;">确定</button>
-        <button class="toast-cancel-btn btn btn-ghost" style="padding:4px 12px;font-size:13px;">取消</button>
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;z-index:10000;backdrop-filter:blur(2px)';
+    overlay.innerHTML = `
+      <div style="background:var(--surface2,#1c2128);border:1px solid var(--border,#30363d);border-radius:12px;padding:24px;max-width:420px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.45);animation:toastIn 0.2s ease">
+        <div style="margin:0 0 18px;color:var(--text,#f0f6fc);font-size:14px;line-height:1.6;word-break:break-all;white-space:pre-wrap">${escHtml(String(msg))}</div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button class="toast-cancel-btn btn btn-ghost" style="padding:7px 18px;font-size:13px;border-radius:6px;cursor:pointer">取消</button>
+          <button class="toast-confirm-btn btn btn-primary" style="padding:7px 18px;font-size:13px;border-radius:6px;cursor:pointer">确定</button>
+        </div>
       </div>`;
-    container.appendChild(el);
-    el.querySelector('.toast-confirm-btn').onclick = () => { dismiss(el); resolve(true); };
-    el.querySelector('.toast-cancel-btn').onclick = () => { dismiss(el); resolve(false); };
+    document.body.appendChild(overlay);
+    overlay.querySelector('.toast-confirm-btn').onclick = () => { overlay.remove(); resolve(true); };
+    overlay.querySelector('.toast-cancel-btn').onclick = () => { overlay.remove(); resolve(false); };
+    overlay.addEventListener('click', e => { if (e.target === overlay) { overlay.remove(); resolve(false); } });
   });
 }
 
