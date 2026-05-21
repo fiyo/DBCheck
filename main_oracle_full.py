@@ -138,10 +138,11 @@ def _get_oracle_conn_thunk_first(dsn, user, password, mode=None,
         return _do_connect(), _tunnel
     except Exception as e:
         err_str = str(e)
-        if 'DPY-3010' not in err_str:
+        # thin mode 失败：DPY-3010（11g 不支持）/ DPY-3016（缺少 cryptography 包）→ fallback 到 thick mode
+        if 'DPY-3010' not in err_str and 'DPY-3016' not in err_str:
             raise
-        # thin mode 不支持 Oracle 11g 及以下 → fallback 到 thick mode
-        print("  ⚠️  thin mode 不支持此版本（Oracle 11g 及以下），切换到 thick mode...")
+        # thin mode 不支持 Oracle 11g 及以下 / 缺少依赖包 → fallback 到 thick mode
+        print("  ⚠️  thin mode 不可用（%s），切换到 thick mode..." % ('Oracle 11g 及以下' if 'DPY-3010' in err_str else '缺少 cryptography 依赖'))
 
     # ── 启用 thick mode ──
     try:
