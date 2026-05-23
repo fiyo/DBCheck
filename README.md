@@ -949,6 +949,37 @@ pip install -r requirements.txt
 
 ## Quick Start
 
+### Web UI
+
+Start the web service and visit **http://localhost:5003** in your browser to perform all inspections via the GUI.
+
+```bash
+python web_ui.py
+```
+
+> 🔐 **Default credentials**: Username `dbcheck`, Password `dbcheck`. Change your password in the Account Center after first login.
+
+**Web UI Workflow:**
+
+| Step | Function |
+|:---:|---------|
+| 1 | 🗄️ Datasource Management: Add, edit, delete, test database connections with group management |
+| 2 | Select database type (🐬 MySQL / 🐘 PostgreSQL / 🔴 Oracle / 🟠 SQL Server / 🟡 DM8 / 🐬 TiDB) |
+| 3 | Fill in connection info — Oracle requires service name/SID; DM8 does not need a database name |
+| 4 | Online connection testing (SYSDBA privileged verification via checkbox) |
+| 5 | Configure SSH for system resource collection (optional, default port 22; DM8 supports SSH with auto-fallback) |
+| 6 | Inspector name (default: dbcheck), optionally check "🔒 Desensitize Report" to mask sensitive info |
+| 7 | Confirm and execute with one click — real-time log streaming (SSE) |
+| 8 | Upon completion, preview intelligent analysis + AI diagnosis results online |
+| 9 | 📊 History & Trends | View trend charts and historical inspection reports |
+| 10 | ⏰ Scheduled Inspection | Configure cron-based recurring inspections |
+| 11 | 📧🔔 Notification Settings | Email and Webhook alerting configuration |
+| 12 | 📚 RAG Knowledge Base | Upload and manage database documentation for AI-enhanced diagnostics |
+| 13 | 🖥️ Server Inspection | Comprehensive check of server hardware and system resource status |
+| 14 | 🔗 Share Management | Manage shared report links, support viewing, copying, and deletion |
+
+
+
 ```bash
 python main.py
 ```
@@ -996,34 +1027,6 @@ python main.py --lang en
 2. Fill in connection information for multiple database instances in the template
 3. Select **2** for batch inspection — the program automatically runs through all instances
 
-### Web UI
-
-Start the web service and visit **http://localhost:5003** in your browser to perform all inspections via the GUI.
-
-```bash
-python web_ui.py
-```
-
-> 🔐 **Default credentials**: Username `dbcheck`, Password `dbcheck`. Change your password in the Account Center after first login.
-
-**Web UI Workflow:**
-
-| Step | Function |
-|:---:|---------|
-| 1 | 🗄️ Datasource Management: Add, edit, delete, test database connections with group management |
-| 2 | Select database type (🐬 MySQL / 🐘 PostgreSQL / 🔴 Oracle / 🟠 SQL Server / 🟡 DM8 / 🐬 TiDB) |
-| 3 | Fill in connection info — Oracle requires service name/SID; DM8 does not need a database name |
-| 4 | Online connection testing (SYSDBA privileged verification via checkbox) |
-| 5 | Configure SSH for system resource collection (optional, default port 22; DM8 supports SSH with auto-fallback) |
-| 6 | Inspector name (default: dbcheck), optionally check "🔒 Desensitize Report" to mask sensitive info |
-| 7 | Confirm and execute with one click — real-time log streaming (SSE) |
-| 8 | Upon completion, preview intelligent analysis + AI diagnosis results online |
-| 9 | 📊 History & Trends | View trend charts and historical inspection reports |
-| 10 | ⏰ Scheduled Inspection | Configure cron-based recurring inspections |
-| 11 | 📧🔔 Notification Settings | Email and Webhook alerting configuration |
-| 12 | 📚 RAG Knowledge Base | Upload and manage database documentation for AI-enhanced diagnostics |
-| 13 | 🖥️ Server Inspection | Comprehensive check of server hardware and system resource status |
-| 14 | 🔗 Share Management | Manage shared report links, support viewing, copying, and deletion |
 
 ### OpenClaw Skill
 

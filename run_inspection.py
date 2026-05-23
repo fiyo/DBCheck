@@ -708,6 +708,8 @@ def main():
                         help='Oracle 服务名（与 --sid 二选一）')
     parser.add_argument('--sid', default=None,
                         help='Oracle SID（与 --service-name 二选一）')
+    parser.add_argument('--sysdba', action='store_true',
+                        help='Oracle 以 SYSDBA 身份连接（sys 用户自动启用，无需此参数）')
     parser.add_argument('--label', help='数据库标签（用于报告命名，如"生产库-MySQL"）')
     parser.add_argument('--inspector', help='巡检人员姓名')
     parser.add_argument('--ssh-host', default=None, help='SSH 主机 IP（可选）')
@@ -811,6 +813,7 @@ def main():
         'password':     args.password,
         'service_name': args.service_name or None,
         'sid':          args.sid or None,
+        'sysdba':       bool(args.sysdba),
     }
     if args.database:
         db_info['database'] = args.database
