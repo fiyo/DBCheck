@@ -1560,7 +1560,7 @@ class AIAdvisor:
                 oracle_extra += f"\n[Top SQL by Buffer Gets]\n{metrics['top_sql_top5']}"
 
         if lang == 'zh':
-            db_type_name = {'mysql': 'MySQL', 'pg': 'PostgreSQL', 'oracle': 'Oracle', 'sqlserver': 'SQL Server'}.get(db_type, db_type.upper())
+            db_type_name = {'mysql': 'MySQL', 'pg': 'PostgreSQL', 'oracle': 'Oracle', 'sqlserver': 'SQL Server', 'tidb': 'TiDB', 'ivorysql': 'IvorySQL'}.get(db_type, db_type.upper())
             prompt = f"""你是一位拥有20年经验的 {db_type_name} 数据库资深DBA，以下是对 {db_type_name} 数据库「{label}」的全面巡检结果，请进行深度诊断。
 
 {sep}
