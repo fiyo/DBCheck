@@ -2,13 +2,13 @@
 
 ![logo](snapshot/dbcheck_logo_info_gray.png)
 
-DBCheck is an open-source, cross-platform automated database health check tool that supports six mainstream relational databases: **MySQL**, **PostgreSQL**, **Oracle**, **SQL Server**, **DM8**, and **TiDB**. The tool automatically generates standardized Microsoft Word inspection reports by executing predefined SQL checks and collecting system resources. It also provides advanced features such as historical trend analysis, AI-powered intelligent diagnostics, configuration baseline compliance checks, index health analysis, in-depth slow query analysis, server inspection, share links, and data-masked export. DBCheck aims to free DBAs from repetitive and time-consuming manual inspection work, improving database operation and maintenance efficiency and risk detection capabilities.
+DBCheck is an open-source, cross-platform automated database health check tool that supports seven mainstream relational databases: **MySQL**, **PostgreSQL**, **Oracle**, **SQL Server**, **DM8**, **TiDB**, and **IvorySQL**. The tool automatically generates standardized Microsoft Word inspection reports by executing predefined SQL checks and collecting system resources. It also provides advanced features such as historical trend analysis, AI-powered intelligent diagnostics, configuration baseline compliance checks, index health analysis, in-depth slow query analysis, server inspection, share links, and data-masked export. DBCheck aims to free DBAs from repetitive and time-consuming manual inspection work, improving database operation and maintenance efficiency and risk detection capabilities.
 > website：https://dbcheck.top
 
 > Language: [English](./README.md) | [中文](./README_zh.md)
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://dbcheck.top)
-[![Version](https://img.shields.io/badge/version-v2.4.7-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-v2.4.8-blue.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-green.svg)]()
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)]()
 [![AI](https://img.shields.io/badge/AI-Ollama+RAG-orange.svg)]()
@@ -89,8 +89,8 @@ Leveraging a fully offline, local **Ollama** deployment, DBCheck analyzes inspec
 
 Each risk is presented as a card: **Risk Level (High/Medium/Low) → Issue Description → Remediation SQL (copy-paste ready) → Priority & Owner**. The report automatically aggregates all findings so you can see every pending item at a glance.
 
-| Dimension | MySQL | PostgreSQL | Oracle | SQL Server | DM8 | TiDB |
-|-----------|:-----:|:----------:|:------:|:-----------:|:---:|:----:|
+| Dimension | MySQL | PostgreSQL | Oracle | SQL Server | DM8 | TiDB | IvorySQL |
+|-----------|:-----:|:----------:|:------:|:-----------:|:---:|:----:|:---------:|
 | Connection Resources | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Cache Performance | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Query Efficiency | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -120,7 +120,7 @@ Each risk is presented as a card: **Risk Level (High/Medium/Low) → Issue Descr
 | 🗄️ Centralized Datasource Management | Unified management of all database instances with grouping, batch inspection, connection testing, and CSV import/export |
 | 📊 Historical Trend Analysis | Automatically aggregates data from multiple inspection runs on the same database, generates metric trend line charts, and compares against previous results to surface changes |
 | 🤖 AI-Powered Diagnosis | Calls local Ollama based on inspection metrics to generate personalized optimization recommendations |
-| 🔍 130+ Enhanced Rules | Full-dimensional risk detection across six databases (MySQL 35+, PG 27+, Oracle 20+, SQL Server 15+, DM8 16+, TiDB 18+) — including 28 new slow query deep analysis rules |
+| 🔍 150+ Enhanced Rules | Full-dimensional risk detection across seven databases (MySQL 35+, PG 27+, Oracle 20+, SQL Server 15+, DM8 16+, TiDB 18+, IvorySQL 27+) — including 28 new slow query deep analysis rules |
 | 🖥️ Server Inspection | Comprehensive check of server hardware and system resource status, generating professional server inspection reports |
 | 🔗 Share Links | Generate online share links with one click, supporting both server and database inspection report sharing |
 
@@ -234,7 +234,7 @@ http://localhost:5003/share/{share_id}
 
 ---
 
-## Six Ways to Use DBCheck
+## Seven Ways to Use DBCheck
 
 | Method | Description |
 |--------|-------------|
@@ -251,9 +251,9 @@ http://localhost:5003/share/{share_id}
 
 ### Database Inspection
 
-> Comprehensive inspection for six mainstream relational databases, covering 130+ enhanced rules.
+> Comprehensive inspection for seven mainstream relational databases, covering 150+ enhanced rules.
 
-| Dimension | MySQL | PostgreSQL | Oracle | SQL Server | DM8 | TiDB |
+| Dimension | MySQL | PostgreSQL | Oracle | SQL Server | DM8 | TiDB | IvorySQL |
 |-----------|:-----:|:----------:|:------:|:-----------:|:---:|:----:|
 | Basic Info (version / instance / database) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Session and Connection Status | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -280,6 +280,8 @@ http://localhost:5003/share/{share_id}
 | DM8 Buffer Pool Details | — | — | — | — | ✅ | — |
 | Placement & Affinity Policy | — | — | — | — | — | ✅ |
 
+> **IvorySQL**: PG-compatible, reuses PG inspection engine. All checkmarks are identical to PostgreSQL. Default port: 5432. Dependencies: `psycopg2-binary` (same as PG).
+
 ### Server Inspection
 
 > Comprehensive check of server hardware and system resource status, generating professional server inspection reports.
@@ -305,8 +307,8 @@ http://localhost:5003/share/{share_id}
 | Access Statistics | Automatically record link visit count |
 | Delete Anytime | Support deleting shared links, immediately invalid |
 
-| Dimension | MySQL | PostgreSQL | Oracle | SQL Server | DM8 | TiDB |
-|-----------|:-----:|:----------:|:------:|:-----------:|:---:|:----:|
+| Dimension | MySQL | PostgreSQL | Oracle | SQL Server | DM8 | TiDB | IvorySQL |
+|-----------|:-----:|:----------:|:------:|:-----------:|:---:|:----:|:---------:|
 | Basic Info (version / instance / database) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Session and Connection Status | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Memory and Cache Configuration | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -340,7 +342,7 @@ http://localhost:5003/share/{share_id}
 
 | Feature | Description |
 |---------|-------------|
-| Multi-Database Support | MySQL / PostgreSQL / Oracle / SQL Server / DM8 / TiDB |
+| Multi-Database Support | MySQL / PostgreSQL / Oracle / SQL Server / DM8 / TiDB / IvorySQL |
 | Instance Info | Customizable labels, groups, ports, usernames |
 | Oracle-Specific | Service Name/SID configuration, SYSDBA privileged connection |
 | Connection Testing | One-click database connection test with real-time results |
@@ -524,7 +526,7 @@ Automatically detects potential database risks — **each risk includes an execu
 |---------|-------------|
 | One-Click Execution | Each risk in the inspection report has an "Execute Fix" button — click to run directly |
 | Dangerous SQL Confirmation | High-risk operations (DELETE, DROP, TRUNCATE) prompt for confirmation before execution |
-| Multi-Database Support | MySQL / PostgreSQL / Oracle / SQL Server / DM8 / TiDB |
+| Multi-Database Support | MySQL / PostgreSQL / Oracle / SQL Server / DM8 / TiDB / IvorySQL |
 | Execution Logging | All fix operations are logged for audit and traceability |
 | User-Friendly Error Messages | Common database errors are translated into friendly Chinese prompts |
 
@@ -923,6 +925,8 @@ The **📚 RAG Knowledge Base** page in Web UI provides:
 - **DM8 Privileges**: Read-only access to V$* system views and DBA_* admin views; default port 5236; connecting user equals Schema (no `database` parameter needed)
 - **TiDB Dependencies**: `pymysql` (same as MySQL — TiDB uses the MySQL protocol; default port **4000**)
 - **TiDB Privileges**: Read-only access to information_schema, performance_schema, and mysql databases (identical to MySQL)
+- **IvorySQL Dependencies**: `psycopg2-binary` (same as PostgreSQL — IvorySQL is PG-compatible; default port **5432**)
+- **IvorySQL Privileges**: Read-only access to pg_stat_* series views and pg_roles (identical to PostgreSQL)
 
 ### Installing Dependencies
 
@@ -964,7 +968,7 @@ python web_ui.py
 | Step | Function |
 |:---:|---------|
 | 1 | 🗄️ Datasource Management: Add, edit, delete, test database connections with group management |
-| 2 | Select database type (🐬 MySQL / 🐘 PostgreSQL / 🔴 Oracle / 🟠 SQL Server / 🟡 DM8 / 🐬 TiDB) |
+| 2 | Select database type (🐬 MySQL / 🐘 PostgreSQL / 🔴 Oracle / 🟠 SQL Server / 🟡 DM8 / 🐬 TiDB / 🐘 IvorySQL) |
 | 3 | Fill in connection info — Oracle requires service name/SID; DM8 does not need a database name |
 | 4 | Online connection testing (SYSDBA privileged verification via checkbox) |
 | 5 | Configure SSH for system resource collection (optional, default port 22; DM8 supports SSH with auto-fallback) |
@@ -1003,9 +1007,10 @@ python main.py --lang en
     🟠  4 │ SQL Server (2012+)
     🟡  5 │ DM8 (DM8+)
     🐬  6 │ TiDB (6.5+ / MySQL 8.0+ compatible)
+    🐘  7 │ IvorySQL (PG-compatible)
   ──────────────────────────────────────────────────────────
-    📋  7 │ Batch Template Generator
-    🌐  8 │ Launch Web UI
+    📋  8 │ Batch Template Generator
+    🌐  9 │ Launch Web UI
     ❌  0 │ Exit
 ```
 
@@ -1252,7 +1257,7 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
 
 | Parameter | Type | Required | Description |
 |-----------|------|:---:|-------------|
-| `db_type` | string | ✅ | mysql / pg / oracle / dm / sqlserver / tidb |
+| `db_type` | string | ✅ | mysql / pg / oracle / dm / sqlserver / tidb / ivorysql |
 | `host` | string | ✅ | Database host |
 | `port` | int | | Default per type |
 | `user` | string | | Default per type |
