@@ -3582,11 +3582,30 @@ def api_pro_datasource_update(instance_id):
 
 @app.route('/api/pro/datasources/<instance_id>', methods=['DELETE'])
 def api_pro_datasource_delete(instance_id):
-    """删除数据源"""
+    """删除数据源，同时清理 history.db 趋势数据"""
     try:
         from pro import get_instance_manager
         im = get_instance_manager()
+        # 先获取实例信息（删除前）
+        inst = im.get_instance(instance_id, mask_password=False)
+        # 执行删除（instance_manager 内部已清 inspection_history + instance_trend）
         result = im.delete_instance(instance_id)
+        # 同步清理 history.db（旧趋势系统）
+        if result.get('ok') and inst:
+            try:
+                from analyzer import HistoryManager
+                script_dir = os.path.dirname(os.path.abspath(__file__))
+                hm = HistoryManager(script_dir)
+                db_type = inst.get('db_type', '')
+                host = inst.get('host', '')
+                port = int(inst.get('port', 3306))
+                for i in hm.list_instances():
+                    if (i.get('db_type') == db_type and
+                            i.get('host') == host and
+                            int(i.get('port', 0)) == port):
+                        hm.delete_instance(i.get('key', ''))
+            except Exception as e:
+                print('清理 history.db 失败: ' + str(e))
         return jsonify(result)
     except ImportError as e:
         import traceback

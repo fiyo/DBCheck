@@ -769,20 +769,20 @@ select option { background: var(--surface2); }
 .home-section {
   width: 100%;
   max-width: 100%;
-  margin: 0 auto 32px;
+  margin: 0 auto 14px;
 }
 .section-header {
   text-align: center;
-  margin-bottom: 24px;
+  margin-bottom: 10px;
 }
 .section-title {
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--text);
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 .section-desc {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 
@@ -790,18 +790,18 @@ select option { background: var(--surface2); }
 .feature-grid-new {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 16px;
+  gap: 10px;
 }
 .feature-card {
   background: var(--surface2);
   border: 1px solid var(--border);
   border-radius: 16px;
-  padding: 20px;
+  padding: 12px 10px;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 12px;
+  gap: 6px;
   transition: all var(--trans);
 }
 .feature-card:hover {
@@ -809,9 +809,9 @@ select option { background: var(--surface2); }
   transform: translateY(-2px);
 }
 .feature-card .fc-icon {
-  font-size: 28px;
-  width: 48px;
-  height: 48px;
+  font-size: 20px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -822,28 +822,28 @@ select option { background: var(--surface2); }
   text-align: center;
 }
 .feature-card .fc-content h3 {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 600;
-  margin-bottom: 6px;
+  margin-bottom: 2px;
   color: var(--text);
 }
 .feature-card .fc-content p {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-muted);
-  line-height: 1.5;
+  line-height: 1.3;
 }
 
 /* 数据库支持网格 */
 .db-support-grid {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
-  gap: 12px;
+  gap: 8px;
 }
 .db-support-card {
   background: var(--surface2);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 16px 12px;
+  padding: 10px 8px;
   text-align: center;
   transition: all var(--trans);
 }
@@ -852,17 +852,17 @@ select option { background: var(--surface2); }
   box-shadow: 0 8px 24px rgba(0,0,0,0.3);
 }
 .db-support-card .db-logo {
-  font-size: 32px;
-  margin-bottom: 8px;
+  font-size: 24px;
+  margin-bottom: 4px;
 }
 .db-support-card .db-info h4 {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   margin-bottom: 4px;
   color: var(--text);
 }
 .db-support-card .db-info span {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-muted);
 }
 .db-support-card.db-mysql:hover { border-color: #00758f; }
@@ -3576,7 +3576,7 @@ function formatBytes(bytes) {
               <div class="db-logo">🔴</div>
               <div class="db-info">
                 <h4>Oracle</h4>
-                <span data-i18n="webui.db_oracle_ver">10g / 11g / 12c / 19c / 21c</span>
+                <span data-i18n="webui.db_oracle_ver">12c / 19c / 21c+</span>
               </div>
             </div>
             <div class="db-support-card db-dm">
@@ -10950,12 +10950,12 @@ async function deleteBackupHistory(recordId) {
       <div style="font-size:13px;font-weight:600;color:var(--warn);margin-bottom:10px;">⚠️ 君子协定（Gentleman's Agreement）</div>
       <!-- 中文 -->
       <div class="about-note" lang="zh" style="margin:0;font-size:12.5px;line-height:1.8;color:var(--text-muted);">
-        每年 <strong>5月19日至5月25日</strong>，DBCheck 界面将强制以<strong>灰度模式</strong>显示，且用户无法切换主题。<br/><br/>
+        每年 <strong>5月19日至5月25日</strong>，DBCheck 界面将强制以<strong>灰度模式</strong>显示，且用户无法切换主题。<br/>
         请尊重这一设计，不要尝试修改或绕过灰度模式。
       </div>
       <!-- 英文 -->
       <div class="about-note" lang="en" style="display:none;margin:0;font-size:12.5px;line-height:1.8;color:var(--text-muted);">
-        Every year from <strong>May 19 to May 25</strong>, the DBCheck interface will be forced to <strong>grayscale mode</strong> and users cannot switch themes.<br/><br/>
+        Every year from <strong>May 19 to May 25</strong>, the DBCheck interface will be forced to <strong>grayscale mode</strong> and users cannot switch themes.<br/>
         Please respect this design and do not attempt to modify or bypass the grayscale mode during this period each year.
       </div>
     </div>
@@ -11015,3 +11015,8 @@ document.addEventListener('keydown', function(e) {
 </div>
 </body>
 </html>
+
+
+
+
+

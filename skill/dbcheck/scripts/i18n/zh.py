@@ -7,7 +7,7 @@ ZI = {
     "cli.main_menu_title": "主菜单",
     "cli.main_menu_line1": "🐬  1 │ MySQL（5.6/5.7/8.0+）",
     "cli.main_menu_line2": "🐘  2 │ PostgreSQL（10+）",
-    "cli.main_menu_line3": "🔴  3 │ Oracle（10g/11g/12c+）",
+    "cli.main_menu_line3": "🔴  3 │ Oracle（12c+）",
     "cli.main_menu_line4": "🟠  4 │ SQL Server（2012+）",
     "cli.main_menu_line5": "🟡  5 │ DM8 达梦（DM8+）",
     "cli.main_menu_line6": "🐬  6 │ TiDB（6.5+ / MySQL 8.0+ 兼容）",
@@ -2329,10 +2329,11 @@ ZI = {
     "webui.db_support_desc": "覆盖主流开源与商业数据库",
     "webui.db_mysql_ver": "5.6 / 5.7 / 8.0+",
     "webui.db_pg_ver": "10+",
-    "webui.db_oracle_ver": "10g / 11g / 12c / 19c / 21c",
+    "webui.db_oracle_ver": "12c / 19c / 21c+",
     "webui.db_dm_ver": "DM8 及以上",
     "webui.db_sqlserver_ver": "2012+",
     "webui.db_tidb_ver": "6.5+ / MySQL 8.0 兼容",
+    "webui.db_ivorysql_ver": "4.5.3+ / PostgreSQL 兼容",
 
     # ── 新建巡检向导 ──
     "webui.ds_select_saved": "选择已保存的数据源",

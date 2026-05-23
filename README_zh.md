@@ -981,7 +981,7 @@ python main.py --lang zh
   ──────────────────────────────────────────────────────────
     🐬  1 │ MySQL（5.6/5.7/8.0+）
     🐘  2 │ PostgreSQL（10+）
-    🔴  3 │ Oracle（10g/11g/12c+）
+    🔴  3 │ Oracle（12c+）
     🟠  4 │ SQL Server（2012+）
     🟡  5 │ DM8 达梦（DM8+）
     🐬  6 │ TiDB（6.5+ / MySQL 8.0+ 兼容）

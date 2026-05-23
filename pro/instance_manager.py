@@ -478,12 +478,28 @@ class InstanceManager:
         return {"ok": True, "message": "实例更新成功"}
 
     def delete_instance(self, instance_id: str) -> Dict[str, Any]:
-        """删除实例"""
+        """删除实例，同时清理巡检历史和趋势数据"""
         if instance_id not in self._instances:
             return {"ok": False, "message": "实例不存在"}
+
+        # 删除关联的巡检历史和趋势数据
+        try:
+            conn = sqlite3.connect(self.db_file)
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM inspection_history WHERE instance_id = ?", (instance_id,))
+            cursor.execute("DELETE FROM instance_trend WHERE instance_id = ?", (instance_id,))
+            conn.commit()
+        except Exception as e:
+            print(f"删除历史数据失败: {e}")
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
         del self._instances[instance_id]
         self._save_data()
-        return {"ok": True, "message": "实例删除成功"}
+        return {"ok": True, "message": "实例及历史数据删除成功"}
 
     def get_all_instances(self, mask_password: bool = True) -> List[Dict]:
         """获取所有实例，密码脱敏"""
