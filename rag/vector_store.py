@@ -2,7 +2,7 @@
 向量存储 — SQLite JSON 列 + numpy 余弦相似度
 
 架构：
-- SQLite history.db 中新建 rag_embeddings 表，embedding 列存 JSON 数组
+- SQLite data/history.db 中新建 rag_embeddings 表，embedding 列存 JSON 数组
 - 检索时加载所有向量到内存，用 numpy 计算余弦相似度，取 TopK
 - 轻量实现，无需额外向量库依赖，适合中小规模知识库（<10000 条向量）
 """
@@ -57,7 +57,7 @@ class VectorStore:
 
     COLLECTION_NAME = "dbcheck_rag"
 
-    def __init__(self, db_path: str = "history.db"):
+    def __init__(self, db_path: str = "data/history.db"):
         self.db_path = db_path
         self._init_tables()
 

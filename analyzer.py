@@ -1264,7 +1264,7 @@ class HistoryManager:
     将每次巡检的关键指标持久化到 SQLite 数据库，
     支持同一数据库实例的历史对比和趋势数据生成。
 
-    文件位于：<base_dir>/history.db
+    文件位于：<base_dir>/data/history.db
     """
 
     def __init__(self, base_dir: str):

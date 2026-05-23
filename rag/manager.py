@@ -32,7 +32,7 @@ class RAGManager:
 
     DB_TYPES = {'mysql', 'pg', 'oracle', 'dm', 'sqlserver', 'tidb'}
 
-    def __init__(self, db_path: str = "history.db",
+    def __init__(self, db_path: str = "data/history.db",
                  api_url: str = "http://localhost:11434",
                  embedding_model: str = "nomic-embed-text",
                  config_path: str = "dbc_config.json"):
