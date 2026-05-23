@@ -224,44 +224,79 @@ def run_pg(db_info, inspector_name, ssh_info=None):
 
 
 def run_oracle_full(db_info, inspector_name, ssh_info=None):
-    """执行 Oracle 全面巡检"""
-    import importlib.util
+    """执行 Oracle 全面巡检（修复：使用 single_inspection() 匹配 web UI 模式）"""
+    import importlib.util, re, glob
 
-    spec = importlib.util.spec_from_file_location("main_oracle_full", os.path.join(SCRIPT_DIR, "main_oracle_full.py"))
+    spec = importlib.util.spec_from_file_location(
+        "main_oracle_full", os.path.join(SCRIPT_DIR, "main_oracle_full.py"))
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
 
-    reports_dir = os.path.join(SCRIPT_DIR, "reports")
-    os.makedirs(reports_dir, exist_ok=True)
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    file_name = f"Oracle全面巡检报告_{db_info['label']}_{timestamp}.docx"
-    ofile = os.path.join(reports_dir, file_name)
+    # ── 构造 args 对象（与 web_ui.py 完全对齐）────────────────────
+    class _Args:
+        pass
+    args = _Args()
+    args.host          = db_info['host']
+    args.port          = int(db_info.get('port', 1521) or 1521)
+    args.password      = db_info['password']
+    # 解析 "user as sysdba" 语法
+    _raw_user = db_info.get('user', 'sys').strip()
+    _sysdba_from_user = bool(re.search(r'\s+as\s+sysdba\b', _raw_user, re.IGNORECASE))
+    args.user = re.sub(r'\s+as\s+sysdba\b', '', _raw_user, flags=re.IGNORECASE).strip()
+    args.sysdba = bool(db_info.get('sysdba', _sysdba_from_user or args.user.upper() == 'SYS'))
+    # Oracle 连接方式：优先 service_name，其次 sid
+    args.servicename = db_info.get('service_name') or None
+    args.sid = db_info.get('sid') or None
+    if not args.sid and not args.servicename:
+        args.sid = db_info.get('database', 'orcl')
+    # SSH
+    if ssh_info:
+        args.ssh_host = ssh_info.get('ssh_host', '')
+        args.ssh_port = int(ssh_info.get('ssh_port', 22) or 22)
+        args.ssh_user = ssh_info.get('ssh_user', '')
+        args.ssh_pass = ssh_info.get('ssh_password', '')
+        args.ssh_key  = ssh_info.get('ssh_key_file', '')
+    else:
+        args.ssh_host = ''
+        args.ssh_port = 22
+        args.ssh_user = ''
+        args.ssh_pass = ''
+        args.ssh_key  = ''
+    # 输出目录
+    args.output     = os.path.join(SCRIPT_DIR, "reports")
+    args.zip        = False
+    args.inspector  = inspector_name or ''
+    args.desensitize = bool(db_info.get('desensitize', False))
 
-    data = mod.getData(
-        db_info['host'], db_info['port'],
-        db_info['user'], db_info['password'],
-        db_info.get('service_name', ''),
-        db_info.get('sid', ''),
-        ssh_info or {}
-    )
-    if data is None:
+    # ── 调用 single_inspection() ─────────────────────────────
+    context = mod.single_inspection(args)
+    if context is None:
         raise RuntimeError("无法建立数据库连接，请检查连接参数")
 
-    ret = data.run_full_inspection(inspector_name)
-
-    savedoc = mod.saveDoc(
-        context=ret,
-        ofile=ofile,
-        inspector_name=inspector_name,
-        label=db_info['label']
+    # ── 查找刚生成的报告文件 ─────────────────────────────
+    reports_dir = args.output
+    os.makedirs(reports_dir, exist_ok=True)
+    label = db_info.get('label', '')
+    pattern = f"Oracle全面巡检报告_{label}_*.docx"
+    matches = sorted(
+        glob.glob(os.path.join(reports_dir, pattern)),
+        key=os.path.getmtime,
+        reverse=True
     )
-    success = savedoc.contextsave()
+    if matches:
+        ofile = matches[0]
+        file_name = os.path.basename(ofile)
+    else:
+        all_docx = glob.glob(os.path.join(reports_dir, "Oracle全面巡检报告_*.docx"))
+        if all_docx:
+            ofile = max(all_docx, key=os.path.getmtime)
+            file_name = os.path.basename(ofile)
+        else:
+            ofile = None
+            file_name = None
 
-    if not success:
-        raise RuntimeError("Word 报告渲染失败")
-
-    # 保存巡检记录到 Pro 模块
-    _record_inspection('oracle_full', db_info, ret, ofile)
+    # ── 保存巡检记录到 Pro 模块 ─────────────────────────────
+    _record_inspection('oracle', db_info, context, ofile)
 
     return ofile, file_name
 
@@ -669,6 +704,10 @@ def main():
     parser.add_argument('--password', help='数据库密码')
     parser.add_argument('--database', default=None,
                         help='数据库名（PG/SQL Server 专有，默认 postgres/master）')
+    parser.add_argument('--service-name', default=None,
+                        help='Oracle 服务名（与 --sid 二选一）')
+    parser.add_argument('--sid', default=None,
+                        help='Oracle SID（与 --service-name 二选一）')
     parser.add_argument('--label', help='数据库标签（用于报告命名，如"生产库-MySQL"）')
     parser.add_argument('--inspector', help='巡检人员姓名')
     parser.add_argument('--ssh-host', default=None, help='SSH 主机 IP（可选）')
@@ -765,11 +804,13 @@ def main():
         args.port = defaults.get(args.type, 3306)
 
     db_info = {
-        'label':    args.label,
-        'host':     args.host,
-        'port':     args.port,
-        'user':     args.user,
-        'password': args.password,
+        'label':        args.label,
+        'host':         args.host,
+        'port':         args.port,
+        'user':         args.user,
+        'password':     args.password,
+        'service_name': args.service_name or None,
+        'sid':          args.sid or None,
     }
     if args.database:
         db_info['database'] = args.database
