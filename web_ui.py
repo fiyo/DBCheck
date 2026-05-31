@@ -1340,6 +1340,153 @@ def api_save_config():
         json.dump(existing, f, ensure_ascii=False, indent=4)
     return jsonify({'ok': True})
 
+# ─── Oracle Client 下载 & 状态 API ─────────────────────────────
+def _get_oracle_platform_key():
+    """根据系统返回 oracle_client 子目录名"""
+    import platform as _pl
+    sys_name = _pl.system().lower()
+    arch = _pl.machine().lower()
+    if sys_name == 'windows':
+        return 'windows_x64'
+    elif sys_name == 'linux':
+        return 'linux_x64'
+    elif sys_name == 'darwin':
+        return 'darwin_arm64' if arch in ('arm64', 'aarch64') else 'darwin_x64'
+    return 'windows_x64'  # fallback
+
+
+def _check_oracle_client_installed(platform_key=None):
+    """检查 Oracle Instant Client 是否已安装，返回 dict"""
+    if platform_key is None:
+        platform_key = _get_oracle_platform_key()
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    install_dir = os.path.join(base_dir, 'oracle_client', platform_key)
+
+    # 检测标记文件（基本库 + 核心运行时）
+    if platform_key == 'windows_x64':
+        marker = os.path.join(install_dir, 'oci.dll')
+        core_marker = os.path.join(install_dir, 'oraociei.dll')
+    elif platform_key == 'linux_x64':
+        marker = os.path.join(install_dir, 'libclntsh.so')
+        core_marker = os.path.join(install_dir, 'libociei.so')
+    else:
+        marker = os.path.join(install_dir, 'libclntsh.dylib')
+        core_marker = os.path.join(install_dir, 'libociei.dylib')
+
+    installed = os.path.exists(marker) and os.path.exists(core_marker)
+    version = 'unknown'
+    missing_core = os.path.exists(marker) and not os.path.exists(core_marker)
+
+    # 尝试从文件内容中检测版本
+    if installed:
+        readme = os.path.join(install_dir, 'README.md')
+        if os.path.exists(readme):
+            try:
+                import re
+                with open(readme, 'r', encoding='utf-8', errors='ignore') as _f:
+                    content = _f.read()
+                    m = re.search(r'(\d+\.\d+)', content)
+                    if m:
+                        version = m.group(1)
+            except Exception:
+                pass
+
+    return {
+        'installed': installed,
+        'missing_core': missing_core,
+        'platform': platform_key,
+        'version': version,
+        'install_dir': install_dir
+    }
+
+
+@app.route('/api/oracle_client_status', methods=['GET'])
+def api_oracle_client_status():
+    """获取 Oracle Instant Client 安装状态"""
+    platform_key = request.args.get('platform') or None
+    result = _check_oracle_client_installed(platform_key)
+    return jsonify(result)
+
+
+@app.route('/api/oracle_client_download', methods=['POST'])
+def api_oracle_client_download():
+    """
+    触发 Oracle Instant Client 自动下载
+    返回下载状态，前端通过轮询 oracle_client_status 获取完成状态
+    """
+    data = request.json or {}
+    platform_key = data.get('platform') or None
+
+    # 检查是否已安装
+    status = _check_oracle_client_installed(platform_key)
+    if status['installed']:
+        return jsonify({'ok': True, 'already_installed': True, 'message': f"Oracle Instant Client {status['version']} 已安装", **status})
+
+    import threading
+    import json as _json
+
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+
+    # 下载状态存储
+    download_state = {'progress': 0, 'status': 'downloading', 'message': '正在启动下载...', 'error': None}
+
+    def _do_download():
+        try:
+            sys_path_added = False
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            if script_dir not in sys.path:
+                sys.path.insert(0, script_dir)
+                sys_path_added = True
+
+            from download_oracle_client import download_instant_client
+
+            def on_progress(status_str, progress, total, msg):
+                download_state['status'] = status_str
+                download_state['progress'] = progress
+                download_state['message'] = msg
+
+            result = download_instant_client(
+                platform_key=platform_key,
+                target_dir=base_dir,
+                progress_callback=on_progress
+            )
+
+            if result['success']:
+                download_state['status'] = 'done'
+                download_state['progress'] = 100
+                download_state['message'] = f"Oracle Instant Client {result['version']} 安装成功"
+            else:
+                download_state['status'] = 'error'
+                download_state['error'] = result.get('error', '未知错误')
+                download_state['message'] = result.get('error', '下载失败')
+
+        except Exception as e:
+            download_state['status'] = 'error'
+            download_state['error'] = str(e)
+            download_state['message'] = f'下载异常: {e}'
+        finally:
+            if sys_path_added and script_dir in sys.path:
+                sys.path.remove(script_dir)
+
+    # 在后台线程中下载
+    t = threading.Thread(target=_do_download, daemon=True)
+    t.start()
+
+    return jsonify({'ok': True, 'message': '下载已启动', 'platform': platform_key or _get_oracle_platform_key()})
+
+
+@app.route('/api/oracle_client_download_status', methods=['GET'])
+def api_oracle_client_download_status():
+    """获取下载进度（配合 SSE 或轮询使用）"""
+    # 重新检查安装状态来判断是否完成
+    status = _check_oracle_client_installed()
+    return jsonify({
+        'installed': status['installed'],
+        'version': status['version'],
+        'platform': status['platform']
+    })
+
+
 @app.route('/api/test_db', methods=['POST'])
 def api_test_db():
     data = request.json
@@ -3178,13 +3325,13 @@ def api_pro_datasources_test_conn():
                     if not _thick_ok:
                         _sys_name = platform.system().lower()
                         if _sys_name == 'windows':
-                            _subdir, _marker = 'windows_x64', 'oci.dll'
+                            _subdir, _marker, _core_marker = 'windows_x64', 'oci.dll', 'oraociei.dll'
                         elif _sys_name == 'linux':
-                            _subdir, _marker = 'linux_x64', 'libclntsh.so'
+                            _subdir, _marker, _core_marker = 'linux_x64', 'libclntsh.so', 'libociei.so'
                         elif _sys_name == 'darwin':
-                            _subdir, _marker = 'darwin_x64', 'libclntsh.dylib'
+                            _subdir, _marker, _core_marker = 'darwin_x64', 'libclntsh.dylib', 'libociei.dylib'
                         else:
-                            _subdir, _marker = None, None
+                            _subdir, _marker, _core_marker = None, None, None
 
                         if _subdir:
                             _base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -3211,8 +3358,7 @@ def api_pro_datasources_test_conn():
                         return jsonify(
                             ok=False,
                             error='Oracle 11g 及以下版本需要 Oracle Instant Client。'
-                                  '请将 Instant Client 解压到 DBCheck/oracle_client/windows_x64（或 linux_x64/darwin_x64），'
-                                  '或在设置中配置"Oracle Client 路径"。'
+                                  '请通过左侧导航"Oracle Client"设置页，点击"一键下载并安装"按钮自动下载安装。'
                         )
                     try:
                         conn = oracledb.connect(**params)
@@ -3289,6 +3435,68 @@ def api_pro_datasources_import():
 
 
 # ══════════════════════════════════════════════════════════════
+#  Oracle 连接辅助函数（厚模式回退）
+# ══════════════════════════════════════════════════════════════
+
+def _connect_oracle_thick_fallback(user, password, dsn, sysdba=False):
+    """
+    Oracle 连接，自动处理 thin → thick mode 回退（用于 11g 及以下）
+    返回 conn 对象，失败则抛异常
+    """
+    import oracledb
+    params = {"user": user, "password": password, "dsn": dsn}
+    if sysdba:
+        params["mode"] = oracledb.SYSDBA
+
+    try:
+        return oracledb.connect(**params)
+    except Exception as e:
+        err_msg = str(e)
+        if 'DPY-3010' not in err_msg:
+            raise
+        # thin mode 不支持 11g，尝试 thick mode
+        _thick_ok = False
+        try:
+            oracledb.init_oracle_client()
+            _thick_ok = True
+        except Exception:
+            pass
+        if not _thick_ok:
+            _sys_name = platform.system().lower()
+            if _sys_name == 'windows':
+                _subdir, _marker = 'windows_x64', 'oci.dll'
+            elif _sys_name == 'linux':
+                _subdir, _marker = 'linux_x64', 'libclntsh.so'
+            elif _sys_name == 'darwin':
+                _subdir, _marker = 'darwin_x64', 'libclntsh.dylib'
+            else:
+                _subdir, _marker = None, None
+            if _subdir:
+                _base_dir = os.path.dirname(os.path.abspath(__file__))
+                _bundled = os.path.join(_base_dir, 'oracle_client', _subdir)
+                if os.path.isdir(_bundled) and os.path.isfile(os.path.join(_bundled, _marker)):
+                    try:
+                        oracledb.init_oracle_client(lib_dir=_bundled)
+                        _thick_ok = True
+                    except Exception:
+                        pass
+        if not _thick_ok:
+            try:
+                import json
+                with open('dbc_config.json') as f:
+                    _cfg = json.load(f)
+                _lib_dir = _cfg.get('oracle_client_lib_dir', '')
+                if _lib_dir and os.path.isdir(_lib_dir):
+                    oracledb.init_oracle_client(lib_dir=_lib_dir)
+                    _thick_ok = True
+            except Exception:
+                pass
+        if not _thick_ok:
+            raise RuntimeError('Oracle 11g 及以下版本需要 Oracle Instant Client。请通过左侧导航"Oracle Client"设置页下载安装。')
+        return oracledb.connect(**params)
+
+
+# ══════════════════════════════════════════════════════════════
 #  SQL 编辑器 API（数据库树 / 对象列表）
 # ══════════════════════════════════════════════════════════════
 
@@ -3357,10 +3565,7 @@ def api_ds_databases(ds_id):
             else:
                 return jsonify({'error': 'Oracle 数据源未配置 service_name 或 sid'}), 400
             sysdba = inst.get('sysdba', False)
-            if sysdba:
-                conn = oracledb.connect(user=user, password=pwd, dsn=dsn, mode=oracledb.AuthMode.SYSDBA)
-            else:
-                conn = oracledb.connect(user=user, password=pwd, dsn=dsn)
+            conn = _connect_oracle_thick_fallback(user, pwd, dsn, sysdba=sysdba)
             cur = conn.cursor()
             cur.execute("SELECT username FROM all_users ORDER BY username")
             databases = [r[0] for r in cur.fetchall()]
@@ -3534,6 +3739,225 @@ def api_ds_objects(ds_id):
         })
     except Exception as e:
         return jsonify({'error': str(e), 'db_type': db_type}), 500
+
+
+# ══════════════════════════════════════════════════════════════
+#  SQL 编辑器 - 执行查询 API
+# ══════════════════════════════════════════════════════════════
+
+# 游标存储（key: cursor_id, value: dict with conn, cursor, columns, offset）
+_sql_cursors = {}
+_SQL_CURSOR_TTL = 300  # 游标超时 5 分钟
+
+
+def _cleanup_expired_cursors():
+    """清理过期的 SQL 游标"""
+    global _sql_cursors
+    now = time.time()
+    expired = [k for k, v in _sql_cursors.items() if now - v.get('created_at', 0) > _SQL_CURSOR_TTL]
+    for k in expired:
+        try:
+            _sql_cursors[k]['cursor'].close()
+            _sql_cursors[k]['conn'].close()
+        except Exception:
+            pass
+        del _sql_cursors[k]
+
+
+@app.route('/api/execute_sql', methods=['POST'])
+def api_execute_sql():
+    """
+    SQL 编辑器执行查询
+    参数:
+        - instance_id: 数据源 ID
+        - sql: SQL 语句（初次执行时提供）
+        - database: 数据库名（可选）
+        - cursor_id: 游标 ID（翻页时提供，无需 sql）
+    """
+    # 清理过期游标
+    _cleanup_expired_cursors()
+
+    data = request.get_json()
+    cursor_id = data.get('cursor_id')
+
+    try:
+        from pro import get_instance_manager
+        im = get_instance_manager()
+    except ImportError:
+        return jsonify({'error': 'Pro 模块未安装'}), 500
+
+    # ── 游标翻页 ──────────────────────────────────────────────
+    if cursor_id and cursor_id in _sql_cursors:
+        cur_info = _sql_cursors[cursor_id]
+        cur_info['created_at'] = time.time()  # 刷新过期时间
+        try:
+            cursor = cur_info['cursor']
+            rows = cursor.fetchmany(200)
+            has_more = len(rows) >= 200
+            new_cursor_id = cursor_id if has_more else None
+            return jsonify({
+                'columns': cur_info['columns'],
+                'rows': rows,
+                'cursor_id': new_cursor_id,
+                'has_more': has_more,
+                'row_count': len(rows)
+            })
+        except Exception as e:
+            # 游标失效
+            try:
+                cur_info['cursor'].close()
+                cur_info['conn'].close()
+            except Exception:
+                pass
+            _sql_cursors.pop(cursor_id, None)
+            return jsonify({'error': f'游标已失效: {e}'}), 400
+
+    # ── 新查询 ────────────────────────────────────────────────
+    instance_id = data.get('instance_id', '')
+    sql = data.get('sql', '').strip()
+    database = data.get('database', '').strip()
+
+    if not instance_id:
+        return jsonify({'error': '数据源 ID 不能为空'}), 400
+    if not sql:
+        return jsonify({'error': 'SQL 不能为空'}), 400
+
+    db_info = im.get_instance_decrypted(instance_id)
+    if not db_info:
+        return jsonify({'error': '数据源不存在'}), 404
+
+    db_type = db_info.get('db_type', '').replace('oracle_full', 'oracle')
+    if db_type == 'pg':
+        db_type = 'postgresql'
+    host = db_info.get('host', '')
+    port = int(db_info.get('port', 3306))
+    user = db_info.get('user', '')
+    pwd = db_info.get('password') or ''
+
+    try:
+        conn = None
+        cursor = None
+        if db_type == 'mysql' or db_type == 'tidb':
+            import pymysql
+            db_name = database or 'INFORMATION_SCHEMA'
+            conn = pymysql.connect(
+                host=host, port=port, user=user, password=pwd,
+                database=db_name, charset='utf8mb4', connect_timeout=10
+            )
+            cursor = conn.cursor(pymysql.cursors.DictCursor)
+            cursor.execute(sql)
+            columns = [desc[0] for desc in cursor.description] if cursor.description else []
+            rows = cursor.fetchmany(200)
+            has_more = len(rows) >= 200
+
+        elif db_type in ('postgresql', 'ivorysql'):
+            import psycopg2
+            db_name = database or 'postgres'
+            conn = psycopg2.connect(
+                host=host, port=port, user=user, password=pwd,
+                dbname=db_name, connect_timeout=10
+            )
+            cursor = conn.cursor()
+            cursor.execute(sql)
+            columns = [desc[0] for desc in cursor.description] if cursor.description else []
+            rows = cursor.fetchmany(200)
+            has_more = len(rows) >= 200
+
+        elif db_type == 'oracle':
+            import oracledb
+            svc = db_info.get('service_name', '') or ''
+            sid = db_info.get('sid', '') or ''
+            if svc:
+                dsn = oracledb.makedsn(host=host, port=int(port), service_name=svc)
+            elif sid:
+                dsn = oracledb.makedsn(host=host, port=int(port), sid=sid)
+            else:
+                dsn = f"{host}:{port}/orcl"
+            sysdba = db_info.get('sysdba', False)
+            conn = _connect_oracle_thick_fallback(user, pwd, dsn, sysdba=sysdba)
+            cursor = conn.cursor()
+            cursor.execute(sql)
+            columns = [desc[0] for desc in cursor.description] if cursor.description else []
+            rows = cursor.fetchmany(200)
+            has_more = len(rows) >= 200
+
+        elif db_type == 'sqlserver':
+            import pyodbc
+            drv = '{ODBC Driver 17 for SQL Server}'
+            db_name = database or 'master'
+            conn = pyodbc.connect(
+                f'DRIVER={drv};SERVER={host},{port};DATABASE={db_name};UID={user};PWD={pwd};Timeout=10'
+            )
+            cursor = conn.cursor()
+            cursor.execute(sql)
+            columns = [col[0] for col in cursor.description] if cursor.description else []
+            rows = cursor.fetchmany(200)
+            has_more = len(rows) >= 200
+
+        elif db_type == 'dm':
+            import dmPython
+            conn = dmPython.connect(user=user, password=pwd, server=host, port=port)
+            cursor = conn.cursor()
+            cursor.execute(sql)
+            columns = [desc[0] for desc in cursor.description] if cursor.description else []
+            rows = cursor.fetchmany(200)
+            has_more = len(rows) >= 200
+
+        else:
+            return jsonify({'error': f'不支持的数据库类型: {db_type}'}), 400
+
+        # 判断是否为 SELECT 查询（有列描述说明是查询）
+        if not columns:
+            # DDL/DML，执行成功但没有返回结果集
+            if conn:
+                conn.commit()
+                cursor.close()
+                conn.close()
+            return jsonify({'columns': [], 'rows': [], 'message': '执行成功', 'row_count': 0})
+
+        # 构建结果
+        row_dicts = []
+        for row in rows:
+            if isinstance(row, dict):
+                row_dicts.append([row.get(c) for c in columns])
+            else:
+                row_dicts.append(list(row))
+
+        total_count = len(row_dicts)
+        new_cursor_id = None
+        if has_more:
+            new_cursor_id = str(uuid.uuid4())
+            _sql_cursors[new_cursor_id] = {
+                'conn': conn,
+                'cursor': cursor,
+                'columns': columns,
+                'created_at': time.time()
+            }
+        else:
+            cursor.close()
+            conn.close()
+
+        return jsonify({
+            'columns': columns,
+            'rows': row_dicts,
+            'cursor_id': new_cursor_id,
+            'has_more': has_more,
+            'row_count': total_count
+        })
+
+    except Exception as e:
+        # 清理连接
+        try:
+            if cursor:
+                cursor.close()
+        except Exception:
+            pass
+        try:
+            if conn:
+                conn.close()
+        except Exception:
+            pass
+        return jsonify({'error': str(e)}), 500
 
 
 # ══════════════════════════════════════════════════════════════
@@ -4964,6 +5388,159 @@ def on_join(data):
     if task_id:
         join_room(task_id)
         socketio.emit('log', {'msg': _t('webui.ws_connected_waiting').format(ts=_ts())}, room=task_id)
+
+
+# ══════════════════════════════════════════════════════════════
+#  远程终端 Socket.IO 事件
+# ══════════════════════════════════════════════════════════════
+
+# 活跃终端会话: {sid: {'ssh': SSHClient, 'channel': Channel, 'thread': Thread, 'instance_id': str}}
+_remote_sessions = {}
+
+
+@socketio.on('remote_shell_connect')
+def on_remote_shell_connect(data):
+    """SSH 连接远程服务器"""
+    instance_id = data.get('instance_id', '')
+    if not instance_id:
+        socketio.emit('remote_shell_status', {'status': 'error', 'msg': '缺少实例 ID'}, room=request.sid)
+        return
+
+    try:
+        from pro import get_instance_manager
+        im = get_instance_manager()
+        inst = im.get_instance_decrypted(instance_id)
+        if not inst:
+            socketio.emit('remote_shell_status', {'status': 'error', 'msg': '数据源不存在'}, room=request.sid)
+            return
+        if not inst.get('ssh_enabled'):
+            socketio.emit('remote_shell_status', {'status': 'error', 'msg': '该数据源未启用 SSH'}, room=request.sid)
+            return
+
+        ssh_host = inst.get('ssh_host', '')
+        ssh_port = int(inst.get('ssh_port', 22))
+        ssh_user = inst.get('ssh_user', '')
+        ssh_password = inst.get('ssh_password', '') or ''
+        ssh_key_file = inst.get('ssh_key_file', '') or ''
+
+        # 关闭已有会话
+        if request.sid in _remote_sessions:
+            try:
+                _remote_sessions[request.sid]['channel'].close()
+                _remote_sessions[request.sid]['ssh'].close()
+            except Exception:
+                pass
+            _remote_sessions[request.sid]['thread'].join(timeout=3)
+            del _remote_sessions[request.sid]
+
+        import paramiko
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+        try:
+            if ssh_key_file and os.path.isfile(ssh_key_file):
+                client.connect(hostname=ssh_host, port=ssh_port, username=ssh_user,
+                               key_filename=ssh_key_file, timeout=10,
+                               look_for_keys=False, allow_agent=False,
+                               disabled_algorithms={'pubkeys': ['ssh-rsa']})
+            elif ssh_password:
+                client.connect(hostname=ssh_host, port=ssh_port, username=ssh_user,
+                               password=ssh_password, timeout=10,
+                               look_for_keys=False, allow_agent=False,
+                               disabled_algorithms={'pubkeys': ['ssh-rsa']})
+            else:
+                socketio.emit('remote_shell_status', {'status': 'error', 'msg': 'SSH 密码或密钥文件为空'}, room=request.sid)
+                return
+        except Exception as e:
+            socketio.emit('remote_shell_status', {'status': 'error', 'msg': f'SSH 连接失败: {e}'}, room=request.sid)
+            return
+
+        # 打开一个 shell 通道
+        channel = client.invoke_shell(term='xterm', width=120, height=30)
+
+        # 在后台任务前捕获 sid（request context 不传递到后台线程）
+        sid = request.sid
+
+        # 启动读取线程（使用 socketio.start_background_task 确保 emit 在正确上下文中）
+        def read_loop():
+            import time
+            # 等待 shell 启动并输出欢迎信息/提示符
+            time.sleep(0.5)
+            socketio.emit('remote_shell_status', {'status': 'connected', 'msg': f'已连接 {ssh_user}@{ssh_host}:{ssh_port}'}, room=sid)
+
+            while True:
+                if channel.closed:
+                    break
+                if channel.recv_ready():
+                    try:
+                        recv_data = channel.recv(4096).decode('utf-8', errors='replace')
+                        socketio.emit('remote_shell_output', {'data': recv_data}, room=sid)
+                    except Exception:
+                        break
+                time.sleep(0.05)
+            # 连接断开清理
+            if sid in _remote_sessions:
+                try:
+                    channel.close()
+                    client.close()
+                except Exception:
+                    pass
+                _remote_sessions.pop(sid, None)
+                socketio.emit('remote_shell_status', {'status': 'disconnected', 'msg': '连接已断开'}, room=sid)
+
+        t = socketio.start_background_task(target=read_loop)
+
+        _remote_sessions[sid] = {
+            'ssh': client,
+            'channel': channel,
+            'thread': t,
+            'instance_id': instance_id
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        socketio.emit('remote_shell_status', {'status': 'error', 'msg': str(e)}, room=request.sid)
+
+
+@socketio.on('remote_shell_input')
+def on_remote_shell_input(data):
+    """接收前端终端输入，发送到 SSH channel"""
+    sid = request.sid
+    if sid in _remote_sessions:
+        try:
+            _remote_sessions[sid]['channel'].send(data.get('data', ''))
+        except Exception:
+            pass
+
+
+@socketio.on('remote_shell_disconnect')
+def on_remote_shell_disconnect():
+    """断开 SSH 连接"""
+    sid = request.sid
+    if sid in _remote_sessions:
+        try:
+            _remote_sessions[sid]['channel'].close()
+            _remote_sessions[sid]['ssh'].close()
+        except Exception:
+            pass
+        _remote_sessions[sid]['thread'].join(timeout=3)
+        del _remote_sessions[sid]
+        socketio.emit('remote_shell_status', {'status': 'disconnected', 'msg': '已断开'}, room=sid)
+
+
+@socketio.on('disconnect')
+def on_disconnect():
+    """前端断开时清理 SSH 会话"""
+    sid = request.sid
+    if sid in _remote_sessions:
+        try:
+            _remote_sessions[sid]['channel'].close()
+            _remote_sessions[sid]['ssh'].close()
+        except Exception:
+            pass
+        _remote_sessions[sid]['thread'].join(timeout=3)
+        del _remote_sessions[sid]
 
 
 if __name__ == '__main__':

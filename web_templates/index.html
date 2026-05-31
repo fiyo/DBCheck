@@ -3501,11 +3501,10 @@ function formatBytes(bytes) {
     <div class="nav-item" onclick="showPage('ai')" id="nav-ai">
       <span class="icon">🤖</span> <span data-i18n="webui.nav_ai">AI 诊断设置</span>
     </div>
-    <!-- Oracle Client 设置已隐藏：oracledb.init_oracle_client() 支持自动检测，无需手动配置
+    <!-- Oracle Client 设置：支持一键自动下载 Instant Client，无需手动去 Oracle 官网 -->
     <div class="nav-item" onclick="showPage('oracle-client')" id="nav-oracle-client">
       <span class="icon">🔧</span> <span data-i18n="webui.nav_oracle_client">Oracle Client</span>
     </div>
-    -->
     <div class="nav-item" onclick="showPage('notifier')" id="nav-notifier">
       <span class="icon">📧</span> <span data-i18n="webui.nav_notifier">通知设置</span>
     </div>
@@ -4562,6 +4561,30 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
             Oracle 11g 及以下版本需要 Oracle Instant Client 才能连接。<br/>
             请指定 Instant Client 的安装路径（包含 <code>oci.dll</code> / <code>libclntsh.so</code> 的目录）。<br/>
             <strong style="color:var(--warn)">注意：</strong>修改后需要重启 DBCheck 才能生效。
+          </div>
+
+          <!-- 自动检测状态 -->
+          <div id="oracle-client-detect-status" style="display:none;padding:12px 16px;border-radius:8px;font-size:13px;margin-bottom:16px;line-height:1.6"></div>
+
+          <!-- 一键下载区域 -->
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:16px;">
+            <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:8px;">⬇️ 自动下载 Oracle Instant Client</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;line-height:1.5;">
+              一键下载并解压 Oracle Instant Client Basic 到 DBCheck 项目目录，无需手动前往 Oracle 官网。<br/>
+              当前下载版本：23.26，支持 Windows / Linux / macOS。
+            </div>
+            <div id="oracle-download-progress" style="display:none;margin-bottom:12px;">
+              <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;height:8px;overflow:hidden;margin-bottom:6px;">
+                <div id="oracle-download-bar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--primary),#4fc3f7);border-radius:6px;transition:width 0.3s;"></div>
+              </div>
+              <div id="oracle-download-msg" style="font-size:12px;color:var(--text-muted);"></div>
+            </div>
+            <button class="btn btn-primary" id="oracle-download-btn" onclick="downloadOracleClient()" style="width:auto;padding:8px 20px;">
+              ⬇️ 一键下载并安装
+            </button>
+            <button class="btn btn-ghost" onclick="checkOracleClientStatus()" style="width:auto;padding:8px 16px;margin-left:8px;">
+              🔍 检查安装状态
+            </button>
           </div>
 
           <div class="form-group">
@@ -11872,6 +11895,145 @@ async function deleteBackupHistory(recordId) {
       statusEl.className = 'status-banner err';
       statusEl.textContent = '❌ 保存失败: ' + e.message;
       statusEl.style.display = 'block';
+    }
+  }
+
+  // ─── Oracle Client 自动下载 ──────────────────────
+  let _oracleDownloadPollTimer = null;
+
+  async function checkOracleClientStatus() {
+    const el = document.getElementById('oracle-client-detect-status');
+    el.style.display = 'block';
+    el.innerHTML = '⏳ 正在检查...';
+    el.style.background = 'var(--surface2)';
+    el.style.border = '1px solid var(--border)';
+    el.style.color = 'var(--text)';
+
+    try {
+      const res = await fetch('/api/oracle_client_status');
+      const data = await res.json();
+
+      if (data.installed) {
+        el.innerHTML =
+          `✅ <strong>Oracle Instant Client 已安装</strong><br/>` +
+          `版本: <code>${data.version}</code> · 平台: <code>${data.platform}</code><br/>` +
+          `路径: <code>${data.install_dir}</code>`;
+        el.style.background = 'rgba(76,175,80,0.08)';
+        el.style.border = '1px solid rgba(76,175,80,0.3)';
+        el.style.color = '#4caf50';
+      } else {
+        el.innerHTML =
+          `❌ <strong>Oracle Instant Client 未安装</strong><br/>` +
+          `平台: <code>${data.platform}</code><br/>` +
+          `请点击上方"一键下载"按钮自动安装，或手动从 Oracle 官网下载后解压到 oracle_client/${data.platform}/ 目录。`;
+        el.style.background = 'rgba(244,67,54,0.08)';
+        el.style.border = '1px solid rgba(244,67,54,0.3)';
+        el.style.color = '#f44336';
+      }
+    } catch(e) {
+      el.innerHTML = `❌ 检查失败: ${e.message}`;
+      el.style.background = 'rgba(244,67,54,0.08)';
+      el.style.border = '1px solid rgba(244,67,54,0.3)';
+      el.style.color = '#f44336';
+    }
+  }
+
+  async function downloadOracleClient() {
+    const btn = document.getElementById('oracle-download-btn');
+    const progressEl = document.getElementById('oracle-download-progress');
+    const barEl = document.getElementById('oracle-download-bar');
+    const msgEl = document.getElementById('oracle-download-msg');
+
+    // 禁用按钮防止重复点击
+    btn.disabled = true;
+    btn.style.opacity = '0.6';
+    progressEl.style.display = 'block';
+    barEl.style.width = '0%';
+    msgEl.textContent = '正在启动下载...';
+
+    // 清除之前的轮询
+    if (_oracleDownloadPollTimer) {
+      clearInterval(_oracleDownloadPollTimer);
+    }
+
+    try {
+      const res = await fetch('/api/oracle_client_download', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+
+      if (data.already_installed) {
+        barEl.style.width = '100%';
+        msgEl.textContent = data.message;
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        checkOracleClientStatus();
+        return;
+      }
+
+      if (!data.ok) {
+        barEl.style.width = '0%';
+        msgEl.textContent = '❌ ' + (data.message || '下载失败');
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        return;
+      }
+
+      msgEl.textContent = '下载已在后台启动，正在等待完成...';
+      barEl.style.width = '30%';
+
+      // 轮询检查下载状态
+      let pollCount = 0;
+      const maxPolls = 300; // 最多轮询 5 分钟 (300 * 1s)
+
+      _oracleDownloadPollTimer = setInterval(async () => {
+        pollCount++;
+        try {
+          const statusRes = await fetch('/api/oracle_client_download_status');
+          const statusData = await statusRes.json();
+
+          if (statusData.installed) {
+            // 下载完成
+            clearInterval(_oracleDownloadPollTimer);
+            _oracleDownloadPollTimer = null;
+            barEl.style.width = '100%';
+            msgEl.textContent = `✅ Oracle Instant Client ${statusData.version} 安装成功！`;
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            checkOracleClientStatus();
+            return;
+          }
+
+          // 下载中，更新进度条动画
+          if (pollCount % 10 === 0) {
+            const currentWidth = parseInt(barEl.style.width) || 30;
+            if (currentWidth < 85) {
+              barEl.style.width = (currentWidth + 5) + '%';
+            }
+          }
+
+          if (pollCount >= maxPolls) {
+            clearInterval(_oracleDownloadPollTimer);
+            _oracleDownloadPollTimer = null;
+            msgEl.textContent = '⏳ 下载时间较长，请等待完成后手动点击"检查安装状态"确认。';
+            btn.disabled = false;
+            btn.style.opacity = '1';
+          }
+        } catch(e) {
+          // 忽略轮询中的网络错误
+        }
+      }, 1000);
+
+    } catch(e) {
+      msgEl.textContent = '❌ 启动下载失败: ' + e.message;
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      if (_oracleDownloadPollTimer) {
+        clearInterval(_oracleDownloadPollTimer);
+        _oracleDownloadPollTimer = null;
+      }
     }
   }
   </script>
