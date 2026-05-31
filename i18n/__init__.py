@@ -72,13 +72,14 @@ def set_lang(lang, persist=True):
 
 # ── 翻译查询 ────────────────────────────────────────────────────────────────
 
-def t(key, lang=None):
+def t(key, lang=None, default=None):
     """
     根据 key 返回翻译后的字符串。
 
-    :param key:  翻译 key，如 "cli.main_menu_title"，"report.health_excellent"
-    :param lang: 指定语言（可选，默认从 get_lang() 获取）
-    :return:     翻译字符串，未找到时返回原 key
+    :param key:     翻译 key，如 "cli.main_menu_title"，"report.health_excellent"
+    :param lang:    指定语言（可选，默认从 get_lang() 获取）
+    :param default: 未找到时返回的默认值。可以是一个翻译 key（会递归查找），也可以是纯文本。
+    :return:        翻译字符串，未找到时返回 default 的翻译结果或原 key
     """
     if lang is None:
         lang = get_lang()
@@ -93,6 +94,17 @@ def t(key, lang=None):
     val = ZI.get(key)
     if val is not None:
         return str(val)
+
+    # default 可能也是一个翻译 key，先尝试翻译它
+    if default is not None:
+        # 避免无限递归：用 default 作为 key 再查一次（不含 default 参数）
+        default_val = data.get(default)
+        if default_val is not None:
+            return str(default_val)
+        default_val = ZI.get(default)
+        if default_val is not None:
+            return str(default_val)
+        return str(default)
 
     return key
 

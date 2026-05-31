@@ -7,6 +7,7 @@ DBCheck Pro Instance Manager
 
 import json
 import os
+import platform
 import sqlite3
 from datetime import datetime
 from typing import Dict, List, Optional, Any
@@ -404,7 +405,7 @@ class InstanceManager:
                 conn.close()
                 return {'ok': True, 'message': '连接成功 (MySQL %s:%d)' % (inst.host, inst.port)}
 
-            elif db_type == 'postgresql':
+            if db_type in ('postgresql', 'pg'):
                 import psycopg2
                 conn = psycopg2.connect(
                     host=inst.host, port=inst.port,
@@ -428,7 +429,49 @@ class InstanceManager:
                 import oracledb
                 dsn = inst.service_name or '%s:%d/orcl' % (inst.host, inst.port)
                 mode = oracledb.SYSDBA if inst.sysdba else oracledb.DEFAULT_MODE
-                conn = oracledb.connect(user=inst.user, password=password, dsn=dsn, mode=mode)
+                try:
+                    conn = oracledb.connect(user=inst.user, password=password, dsn=dsn, mode=mode)
+                except Exception as e:
+                    err_str = str(e)
+                    if 'DPY-3010' in err_str:
+                        print('[Oracle Thick Mode] DPY-3010 detected, attempting thick mode fallback...', flush=True)
+                        # thin mode 不支持 11g，尝试 thick mode
+                        _ok = False
+                        try:
+                            oracledb.init_oracle_client()
+                            _ok = True
+                            print('[Oracle Thick Mode] Auto-detect OK', flush=True)
+                        except Exception as ae:
+                            print(f'[Oracle Thick Mode] Auto-detect failed: {ae}', flush=True)
+                        if not _ok:
+                            _sys = platform.system().lower()
+                            if _sys == 'windows':
+                                _sub, _mk = 'windows_x64', 'oci.dll'
+                            elif _sys == 'linux':
+                                _sub, _mk = 'linux_x64', 'libclntsh.so'
+                            elif _sys == 'darwin':
+                                _sub, _mk = 'darwin_x64', 'libclntsh.dylib'
+                            else:
+                                _sub, _mk = None, None
+                            if _sub:
+                                _base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                                _bd = os.path.join(_base, 'oracle_client', _sub)
+                                _dir_exists = os.path.isdir(_bd)
+                                _marker_exists = os.path.isfile(os.path.join(_bd, _mk)) if _dir_exists else False
+                                print(f'[Oracle Thick Mode] Bundled dir={_bd}, dir_exists={_dir_exists}, marker_exists={_marker_exists}', flush=True)
+                                if _dir_exists and _marker_exists:
+                                    try:
+                                        oracledb.init_oracle_client(lib_dir=_bd)
+                                        _ok = True
+                                        print(f'[Oracle Thick Mode] Bundled init OK: {_bd}', flush=True)
+                                    except Exception as be:
+                                        print(f'[Oracle Thick Mode] Bundled init failed: {be}', flush=True)
+                        if not _ok:
+                            return {'ok': False, 'message': 'Oracle 11g 需要 Instant Client，请将包解压到 oracle_client/windows_x64 目录'}
+                        print('[Oracle Thick Mode] Reconnecting with thick mode...', flush=True)
+                        conn = oracledb.connect(user=inst.user, password=password, dsn=dsn, mode=mode)
+                    else:
+                        raise
                 conn.close()
                 sysdba_msg = " (SYSDBA)" if inst.sysdba else ""
                 return {'ok': True, 'message': '连接成功 (Oracle%s %s)' % (sysdba_msg, dsn)}

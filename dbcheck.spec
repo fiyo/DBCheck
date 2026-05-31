@@ -26,6 +26,8 @@ a = Analysis(
         (os.path.join(project_root, 'pro'), 'pro'),
         # ── Pro 规则目录（YAML 配置文件）───────────────
         (os.path.join(project_root, 'pro', 'rules'), 'pro/rules'),
+        # ── Oracle Instant Client 内置目录（v2.5.0+）───────────
+        (os.path.join(project_root, 'oracle_client'), 'oracle_client'),
     ],
     hiddenimports=[
         # ── 数据库驱动 ───────────────────────────────────────
@@ -123,6 +125,11 @@ a = Analysis(
         'main_tidb',
         'main_ivorysql',
         'web_ui',
+        'inspection_engine',
+        'inspection_dal',
+        'inspection_init_db',
+        'inspection_api',
+        'ssh_tunnel',
         # ── 定时巡检 & 通知（v2.4.0+ 新增）────────────────────
         'scheduler',
         'notifier',

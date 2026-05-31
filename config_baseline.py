@@ -97,6 +97,19 @@ MYSQL_BASELINE_RULES = [
      lambda conn, ctx: 1,
      '次',
      '事务提交时日志刷盘策略，1=严格刷盘，安全性最高'),
+
+    # binlog 过期时间（版本差异化：MySQL 5.x 用 expire_logs_days，8.x 用 binlog_expire_logs_seconds）
+    ('expire_logs_days',
+     "SHOW GLOBAL VARIABLES LIKE 'expire_logs_days';",
+     lambda conn, ctx: 7,
+     '天',
+     'Binlog 过期天数（MySQL 5.x 专用），建议 7 天'),
+
+    ('binlog_expire_logs_seconds',
+     "SHOW GLOBAL VARIABLES LIKE 'binlog_expire_logs_seconds';",
+     lambda conn, ctx: 604800,
+     '秒',
+     'Binlog 过期秒数（MySQL 8.x 专用，expire_logs_days 在 8.0.30+ 已移除），建议 604800 秒（7天）'),
     
     # 缓存参数
     ('query_cache_size',
@@ -442,10 +455,25 @@ def _calc_long_query_time(conn):
     return 2.0  # 2 秒
 
 
+def _get_mysql_version(conn):
+    """获取 MySQL 主版本号（5 或 8）"""
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT VERSION();")
+        row = cursor.fetchone()
+        cursor.close()
+        if row:
+            ver_str = str(row[0])
+            return int(ver_str.split('.')[0])
+    except Exception:
+        pass
+    return 5  # 保守默认
+
+
 def check_mysql_config_baseline(conn):
     """
     检查 MySQL 配置基线，返回配置差距报告。
-    
+
     返回格式:
     {
         'db_size_gb': float,  # 数据库总大小
@@ -479,17 +507,25 @@ def check_mysql_config_baseline(conn):
         'items': [],
         'summary': {'critical_count': 0, 'warning_count': 0, 'info_count': 0}
     }
-    
+
     cursor = conn.cursor()
     ctx = {'db_size_gb': result['db_size_gb'], 'qps': result['qps']}
-    
+
+    mysql_ver = _get_mysql_version(conn)
+
     for rule in MYSQL_BASELINE_RULES:
         param_name = rule[0]
         query_sql = rule[1]
         calc_func = rule[2]
         unit = rule[3]
         description = rule[4]
-        
+
+        # 版本差异化：binlog 过期时间参数在 5.x 和 8.x 中不同
+        if param_name == 'expire_logs_days' and mysql_ver >= 8:
+            continue  # MySQL 8.x 使用 binlog_expire_logs_seconds
+        if param_name == 'binlog_expire_logs_seconds' and mysql_ver < 8:
+            continue  # MySQL 5.x 使用 expire_logs_days
+
         try:
             # 获取当前值
             cursor.execute(query_sql)
@@ -498,10 +534,10 @@ def check_mysql_config_baseline(conn):
                 current_raw = _parse_bytes(row[1])
             else:
                 current_raw = 0
-            
+
             # 计算推荐值
             recommended_raw = calc_func(conn, ctx)
-            
+
             # 计算差距
             if recommended_raw > 0 and current_raw > 0:
                 gap_pct = abs(current_raw - recommended_raw) / recommended_raw * 100
@@ -509,7 +545,7 @@ def check_mysql_config_baseline(conn):
                 gap_pct = 100  # 已废弃参数但仍设置值
             else:
                 gap_pct = 0
-            
+
             # 判断严重程度
             if param_name == 'query_cache_size':
                 # MySQL 8.0 已移除查询缓存，忽略
@@ -522,7 +558,7 @@ def check_mysql_config_baseline(conn):
                 severity = 'warning'
             else:
                 severity = 'info'
-            
+
             # 更新统计
             if severity == 'critical':
                 result['summary']['critical_count'] += 1
@@ -530,7 +566,7 @@ def check_mysql_config_baseline(conn):
                 result['summary']['warning_count'] += 1
             else:
                 result['summary']['info_count'] += 1
-            
+
             result['items'].append({
                 'param': param_name,
                 'current': _format_bytes(current_raw) if unit == '字节' else str(current_raw),
@@ -543,11 +579,11 @@ def check_mysql_config_baseline(conn):
                 'description': description,
                 'unit': unit,
             })
-            
+
         except Exception as e:
             # 忽略单条查询错误
             pass
-    
+
     cursor.close()
     return result
 
@@ -1659,5 +1695,185 @@ def format_config_baseline_report(report, db_type='mysql'):
     lines.append("  🟡 警告: 配置差距 > 20%，建议尽快调整")
     lines.append("  🟢 正常: 配置合理或差距在可接受范围内")
     lines.append("="*60)
-    
+
     return '\n'.join(lines)
+
+
+def _get_default_baselines():
+    """返回默认基线配置列表，供 Web UI 基线配置管理页面初始化使用。"""
+    return [
+        # ── MySQL ──────────────────────────────────────────
+        {
+            'db_type': 'mysql', 'param_name': 'max_connections',
+            'query_sql': "SHOW GLOBAL VARIABLES LIKE 'max_connections';",
+            'operator': '>=', 'expected_value': '200',
+            'risk_level': 'MEDIUM',
+            'description_zh': '最大连接数，建议不低于 200',
+            'description_en': 'Max connections, recommended >= 200',
+        },
+        {
+            'db_type': 'mysql', 'param_name': 'innodb_buffer_pool_size',
+            'query_sql': "SHOW GLOBAL VARIABLES LIKE 'innodb_buffer_pool_size';",
+            'operator': '>=', 'expected_value': '1073741824',
+            'risk_level': 'HIGH',
+            'description_zh': 'InnoDB 缓冲池大小（字节），建议不低于 1GB',
+            'description_en': 'InnoDB buffer pool size (bytes), recommended >= 1GB',
+        },
+        {
+            'db_type': 'mysql', 'param_name': 'innodb_flush_log_at_trx_commit',
+            'query_sql': "SHOW GLOBAL VARIABLES LIKE 'innodb_flush_log_at_trx_commit';",
+            'operator': '=', 'expected_value': '1',
+            'risk_level': 'HIGH',
+            'description_zh': '事务提交日志刷盘策略，1=严格刷盘（安全性最高）',
+            'description_en': 'Transaction log flush policy, 1=strict flush (highest safety)',
+        },
+        {
+            'db_type': 'mysql', 'param_name': 'sync_binlog',
+            'query_sql': "SHOW GLOBAL VARIABLES LIKE 'sync_binlog';",
+            'operator': '=', 'expected_value': '1',
+            'risk_level': 'MEDIUM',
+            'description_zh': 'Binlog 同步频率，1=每次事务同步（高安全）',
+            'description_en': 'Binlog sync frequency, 1=sync per transaction (high safety)',
+        },
+        {
+            'db_type': 'mysql', 'param_name': 'long_query_time',
+            'query_sql': "SHOW GLOBAL VARIABLES LIKE 'long_query_time';",
+            'operator': '<=', 'expected_value': '2',
+            'risk_level': 'MEDIUM',
+            'description_zh': '慢查询阈值（秒），建议不超过 2 秒',
+            'description_en': 'Slow query threshold (seconds), recommended <= 2',
+        },
+        {
+            'db_type': 'mysql', 'param_name': 'wait_timeout',
+            'query_sql': "SHOW GLOBAL VARIABLES LIKE 'wait_timeout';",
+            'operator': '<=', 'expected_value': '600',
+            'risk_level': 'LOW',
+            'description_zh': '空闲连接超时时间（秒），建议不超过 600',
+            'description_en': 'Idle connection timeout (seconds), recommended <= 600',
+        },
+        {
+            'db_type': 'mysql', 'param_name': 'expire_logs_days',
+            'query_sql': "SHOW GLOBAL VARIABLES LIKE 'expire_logs_days';",
+            'operator': '>=', 'expected_value': '7',
+            'risk_level': 'MEDIUM',
+            'description_zh': 'Binlog 过期天数（仅 MySQL 5.x），建议不低于 7 天',
+            'description_en': 'Binlog expiry days (MySQL 5.x only), recommended >= 7',
+        },
+        {
+            'db_type': 'mysql', 'param_name': 'binlog_expire_logs_seconds',
+            'query_sql': "SHOW GLOBAL VARIABLES LIKE 'binlog_expire_logs_seconds';",
+            'operator': '>=', 'expected_value': '604800',
+            'risk_level': 'MEDIUM',
+            'description_zh': 'Binlog 过期秒数（仅 MySQL 8.x），建议不低于 604800（7天）',
+            'description_en': 'Binlog expiry seconds (MySQL 8.x only), recommended >= 604800 (7 days)',
+        },
+        # ── PostgreSQL ─────────────────────────────────────
+        {
+            'db_type': 'pg', 'param_name': 'max_connections',
+            'query_sql': "SELECT name, setting FROM pg_settings WHERE name = 'max_connections';",
+            'operator': '>=', 'expected_value': '200',
+            'risk_level': 'MEDIUM',
+            'description_zh': '最大连接数，建议不低于 200',
+            'description_en': 'Max connections, recommended >= 200',
+        },
+        {
+            'db_type': 'pg', 'param_name': 'shared_buffers',
+            'query_sql': "SELECT name, setting FROM pg_settings WHERE name = 'shared_buffers';",
+            'operator': '>=', 'expected_value': '256MB',
+            'risk_level': 'HIGH',
+            'description_zh': '共享缓冲区大小，建议不低于 256MB',
+            'description_en': 'Shared buffers, recommended >= 256MB',
+        },
+        {
+            'db_type': 'pg', 'param_name': 'effective_cache_size',
+            'query_sql': "SELECT name, setting FROM pg_settings WHERE name = 'effective_cache_size';",
+            'operator': '>=', 'expected_value': '4GB',
+            'risk_level': 'MEDIUM',
+            'description_zh': '有效缓存大小，建议设置为总内存的 75%',
+            'description_en': 'Effective cache size, recommended 75% of total memory',
+        },
+        {
+            'db_type': 'pg', 'param_name': 'log_min_duration_statement',
+            'query_sql': "SELECT name, setting FROM pg_settings WHERE name = 'log_min_duration_statement';",
+            'operator': '<=', 'expected_value': '2000',
+            'risk_level': 'MEDIUM',
+            'description_zh': '慢查询阈值（毫秒），建议不超过 2000ms',
+            'description_en': 'Slow query threshold (ms), recommended <= 2000',
+        },
+        {
+            'db_type': 'pg', 'param_name': 'wal_level',
+            'query_sql': "SELECT name, setting FROM pg_settings WHERE name = 'wal_level';",
+            'operator': '=', 'expected_value': 'replica',
+            'risk_level': 'LOW',
+            'description_zh': 'WAL 级别，建议 replica 以支持流复制和备份',
+            'description_en': 'WAL level, recommended replica for replication support',
+        },
+        # ── Oracle ─────────────────────────────────────────
+        {
+            'db_type': 'oracle', 'param_name': 'processes',
+            'query_sql': "SELECT name, value FROM v$parameter WHERE name = 'processes';",
+            'operator': '>=', 'expected_value': '300',
+            'risk_level': 'MEDIUM',
+            'description_zh': '最大进程数，建议不低于 300',
+            'description_en': 'Max processes, recommended >= 300',
+        },
+        {
+            'db_type': 'oracle', 'param_name': 'sga_target',
+            'query_sql': "SELECT name, value FROM v$parameter WHERE name = 'sga_target';",
+            'operator': '>=', 'expected_value': '1073741824',
+            'risk_level': 'HIGH',
+            'description_zh': 'SGA 目标大小（字节），建议不低于 1GB',
+            'description_en': 'SGA target size (bytes), recommended >= 1GB',
+        },
+        {
+            'db_type': 'oracle', 'param_name': 'undo_retention',
+            'query_sql': "SELECT name, value FROM v$parameter WHERE name = 'undo_retention';",
+            'operator': '>=', 'expected_value': '900',
+            'risk_level': 'MEDIUM',
+            'description_zh': 'UNDO 保留时间（秒），建议不低于 900',
+            'description_en': 'Undo retention (seconds), recommended >= 900',
+        },
+        # ── DM8 达梦 ───────────────────────────────────────
+        {
+            'db_type': 'dm', 'param_name': 'MAX_SESSIONS',
+            'query_sql': "SELECT PARA_NAME, PARA_VALUE FROM V$DM_INI WHERE PARA_NAME = 'MAX_SESSIONS';",
+            'operator': '>=', 'expected_value': '200',
+            'risk_level': 'MEDIUM',
+            'description_zh': '最大会话数，建议不低于 200',
+            'description_en': 'Max sessions, recommended >= 200',
+        },
+        {
+            'db_type': 'dm', 'param_name': 'MEMORY_TARGET',
+            'query_sql': "SELECT PARA_NAME, PARA_VALUE FROM V$DM_INI WHERE PARA_NAME = 'MEMORY_TARGET';",
+            'operator': '>=', 'expected_value': '1073741824',
+            'risk_level': 'HIGH',
+            'description_zh': '内存目标大小（字节），建议不低于 1GB',
+            'description_en': 'Memory target size (bytes), recommended >= 1GB',
+        },
+        # ── SQL Server ─────────────────────────────────────
+        {
+            'db_type': 'sqlserver', 'param_name': 'max server memory (MB)',
+            'query_sql': "SELECT name, value_in_use FROM sys.configurations WHERE name = 'max server memory (MB)';",
+            'operator': '>=', 'expected_value': '1024',
+            'risk_level': 'HIGH',
+            'description_zh': '最大服务器内存（MB），建议不低于 1024',
+            'description_en': 'Max server memory (MB), recommended >= 1024',
+        },
+        {
+            'db_type': 'sqlserver', 'param_name': 'max degree of parallelism',
+            'query_sql': "SELECT name, value_in_use FROM sys.configurations WHERE name = 'max degree of parallelism';",
+            'operator': '<=', 'expected_value': '8',
+            'risk_level': 'LOW',
+            'description_zh': '最大并行度，建议不超过 8',
+            'description_en': 'Max degree of parallelism, recommended <= 8',
+        },
+        # ── TiDB ──────────────────────────────────────────
+        {
+            'db_type': 'tidb', 'param_name': 'max_connections',
+            'query_sql': "SHOW VARIABLES LIKE 'max_connections';",
+            'operator': '>=', 'expected_value': '200',
+            'risk_level': 'MEDIUM',
+            'description_zh': '最大连接数，建议不低于 200',
+            'description_en': 'Max connections, recommended >= 200',
+        },
+    ]

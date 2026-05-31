@@ -388,6 +388,10 @@ async function executeFixSql(taskId, sql) {
   margin-right: auto;
   width: 100%;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 
 /* 历史报告 / 趋势分析页面更宽 */
@@ -579,7 +583,7 @@ select option { background: var(--surface2); }
   cursor: pointer;
   margin-bottom: 4px;
 }
-.toggle-row .toggle-label { font-size: 13.5px; flex: 1; }
+.toggle-row .toggle-label { font-size: 13.5px; flex: 1; color: var(--text); }
 .toggle-row .toggle-sub { font-size: 12px; color: var(--text-muted); }
 .toggle {
   width: 38px; height: 22px; border-radius: 11px;
@@ -1003,7 +1007,13 @@ select option { background: var(--surface2); }
 
 /* ─── Pages ─── */
 .page { display: none; }
-.page.active { display: flex; flex-direction: column; }
+.page.active {
+  display: flex !important;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
 
 /* ─── Spinner ─── */
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -2271,6 +2281,95 @@ async function executeFixSql(taskId, sql) {
 }
 
   </style>
+
+  <link rel="stylesheet" href="/static/codemirror/lib/codemirror.css">
+  <link rel="stylesheet" href="/static/codemirror/theme/dracula.css">
+  <link rel="stylesheet" href="/static/codemirror/addon/hint/show-hint.css">
+  <link rel="stylesheet" href="/static/css/inspection_config.css">
+
+  <!-- xterm.js（远程终端） -->
+  <link rel="stylesheet" href="/static/css/xterm.css" />
+  <script src="/static/js/xterm.js"></script>
+  <script src="/static/js/xterm-addon-fit.js"></script>
+  <script src="/static/js/xterm-addon-attach.js"></script>
+  <script src="/static/js/socket.io.min.js"></script>
+
+
+    <style>
+    /* ── 模态框 (基线配置) ── */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 9999;
+      background: rgba(0,0,0,0.55);
+      display: none; align-items: center; justify-content: center;
+      animation: fadeIn 0.2s ease;
+    }
+    .modal-overlay[style*="display:flex"] { display: flex !important; }
+    .modal-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      width: 96%; max-width: 680px;
+      max-height: 90vh; overflow-y: auto;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.35);
+    }
+    .modal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      font-size: 15px; font-weight: 600;
+    }
+    .modal-body { padding: 20px; }
+    .modal-footer {
+      display: flex; justify-content: flex-end; gap: 8px;
+      padding: 12px 20px;
+      border-top: 1px solid var(--border);
+    }
+    .modal-close {
+      background: none; border: none; cursor: pointer;
+      font-size: 18px; color: var(--text-muted);
+      padding: 0 4px; line-height: 1;
+    }
+    .modal-close:hover { color: var(--text); }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    /* form 辅助 */
+    .form-grid { display: grid; gap: 12px; }
+    .form-group { display: flex; flex-direction: column; gap: 4px; }
+    .form-input {
+      background: var(--bg); color: var(--text);
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 7px 10px; font-size: 14px; outline: none;
+    }
+    .form-input:focus { border-color: var(--accent2); }
+    .form-textarea {
+      background: var(--bg); color: var(--text);
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 8px 10px; font-size: 14px; outline: none;
+      resize: vertical; font-family: inherit;
+    }
+    .form-textarea:focus { border-color: var(--accent2); }
+    .data-table {
+      width: 100%; border-collapse: collapse; font-size: 14px;
+    }
+    .data-table th {
+      text-align: left; padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-muted); font-weight: 600; font-size: 12px;
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .data-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .data-table tr:hover { background: var(--surface2); }
+    .table-wrap { overflow-x: auto; }
+    .page-header { margin-bottom: 16px; }
+    .page-sub { font-size: 13px; margin: 4px 0 0; }
+    .page-toolbar {
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 8px; margin-bottom: 16px; flex-wrap: wrap;
+    }
+    </style>
+
 </head>
 <body>
 <!-- 背景层 -->
@@ -3015,8 +3114,8 @@ function formatBytes(bytes) {
             '</div>' +
             // SSH 配置（开关 + 下拉切换认证方式）
             '<div style="margin-top:12px;border-top:1px solid var(--border);padding-top:10px;">' +
-              '<div class="toggle-row" onclick="var s=document.getElementById(\'ds-ssh-section\');var t=document.getElementById(\'ds-ssh-toggle\');var on=s.style.display!==\'none\';s.style.display=on?\'none\':\'\';t.className=\'toggle\'+(on?\'\':\' on\')" style="margin-bottom:8px;">' +
-                '<span style="font-size:13px;font-weight:500">🔐 启用 SSH 系统信息采集</span>' +
+              '<div class="toggle-row" onclick="toggleDsSsh()" style="margin-bottom:8px;">' +
+                '<span style="font-size:13px;font-weight:500;color:var(--text)">🔐 启用 SSH 系统信息采集</span>' +
                 '<div class="toggle" id="ds-ssh-toggle"></div>' +
               '</div>' +
               '<div id="ds-ssh-section" style="display:none">' +
@@ -3077,6 +3176,13 @@ function formatBytes(bytes) {
         document.getElementById('ds-sysdba-wrap').style.display = dbType === 'oracle' ? '' : 'none';
       }
 
+      function toggleDsSsh() {
+        var s = document.getElementById('ds-ssh-section');
+        var t = document.getElementById('ds-ssh-toggle');
+        var isVisible = s && s.style.display !== 'none';
+        s.style.display = isVisible ? 'none' : '';
+        t.className = 'toggle' + (isVisible ? '' : ' on');
+      }
       function onDsSshAuthChange() {
         const auth = document.getElementById('ds-ssh-auth').value;
         document.getElementById('ds-ssh-password-wrap').style.display = auth === 'password' ? '' : 'none';
@@ -3131,6 +3237,7 @@ function formatBytes(bytes) {
           group: document.getElementById('ds-group').value.trim() || 'default',
         };
         const sshOn = document.getElementById('ds-ssh-section')?.style.display !== 'none';
+        payload.ssh_enabled = sshOn ? 1 : 0;
         payload.ssh_host = sshOn ? document.getElementById('ds-ssh-host').value.trim() : '';
         payload.ssh_port = sshOn ? (parseInt(document.getElementById('ds-ssh-port').value) || 22) : 22;
         payload.ssh_user = sshOn ? document.getElementById('ds-ssh-user').value.trim() : '';
@@ -3367,6 +3474,19 @@ function formatBytes(bytes) {
     <div class="nav-item" onclick="showPage('datasources')" id="nav-datasources">
       <span class="icon">🗄️</span> <span data-i18n="webui.nav_datasources">数据源管理</span>
     </div>
+    <div class="nav-item" onclick="showPage('sql-editor')" id="nav-sql-editor">
+      <span class="icon">📝</span> <span data-i18n="webui.nav_sql_editor">SQL 编辑器</span>
+    </div>
+    <div class="nav-item" onclick="showPage('remote-shell')" id="nav-remote-shell">
+      <span class="icon">🖥️</span> <span data-i18n="remote_shell.title">远程终端</span>
+    </div>
+    <div class="nav-item" onclick="showPage('inspection-config')" id="nav-inspection-config">
+      <span class="icon">📋</span> <span data-i18n="webui.nav_inspection_config">巡检配置管理</span>
+    </div>
+    <div class="nav-item" onclick="showPage('baseline-config')" id="nav-baseline-config">
+      <span class="icon">📏</span> <span data-i18n="baseline.management_title">基线配置管理</span>
+    </div>
+
     {% if pro_available %}
     <div class="nav-item" onclick="showPage('rules')" id="nav-rules">
       <span class="icon">📋</span> <span data-i18n="webui.nav_rules">规则引擎</span>
@@ -3381,9 +3501,11 @@ function formatBytes(bytes) {
     <div class="nav-item" onclick="showPage('ai')" id="nav-ai">
       <span class="icon">🤖</span> <span data-i18n="webui.nav_ai">AI 诊断设置</span>
     </div>
+    <!-- Oracle Client 设置已隐藏：oracledb.init_oracle_client() 支持自动检测，无需手动配置
     <div class="nav-item" onclick="showPage('oracle-client')" id="nav-oracle-client">
       <span class="icon">🔧</span> <span data-i18n="webui.nav_oracle_client">Oracle Client</span>
     </div>
+    -->
     <div class="nav-item" onclick="showPage('notifier')" id="nav-notifier">
       <span class="icon">📧</span> <span data-i18n="webui.nav_notifier">通知设置</span>
     </div>
@@ -3584,7 +3706,7 @@ function formatBytes(bytes) {
           <div class="step-line" id="sl2"></div>
           <div class="step" id="s3"><div class="dot">3</div><span data-i18n="webui.wizard_step3">SSH 配置</span></div>
           <div class="step-line" id="sl3"></div>
-          <div class="step" id="s4"><div class="dot">4</div><span data-i18n="webui.wizard_step4">巡检人员</span></div>
+          <div class="step" id="s4"><div class="dot">4</div><span data-i18n="webui.wizard_step4">巡检设置</span></div>
           <div class="step-line" id="sl4"></div>
           <div class="step" id="s5"><div class="dot">5</div><span data-i18n="webui.wizard_step5">执行巡检</span></div>
         </div>
@@ -3620,6 +3742,8 @@ function formatBytes(bytes) {
               <div class="tc-name" data-i18n="webui.db_pg_name">PostgreSQL</div>
               <div class="tc-desc" data-i18n="webui.db_pg_desc">适用于 PostgreSQL 10+ 实例，采集连接、缓存、Vacuum、索引、复制等核心指标。</div>
             </div>
+            <!-- SQL Server 卡片暂时屏蔽，待测试完成后恢复 -->
+            <!--
             <div class="type-card" id="tc-sqlserver" onclick="selectDbType('sqlserver')">
               <div class="tc-header">
                 <div class="tc-logo"><img src="/sqlserver.png" alt="DBCheck" style="width:36px;height:36px;"></div>
@@ -3628,6 +3752,7 @@ function formatBytes(bytes) {
               <div class="tc-name-row"><span data-i18n="webui.db_sqlserver_name">SQL Server</span><span class="beta-tag">Beta</span></div>
               <div class="tc-desc" data-i18n="webui.db_sqlserver_desc">适用于 SQL Server 2012+ 实例，采集连接、会话、等待统计、锁、备份等核心指标。</div>
             </div>
+            -->
             <div class="type-card" id="tc-dm" onclick="selectDbType('dm')">
               <div class="tc-header">
                 <div class="tc-logo"><img src="/dm.png" alt="DBCheck" style="width:36px;height:36px;"></div>
@@ -3703,7 +3828,7 @@ function formatBytes(bytes) {
             <div class="field full" id="f-sysdba-wrap" style="display:none">
               <label>
                 <input type="checkbox" id="f-sysdba" />
-                <span style="font-size: 13px" data-i18n="webui.checkbox_sysdba">以 SYSDBA 身份连接</span>
+                <span style="font-size: 13px; color: var(--text-muted)" data-i18n="webui.checkbox_sysdba">以 SYSDBA 身份连接</span>
               </label>
             </div>
           </div>
@@ -3725,11 +3850,11 @@ function formatBytes(bytes) {
             配置 SSH 后，巡检报告将包含 CPU、内存、磁盘等系统资源信息。可跳过此步骤仅采集数据库指标。
           </p>
           <div class="toggle-row" onclick="toggleSsh()">
-            <span class="toggle-label" data-i18n="webui.ssh_enable">启用 SSH 系统信息采集</span>
+            <span class="toggle-label" style="color:var(--text)" data-i18n="webui.ssh_enable">启用 SSH 系统信息采集</span>
             <span class="toggle-sub" id="ssh-toggle-sub" data-i18n="webui.ssh_enable_state_off">当前：未启用</span>
             <div class="toggle" id="ssh-toggle"></div>
           </div>
-          <div class="ssh-fields form-grid" id="ssh-fields">
+          <div class="ssh-fields form-grid" id="ssh-fields" style="display:none">
             <div class="field">
               <label data-i18n="webui.label_ssh_host">SSH 主机地址</label>
               <input type="text" id="f-ssh-host" data-i18n="webui.placeholder_ssh_host" placeholder="与数据库主机相同" />
@@ -3766,25 +3891,34 @@ function formatBytes(bytes) {
           </div>
         </div>
 
-        <!-- Step 4: 巡检人员 -->
+        <!-- Step 4: 巡检设置 -->
         <div id="step4" class="card" style="display:none">
           <div class="card-title">
-            <span>👤</span> <span data-i18n="webui.inspector_info">巡检人员信息</span>
+            <span>⚙️</span> <span data-i18n="webui.inspection_settings">巡检设置</span>
             <span class="badge" data-i18n="webui.step_badge">第 4 步 / 共 5 步</span>
           </div>
-          <div class="inspector-wrap">
-            <div class="inspector-avatar">👤</div>
-            <label data-i18n="webui.inspector_name_placeholder">巡检人员姓名（将显示在报告封面）</label>
-            <input type="text" id="f-inspector" placeholder="Jack" />
-          </div>
-          <div style="margin-top:20px;padding:14px 16px;background:rgba(255,200,0,0.08);border:1px solid rgba(255,200,0,0.25);border-radius:10px;display:flex;align-items:center;gap:10px">
-            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none">
-              <input type="checkbox" id="f-desensitize" style="width:16px;height:16px;accent-color:#ffc800" />
-              <span style="font-size:13px;color:var(--text)">
-                <span data-i18n="webui.desensitize_label" style="font-weight:600;color:#ffc800">🔒 脱敏导出报告</span>
-                <span style="color:var(--text-muted);font-size:12px;margin-left:4px" data-i18n="webui.desensitize_desc">IP / 端口 / 用户名 / 服务名将被替换为掩码</span>
-              </span>
-            </label>
+          <div style="padding:8px 0;">
+            <div style="margin-bottom:20px;">
+              <label style="font-weight:600;margin-bottom:8px;display:block;" data-i18n="webui.inspector_name_label">巡检人员姓名</label>
+              <input type="text" id="f-inspector" class="form-input" style="width:100%;" placeholder="Jack" data-i18n-ph="webui.placeholder_inspector" />
+              <div style="font-size:12px;color:var(--text-muted);margin-top:4px;" data-i18n="webui.inspector_name_hint">将显示在报告封面</div>
+            </div>
+            <div style="margin-bottom:20px;">
+              <label style="font-weight:600;margin-bottom:8px;display:block;">📋 <span data-i18n="webui.template_label">巡检模板</span></label>
+              <select id="f-template" class="form-input" style="width:100%;">
+                <option value="">使用默认模板（自动选择）</option>
+              </select>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:4px;" data-i18n="webui.template_hint">不选则自动根据数据库类型和版本匹配默认模板</div>
+            </div>
+            <div style="padding:14px 16px;background:rgba(255,200,0,0.08);border:1px solid rgba(255,200,0,0.25);border-radius:10px;display:flex;align-items:center;gap:10px">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none">
+                <input type="checkbox" id="f-desensitize" style="width:16px;height:16px;accent-color:#ffc800" />
+                <span style="font-size:13px;color:var(--text)">
+                  <span data-i18n="webui.desensitize_label" style="font-weight:600;color:#ffc800">🔒 脱敏导出报告</span>
+                  <span style="color:var(--text-muted);font-size:12px;margin-left:4px" data-i18n="webui.desensitize_desc">IP / 端口 / 用户名 / 服务名将被替换为掩码</span>
+                </span>
+              </label>
+            </div>
           </div>
           <div class="btn-row">
             <button class="btn btn-ghost" onclick="gotoStep(3)" data-i18n="webui.btn_prev">← 上一步</button>
@@ -3800,7 +3934,7 @@ function formatBytes(bytes) {
           </div>
           <!-- 信息确认卡 -->
           <div id="confirm-panel">
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:20px">
               <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 16px">
                 <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px" data-i18n="webui.cf_dbtype">数据库类型</div>
                 <div id="cf-dbtype" style="font-size:14px;font-weight:600"></div>
@@ -3820,6 +3954,10 @@ function formatBytes(bytes) {
               <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 16px">
                 <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px" data-i18n="webui.inspector_label">巡检人员</div>
                 <div id="cf-inspector" style="font-size:14px;font-weight:600"></div>
+              </div>
+              <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 16px">
+                <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">📋 巡检模板</div>
+                <div id="cf-template" style="font-size:14px;font-weight:600"></div>
               </div>
             </div>
             <div class="btn-row" style="justify-content:space-between">
@@ -3943,6 +4081,12 @@ function formatBytes(bytes) {
             <div class="field">
               <label data-i18n="webui.scheduler_db_type">数据库类型 <span class="req">*</span></label>
               <select id="job-db-type" onchange="onJobDbTypeChange()"></select>
+            </div>
+            <div class="field full">
+              <label>📋 巡检模板</label>
+              <select id="job-template" class="form-input">
+                <option value="">使用默认模板（硬编码）</option>
+              </select>
             </div>
             <div class="field">
               <label data-i18n="webui.label_host">主机地址 <span class="req">*</span></label>
@@ -4743,11 +4887,265 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
           <div id="rules-list" style="margin-top:12px;">
             <div style="text-align:center;padding:40px;color:var(--text-muted);" data-i18n="webui.rules_loading">正在加载规则...</div>
           </div>
+        </div><!-- /card -->
+      </div><!-- /page-rules -->
+
+      <!-- ══ Page: SQL 编辑器 ══ -->
+      <div class="page" id="page-sql-editor">
+        <div class="sql-editor-wrap">
+          <!-- 工具栏 -->
+          <div class="sql-toolbar">
+            <div class="sql-toolbar-left">
+              <span id="sql-curr-ds" class="sql-hint" data-i18n="sql_editor.no_datasource">未选择数据源</span>
+              <button class="btn btn-primary btn-sm" onclick="execSql()" id="btn-exec-sql">
+                ▶ <span data-i18n="sql_editor.execute">执行</span>
+              </button>
+              <button class="btn btn-ghost btn-sm" onclick="clearSql()">
+                <span data-i18n="sql_editor.clear">清空</span>
+              </button>
+              <span class="sql-hint" data-i18n="sql_editor.readonly_hint">只读模式：仅允许 SELECT / SHOW / EXPLAIN</span>
+            </div>
+            <div class="sql-toolbar-right">
+              <span id="sql-status" class="sql-status"></span>
+            </div>
+          </div>
+
+          <!-- 主体：左树 + 右编辑器 -->
+          <div class="sql-editor-main">
+            <!-- 左侧树面板 -->
+            <div class="sql-tree-panel" id="sql-tree-panel">
+                <div class="sql-tree-toolbar">
+                <span class="sql-tree-title" data-i18n="sql_editor.datasource">数据源</span>
+                <button class="btn btn-ghost btn-xs" onclick="loadSqlTree()" title="刷新树" style="font-size:13px;padding:2px 6px;" data-i18n="sql_editor.refresh_tree">↻</button>
+              </div>
+              <div class="sql-tree-body" id="sql-tree-body">
+                <div class="sql-tree-loading" data-i18n="sql_editor.loading">加载中...</div>
+              </div>
+            </div>
+            <div class="sql-splitter-v" id="sql-splitter-v"></div>
+
+            <!-- 右侧：编辑器 + 结果 -->
+            <div class="sql-right-panel" id="sql-right-panel">
+              <div class="sql-editor-pane" id="sql-pane-editor">
+                <div class="sql-editor-label" data-i18n="sql_editor.sql_input">SQL 语句</div>
+                <textarea id="sql-input-area" class="sql-raw-textarea" placeholder="输入 SQL，如：SELECT * FROM pg_stat_activity LIMIT 10" spellcheck="false"></textarea>
+                <div class="sql-shortcut-hint" data-i18n="sql_editor.shortcut_hint">Ctrl+Enter 执行 ｜ Ctrl+Shift+F 格式化</div>
+              </div>
+              <div class="sql-splitter" id="sql-splitter"></div>
+              <div class="sql-result-pane" id="sql-pane-result">
+                <div class="sql-editor-label">
+                  <span data-i18n="sql_editor.result">查询结果</span>
+                  <span id="sql-result-count"></span>
+                </div>
+                <div class="sql-result-table-wrap" id="sql-result-wrap">
+                  <div class="sql-no-result" data-i18n="sql_editor.no_result">执行查询后显示结果</div>
+                </div>
+                <div class="sql-scroll-loading" id="sql-scroll-loading" style="display:none;">
+                  <span class="sql-scroll-spinner"></span>
+                  <span data-i18n="sql_editor.loading">加载中...</span>
+                </div>
+                <div class="sql-scroll-done" id="sql-scroll-done" style="display:none;">
+                  <span data-i18n="sql_editor.all_loaded">已全部加载</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
+
       {% endif %}
 
 
+
+      <!-- 远程终端页面 -->
+      <div class="page" id="page-remote-shell" style="display:none;">
+        <div class="remote-shell-wrap">
+          <!-- 左面板 -->
+          <div class="remote-shell-left">
+            <!-- Tab 切换 -->
+            <div class="remote-shell-tabs">
+              <button class="remote-shell-tab active" data-tab="connection" onclick="switchRemoteTab('connection')" data-i18n="remote_shell.connection">连接</button>
+              <button class="remote-shell-tab" data-tab="files" onclick="switchRemoteTab('files')" data-i18n="remote_shell.file_management" style="display:none;">文件管理</button>
+            </div>
+            <!-- Tab 内容：连接 -->
+            <div class="remote-shell-tab-content" id="tab-connection">
+              <select id="remote-instance-select" class="form-select" style="width:100%;margin-bottom:8px;">
+                <option value="" data-i18n="remote_shell.select_instance">选择 SSH 数据源</option>
+              </select>
+              <div class="remote-shell-status" id="remote-status">
+                <span class="status-dot"></span>
+                <span data-i18n="remote_shell.disconnected">未连接</span>
+              </div>
+              <button class="btn btn-primary btn-sm" id="remote-connect-btn" onclick="connectRemoteShell()" data-i18n="remote_shell.connect">连接</button>
+              <button class="btn btn-danger btn-sm" id="remote-disconnect-btn" onclick="disconnectRemoteShell()" style="display:none;" data-i18n="remote_shell.disconnect">断开</button>
+            </div>
+            <!-- Tab 内容：文件管理（合并脚本管理和文件浏览） -->
+            <div class="remote-shell-tab-content" id="tab-files" style="display:none;">
+              <!-- 脚本区域 -->
+              <div class="remote-section">
+                <div class="remote-section-title">
+                  <span data-i18n="remote_shell.script_management">脚本</span>
+                  <button class="btn btn-xs" onclick="document.getElementById('remote-script-upload').click()" data-i18n="remote_shell.upload_script">上传</button>
+                </div>
+                <input type="file" id="remote-script-upload" accept=".sh,.bash,.zsh,.py,.txt" style="display:none;" onchange="uploadShellScript(this)" />
+                <div class="remote-shell-list" id="remote-script-list"></div>
+              </div>
+              <!-- 文件区域 -->
+              <div class="remote-section">
+                <div class="remote-section-title">
+                  <span data-i18n="remote_shell.file_management">文件</span>
+                  <button class="btn btn-xs" onclick="document.getElementById('remote-file-upload').click()" data-i18n="remote_shell.upload_file">上传</button>
+                </div>
+                <div class="remote-file-path">
+                  <input type="text" id="remote-file-path" value="~" class="form-input" style="font-size:12px;" />
+                  <button class="btn btn-xs" onclick="loadRemoteFiles()" data-i18n="remote_shell.browse">浏览</button>
+                </div>
+                <input type="file" id="remote-file-upload" style="display:none;" onchange="uploadFileToRemote(this)" />
+                <div class="remote-shell-list" id="remote-file-list"></div>
+              </div>
+            </div>
+          </div>
+          <!-- 右面板（终端） -->
+          <div class="remote-shell-right">
+            <div id="remote-terminal"></div>
+            <div class="remote-shell-footer">
+              <span id="remote-terminal-info">120x30</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 巡检配置管理页面 -->
+      <div class="page" id="page-inspection-config" style="display:none;">
+        <div class="page-header">
+          <h2 data-i18n="webui.nav_inspection_config">巡检配置管理</h2>
+        </div>
+        <div class="page-content" id="inspection-config-content">
+          <!-- 模板列表页面 -->
+          <div id="inspection-template-list-page">
+            <div class="page-toolbar">
+              <button class="btn btn-primary btn-sm" onclick="editInspectionTemplate(null)" data-i18n="webui.inspection_create_template">创建模板</button>
+            </div>
+            <div id="inspection-template-list" class="inspection-template-list">
+              <!-- 动态加载模板列表 -->
+            </div>
+          </div>
+
+          <!-- 模板编辑页面 -->
+          <div id="inspection-template-edit-page" style="display:none;">
+            <div class="page-toolbar">
+              <button class="btn btn-ghost btn-sm" onclick="showInspectionTemplateList()" data-i18n="webui.inspection_back_to_list">返回列表</button>
+              <button class="btn btn-primary btn-sm" onclick="saveInspectionTemplate()" data-i18n="webui.inspection_save_template">保存模板</button>
+              <button class="btn btn-sm btn-primary" onclick="addInspectionChapter()" data-i18n="webui.inspection_add_chapter">添加章节</button>
+              <button class="btn btn-sm" onclick="exportInspectionTemplate()" data-i18n="webui.inspection_export">导出</button>
+              <button class="btn btn-sm" onclick="importInspectionTemplate()" data-i18n="webui.inspection_import">导入</button>
+            </div>
+            <!-- 模板信息编辑区 -->
+            <div class="inspection-template-info">
+              <div class="form-row">
+                <div class="form-group" style="flex:2;">
+                  <label data-i18n="webui.inspection_template_name">模板名称</label>
+                  <input type="text" id="inspection-edit-name" class="form-input" placeholder="模板名称" />
+                </div>
+                <div class="form-group" style="flex:1;">
+                  <label>版本</label>
+                  <input type="text" id="inspection-edit-version" class="form-input" placeholder="如 v1, v2, v1-pg14" value="v1" />
+                </div>
+                <div class="form-group" style="flex:1;">
+                  <label data-i18n="webui.inspection_db_type">数据库类型</label>
+                  <select id="inspection-edit-db-type" class="form-input">
+                    <option value="mysql">MySQL</option>
+                    <option value="postgresql">PostgreSQL</option>
+                    <option value="oracle">Oracle</option>
+                    <option value="sqlserver">SQL Server</option>
+                    <option value="dm8">DM8 达梦</option>
+                    <option value="tidb">TiDB</option>
+                    <option value="ivorysql">IvorySQL</option>
+                  </select>
+                </div>
+                <div class="form-group" style="flex:0 0 auto;">
+                  <label><input type="checkbox" id="inspection-edit-default" /> <span data-i18n="webui.inspection_set_default">设为默认</span></label>
+                </div>
+              </div>
+              <div class="form-group">
+                <label data-i18n="webui.inspection_template_desc">模板描述</label>
+                <textarea id="inspection-edit-desc" class="form-textarea" rows="2" placeholder="模板描述"></textarea>
+              </div>
+            </div>
+            <div class="inspection-template-edit-layout">
+              <!-- 左侧：章节列表 -->
+              <div class="inspection-chapter-list-panel">
+                <div class="panel-header">
+                  <h3 data-i18n="webui.inspection_chapters">章节列表</h3>
+                </div>
+                <div id="inspection-chapter-list" class="chapter-list">
+                  <!-- 动态加载章节列表 -->
+                </div>
+              </div>
+              <!-- 右侧：章节详情 + SQL 查询列表 -->
+              <div class="inspection-chapter-detail-panel">
+                <div class="panel-header">
+                  <h3 data-i18n="webui.inspection_chapter_detail">章节详情</h3>
+                </div>
+                <div id="inspection-chapter-detail">
+                  <!-- 动态加载章节详情 -->
+                </div>
+                <div id="inspection-query-list">
+                  <!-- 动态加载 SQL 查询列表 -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 基线配置管理页面 -->
+      <div class="page" id="page-baseline-config" style="display:none;">
+        <div class="page-header">
+          <h2 data-i18n="baseline.management_title">基线配置管理</h2>
+          <p class="page-sub" data-i18n="baseline.management_desc" style="color:var(--text-muted);margin:4px 0 0">配置和管理数据库基线检查参数</p>
+        </div>
+        <div class="page-toolbar">
+          <div style="display:flex;gap:8px;align-items:center">
+            <select id="baseline-filter-db-type" class="form-input" style="width:auto;min-width:140px" onchange="filterBaselines()">
+              <option value="">所有数据库类型</option>
+              <option value="oracle">Oracle</option>
+              <option value="dm8">DM8 达梦</option>
+              <option value="mysql">MySQL</option>
+              <option value="postgresql">PostgreSQL</option>
+              <option value="ivorysql">IvorySQL</option>
+              <option value="sqlserver">SQL Server</option>
+              <option value="tidb">TiDB</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-outline-primary btn-sm" onclick="initDefaultBaselines()">
+              <i class="fas fa-magic"></i> <span data-i18n="baseline.init_default">初始化默认基线</span>
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="showBaselineModal(null)">
+              <i class="fas fa-plus"></i> <span data-i18n="baseline.add">添加基线配置</span>
+            </button>
+          </div>
+        </div>
+        <div class="table-wrap" style="margin-top:16px">
+          <table class="data-table" id="baseline-table">
+            <thead>
+              <tr>
+                <th data-i18n="baseline.db_type">数据库类型</th>
+                <th data-i18n="baseline.param_name">参数名称</th>
+                <th data-i18n="baseline.operator">运算符</th>
+                <th data-i18n="baseline.expected_value">期望值</th>
+                <th data-i18n="baseline.risk_level">风险等级</th>
+                <th data-i18n="baseline.enabled">启用</th>
+                <th data-i18n="webui.action">操作</th>
+              </tr>
+            </thead>
+            <tbody id="baseline-table-body">
+              <tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:32px">加载中...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
 
     </div><!-- /content -->
   </div><!-- /main -->
@@ -4949,10 +5347,22 @@ async function executeFixSql(taskId, sql) {
 
 // ─── Page Navigation ───
 function showPage(name) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  // 强制隐藏所有 .page 元素（不依赖 CSS 类）
+  document.querySelectorAll('.page').forEach(function(p) {
+    p.classList.remove('active');
+    p.style.display = 'none';
+  });
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   var pageEl = document.getElementById('page-' + name);
-  if (pageEl) pageEl.classList.add('active');
+  if (pageEl) {
+    pageEl.classList.add('active');
+    pageEl.style.display = 'flex';
+    // 远程终端页面用 row 布局（左右分栏），其他页面用 column
+    pageEl.style.flexDirection = (name === 'remote-shell') ? 'row' : 'column';
+    pageEl.style.flex = '1';
+    pageEl.style.minHeight = '0';
+    pageEl.style.width = '100%';
+  }
   var navEl = document.getElementById('nav-' + name);
   if (navEl) navEl.classList.add('active');
   const titles = {
@@ -4970,12 +5380,16 @@ function showPage(name) {
     apikey:  ['🔐 API Key 管理', '创建和管理 API 访问密钥'],
     account: ['👤 用户中心', '管理账户信息和安全设置'],
     'server-inspect': [i18n('webui.server_inspect_title') || '🖥️ 服务器巡检', i18n('webui.server_inspect_desc') || 'SSH 远程采集主机指标'],
+    'sql-editor': [i18n('webui.nav_sql_editor') || 'SQL 编辑器', ''],
     'server-history': [i18n('webui.nav_server_history') || '📜 服务器巡检历史', i18n('webui.server_history_desc') || '查看历史服务器巡检记录'],
+    'remote-shell': [i18n('webui.nav_remote_shell') || '远程终端', i18n('webui.nav_remote_shell_desc') || 'SSH 远程终端'],
+    'inspection-config': [i18n('webui.nav_inspection_config') || '巡检配置管理', '管理数据库巡检模板、章节和 SQL 查询'],
+    'baseline-config': [i18n('baseline.management_title') || '基线配置管理', i18n('baseline.management_desc') || '配置和管理数据库基线检查参数'],
     shares: ['🔗 分享管理', '管理已生成的巡检报告分享链接'],
   };
   const t = titles[name] || [name, ''];
   document.getElementById('topbar-title').textContent = t[0];
-  document.getElementById('topbar-sub').textContent = t[1];
+  document.getElementById('topbar-sub').textContent  = t[1];
   if (name === 'reports') loadReports();
   if (name === 'trend') loadTrendInstances();
   if (name === 'scheduler') loadSchedulerJobs();
@@ -4993,6 +5407,33 @@ function showPage(name) {
   if (name === 'server-history') loadServerHistory();
   if (name === 'account') loadAccountPage();
   if (name === 'oracle-client') loadOracleClientConfig();
+    if (name === 'remote-shell') {
+        initRemoteShellPage();
+        switchRemoteTab('connection');
+        loadRemoteInstances();
+        applyI18N();
+        // applyI18N() 会覆盖标题，需在其后重新设置
+        document.getElementById('topbar-title').textContent = i18n('webui.nav_remote_shell') || '远程终端';
+        document.getElementById('topbar-sub').textContent  = i18n('webui.nav_remote_shell_desc') || 'SSH 远程终端';
+    }
+    if (name === 'inspection-config') {
+        showInspectionConfigPage();
+    }
+    if (name === 'baseline-config') {
+        loadBaselines();
+    }
+  if (name === 'sql-editor') {
+    loadSqlTree();
+    setTimeout(initSqlEditor, 80);
+    // 切回 sql-editor 页面时刷新 CodeMirror 尺寸
+    setTimeout(function() { if (window.sqlEditor) window.sqlEditor.refresh(); }, 150);
+  }
+  // SQL 编辑器需要 height 约束（其他页面用 min-height 允许滚动）
+  var mainEl = document.querySelector('.main');
+  if (mainEl) {
+    if (name === 'sql-editor') { mainEl.classList.add('sql-editor-active'); }
+    else { mainEl.classList.remove('sql-editor-active'); }
+  }
 }
 
 // ─── 分享管理 ─────────────────────────────────────
@@ -5120,6 +5561,21 @@ function startWizard() {
 // ─── Steps ───
 const STEP_COUNT = 5;
 function gotoStep(n) {
+  // Step2 → Step3 校验：必须选择数据源或填写连接信息
+  if (n === 3) {
+    const dsSel = document.getElementById('f-datasource');
+    const hasDs = dsSel && dsSel.value;
+    if (!hasDs) {
+      const name  = (document.getElementById('f-name')  || {}).value.trim();
+      const host  = (document.getElementById('f-host')  || {}).value.trim();
+      const port  = (document.getElementById('f-port')  || {}).value.trim();
+      const user  = (document.getElementById('f-user')  || {}).value.trim();
+      if (!name || !host || !port || !user) {
+        toast(i18n('webui.wizard_conn_required') || '请选择已保存的数据源，或填写完整的数据库连接信息（实例标签、主机地址、端口、用户名）', 'warning');
+        return;
+      }
+    }
+  }
   for (let i = 1; i <= STEP_COUNT; i++) {
     document.getElementById('step' + i).style.display = (i === n) ? '' : 'none';
     const s = document.getElementById('s' + i);
@@ -5229,16 +5685,17 @@ async function executeFixSql(taskId, sql) {
 //  i18n 初始化
 // ══════════════════════════════════════════════════════════════
 
-function onDatasourceChange() {
+async function onDatasourceChange() {
   const dsId = document.getElementById('f-datasource').value;
   if (!dsId) { resetFormFromDatasource(); return; }
   // 显示加载状态
   document.getElementById('f-name').value = '加载中...';
-  // 调用解密接口获取密码
-  fetch('/api/pro/datasources/' + dsId + '/decrypt').then(r => r.json()).then(data => {
+  try {
+    const res = await fetch('/api/pro/datasources/' + dsId + '/decrypt');
+    const data = await res.json();
     if (data.ok && data.datasource) {
       const ds = data.datasource;
-      // 切换数据库类型，但不重载下拉框（保持当前选择）
+      // 切换数据库类型（selectDbType 内部已调用 loadInspectionTemplatesForSelect）
       if (ds.db_type) selectDbType(ds.db_type, true);
       document.getElementById('f-name').value = ds.name || '';
       document.getElementById('f-host').value = ds.host || '';
@@ -5252,6 +5709,23 @@ function onDatasourceChange() {
       if (ds.db_type === 'oracle') {
         document.getElementById('f-service-name').value = ds.service_name || '';
         document.getElementById('f-sysdba').checked = !!ds.sysdba;
+        // 静默检测 Oracle 版本，自动选择对应模板
+        try {
+          const tRes = await fetch('/api/test_db', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              db_type: 'oracle',
+              host: ds.host, port: ds.port, user: ds.user, password: ds.password,
+              service_name: ds.service_name || null,
+              sysdba: !!ds.sysdba,
+            })
+          });
+          const tdata = await tRes.json();
+          if (tdata.ok && tdata.oracle_major_version) {
+            autoSelectOracleTemplate(tdata.oracle_major_version);
+          }
+        } catch(e) { /* 版本检测失败不影响使用 */ }
       }
       // 自动填充 SSH 配置
       if (ds.ssh_host) {
@@ -5267,10 +5741,10 @@ function onDatasourceChange() {
       document.getElementById('f-name').value = '';
       toastError(i18n('webui.ds_load_fail'));
     }
-  }).catch(e => {
+  } catch(e) {
     document.getElementById('f-name').value = '';
     toastError('加载数据源失败: ' + e.message);
-  });
+  }
 }
 
 function resetFormFromDatasource() {
@@ -5300,18 +5774,22 @@ function selectDbType(type, skipReload) {
   if (!skipReload) {
     loadDatasourcesForSelect();
   }
+  // 加载对应数据库类型的巡检模板
+  loadInspectionTemplatesForSelect(type, 'f-template');
   document.getElementById('tc-mysql').classList.toggle('selected', type === 'mysql');
   document.getElementById('tc-pg').classList.toggle('selected', type === 'pg');
   document.getElementById('tc-dm').classList.toggle('selected', type === 'dm');
   document.getElementById('tc-oracle').classList.toggle('selected', type === 'oracle');
-  document.getElementById('tc-sqlserver').classList.toggle('selected', type === 'sqlserver');
+  // SQL Server 卡片已屏蔽，待测试完成后恢复
+  // document.getElementById('tc-sqlserver').classList.toggle('selected', type === 'sqlserver');
   document.getElementById('tc-tidb').classList.toggle('selected', type === 'tidb');
   document.getElementById('tc-ivorysql').classList.toggle('selected', type === 'ivorysql');
   document.getElementById('chk-mysql').textContent = type === 'mysql' ? '✓' : '';
   document.getElementById('chk-pg').textContent   = type === 'pg'    ? '✓' : '';
   document.getElementById('chk-dm').textContent = type === 'dm' ? '✓' : '';
   document.getElementById('chk-oracle').textContent = type === 'oracle' ? '✓' : '';
-  document.getElementById('chk-sqlserver').textContent = type === 'sqlserver' ? '✓' : '';
+  // SQL Server 卡片已屏蔽，待测试完成后恢复
+  // document.getElementById('chk-sqlserver').textContent = type === 'sqlserver' ? '✓' : '';
   document.getElementById('chk-tidb').textContent = type === 'tidb' ? '✓' : '';
   document.getElementById('chk-ivorysql').textContent = type === 'ivorysql' ? '✓' : '';
   // 默认端口 & 用户名
@@ -5326,6 +5804,48 @@ function selectDbType(type, skipReload) {
   // Oracle全面巡检：显示 SYSDBA 复选框
   var sysdbaWrap = document.getElementById('f-sysdba-wrap');
   if (sysdbaWrap) sysdbaWrap.style.display = type === 'oracle' ? '' : 'none';
+}
+
+// ─── 加载巡检模板列表到指定下拉框 ───
+async function loadInspectionTemplatesForSelect(dbType, selectId) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  sel.innerHTML = '<option value="">使用默认模板（自动选择）</option>';
+  try {
+    const res = await fetch('/api/inspection/templates?db_type=' + encodeURIComponent(dbType));
+    const data = await res.json();
+    if (data.success && data.data) {
+      data.data.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.id;
+        const defaultTag = t.is_default ? ' ★' : '';
+        opt.textContent = `[${t.version || 'v1'}] ${t.template_name || t.template_name_zh || '未命名'}${defaultTag}`;
+        opt.dataset.isDefault = t.is_default ? '1' : '0';
+        sel.appendChild(opt);
+      });
+      // 有模板：自动选中第一条默认模板，没有则选中第一条
+      if (data.data.length > 0) {
+        const defaultOpt = Array.from(sel.options).find(o => o.dataset.isDefault === '1');
+        sel.value = defaultOpt ? defaultOpt.value : sel.options[1].value;
+      }
+    }
+  } catch(e) { /* 静默失败，不影响使用默认模板 */ }
+}
+
+// ─── 根据 Oracle 版本自动选择模板 ───
+function autoSelectOracleTemplate(ver) {
+  const tmplSel = document.getElementById('f-template');
+  if (!tmplSel || !ver || tmplSel.options.length <= 1) return;
+  // 11g：自动选中名称含 "11g" 的模板
+  if (ver < 12) {
+    for (const opt of tmplSel.options) {
+      const txt = opt.textContent || '';
+      if (txt.includes('11g')) {
+        tmplSel.value = opt.value;
+        return;
+      }
+    }
+  }
 }
 
 // ─── Test DB (新建巡检页) ───
@@ -5349,7 +5869,17 @@ async function testDb() {
     });
     const data = await res.json();
     if (data.ok) {
-      el.innerHTML = `<div class="status-banner ok">${i18n('webui.connection_ok')}：${escHtml(data.msg)}</div>`;
+      let extraHtml = '';
+      // Oracle 版本检测：自动推荐对应模板
+      if (dbType === 'oracle' && data.oracle_major_version) {
+        const ver = data.oracle_major_version;
+        const verSuffix = (ver === 10 || ver === 11) ? 'g' : 'c';
+        extraHtml = `<div style="margin-top:8px;padding:8px 12px;background:rgba(76,175,80,0.1);border:1px solid rgba(76,175,80,0.3);border-radius:6px;font-size:12px;color:#4caf50">
+          ✅ 检测到 Oracle ${ver}${verSuffix}
+        </div>`;
+        autoSelectOracleTemplate(ver);
+      }
+      el.innerHTML = `<div class="status-banner ok">${i18n('webui.connection_ok')}：${escHtml(data.msg)}</div>${extraHtml}`;
     } else {
       el.innerHTML = `<div class="status-banner err">${i18n('webui.connection_fail')}：${escHtml(data.msg)}</div>`;
     }
@@ -5520,7 +6050,9 @@ function toggleSsh() {
   sshEnabled = !sshEnabled;
   document.getElementById('ssh-toggle').className = 'toggle' + (sshEnabled ? ' on' : '');
   document.getElementById('ssh-toggle-sub').textContent = sshEnabled ? i18n('webui.ssh_enable_state_on') : i18n('webui.ssh_enable_state_off');
-  document.getElementById('ssh-fields').className = 'ssh-fields form-grid' + (sshEnabled ? ' visible' : '');
+  var el = document.getElementById('ssh-fields');
+  el.className = 'ssh-fields form-grid' + (sshEnabled ? ' visible' : '');
+  el.style.display = sshEnabled ? '' : 'none';
   document.getElementById('btn-test-ssh').style.display = sshEnabled ? '' : 'none';
   if (sshEnabled && !document.getElementById('f-ssh-host').value) {
     document.getElementById('f-ssh-host').value = document.getElementById('f-host').value;
@@ -5709,6 +6241,14 @@ function fillConfirmPanel() {
   document.getElementById('cf-conn').textContent = `${host}:${port}`;
   document.getElementById('cf-ssh').textContent = sshLabel;
   document.getElementById('cf-inspector').textContent = document.getElementById('f-inspector').value.trim() || 'Jack';
+  // 显示选中的巡检模板
+  const tmplSel = document.getElementById('f-template');
+  if (tmplSel && tmplSel.value) {
+    const selectedOpt = tmplSel.options[tmplSel.selectedIndex];
+    document.getElementById('cf-template').textContent = selectedOpt.textContent;
+  } else {
+    document.getElementById('cf-template').textContent = '默认模板（自动选择）';
+  }
 }
 
 // ─── Start Inspection ───
@@ -5738,6 +6278,9 @@ async function startInspection() {
     payload.ssh_password = document.getElementById('f-ssh-password').value;
     payload.ssh_key_file = document.getElementById('f-ssh-key').value.trim();
   }
+  // 附加巡检模板 ID
+  const templateId = document.getElementById('f-template')?.value;
+  if (templateId) payload.template_id = parseInt(templateId);
 
   try {
     const res = await fetch('/api/start_inspection', {
@@ -7325,6 +7868,8 @@ function onJobDbTypeChange() {
 
   // 更新数据源下拉框（仅显示匹配类型的数据源）
   loadJobDatasources(dbType);
+  // 加载对应数据库类型的巡检模板
+  loadInspectionTemplatesForSelect(dbType, 'job-template');
 }
 
 async function loadJobDatasources(dbType) {
@@ -7517,6 +8062,8 @@ async function saveJob() {
         day: document.getElementById('job-cron-day').value
       }
     };
+    const tmplId = document.getElementById('job-template')?.value;
+    if (tmplId) jobData.template_id = parseInt(tmplId);
     const res = await fetch('/api/scheduler/jobs', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
@@ -7551,6 +8098,8 @@ async function saveJob() {
       day: document.getElementById('job-cron-day').value
     }
   };
+  const tmplId = document.getElementById('job-template')?.value;
+  if (tmplId) jobData.template_id = parseInt(tmplId);
   
   try {
     const res = await fetch('/api/scheduler/jobs', {
@@ -8525,6 +9074,470 @@ async function executeFixSql(taskId, sql) {
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(20px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── SQL 编辑器 ─── */
+/* 当 main 处于 sql-editor 模式时，整个 flex 链切换为精确高度约束 */
+.main.sql-editor-active {
+  height: 100vh;
+  min-height: 100vh;
+  overflow: hidden;
+}
+.main.sql-editor-active .content {
+  overflow: hidden;
+  padding: 20px 24px;
+}
+#page-sql-editor {
+  height: 100%;
+  overflow: hidden;
+}
+#page-sql-editor .sql-editor-wrap {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.sql-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.sql-toolbar-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sql-toolbar-right { display: flex; align-items: center; gap: 8px; }
+.sql-select {
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 13px;
+  min-width: 200px;
+}
+.sql-hint { font-size: 11px; color: var(--text-muted); }
+.sql-status { font-size: 12px; color: var(--success); }
+.sql-status.error { color: var(--danger); }
+
+.sql-editor-main {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  gap: 6px;
+  min-height: 0;
+  overflow: hidden;
+}
+/* ─── 左侧树面板 ─── */
+.sql-tree-panel {
+  width: 280px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.sql-tree-toolbar {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.sql-tree-toolbar .sql-tree-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.sql-tree-body {
+  flex: 1;
+  overflow: auto;
+  padding: 6px 0;
+  font-size: 13px;
+}
+/* 树节点 */
+.sql-tree-node {
+  padding: 4px 8px 4px 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text);
+  transition: background 0.1s;
+  user-select: none;
+}
+.sql-tree-node:hover {
+  background: var(--surface2);
+}
+.sql-tree-node.selected {
+  background: rgba(56,139,253,0.18);
+  color: var(--accent2);
+}
+.sql-tree-node .tree-toggle {
+  display: inline-block;
+  width: 16px;
+  text-align: center;
+  font-size: 10px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: transform 0.15s;
+}
+.sql-tree-node .tree-toggle.expanded {
+  transform: rotate(90deg);
+}
+.sql-tree-node .tree-toggle.leaf {
+  visibility: hidden;
+}
+.sql-tree-node .tree-icon {
+  flex-shrink: 0;
+  font-size: 14px;
+}
+.sql-tree-node .tree-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 树子节点缩进 */
+.sql-tree-children {
+  display: none;
+}
+.sql-tree-children.expanded {
+  display: block;
+}
+.sql-tree-children .sql-tree-node {
+  padding-left: 28px;
+}
+.sql-tree-children .sql-tree-children .sql-tree-node {
+  padding-left: 44px;
+}
+.sql-tree-loading {
+  padding: 4px 8px 4px 28px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+/* ─── 垂直分割条 ─── */
+.sql-splitter-v {
+  width: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  cursor: col-resize;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.sql-splitter-v:hover,
+.sql-splitter-v.active {
+  background: var(--accent2);
+}
+/* ─── 右侧面板 ─── */
+.sql-right-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+.sql-splitter {
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  cursor: row-resize;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.sql-splitter:hover,
+.sql-splitter.active {
+  background: var(--accent2);
+}
+.sql-editor-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 60px;
+  min-width: 0;
+  overflow: hidden;
+}
+.sql-result-pane {
+  flex: 1.2;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 60px;
+  min-width: 0;
+  overflow: hidden;
+}
+.sql-editor-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sql-raw-textarea {
+  flex: 1;
+  width: 100%;
+  background: #1e1e2e;
+  color: #a6e3a1;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  resize: none;
+  outline: none;
+  tab-size: 4;
+}
+.sql-raw-textarea:focus { border-color: var(--accent2); }
+/* CodeMirror 替换 textarea 后占满父容器 */
+.sql-editor-pane .CodeMirror {
+  flex: 1;
+  width: 100%;
+  height: auto !important;
+  min-height: 0;
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace !important;
+  font-size: 13px !important;
+  background: #282a36 !important;
+}
+.sql-editor-pane .CodeMirror-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.sql-editor-pane .CodeMirror-scroll {
+  flex: 1;
+  min-height: 0;
+}
+.sql-editor-pane .CodeMirror-gutters {
+  background: #21222c !important;
+  border-right: 1px solid #44475a !important;
+}
+.sql-shortcut-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: right;
+}
+.sql-result-table-wrap {
+  flex: 1;
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0;
+  min-width: 0;
+}
+.sql-no-result {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.sql-result-table-wrap table {
+  border-collapse: collapse;
+  font-size: 12px;
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+}
+.sql-result-table-wrap th {
+  position: sticky;
+  top: 0;
+  background: var(--surface2);
+  color: var(--accent2);
+  padding: 6px 10px;
+  text-align: left;
+  border-bottom: 2px solid var(--border);
+  white-space: nowrap;
+}
+.sql-result-table-wrap td {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.sql-result-table-wrap {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  min-height: 120px;
+  max-height: 55vh;
+}
+.sql-result-table-wrap tr:hover td { background: var(--surface2); }
+
+/* 滚动加载提示 */
+.sql-scroll-loading, .sql-scroll-done {
+  text-align: center;
+  padding: 8px 0 6px 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  display: none;
+}
+.sql-scroll-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent2);
+  border-radius: 50%;
+  animation: sqlSpin 0.7s linear infinite;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+@keyframes sqlSpin {
+  to { transform: rotate(360deg); }
+}
+/* SQL 结果表格行号列 */
+.sql-rn-col {
+  width: 42px;
+  min-width: 42px;
+  max-width: 60px;
+  text-align: center !important;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--surface2) !important;
+  border-right: 1px solid var(--border);
+  user-select: none;
+}
+.sql-rn {
+  text-align: center !important;
+  color: var(--text-muted);
+  font-size: 12px;
+  background: var(--surface2) !important;
+  border-right: 1px solid var(--border);
+  user-select: none;
+  white-space: nowrap;
+}
+/* 远程终端 */
+.remote-shell-wrap {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  gap: 10px;
+  overflow: hidden;
+}
+.remote-shell-left {
+  width: 320px;
+  border-right: 1px solid var(--border);
+  padding: 10px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.remote-shell-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.remote-shell-tabs {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+.remote-shell-tab {
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  cursor: pointer;
+  border-radius: 4px;
+}
+.remote-shell-tab.active {
+  background: var(--accent);
+  color: white;
+}
+.remote-shell-tab-content {
+  display: none;
+}
+.remote-shell-tab-content.active {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding-top: 10px;
+}
+#remote-terminal {
+  flex: 1;
+  background: #000;
+  padding: 5px;
+  border-radius: 4px;
+}
+.remote-shell-status {
+  margin: 10px 0;
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 5px;
+}
+.status-dot.connected {
+  background: #22c55e;
+}
+.status-dot.disconnected {
+  background: #ef4444;
+}
+.remote-shell-list {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  margin-top: 10px;
+}
+.remote-shell-list-item {
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  font-size: 13px;
+}
+.remote-shell-list-item:hover {
+  background: var(--bg-hover);
+}
+.remote-shell-footer {
+  padding: 5px 10px;
+  background: var(--surface2);
+  font-size: 12px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+}
+.remote-file-path {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+.remote-file-path input {
+  flex: 1;
+}
+/* 合并后的文件管理区域 */
+.remote-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.remote-section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  background: var(--surface2);
+  font-size: 13px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+}
+.remote-section-title .btn-xs {
+  padding: 2px 8px;
+  font-size: 11px;
 }
 </style>
 
@@ -9933,8 +10946,17 @@ if (typeof socket !== 'undefined') {
       currentChatTaskId = null;
     }
   });
-  // 巡检进度步骤动画
+  // 实时日志（后端 emit('log', ...) 的实时消息）
+  socket.on('log', function(data) {
+    if (data && data.msg && data.msg.trim()) {
+      addChatMessage(data.msg, 'system', false);
+    }
+  });
+  // 巡检进度步骤
   socket.on('inspection_step', function(data) {
+    if (data && data.msg) {
+      addChatMessage(data.msg, 'system', false);
+    }
   });
 }
 
@@ -10990,6 +12012,1032 @@ document.addEventListener('keydown', function(e) {
 
 </script>
 
+
+  <script src="/static/codemirror/lib/codemirror.js"></script>
+  <script src="/static/codemirror/mode/sql/sql.js"></script>
+  <script src="/static/codemirror/addon/edit/matchbrackets.js"></script>
+  <script src="/static/codemirror/addon/hint/show-hint.js"></script>
+  <script src="/static/codemirror/addon/hint/sql-hint.js"></script>
+  <script src="/static/codemirror/addon/display/placeholder.js"></script>
+  <script src="/static/js/inspection_config.js"></script>
+  <script src="/static/js/Sortable.min.js"></script>
+
+<script>
+// ─── SQL 编辑器功能 ─────────────────────────────────────
+var sqlEditor = null;
+
+function initSqlEditor(retry) {
+  retry = retry || 0;
+  var textarea = document.getElementById('sql-input-area');
+  if (!textarea) {
+    if (retry < 5) setTimeout(function() { initSqlEditor(retry + 1); }, 100);
+    return;
+  }
+  if (sqlEditor) return;
+  try {
+    sqlEditor = CodeMirror.fromTextArea(textarea, {
+      mode: 'text/x-sql',
+      theme: 'dracula',
+      lineNumbers: true,
+      matchBrackets: true,
+      indentUnit: 4,
+      tabSize: 4,
+      indentWithTabs: false,
+      lineWrapping: true,
+      extraKeys: {
+        "Ctrl-Enter": execSql,
+        "Ctrl-Shift-F": formatSql
+      },
+      hintOptions: { tables: {} }
+    });
+    setTimeout(function() { sqlEditor.refresh(); }, 120);
+    console.log('[initSqlEditor] CodeMirror initialized');
+  } catch(e) {
+    console.error('[initSqlEditor] error:', e);
+    if (retry < 5) setTimeout(function() { initSqlEditor(retry + 1); }, 200);
+  }
+}
+
+function getSqlEditorText() {
+  return sqlEditor ? sqlEditor.getValue() : document.getElementById('sql-input-area').value;
+}
+
+function setSqlEditorText(text) {
+  if (sqlEditor) sqlEditor.setValue(text);
+  else document.getElementById('sql-input-area').value = text;
+}
+
+// ─── SQL 树：全局状态 ───
+window._sqlCurrDs  = null;
+window._sqlCurrDb  = null;
+window._sqlCurrType = null;  // 'ds'|'db'|'table'|'view'
+
+// ─── 事件委托：绑定树面板点击（只绑一次）───
+(function(){
+  var body = document.getElementById('sql-tree-body');
+  if (!body || body.dataset._delegated) return;
+  body.dataset._delegated = '1';
+  body.addEventListener('click', function(ev) {
+    // 点击了箭头 → 展开/折叠
+    var tog = ev.target.closest('.tree-toggle');
+    if (tog) {
+      ev.stopPropagation();
+      var node = tog.closest('.sql-tree-node');
+      if (!node) return;
+      var type = node.getAttribute('data-type');
+      var dsId = node.getAttribute('data-ds-id');
+      var dbName = node.getAttribute('data-db') || '';
+      if (type === 'ds') {
+        treeToggleDs(dsId, tog);
+      } else if (type === 'db') {
+        treeToggleDb(dsId, dbName, tog);
+      }
+      return;
+    }
+    // 点击了节点文字/图标 → 选中
+    var sel = ev.target.closest('.sql-tree-node');
+    if (sel) {
+      treeSelect(sel);
+    }
+  });
+})();
+
+// ─── 加载树：数据源列表 ───
+async function loadSqlTree() {
+  var body = document.getElementById('sql-tree-body');
+  if (!body) return;
+  body.innerHTML = '<div class="sql-tree-loading">加载中...</div>';
+  try {
+    var res  = await fetch('/api/pro/datasources');
+    var data = await res.json();
+    if (!data.datasources || !data.datasources.length) {
+      body.innerHTML = '<div class="sql-tree-loading">暂无数据源，请先在「数据源管理」中添加</div>';
+      return;
+    }
+    var html = '';
+    data.datasources.forEach(function(ds) {
+      var dsId  = ds.id;
+      var label = (ds.name || (ds.host + ':' + ds.port));
+      var type  = (ds.db_type || '').toLowerCase().replace('oracle_full','oracle');
+      html += '<div class="sql-tree-node" data-type="ds" data-ds-id="' + dsId + '">'
+            +   '<span class="tree-toggle" id="tree-toggle-ds-' + dsId + '">▶</span>'
+            +   '<span class="tree-icon">🗄</span>'
+            +   '<span class="tree-label">' + escapeHtml(label) + ' <small style="color:var(--text-muted)">(' + type + ')</small></span>'
+            + '</div>';
+      html += '<div class="sql-tree-children" id="tree-children-ds-' + dsId + '"></div>';
+    });
+    body.innerHTML = html;
+  } catch(e) {
+    body.innerHTML = '<div class="sql-tree-loading" style="color:var(--danger)">加载失败: ' + escapeHtml(e.message) + '</div>';
+  }
+}
+
+// ─── 展开/折叠数据源 → 加载数据库列表 ───
+async function treeToggleDs(dsId, toggleEl) {
+  var children = document.getElementById('tree-children-ds-' + dsId);
+  if (!children) return;
+  // 已加载过则直接切换
+  if (children.children.length > 0) {
+    var isExp = children.classList.toggle('expanded');
+    toggleEl.classList.toggle('expanded', isExp);
+    toggleEl.classList.toggle('leaf', !isExp);
+    return;
+  }
+  children.innerHTML = '<div class="sql-tree-loading">加载中...</div>';
+  try {
+    var res  = await fetch('/api/pro/datasources/' + dsId + '/databases');
+    var data = await res.json();
+    if (data.error) { children.innerHTML = '<div class="sql-tree-loading" style="color:var(--danger)">' + escapeHtml(data.error) + '</div>'; return; }
+    var html = '';
+    (data.databases || []).forEach(function(dbName) {
+      var safeId = dbName.replace(/[^a-zA-Z0-9]/g,'_');
+      html += '<div class="sql-tree-node" data-type="db" data-ds-id="' + dsId + '" data-db="' + escapeHtml(dbName) + '">'
+            +   '<span class="tree-toggle" id="tree-toggle-db-' + dsId + '-' + safeId + '">▶</span>'
+            +   '<span class="tree-icon">🗃</span>'
+            +   '<span class="tree-label">' + escapeHtml(dbName) + '</span>'
+            + '</div>';
+      html += '<div class="sql-tree-children" id="tree-children-db-' + dsId + '-' + safeId + '"></div>';
+    });
+    children.innerHTML = html || '<div class="sql-tree-loading">无数据库</div>';
+    children.classList.add('expanded');
+    toggleEl.classList.add('expanded');
+    toggleEl.classList.remove('leaf');
+  } catch(e) {
+    children.innerHTML = '<div class="sql-tree-loading" style="color:var(--danger)">请求失败</div>';
+  }
+}
+
+// ─── 展开/折叠数据库 → 加载表/视图 ───
+async function treeToggleDb(dsId, dbName, toggleEl) {
+  var safeId = dbName.replace(/[^a-zA-Z0-9]/g,'_');
+  var childrenId = 'tree-children-db-' + dsId + '-' + safeId;
+  console.log('[treeToggleDb] dsId=' + dsId + ' dbName=' + dbName + ' childrenId=' + childrenId);
+  var children = document.getElementById(childrenId);
+  if (!children) return;
+  if (children.children.length > 0) {
+    var isExp = children.classList.toggle('expanded');
+    toggleEl.classList.toggle('expanded', isExp);
+    toggleEl.classList.toggle('leaf', !isExp);
+    return;
+  }
+  children.innerHTML = '<div class="sql-tree-loading">加载中...</div>';
+  try {
+    var res  = await fetch('/api/pro/datasources/' + dsId + '/objects?database=' + encodeURIComponent(dbName));
+    var data = await res.json();
+    if (data.error) { children.innerHTML = '<div class="sql-tree-loading" style="color:var(--danger)">' + escapeHtml(data.error) + '</div>'; return; }
+    var html = '';
+    (data.tables || []).forEach(function(tbl) {
+      html += '<div class="sql-tree-node leaf" data-type="table" data-ds-id="' + dsId + '" data-db="' + escapeHtml(dbName) + '">'
+            +   '<span class="tree-toggle leaf">•</span>'
+            +   '<span class="tree-icon">📋</span>'
+            +   '<span class="tree-label">' + escapeHtml(tbl) + '</span>'
+            + '</div>';
+    });
+    (data.views || []).forEach(function(vw) {
+      html += '<div class="sql-tree-node leaf" data-type="view" data-ds-id="' + dsId + '" data-db="' + escapeHtml(dbName) + '">'
+            +   '<span class="tree-toggle leaf">•</span>'
+            +   '<span class="tree-icon">👁</span>'
+            +   '<span class="tree-label">' + escapeHtml(vw) + '</span>'
+            + '</div>';
+    });
+    children.innerHTML = html || '<div class="sql-tree-loading">无对象</div>';
+    children.classList.add('expanded');
+    toggleEl.classList.add('expanded');
+    toggleEl.classList.remove('leaf');
+  } catch(e) {
+    children.innerHTML = '<div class="sql-tree-loading" style="color:var(--danger)">请求失败</div>';
+  }
+}
+
+// ─── 选中树节点 ───
+function treeSelect(el) {
+  document.querySelectorAll('.sql-tree-node.selected').forEach(function(n) { n.classList.remove('selected'); });
+  el.classList.add('selected');
+  var type   = el.getAttribute('data-type');
+  var dsId   = el.getAttribute('data-ds-id');
+  var dbName = el.getAttribute('data-db') || '';
+  window._sqlCurrDs   = (type === 'ds' || type === 'db' || type === 'table' || type === 'view') ? String(dsId) : null;
+  window._sqlCurrDb   = (type === 'db' || type === 'table' || type === 'view') ? dbName : '';
+  window._sqlCurrType = type || null;
+  // 点击节点文字时也触发展开/折叠
+  if (type === 'ds') {
+    var tog = document.getElementById('tree-toggle-ds-' + dsId);
+    if (tog) tog.click();
+  } else if (type === 'db') {
+    var safe = dbName.replace(/[^a-zA-Z0-9]/g,'_');
+    var tog = document.getElementById('tree-toggle-db-' + dsId + '-' + safe);
+    if (tog) tog.click();
+  }
+  // 更新工具栏显示
+  var currEl = document.getElementById('sql-curr-ds');
+  if (currEl) {
+    var txt = '';
+    if (window._sqlCurrDs) {
+      var dsLabel = el.closest('.sql-tree-node[data-type="ds"]');
+      var name = dsLabel ? dsLabel.querySelector('.tree-label').textContent.split('(')[0].trim() : ('DS#' + dsId);
+      txt = '🗄 ' + name;
+      if (window._sqlCurrDb) txt += ' › ' + window._sqlCurrDb;
+      if (type === 'table' || type === 'view') txt += '.' + el.querySelector('.tree-label').textContent.trim();
+    }
+    currEl.textContent = txt || '未选择数据源';
+  }
+}
+
+async function execSql() {
+  var sql = getSqlEditorText().trim();
+  if (!window._sqlCurrDs) { alert('请在左侧树中选择数据源'); return; }
+  if (!sql) { alert('请输入 SQL'); return; }
+  // 重置分页状态（游标模式）
+  window._sqlPage = { cursor_id: null, has_more: false, limit: 200 };
+
+  var status = document.getElementById('sql-status');
+  var wrap = document.getElementById('sql-result-wrap');
+  var loadMore = document.getElementById('sql-load-more');
+  if (status) { status.textContent = '执行中...'; status.className = 'sql-status'; }
+  if (wrap) wrap.innerHTML = '<div class="sql-no-result">执行中...</div>';
+  if (loadMore) loadMore.style.display = 'none';
+
+  try {
+    var body = {instance_id: window._sqlCurrDs, sql: sql};
+    if (window._sqlCurrDb) body.database = window._sqlCurrDb;
+    var res = await fetch('/api/execute_sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body)
+    });
+    var data = await res.json();
+    var success = !data.error && data.rows !== undefined;
+    if (status) {
+      status.textContent = success ? ('✅ 成功 (' + (data.row_count || data.rows.length) + ' 行)') : ('❌ ' + (data.error || '执行失败'));
+      status.className = success ? 'sql-status' : 'sql-status error';
+    }
+    if (success) {
+      renderSqlResult(data.columns || [], data.rows, false);
+      var countEl = document.getElementById('sql-result-count');
+      var _rowsCount = data.row_count || data.rows.length;
+      if (countEl) countEl.textContent = '(' + (I18N['sql_editor.rows_returned']||'返回 {n} 行').replace(/\{n\}/g, _rowsCount) + ')';
+      // 分页状态（游标模式）
+      window._sqlPage = {
+        cursor_id: data.cursor_id || null,
+        has_more: !!data.has_more,
+        limit: 200,
+        loaded_count: data.rows.length,
+        _loading: false
+      };
+      // 显示/隐藏滚动加载状态
+      var loadingEl = document.getElementById('sql-scroll-loading');
+      var doneEl    = document.getElementById('sql-scroll-done');
+      if (loadingEl) loadingEl.style.display = 'none';
+      if (doneEl)    doneEl.style.display    = window._sqlPage.has_more ? 'none' : 'block';
+      // 绑定滚动加载
+      _bindSqlScrollLoad();
+    } else if (!data.error) {
+      if (wrap) wrap.innerHTML = '<div class="sql-no-result">' + (data.message || '执行成功') + '</div>';
+    } else {
+      if (wrap) wrap.innerHTML = '<div class="sql-no-result" style="color:var(--danger)">' + (data.error || '执行失败') + '</div>';
+    }
+  } catch(e) {
+    if (status) { status.textContent = '❌ 请求失败'; status.className = 'sql-status error'; }
+    if (wrap) wrap.innerHTML = '<div class="sql-no-result" style="color:var(--danger)">请求失败: ' + e.message + '</div>';
+  }
+}
+
+function renderSqlResult(columns, rows, append) {
+  var wrap = document.getElementById('sql-result-wrap');
+  if (!wrap) return;
+  var table = wrap.querySelector('table');
+  if (!append || !table) {
+    // 新建表格
+    var _startIdx = 1;
+    var html = '<table><thead><tr>';
+    html += '<th class="sql-rn-col">#</th>';
+    columns.forEach(function(col) { html += '<th>' + escapeHtml(col) + '</th>'; });
+    html += '</tr></thead><tbody>';
+    rows.forEach(function(row, _idx) {
+      html += '<tr>';
+      html += '<td class="sql-rn">' + (_startIdx + _idx) + '</td>';
+      row.forEach(function(cell) {
+        html += '<td>' + escapeHtml(String(cell === null ? 'NULL' : cell)) + '</td>';
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+  } else {
+    // 追加模式：找到 tbody，追加 <tr>
+    var tbody = table.querySelector('tbody');
+    if (!tbody) { tbody = table.createTBody(); }
+    var _existRows = tbody.querySelectorAll('tr').length;
+    rows.forEach(function(row, _idx) {
+      var tr = document.createElement('tr');
+      var _rnTd = document.createElement('td');
+      _rnTd.className = 'sql-rn';
+      _rnTd.textContent = _existRows + _idx + 1;
+      tr.appendChild(_rnTd);
+      row.forEach(function(cell) {
+        var td = document.createElement('td');
+        td.textContent = String(cell === null ? 'NULL' : cell);
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+  }
+}
+
+function escapeHtml(text) {
+  var div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// ── 滚动触发布加载 ─────────────────────────────────────────────
+var _sqlScrollHandler = null;   // 上一次绑定的 scroll 闭包引用
+var _sqlScrollWrap   = null;   // 当前绑定的 wrap 元素
+
+function _bindSqlScrollLoad() {
+  // 先解绑旧监听（防止重复绑定）
+  var wrap = document.getElementById('sql-result-wrap');
+  if (!wrap) return;
+  if (_sqlScrollHandler && _sqlScrollWrap) {
+    _sqlScrollWrap.removeEventListener('scroll', _sqlScrollHandler);
+  }
+  _sqlScrollWrap = wrap;
+
+  var _debounceTimer = null;
+
+  _sqlScrollHandler = function(e) {
+    var el = e.currentTarget;
+    // 距底部 < 80px 视为"到底部"
+    var threshold = 80;
+    if (el.scrollTop + el.clientHeight < el.scrollHeight - threshold) return;
+
+    // 防抖：150ms 内只触发一次
+    if (_debounceTimer) return;
+    _debounceTimer = setTimeout(function() { _debounceTimer = null; }, 150);
+
+    _doSqlScrollLoad();
+  };
+
+  wrap.addEventListener('scroll', _sqlScrollHandler);
+}
+
+async function _doSqlScrollLoad() {
+  if (!window._sqlPage || !window._sqlPage.has_more || !window._sqlPage.cursor_id) return;
+  if (window._sqlPage._loading) return;   // 正在加载，跳过
+  window._sqlPage._loading = true;
+
+  var loadingEl = document.getElementById('sql-scroll-loading');
+  var doneEl    = document.getElementById('sql-scroll-done');
+  if (loadingEl) loadingEl.style.display = 'block';
+
+  try {
+    var body = { cursor_id: window._sqlPage.cursor_id };
+    var res  = await fetch('/api/execute_sql', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body)
+    });
+    var data = await res.json();
+
+    if (data.error) {
+      if (loadingEl) loadingEl.style.display = 'none';
+      // 游标失效，停止滚动加载
+      window._sqlPage.cursor_id = null;
+      window._sqlPage.has_more  = false;
+      if (doneEl) doneEl.style.display = 'block';
+      return;
+    }
+
+    if (data.rows && data.rows.length > 0) {
+      renderSqlResult(data.columns || [], data.rows, true);
+      window._sqlPage.cursor_id  = data.cursor_id || null;
+      window._sqlPage.has_more  = !!data.has_more;
+      window._sqlPage.loaded_count += data.rows.length;
+
+      var countEl = document.getElementById('sql-result-count');
+      if (countEl) countEl.textContent = '(' + (I18N['sql_editor.rows_returned']||'返回 {n} 行').replace(/\{n\}/g, window._sqlPage.loaded_count) + ')';
+    }
+
+    if (loadingEl) loadingEl.style.display = 'none';
+
+    if (!window._sqlPage.has_more) {
+      if (doneEl) doneEl.style.display = 'block';
+      // 不需要再监听滚动
+      if (_sqlScrollHandler && _sqlScrollWrap) {
+        _sqlScrollWrap.removeEventListener('scroll', _sqlScrollHandler);
+        _sqlScrollHandler = null;
+        _sqlScrollWrap   = null;
+      }
+    }
+  } catch(e) {
+    if (loadingEl) loadingEl.style.display = 'none';
+    // 网络错误不阻断后续重试
+  } finally {
+    window._sqlPage._loading = false;
+  }
+}
+
+function clearSql() {
+  setSqlEditorText('');
+  // 移除滚动监听
+  if (_sqlScrollHandler && _sqlScrollWrap) {
+    _sqlScrollWrap.removeEventListener('scroll', _sqlScrollHandler);
+    _sqlScrollHandler = null;
+    _sqlScrollWrap   = null;
+  }
+  var wrap = document.getElementById('sql-result-wrap');
+  if (wrap) wrap.innerHTML = '<div class="sql-no-result" data-i18n="sql_editor.no_result">执行查询后显示结果</div>';
+  var countEl = document.getElementById('sql-result-count');
+  if (countEl) countEl.textContent = '';
+  var status = document.getElementById('sql-status');
+  if (status) { status.textContent = ''; status.className = 'sql-status'; }
+  // 隐藏滚动加载状态条
+  var loadingEl = document.getElementById('sql-scroll-loading');
+  var doneEl    = document.getElementById('sql-scroll-done');
+  if (loadingEl) loadingEl.style.display = 'none';
+  if (doneEl)    doneEl.style.display    = 'none';
+  // 重置分页状态
+  window._sqlPage = { cursor_id: null, has_more: false, limit: 200 };
+}
+
+function formatSql() {
+  var sql = getSqlEditorText();
+  if (!sql) return;
+  var formatted = sql
+    .replace(/\s*,\s*/g, ', ')
+    .replace(/\s*\(\s*/g, ' (')
+    .replace(/\s*\)\s*/g, ') ')
+    .replace(/\b(SELECT|FROM|WHERE|AND|OR|JOIN|LEFT|RIGHT|INNER|OUTER|ON|GROUP|ORDER|BY|HAVING|LIMIT|OFFSET|UNION|INSERT|INTO|VALUES|UPDATE|SET|DELETE|CREATE|TABLE|INDEX|DROP|ALTER|ADD|COLUMN|PRIMARY|KEY|FOREIGN|REFERENCES|NOT|NULL|DEFAULT|AUTO_INCREMENT|UNIQUE|CHECK|CONSTRAINT|AS|CASE|WHEN|THEN|ELSE|END|IF|EXISTS|BETWEEN|IN|LIKE|IS|NULL|TRUE|FALSE|ASC|DESC)\b/gi, function(m) { return m.toUpperCase(); })
+    .replace(/\b(SELECT|FROM|WHERE|GROUP|ORDER|HAVING|LIMIT|UNION|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER)\b/gi, function(m) { return '\n' + m; });
+  setSqlEditorText(formatted.trim());
+}
+
+</script>
+
+<script>
+// ─── SQL 编辑器分割条拖动 ───
+(function(){
+  var splitter = document.getElementById('sql-splitter');
+  var paneEditor = document.getElementById('sql-pane-editor');
+  var paneResult = document.getElementById('sql-pane-result');
+  if(!splitter || !paneEditor || !paneResult) return;
+
+  var dragging = false;
+  var startY, startH1, startH2;
+
+  splitter.addEventListener('mousedown', function(e){
+    e.preventDefault();
+    dragging = true;
+    splitter.classList.add('active');
+    startY = e.clientY;
+    startH1 = paneEditor.getBoundingClientRect().height;
+    startH2 = paneResult.getBoundingClientRect().height;
+    // 拖动时固定高度，避免 flex 干扰
+    paneEditor.style.flex = 'none';
+    paneEditor.style.height = startH1 + 'px';
+    paneResult.style.flex = 'none';
+    paneResult.style.height = startH2 + 'px';
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+  });
+
+  document.addEventListener('mousemove', function(e){
+    if(!dragging) return;
+    var dy = e.clientY - startY;
+    var newH1 = Math.max(60, startH1 + dy);
+    var newH2 = Math.max(60, startH2 - dy);
+    paneEditor.style.height = newH1 + 'px';
+    paneResult.style.height = newH2 + 'px';
+  });
+
+  document.addEventListener('mouseup', function(){
+    if(!dragging) return;
+    dragging = false;
+    splitter.classList.remove('active');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    // 刷新 CodeMirror 尺寸
+    setTimeout(function(){
+      if(window.sqlEditor) window.sqlEditor.refresh();
+    }, 50);
+  });
+})();
+</script>
+
+<script>
+// ─── SQL 树面板垂直分割条 ───
+(function(){
+  var splitter = document.getElementById('sql-splitter-v');
+  var treePanel = document.getElementById('sql-tree-panel');
+  if(!splitter || !treePanel) return;
+
+  var dragging = false, startX, startW;
+
+  splitter.addEventListener('mousedown', function(e){
+    e.preventDefault();
+    dragging = true;
+    startX  = e.clientX;
+    startW  = treePanel.getBoundingClientRect().width;
+    splitter.classList.add('active');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  });
+
+  document.addEventListener('mousemove', function(e){
+    if(!dragging) return;
+    var dx = e.clientX - startX;
+    var newW = Math.max(180, Math.min(600, startW + dx));
+    treePanel.style.width = newW + 'px';
+  });
+
+  document.addEventListener('mouseup', function(){
+    if(!dragging) return;
+    dragging = false;
+    splitter.classList.remove('active');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    setTimeout(function(){ if(window.sqlEditor) window.sqlEditor.refresh(); }, 50);
+  });
+})();
+
+// ── 远程终端 ────────────────────────────
+let _remoteTerm = null;
+let _remoteSocket = null;
+let _remoteConnected = false;
+
+function initRemoteShellPage() {
+  // 初始化 xterm.js（仅首次）
+  if (!_remoteTerm) {
+    const term = new Terminal({
+      cols: 120,
+      rows: 30,
+      fontFamily: 'Consolas, "Courier New", monospace',
+      fontSize: 13,
+      theme: {
+        background: '#1e1e1e',
+        foreground: '#d4d4d4',
+        cursor: '#ffffff',
+        selectionBackground: '#264f78'
+      }
+    });
+    const fitAddon = new FitAddon.FitAddon();
+    term.loadAddon(fitAddon);
+    term.open(document.getElementById('remote-terminal'));
+    fitAddon.fit();
+    _remoteTerm = term;
+  }
+  // 初始化 Socket.IO（仅首次）
+  if (!_remoteSocket) {
+    console.log('[RemoteShell] 正在初始化 Socket.IO...');
+    try {
+      _remoteSocket = io();
+      console.log('[RemoteShell] Socket.IO 初始化成功，ID:', _remoteSocket.id);
+    } catch(e) {
+      console.error('[RemoteShell] Socket.IO 初始化失败:', e);
+      toast('Socket.IO 初始化失败: ' + e.message, 'error');
+      return;
+    }
+    _remoteSocket.on('connect', () => {
+      console.log('[RemoteShell] Socket connected:', _remoteSocket.id);
+    });
+    _remoteSocket.on('disconnect', () => {
+      console.log('[RemoteShell] Socket disconnected');
+    });
+    _remoteSocket.on('connect_error', (err) => {
+      console.error('[RemoteShell] Socket connection error:', err);
+    });
+    _remoteSocket.on('remote_shell_output', (data) => {
+      if (_remoteTerm) _remoteTerm.write(data.data);
+    });
+    _remoteSocket.on('remote_shell_status', (data) => {
+      updateRemoteStatus(data.status, data.msg || data.reason);
+    });
+    // 终端输入 → 发送到后端
+    _remoteTerm.onData(data => {
+      if (_remoteConnected && _remoteSocket) {
+        _remoteSocket.emit('remote_shell_input', { data: data });
+      }
+    });
+  }
+  // 每次进入页面都重新加载
+  loadRemoteInstances();
+  applyI18N();
+}
+
+function loadRemoteInstances() {
+  fetch('/api/shell/instances')
+    .then(res => res.json())
+    .then(data => {
+      const select = document.getElementById('remote-instance-select');
+      select.innerHTML = '';
+      if (data.ok && data.instances && data.instances.length > 0) {
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = (I18N && I18N['remote_shell.select_instance']) || '选择 SSH 数据源';
+        select.appendChild(placeholder);
+        data.instances.forEach(inst => {
+          const option = document.createElement('option');
+          option.value = inst.id;
+          option.textContent = `${inst.name} (${inst.ssh_host}:${inst.ssh_port})`;
+          select.appendChild(option);
+        });
+      } else {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = (I18N && I18N['remote_shell.no_ssh_instance']) || '暂无 SSH 数据源（请先在数据源管理中启用 SSH）';
+        select.appendChild(opt);
+      }
+    })
+    .catch(err => {
+      console.error('加载 SSH 实例失败:', err);
+      const select = document.getElementById('remote-instance-select');
+      select.innerHTML = '';
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = (I18N && I18N['remote_shell.load_failed']) || '加载失败';
+      select.appendChild(opt);
+    });
+}
+
+function connectRemoteShell() {
+  const instanceId = document.getElementById('remote-instance-select').value;
+  if (!instanceId) {
+    toast((I18N && I18N['remote_shell.select_instance']) || '请选择 SSH 数据源', 'error');
+    return;
+  }
+  if (!_remoteSocket) {
+    toast('Socket 未初始化，请刷新页面', 'error');
+    console.error('[RemoteShell] _remoteSocket is null');
+    return;
+  }
+  if (!_remoteSocket.connected) {
+    toast('WebSocket 未连接，请刷新页面', 'error');
+    console.error('[RemoteShell] _remoteSocket not connected');
+    return;
+  }
+  console.log('[RemoteShell] Connecting to instance:', instanceId);
+  _remoteSocket.emit('remote_shell_connect', { instance_id: instanceId });
+}
+
+function disconnectRemoteShell() {
+  _remoteSocket.emit('remote_shell_disconnect');
+}
+
+function updateRemoteStatus(status, msg) {
+  const statusEl = document.getElementById('remote-status');
+  const connectBtn = document.getElementById('remote-connect-btn');
+  const disconnectBtn = document.getElementById('remote-disconnect-btn');
+  if (status === 'connected') {
+    statusEl.innerHTML = '<span class="status-dot connected"></span> 已连接';
+    connectBtn.style.display = 'none';
+    disconnectBtn.style.display = 'inline-block';
+    _remoteConnected = true;
+  } else if (status === 'disconnected') {
+    statusEl.innerHTML = '<span class="status-dot disconnected"></span> 未连接';
+    connectBtn.style.display = 'inline-block';
+    disconnectBtn.style.display = 'none';
+    _remoteConnected = false;
+  } else if (status === 'error') {
+    statusEl.innerHTML = `<span class="status-dot disconnected"></span> 错误: ${msg}`;
+    toast(msg, 'error');
+  }
+}
+
+function switchRemoteTab(tab) {
+  // 切换 Tab
+  document.querySelectorAll('.remote-shell-tab').forEach(t => t.classList.remove('active'));
+  document.querySelector(`.remote-shell-tab[data-tab="${tab}"]`).classList.add('active');
+  document.querySelectorAll('.remote-shell-tab-content').forEach(c => c.style.display = 'none');
+  const tabEl = document.getElementById(`tab-${tab}`);
+  if (tabEl) {
+    tabEl.style.display = 'flex';
+    tabEl.style.flexDirection = 'column';
+    tabEl.style.flex = '1';
+    tabEl.style.minHeight = '0';
+  }
+  // 根据 Tab 加载对应内容
+  if (tab === 'connection') {
+    loadRemoteInstances();
+  } else if (tab === 'files') {
+    loadShellScripts();
+    const path = document.getElementById('remote-file-path').value || '~';
+    loadRemoteFiles(path);
+  }
+}
+
+// ── 脚本管理 ──────────────────────
+function loadShellScripts() {
+  fetch('/api/shell/scripts')
+    .then(res => res.json())
+    .then(data => {
+      if (data.ok) {
+        const list = document.getElementById('remote-script-list');
+        list.innerHTML = '';
+        data.scripts.forEach(script => {
+          const item = document.createElement('div');
+          item.className = 'remote-shell-list-item';
+          item.innerHTML = `
+            <i>📄</i> ${script.name}
+            <button onclick="sendScriptToTerminal('${script.name}')">发送到终端</button>
+            <button onclick="deleteShellScript('${script.name}')">删除</button>
+          `;
+          list.appendChild(item);
+        });
+      }
+    });
+}
+
+function uploadShellScript() {
+  const fileInput = document.getElementById('remote-script-upload');
+  if (!fileInput.files.length) {
+    toast('请选择脚本文件', 'error');
+    return;
+  }
+  const formData = new FormData();
+  formData.append('file', fileInput.files[0]);
+  fetch('/api/shell/scripts/upload', {
+    method: 'POST',
+    body: formData
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data.ok) {
+        toast('脚本上传成功', 'success');
+        loadShellScripts();
+      } else {
+        toast(data.error, 'error');
+      }
+    });
+}
+
+function sendScriptToTerminal(name) {
+  fetch(`/api/shell/scripts/${name}/content`)
+    .then(res => res.json())
+    .then(data => {
+      if (data.ok) {
+        // 将脚本内容发送到终端
+        if (_remoteTerm && _remoteConnected) {
+          _remoteTerm.write(data.content + '\n');
+          toast('脚本已发送到终端', 'success');
+        } else {
+          toast('终端未连接', 'error');
+        }
+      } else {
+        toast(data.error, 'error');
+      }
+    });
+}
+
+function deleteShellScript(name) {
+  if (!confirm(`确定删除脚本 ${name}?`)) return;
+  fetch(`/api/shell/scripts/${name}`, {
+    method: 'DELETE'
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data.ok) {
+        toast('脚本已删除', 'success');
+        loadShellScripts();
+      } else {
+        toast(data.error, 'error');
+      }
+    });
+}
+
+// ── 文件管理 ──────────────────────
+function loadRemoteFiles(path) {
+  const sid = _remoteSocket ? _remoteSocket.id : null;
+  if (!sid) {
+    toast('未连接', 'error');
+    return;
+  }
+  const currentPath = path || document.getElementById('remote-file-path').value || '~';
+  fetch(`/api/shell/files?sid=${sid}&path=${encodeURIComponent(currentPath)}`)
+    .then(res => res.json())
+    .then(data => {
+      if (data.ok) {
+        const list = document.getElementById('remote-file-list');
+        list.innerHTML = '';
+        // 如果不是根目录，显示返回上级目录
+        if (currentPath !== '~' && currentPath !== '/') {
+          const item = document.createElement('div');
+          item.className = 'remote-shell-list-item';
+          item.innerHTML = `<i>📁</i> .. (返回上级)`;
+          item.onclick = () => {
+            const parentPath = currentPath.split('/').slice(0, -1).join('/') || '/';
+            document.getElementById('remote-file-path').value = parentPath;
+            loadRemoteFiles(parentPath);
+          };
+          list.appendChild(item);
+        }
+        data.files.forEach(file => {
+          const item = document.createElement('div');
+          item.className = 'remote-shell-list-item';
+          const icon = file.is_dir ? '📁' : '📄';
+          const action = file.is_dir
+            ? `loadRemoteFiles('${data.path}/${file.name}')`
+            : `downloadFileFromRemote('${data.path}/${file.name}')`;
+          item.innerHTML = `
+            <i>${icon}</i> ${file.name}
+            <button onclick="${action}">${file.is_dir ? '打开' : '下载'}</button>
+            <button onclick="deleteRemoteFile('${data.path}/${file.name}')">删除</button>
+          `;
+          list.appendChild(item);
+        });
+        // 更新路径显示
+        document.getElementById('remote-file-path').value = data.path;
+      } else {
+        toast(data.error, 'error');
+      }
+    });
+}
+
+function uploadFileToRemote() {
+  const fileInput = document.getElementById('remote-file-upload');
+  if (!fileInput.files.length) {
+    toast('请选择文件', 'error');
+    return;
+  }
+  const sid = _remoteSocket ? _remoteSocket.id : null;
+  if (!sid) {
+    toast('未连接', 'error');
+    return;
+  }
+  const path = document.getElementById('remote-file-path').value || '~';
+  const formData = new FormData();
+  formData.append('file', fileInput.files[0]);
+  formData.append('sid', sid);
+  formData.append('remote_path', path);
+  fetch('/api/shell/files/upload', {
+    method: 'POST',
+    body: formData
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data.ok) {
+        toast('文件上传成功', 'success');
+        loadRemoteFiles(path);
+      } else {
+        toast(data.error, 'error');
+      }
+    });
+}
+
+function downloadFileFromRemote(path) {
+  const sid = _remoteSocket ? _remoteSocket.id : null;
+  if (!sid) {
+    toast('未连接', 'error');
+    return;
+  }
+  window.open(`/api/shell/files/download?sid=${sid}&path=${encodeURIComponent(path)}`);
+}
+
+function deleteRemoteFile(path) {
+  if (!confirm(`确定删除 ${path}?`)) return;
+  const sid = _remoteSocket ? _remoteSocket.id : null;
+  if (!sid) {
+    toast('未连接', 'error');
+    return;
+  }
+  fetch(`/api/shell/files/delete?sid=${sid}&path=${encodeURIComponent(path)}`, {
+    method: 'DELETE'
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data.ok) {
+        toast('文件已删除', 'success');
+        const currentPath = document.getElementById('remote-file-path').value || '~';
+        loadRemoteFiles(currentPath);
+      } else {
+        toast(data.error, 'error');
+      }
+    });
+}
+
+function mkdirRemote() {
+  const path = prompt('请输入目录路径：');
+  if (!path) return;
+  const sid = _remoteSocket ? _remoteSocket.id : null;
+  if (!sid) {
+    toast('未连接', 'error');
+    return;
+  }
+  const formData = new FormData();
+  formData.append('sid', sid);
+  formData.append('path', path);
+  fetch('/api/shell/files/mkdir', {
+    method: 'POST',
+    body: formData
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data.ok) {
+        toast('目录已创建', 'success');
+        loadRemoteFiles(path);
+      } else {
+        toast(data.error, 'error');
+      }
+    });
+}
+
+</script>
+
+    <!-- 基线配置模态框 -->
+    <div class="modal-overlay" id="baselineModal" style="display:none;" onclick="if(event.target===this)closeBaselineModal()">
+      <div class="modal-box" style="max-width:680px">
+        <div class="modal-header">
+          <h3 id="baselineModalLabel">添加基线配置</h3>
+          <button class="modal-close" onclick="closeBaselineModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="baseline-id">
+          <div class="form-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+            <div class="form-group">
+              <label data-i18n="baseline.db_type">数据库类型 *</label>
+              <select class="form-input" id="baseline-db-type" required>
+                <option value="">请选择</option>
+                <option value="oracle">Oracle</option>
+                <option value="dm8">DM8 达梦</option>
+                <option value="mysql">MySQL</option>
+                <option value="postgresql">PostgreSQL</option>
+                <option value="ivorysql">IvorySQL</option>
+                <option value="sqlserver">SQL Server</option>
+                <option value="tidb">TiDB</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label data-i18n="baseline.param_name">参数名称 *</label>
+              <input class="form-input" id="baseline-param-name" placeholder="param_name" required>
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom:16px">
+            <label data-i18n="baseline.query_sql">查询 SQL *</label>
+            <textarea class="form-textarea" id="baseline-query-sql" rows="3" placeholder="SELECT ..." required></textarea>
+            <small style="color:var(--text-muted);font-size:12px" data-i18n="baseline.query_sql_hint">输入用于获取当前参数值的 SQL 查询</small>
+          </div>
+          <div class="form-grid" style="display:grid;grid-template-columns:120px 1fr;gap:12px;margin-bottom:16px">
+            <div class="form-group">
+              <label data-i18n="baseline.operator">运算符</label>
+              <select class="form-input" id="baseline-operator" style="min-width:100px">
+                <option value="=">= 等于</option>
+                <option value="!=">!= 不等于</option>
+                <option value=">">> 大于</option>
+                <option value=">=">>= 大于等于</option>
+                <option value="<">< 小于</option>
+                <option value="<="><= 小于等于</option>
+                <option value="BETWEEN">BETWEEN 区间</option>
+                <option value="LIKE">LIKE 模糊匹配</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label data-i18n="baseline.expected_value">期望值</label>
+              <input class="form-input" id="baseline-expected-value" placeholder="100">
+            </div>
+          </div>
+          <div class="form-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+            <div class="form-group">
+              <label data-i18n="baseline.expected_value_min">期望值最小值</label>
+              <input class="form-input" id="baseline-expected-value-min" placeholder="min">
+            </div>
+            <div class="form-group">
+              <label data-i18n="baseline.expected_value_max">期望值最大值</label>
+              <input class="form-input" id="baseline-expected-value-max" placeholder="max">
+            </div>
+          </div>
+          <div class="form-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+            <div class="form-group">
+              <label data-i18n="baseline.risk_level">风险等级</label>
+              <select class="form-input" id="baseline-risk-level">
+                <option value="LOW">低</option>
+                <option value="MEDIUM" selected>中</option>
+                <option value="HIGH">高</option>
+                <option value="CRITICAL">严重</option>
+              </select>
+            </div>
+            <div class="form-group" style="display:flex;align-items:flex-end;padding-bottom:8px">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                <input type="checkbox" id="baseline-enabled" checked> <span data-i18n="baseline.enabled">启用</span>
+              </label>
+            </div>
+          </div>
+          <div class="form-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div class="form-group">
+              <label>描述（中文）</label>
+              <textarea class="form-textarea" id="baseline-description-zh" rows="2"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Description (English)</label>
+              <textarea class="form-textarea" id="baseline-description-en" rows="2"></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" onclick="closeBaselineModal()" data-i18n="webui.cancel">取消</button>
+          <button class="btn btn-primary" onclick="saveBaseline()" data-i18n="webui.save">保存</button>
+        </div>
+      </div>
+    </div>
+<script src="/static/js/baseline_config.js"></script>
 </body>
 </html>
 

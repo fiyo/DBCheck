@@ -60,7 +60,12 @@ def smart_analyze_mysql(context: dict) -> list:
 
     def _mysql_version() -> int:
         """返回 MySQL 主版本号（5 或 8），用于版本差异化处理"""
-        ver_str = _val('myversion', 'version', '')
+        # context['version'] = [{'VERSION': '8.0.36'}] — 大写 VERSION 键
+        _v_list = context.get('version')
+        if _v_list and _v_list[0]:
+            ver_str = str(_v_list[0].get('VERSION') or _v_list[0].get('version') or '')
+        else:
+            ver_str = ''
         if not ver_str or ver_str == 'Unknown':
             return 5  # 默认保守假设
         try:
@@ -131,59 +136,11 @@ def smart_analyze_mysql(context: dict) -> list:
             'fix_sql': '-- 需在 my.cnf 中添加：\n-- log_bin = /var/log/mysql/mysql-bin.log\n-- server-id = 1\n-- 然后重启 MySQL'
         })
 
-    # ── 5. binlog 过期时间 ───────────────────────────────
+    # ── 5. binlog 过期时间 ── [已移至 config_baseline，由基线检查统一管理]
+    # ── 6. InnoDB 缓冲池大小 ── [已移至 config_baseline，由基线检查统一管理]
+
+    # ── 7. 查询缓存行为检查（仅 MySQL 5.x，baseline 数值对比不覆盖此行为检查）
     mysql_ver = _mysql_version()
-    expire_days = _int(_val('expire_logs_days'), -1)
-    expire_seconds = _int(_val('binlog_expire_logs_seconds'), -1)
-
-    if mysql_ver >= 8:
-        # MySQL 8.x: expire_logs_days 已移除，使用 binlog_expire_logs_seconds（单位：秒）
-        if expire_seconds <= 0:
-            issues.append({
-                'col1': 'binlog 永不过期', 'col2': '中风险',
-                'col3': 'binlog_expire_logs_seconds 未设置或为 0，binlog 永不自动清理，可能导致磁盘耗尽',
-                'col4': '中', 'col5': 'DBA',
-                'fix_sql': "SET GLOBAL binlog_expire_logs_seconds = 604800;  -- 7天 = 604800秒"
-            })
-    else:
-        # MySQL 5.x: 使用 expire_logs_days（单位：天）
-        if expire_days == 0:
-            issues.append({
-                'col1': 'binlog 永不过期', 'col2': '中风险',
-                'col3': 'expire_logs_days=0 表示 binlog 永不自动清理，可能导致磁盘耗尽',
-                'col4': '中', 'col5': 'DBA',
-                'fix_sql': "SET GLOBAL expire_logs_days = 7;  -- MySQL 5.x"
-            })
-        elif expire_days < 0:
-            # MySQL 5.x 也可能查询不到 expire_logs_days（旧版本或未配置）
-            issues.append({
-                'col1': 'binlog 过期未配置', 'col2': '中风险',
-                'col3': 'expire_logs_days 未设置，binlog 将永不清理，建议设置合理的保留天数',
-                'col4': '中', 'col5': 'DBA',
-                'fix_sql': "SET GLOBAL expire_logs_days = 7;  -- MySQL 5.x"
-            })
-
-    # ── 6. InnoDB 缓冲池大小 ─────────────────────────────
-    buf_val = _val('innodb_buffer_pool_size')
-    if buf_val:
-        buf_bytes = _int(buf_val)
-        # 如果是带单位的字符串（如 '128M'），尝试解析
-        if buf_bytes == 0 and isinstance(buf_val, str):
-            s = buf_val.upper()
-            if s.endswith('G'):
-                buf_bytes = int(float(s[:-1]) * 1024**3)
-            elif s.endswith('M'):
-                buf_bytes = int(float(s[:-1]) * 1024**2)
-        buf_gb = buf_bytes / 1024**3 if buf_bytes > 0 else 0
-        if 0 < buf_gb < 1:
-            issues.append({
-                'col1': 'InnoDB 缓冲池偏小', 'col2': '中风险',
-                'col3': f'innodb_buffer_pool_size 仅 {buf_val}，建议设置为物理内存的 50%~70%',
-                'col4': '中', 'col5': 'DBA',
-                'fix_sql': '-- 建议修改 my.cnf：\n-- innodb_buffer_pool_size = 4G  # 根据实际内存调整\n-- 或在线调整（MySQL 5.7+）：\nSET GLOBAL innodb_buffer_pool_size = 4294967296;  -- 4G'
-            })
-
-    # ── 7. 查询缓存（仅 MySQL 5.x，MySQL 8.0 已彻底移除） ──
     if mysql_ver < 8:
         query_cache = context.get('query_cache', [])
         for row in query_cache:
@@ -325,17 +282,7 @@ def smart_analyze_mysql(context: dict) -> list:
                 'fix_sql': 'SHOW SLAVE STATUS\\G\nSHOW PROCESSLIST;'
             })
 
-    # ── 12. 打开文件数 ────────────────────────────────────
-    open_files = _int(_val('open_files_limit'))
-    opened_tables = _int(_val('opened_tables'))
-    table_cache = _int(_val('table_open_cache'), 2000)
-    if opened_tables > table_cache * 0.8:
-        issues.append({
-            'col1': '表缓存命中率低', 'col2': '中风险',
-            'col3': f'已打开表数({opened_tables}) 接近 table_open_cache({table_cache})，可能频繁开关文件句柄',
-            'col4': '中', 'col5': 'DBA',
-            'fix_sql': f'SET GLOBAL table_open_cache = {min(table_cache * 2, 8192)};'
-        })
+    # ── 12. table_open_cache 命中率 ── [已移至 config_baseline，由基线检查统一管理]
 
     # ── 13. 内存使用率 ────────────────────────────────────
     mem_usage = _float(context.get('system_info', {}).get('memory', {}).get('usage_percent', 0))
@@ -375,15 +322,7 @@ def smart_analyze_mysql(context: dict) -> list:
                 'fix_sql': ''
             })
 
-    # ── 15. innodb_flush_log_at_trx_commit ───────────────
-    flush_val = _val('innodb_flush_log_at_trx_commit')
-    if flush_val and str(flush_val) == '0':
-        issues.append({
-            'col1': 'innodb_flush_log_at_trx_commit=0', 'col2': '高风险',
-            'col3': '设置为 0 时 MySQL 崩溃可能丢失最多 1 秒的事务，生产环境建议设为 1',
-            'col4': '高', 'col5': 'DBA',
-            'fix_sql': "SET GLOBAL innodb_flush_log_at_trx_commit = 1;"
-        })
+    # ── 15. innodb_flush_log_at_trx_commit ── [已移至 config_baseline，由基线检查统一管理]
 
     # ── 16. 字符集不一致 ──────────────────────────────────
     charset = _val('character_set_database')
@@ -1561,7 +1500,7 @@ class AIAdvisor:
 
         if lang == 'zh':
             db_type_name = {'mysql': 'MySQL', 'pg': 'PostgreSQL', 'oracle': 'Oracle', 'sqlserver': 'SQL Server', 'tidb': 'TiDB', 'ivorysql': 'IvorySQL'}.get(db_type, db_type.upper())
-            prompt = f"""你是一位拥有20年经验的 {db_type_name} 数据库资深DBA，以下是对 {db_type_name} 数据库「{label}」的全面巡检结果，请进行深度诊断。
+            prompt = f"""你是一位拥有20年经验的 {db_type_name} 数据库资深DBA，擅长数据库性能分析及优化，对 {db_type_name} 的配置参数体系特别熟悉。你的诊断需要结合官方文档及下方提供的 RAG 参考文档，充分考虑当前数据库版本特性，给出适合当前版本的专业建议（例如：在 MySQL 8.0 中 expire_logs_days 已被弃用，应建议使用 binlog_expire_logs_seconds 替代）。以下是对 {db_type_name} 数据库「{label}」的全面巡检结果，请进行深度诊断。
 
 {sep}
 【一、关键健康指标】
@@ -1582,12 +1521,15 @@ class AIAdvisor:
 【四、诊断要求】
 {sep}
 请基于以上巡检数据，给出 4~6 条专业优化建议，要求：
-1. 优先分析【等待事件 Top5】：识别主要等待类型（如 db file sequential read、log file sync、buffer busy waits 等），给出具体优化方向
-2. 如存在【阻塞会话】：分析阻塞原因（锁竞争、热块更新等）并给出解决思路
-3. 针对【Top SQL】：评估是否存在全表扫描、大量磁盘读等问题，给出优化建议
-4. 结合【关键指标】和【风险项】综合判断，给出整体健康评价
-5. 每条建议必须包含：问题定位 → 原因分析 → 具体修复方案（或参数调整参考值）
-6. 最后给出该数据库的整体健康评价（优秀/良好/一般/危险）及主要关注点
+1. **版本适配**：严格根据【关键指标】中的数据库版本号，确保所有建议的参数名、SQL 语法、功能特性均适用于当前版本。若某参数在当前版本已弃用（Deprecated），必须推荐该版本的正确替代方案，并明确说明替代原因。
+2. **优先分析【等待事件 Top5】**:识别主要等待类型（如 db file sequential read、log file sync、buffer busy waits 等），给出具体优化方向
+3. **如存在【阻塞会话】**:分析阻塞原因（锁竞争、热块更新等）并给出解决思路
+4. **针对【Top SQL】**:评估是否存在全表扫描、大量磁盘读等问题，给出优化建议
+5. **结合【关键指标】和【风险项】综合判断**:给出整体健康评价
+6. **参数调优建议**：涉及配置参数调整时，必须给出参数在当前版本中的确切名称、推荐值范围及生效方式（动态/需重启）
+7. **引用依据**：若【参考文档】中有相关内容，请在建议中标注"（参考文档）"；若无参考文档，基于你的专业知识给出建议
+8. 每条建议必须包含：问题定位 → 原因分析 → 具体修复方案（或参数调整参考值）
+9. 最后给出该数据库的整体健康评价（优秀/良好/一般/危险）及主要关注点
 
 格式要求（直接输出 Markdown，不要加"以下是"等前缀）：
 ## 重点关注
@@ -1604,7 +1546,7 @@ class AIAdvisor:
 
 [一句话整体评价]"""
         else:
-            prompt = f"""You are a senior DBA with 20 years of experience. Below is the comprehensive inspection report for the {db_type.upper()} database "{label}". Please provide an in-depth diagnosis.
+            prompt = f"""You are a senior DBA with 20 years of experience specializing in the {db_type_name.upper()} database, expert in performance analysis, optimization, and deep knowledge of configuration parameters. Your diagnosis must reference official documentation and the RAG knowledge base provided below, fully consider the current database version, and provide version-appropriate recommendations (e.g., in MySQL 8.0, expire_logs_days is deprecated; recommend binlog_expire_logs_seconds instead). Below is the comprehensive inspection report for the {db_type.upper()} database "{label}". Please provide an in-depth diagnosis.
 
 {sep}
 [I. Key Health Metrics]
@@ -1625,12 +1567,15 @@ class AIAdvisor:
 [IV. Diagnosis Requirements]
 {sep}
 Based on the inspection data above, provide 4~6 professional optimization recommendations:
-1. Prioritize analysis of [Top 5 Wait Events]: identify major wait types (e.g., db file sequential read, log file sync, buffer busy waits) and provide specific optimization directions.
-2. If [Blocked Sessions] exist: analyze the cause (lock contention, hot block updates, etc.) and propose solutions.
-3. For [Top SQL]: evaluate whether there are full table scans, high disk reads, etc., and provide optimization recommendations.
-4. Combine [Key Metrics] and [Risk Items] for an overall health assessment.
-5. Each recommendation must include: Problem Identification → Cause Analysis → Specific Fix (or parameter tuning reference).
-6. Provide an overall health rating (Excellent/Good/Fair/Critical) and main concerns.
+1. **Version compatibility**: Strictly base all recommendations on the database version from [Key Health Metrics]. Ensure all parameter names, SQL syntax, and features are applicable to the current version. If a parameter is deprecated in the current version, recommend the correct replacement and explain why.
+2. Prioritize analysis of [Top 5 Wait Events]: identify major wait types (e.g., db file sequential read, log file sync, buffer busy waits) and provide specific optimization directions.
+3. If [Blocked Sessions] exist: analyze the cause (lock contention, hot block updates, etc.) and propose solutions.
+4. For [Top SQL]: evaluate whether there are full table scans, high disk reads, etc., and provide optimization recommendations.
+5. Combine [Key Metrics] and [Risk Items] for an overall health assessment.
+6. **Parameter tuning**: When recommending configuration changes, specify the exact parameter name for the current version, recommended value range, and how it takes effect (dynamic/restart required).
+7. **Reference citations**: If [Reference Documents] contain relevant information, mark recommendations with "(see reference docs)"; otherwise base recommendations on your professional knowledge.
+8. Each recommendation must include: Problem Identification → Cause Analysis → Specific Fix (or parameter tuning reference).
+9. Provide an overall health rating (Excellent/Good/Fair/Critical) and main concerns.
 
 Format requirement (output Markdown directly, no prefixes like "Here are"):
 ## Key Concerns
@@ -1673,7 +1618,14 @@ Format requirement (output Markdown directly, no prefixes like "Here are"):
         else:
             sys_info = context.get('system_info', {})
             hs_default = 'Unknown' if lang == 'en' else '未知'
+            # ── 提取数据库版本号，确保 AI 能按版本适配建议 ──
+            _v_list = context.get('version')
+            if _v_list and _v_list[0]:
+                _version_raw = _v_list[0].get('VERSION') or _v_list[0].get('version') or 'Unknown'
+            else:
+                _version_raw = 'Unknown'
             metrics = {
+                'db_version': _version_raw,
                 'mem_usage': sys_info.get('memory', {}).get('usage_percent', 0),
                 'cpu_usage': sys_info.get('cpu', {}).get('usage_percent', 0) if isinstance(sys_info.get('cpu'), dict) else 0,
                 'disk_usage_max': max((d.get('usage_percent', 0) for d in sys_info.get('disk_list', [])
@@ -2004,11 +1956,194 @@ def smart_analyze_sqlserver(context: dict) -> list:
 def smart_analyze_tidb(context: dict) -> list:
     """
     对 TiDB 巡检结果执行风险规则分析。
-    TiDB 兼容 MySQL 协议，可复用部分 MySQL 规则。
+    TiDB 专用规则：集群拓扑、TiKV 状态、PD 状态、DDL 任务、SQL 执行统计、连接数、慢查询、用户安全。
     """
     issues = []
-    # 复用 MySQL 的部分规则
-    # TODO: 添加 TiDB 特有的风险规则
+
+    # 调试：打印关键数据 key
+    _keys = ['max_used_connections', 'max_connections', 'slow_query_log', 'mysql_users',
+             'tikv_store', 'ddl_jobs', 'stmt_summary', 'stmt_summary_top_latency']
+    for k in _keys:
+        v = context.get(k, None)
+        if v:
+            print(f"[INFO] smart_analyze_tidb: {k} = {type(v).__name__}[{len(v) if isinstance(v, (list, dict)) else 'N/A'}]")
+        else:
+            print(f"[INFO] smart_analyze_tidb: {k} = None/empty")
+
+    def _val(key, sub='Value', default=None):
+        data = context.get(key, [])
+        if data and isinstance(data, list) and data[0]:
+            return data[0].get(sub, default)
+        return default
+
+    def _int(v, default=0):
+        try:
+            return int(str(v).replace(',', ''))
+        except Exception:
+            return default
+
+    def _float(v, default=0.0):
+        try:
+            return float(str(v).replace(',', '').replace('%', ''))
+        except Exception:
+            return default
+
+    # ── 1. 连接数使用率 ──
+    max_used = _int(_val('max_used_connections'))
+    max_conn = _int(_val('max_connections'), 151)
+    if max_conn > 0 and max_used > 0:
+        conn_pct = max_used / max_conn * 100
+        if conn_pct > 90:
+            issues.append({
+                'col1': '连接数使用率', 'col2': '高风险',
+                'col3': f'历史最大连接数使用率 {conn_pct:.1f}%（{max_used}/{max_conn}），可能拒绝连接',
+                'col4': '高', 'col5': 'DBA',
+                'fix_sql': f'SET GLOBAL max_connections = {min(max_conn * 2, 2000)};'
+            })
+        elif conn_pct > 80:
+            issues.append({
+                'col1': '连接数使用率', 'col2': '中风险',
+                'col3': f'连接数使用率 {conn_pct:.1f}%（{max_used}/{max_conn}），建议关注',
+                'col4': '中', 'col5': 'DBA',
+                'fix_sql': f'SET GLOBAL max_connections = {int(max_conn * 1.5)};'
+            })
+
+    # ── 2. 慢查询日志未开启 ──
+    slow_log = _val('slow_query_log')
+    if slow_log and str(slow_log).upper() in ('OFF', '0'):
+        issues.append({
+            'col1': '慢查询日志未开启', 'col2': '建议',
+            'col3': '慢查询日志已关闭，无法追踪性能问题',
+            'col4': '低', 'col5': 'DBA',
+            'fix_sql': "SET GLOBAL slow_query_log = 'ON';\nSET GLOBAL long_query_time = 1;"
+        })
+
+    # ── 3. 数据库用户安全 ──
+    users = context.get('mysql_users', [])
+    for u in users:
+        host = str(u.get('Host', ''))
+        uname = str(u.get('User', ''))
+        auth = str(u.get('authentication_string', '') or '')
+        if not auth and uname != 'mysql.sys':
+            issues.append({
+                'col1': f'用户 {uname}@{host} 空密码', 'col2': '高风险',
+                'col3': f'用户 {uname}@{host} 未设置密码，存在安全风险',
+                'col4': '高', 'col5': 'DBA',
+                'fix_sql': f"ALTER USER '{uname}'@'{host}' IDENTIFIED BY '强密码请替换';"
+            })
+        if host == '%' and uname == 'root':
+            issues.append({
+                'col1': 'root 用户允许所有主机连接', 'col2': '高风险',
+                'col3': "root@'%' 允许从任意主机登录，建议限制",
+                'col4': '高', 'col5': 'DBA',
+                'fix_sql': "DROP USER 'root'@'%';"
+            })
+
+    # ── 4. TiKV 存储节点状态 ──
+    tikv_stores = context.get('tikv_store', [])
+    if tikv_stores:
+        down_stores = [s for s in tikv_stores if str(s.get('state_name', '')).upper() in ('DOWN', 'OFFLINE')]
+        if down_stores:
+            issues.append({
+                'col1': f'TiKV 节点异常（{len(down_stores)} 个）', 'col2': '高风险',
+                'col3': f'发现 {len(down_stores)} 个 TiKV 节点处于 DOWN/OFFLINE 状态，数据可能不可用',
+                'col4': '高', 'col5': 'DBA',
+                'fix_sql': '-- 检查 TiKV 节点状态：\nSELECT * FROM information_schema.TIKV_STORES;\n-- 检查存储容量：\nSELECT store_id, store_address, capacity, available FROM information_schema.TIKV_STORES;'
+            })
+        total_stores = len(tikv_stores)
+        if total_stores < 3:
+            issues.append({
+                'col1': 'TiKV 节点数量不足', 'col2': '中风险',
+                'col3': f'TiKV 集群仅有 {total_stores} 个节点，生产环境建议至少 3 个节点保证高可用',
+                'col4': '中', 'col5': 'DBA',
+                'fix_sql': '-- 生产环境 TiKV 节点建议 >= 3，使用 TiUP 扩容：\n-- tiup cluster scale-out <cluster-name> <topology.yaml>'
+            })
+
+    # ── 5. TiKV 存储空间 ──
+    for store in tikv_stores:
+        capacity = _float(store.get('capacity', 0))
+        used = _float(store.get('used_size', 0))
+        addr = store.get('store_address', '?')
+        if capacity > 0:
+            usage_pct = used / capacity * 100
+            if usage_pct > 85:
+                cap_gb = capacity / 1024 / 1024 / 1024
+                used_gb = used / 1024 / 1024 / 1024
+                issues.append({
+                    'col1': f'TiKV 存储使用率 {addr}', 'col2': '高风险' if usage_pct > 90 else '中风险',
+                    'col3': f'TiKV {addr} 存储使用率 {usage_pct:.1f}%（{used_gb:.1f}GB/{cap_gb:.1f}GB），建议扩容',
+                    'col4': '高' if usage_pct > 90 else '中', 'col5': 'DBA',
+                    'fix_sql': '-- 使用 TiUP 扩容 TiKV：\n-- tiup cluster scale-out <cluster-name> <topology.yaml>'
+                })
+
+    # ── 6. DDL 任务阻塞检测 ──
+    ddl_jobs = context.get('ddl_jobs', [])
+    if ddl_jobs:
+        running = [j for j in ddl_jobs if str(j.get('STATE', '')).lower() in ('running', 'queueing')]
+        if running:
+            longest = max((j for j in running), key=lambda j: _int(j.get('UPDATED_AT', '')))
+            issues.append({
+                'col1': f'DDL 任务阻塞（{len(running)} 个）', 'col2': '中风险',
+                'col3': f'发现 {len(running)} 个运行中/排队中的 DDL 任务，可能影响集群性能',
+                'col4': '中', 'col5': 'DBA',
+                'fix_sql': '-- 查看 DDL 任务：\nSELECT JOB_ID, SCHEMA_NAME, TABLE_NAME, JOB_TYPE, STATE FROM information_schema.DDL_JOBS;'
+            })
+
+    # ── 7. SQL 执行统计 ──
+    stmt_summary = context.get('stmt_summary', [])
+    if stmt_summary:
+        for row in stmt_summary[:5]:
+            exec_count = _int(row.get('exec_count', 0))
+            avg_latency = _float(row.get('avg_latency', 0))
+            digest_text = str(row.get('digest_text', '')[:80])
+            if avg_latency > 0.5 and exec_count > 100:
+                issues.append({
+                    'col1': f'高频慢查询（{exec_count} 次）', 'col2': '中风险',
+                    'col3': f'SQL 执行 {exec_count} 次，平均延迟 {avg_latency:.3f} 秒：{digest_text}',
+                    'col4': '中', 'col5': 'DBA',
+                    'fix_sql': f'-- 分析执行计划：\n-- EXPLAIN {digest_text[:60]};\n-- 检查索引：\n-- SHOW INDEX FROM <表名>;'
+                })
+
+    # ── 8. 系统内存使用率 ──
+    mem_usage = _float(context.get('system_info', {}).get('memory', {}).get('usage_percent', 0))
+    if mem_usage > 90:
+        issues.append({
+            'col1': '系统内存使用率', 'col2': '高风险',
+            'col3': f'系统内存使用率 {mem_usage:.1f}%，可能触发 OOM',
+            'col4': '高', 'col5': '系统管理员',
+            'fix_sql': ''
+        })
+    elif mem_usage > 80:
+        issues.append({
+            'col1': '系统内存使用率', 'col2': '中风险',
+            'col3': f'系统内存使用率 {mem_usage:.1f}%，建议关注',
+            'col4': '中', 'col5': '系统管理员',
+            'fix_sql': ''
+        })
+
+    # ── 9. 磁盘使用率 ──
+    for disk in context.get('system_info', {}).get('disk_list', []):
+        usage = _float(disk.get('usage_percent', 0))
+        mp = disk.get('mountpoint', '/')
+        from analyzer import IGNORE_MOUNTS
+        if mp in IGNORE_MOUNTS:
+            continue
+        if usage > 90:
+            issues.append({
+                'col1': f'磁盘空间紧张 ({mp})', 'col2': '高风险',
+                'col3': f'磁盘 {mp} 使用率 {usage:.1f}%，可能导致写入失败',
+                'col4': '高', 'col5': '系统管理员',
+                'fix_sql': '-- 清理旧数据或扩容磁盘'
+            })
+        elif usage > 80:
+            issues.append({
+                'col1': f'磁盘空间预警 ({mp})', 'col2': '中风险',
+                'col3': f'磁盘 {mp} 使用率 {usage:.1f}%，建议及时清理',
+                'col4': '中', 'col5': '系统管理员',
+                'fix_sql': ''
+            })
+
+    print(f"[INFO] smart_analyze_tidb: 完成，发现 {len(issues)} 个问题")
     return issues
 
 

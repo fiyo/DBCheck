@@ -34,6 +34,8 @@ _handler.setFormatter(logging.Formatter(
 ))
 logger.addHandler(_handler)
 
+_scheduler = None  # 全局调度器实例（延迟初始化）
+
 
 def _load_jobs():
     """从 JSON 文件加载任务配置"""

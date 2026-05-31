@@ -250,82 +250,86 @@ PG_SLOW_QUERIES = {
 # Oracle 慢查询 SQL（利用 v$sql / DBA_HIST_SQLTEXT）
 ORACLE_SLOW_QUERIES = {
     "ora_top_sql_by_buffer_gets": """
-        SELECT
-            sql_id,
-            SUBSTR(sql_text, 1, 200) AS sql_text,
-            parse_calls,
-            executions,
-            ROUND(elapsed_time / 1000000, 2) AS elapsed_sec,
-            ROUND(elapsed_time / 1000000 / NULLIF(executions, 0), 3) AS avg_elapsed_sec,
-            buffer_gets,
-            disk_reads,
-            rows_processed,
-            module,
-            first_load_time,
-            last_active_time
-        FROM v$sql
-        WHERE executions > 0
-          AND sql_text NOT LIKE '/*+%'
-          AND sql_text NOT LIKE 'EXPLAIN%'
-        ORDER BY buffer_gets DESC
-        FETCH FIRST 20 ROWS ONLY
+        SELECT * FROM (
+            SELECT
+                sql_id,
+                SUBSTR(sql_text, 1, 200) AS sql_text,
+                parse_calls,
+                executions,
+                ROUND(elapsed_time / 1000000, 2) AS elapsed_sec,
+                ROUND(elapsed_time / 1000000 / NULLIF(executions, 0), 3) AS avg_elapsed_sec,
+                buffer_gets,
+                disk_reads,
+                rows_processed,
+                module,
+                first_load_time,
+                last_active_time
+            FROM v$sql
+            WHERE executions > 0
+              AND sql_text NOT LIKE '/*+%'
+              AND sql_text NOT LIKE 'EXPLAIN%'
+            ORDER BY buffer_gets DESC
+        ) WHERE ROWNUM <= 20
     """,
 
     "ora_top_sql_by_disk_reads": """
-        SELECT
-            sql_id,
-            SUBSTR(sql_text, 1, 200) AS sql_text,
-            executions,
-            ROUND(elapsed_time / 1000000, 2) AS elapsed_sec,
-            buffer_gets,
-            disk_reads,
-            rows_processed,
-            fetches,
-            loads,
-            Invalidations,
-            sharable_mem / 1024 AS sharable_mem_kb
-        FROM v$sql
-        WHERE executions > 0
-          AND disk_reads > 0
-        ORDER BY disk_reads DESC
-        FETCH FIRST 20 ROWS ONLY
+        SELECT * FROM (
+            SELECT
+                sql_id,
+                SUBSTR(sql_text, 1, 200) AS sql_text,
+                executions,
+                ROUND(elapsed_time / 1000000, 2) AS elapsed_sec,
+                buffer_gets,
+                disk_reads,
+                rows_processed,
+                fetches,
+                loads,
+                Invalidations,
+                sharable_mem / 1024 AS sharable_mem_kb
+            FROM v$sql
+            WHERE executions > 0
+              AND disk_reads > 0
+            ORDER BY disk_reads DESC
+        ) WHERE ROWNUM <= 20
     """,
 
     "ora_top_sql_by_elapsed": """
-        SELECT
-            sql_id,
-            SUBSTR(sql_text, 1, 200) AS sql_text,
-            executions,
-            ROUND(elapsed_time / 1000000, 2) AS elapsed_sec,
-            ROUND(elapsed_time / 1000000 / NULLIF(executions, 0), 3) AS avg_elapsed_sec,
-            buffer_gets,
-            disk_reads,
-            rows_processed,
-            cpu_time / 1000000 AS cpu_sec,
-            application_wait_time / 1000000 AS app_wait_sec,
-            cluster_wait_time / 1000000 AS cluster_wait_sec,
-            user_io_wait_time / 1000000 AS user_io_sec
-        FROM v$sql
-        WHERE executions > 0
-        ORDER BY elapsed_time DESC
-        FETCH FIRST 20 ROWS ONLY
+        SELECT * FROM (
+            SELECT
+                sql_id,
+                SUBSTR(sql_text, 1, 200) AS sql_text,
+                executions,
+                ROUND(elapsed_time / 1000000, 2) AS elapsed_sec,
+                ROUND(elapsed_time / 1000000 / NULLIF(executions, 0), 3) AS avg_elapsed_sec,
+                buffer_gets,
+                disk_reads,
+                rows_processed,
+                cpu_time / 1000000 AS cpu_sec,
+                application_wait_time / 1000000 AS app_wait_sec,
+                cluster_wait_time / 1000000 AS cluster_wait_sec,
+                user_io_wait_time / 1000000 AS user_io_sec
+            FROM v$sql
+            WHERE executions > 0
+            ORDER BY elapsed_time DESC
+        ) WHERE ROWNUM <= 20
     """,
 
     "ora_sql_with_full_table_scan": """
-        SELECT
-            sql_id,
-            SUBSTR(sql_text, 1, 200) AS sql_text,
-            executions,
-            ROUND(elapsed_time / 1000000, 2) AS elapsed_sec,
-            buffer_gets,
-            disk_reads,
-            rows_processed
-        FROM v$sql
-        WHERE executions > 0
-          AND (buffer_gets > rows_processed * 100 OR disk_reads > rows_processed * 10)
-          AND sql_text NOT LIKE 'EXPLAIN%'
-        ORDER BY elapsed_time DESC
-        FETCH FIRST 15 ROWS ONLY
+        SELECT * FROM (
+            SELECT
+                sql_id,
+                SUBSTR(sql_text, 1, 200) AS sql_text,
+                executions,
+                ROUND(elapsed_time / 1000000, 2) AS elapsed_sec,
+                buffer_gets,
+                disk_reads,
+                rows_processed
+            FROM v$sql
+            WHERE executions > 0
+              AND (buffer_gets > rows_processed * 100 OR disk_reads > rows_processed * 10)
+              AND sql_text NOT LIKE 'EXPLAIN%'
+            ORDER BY elapsed_time DESC
+        ) WHERE ROWNUM <= 15
     """,
 }
 

@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>SQL 编辑器独立测试</title>
+<style>
+body { font-family: sans-serif; padding: 20px; background: #1a1b26; color: #cdd6f4; }
+.test-section { margin-bottom: 20px; padding: 15px; background: #313244; border-radius: 8px; }
+button { padding: 8px 16px; margin: 5px; background: #89b4fa; border: none; border-radius: 4px; cursor: pointer; }
+pre { background: #11111b; padding: 10px; border-radius: 4px; overflow: auto; font-size: 12px; }
+.pass { color: #a6e3a1; }
+.fail { color: #f38ba8; }
+</style>
+</head>
+<body>
+
+<h1>🔍 SQL 编辑器问题诊断</h1>
+
+<div class="test-section">
+  <h3>测试1: 检查 index.html 中 SQL 编辑器相关元素</h3>
+  <button onclick="test1()">运行测试1</button>
+  <pre id="result1"></pre>
+</div>
+
+<div class="test-section">
+  <h3>测试2: 模拟 showPage('sql-editor') 的行为</h3>
+  <button onclick="test2()">运行测试2</button>
+  <pre id="result2"></pre>
+</div>
+
+<div class="test-section">
+  <h3>测试3: 检查 CSS flex 链</h3>
+  <button onclick="test3()">运行测试3</button>
+  <pre id="result3"></pre>
+</div>
+
+<div class="test-section">
+  <h3>测试4: 强制显示 SQL 编辑器页面</h3>
+  <button onclick="test4()">强制显示</button>
+  <div id="test-container" style="border: 2px solid #89b4fa; border-radius: 8px; margin-top: 10px; height: 400px; overflow: auto;"></div>
+</div>
+
+<script>
+const INDEX_HTML = '{{INDEX_CONTENT}}'; // 会被 Python 替换
+
+function log(el, msg, cls='') {
+  el.innerHTML += (cls ? `<span class="${cls}">` : '') + msg + (cls ? '</span>' : '') + '\n';
+}
+
+async function test1() {
+  const el = document.getElementById('result1');
+  el.innerHTML = '';
+  
+  try {
+    const resp = await fetch('/');  // 假设 Flask 服务在运行
+    const text = await resp.text();
+    
+    const checks = [
+      ['nav-sql-editor', text.includes('id="nav-sql-editor"')],
+      ['page-sql-editor', text.includes('id="page-sql-editor"')],
+      ['showPage function', text.includes('function showPage(')],
+      ['sql-editor branch', text.includes("name === 'sql-editor'")],
+      ['.page.active CSS', text.includes('.page.active {')],
+      ['.content CSS flex', text.includes('.content {') && text.includes('display: flex')],
+      ['loadSqlInstances', text.includes('function loadSqlInstances(')],
+      ['initSqlEditor', text.includes('function initSqlEditor(')],
+    ];
+    
+    log(el, '=== 元素存在性检查 ===');
+    for (const [name, ok] of checks) {
+      log(el, `${ok ? '✅' : '❌'} ${name}`, ok ? 'pass' : 'fail');
+    }
+    
+    // 检查 page-sql-editor 附近的 HTML
+    const idx = text.indexOf('id="page-sql-editor"');
+    if (idx > 0) {
+      log(el, '\n=== page-sql-editor 附近 HTML（前500字符）===');
+      log(el, text.substring(idx, idx + 500).replace(/</g, '&lt;').replace(/>/g, '&gt;'));
+    }
+  } catch(e) {
+    log(el, '❌ 错误: ' + e.message, 'fail');
+    log(el, '请确保 Flask 服务器正在运行 (python web_ui.py)');
+  }
+}
+
+function test2() {
+  const el = document.getElementById('result2');
+  el.innerHTML = '';
+  
+  log(el, '=== 模拟 showPage("sql-editor") ===');
+  log(el, '1. 在浏览器控制台运行以下代码:');
+  log(el, '');
+  log(el, 'document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));');
+  log(el, 'document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));');
+  log(el, 'var pageEl = document.getElementById("page-sql-editor");');
+  log(el, 'if (pageEl) { pageEl.classList.add("active"); console.log("✅ page-sql-editor 已添加 active"); } else { console.log("❌ page-sql-editor 不存在"); }');
+  log(el, 'var navEl = document.getElementById("nav-sql-editor");');
+  log(el, 'if (navEl) navEl.classList.add("active");');
+  log(el, '');
+  log(el, '2. 然后运行:');
+  log(el, 'console.log("display:", getComputedStyle(pageEl).display);');
+  log(el, 'console.log("height:", pageEl.getBoundingClientRect().height);');
+}
+
+function test3() {
+  const el = document.getElementById('result3');
+  el.innerHTML = '';
+  
+  log(el, '=== CSS Flex 链检查 ===');
+  log(el, '在浏览器控制台运行以下代码:\n');
+  log(el, 'var el = document.getElementById("page-sql-editor");');
+  log(el, 'if (!el) { console.log("❌ page-sql-editor 不存在"); } else {');
+  log(el, '  console.log("=== page-sql-editor 样式 ===");');
+  log(el, '  console.log("display:", getComputedStyle(el).display);');
+  log(el, '  console.log("flex:", getComputedStyle(el).flex);');
+  log(el, '  console.log("height:", getComputedStyle(el).height);');
+  log(el, '  console.log("min-height:", getComputedStyle(el).minHeight);');
+  log(el, '  console.log("");');
+  log(el, '  console.log("=== 父元素 .content 样式 ===");');
+  log(el, '  var parent = el.parentElement;');
+  log(el, '  console.log("parent class:", parent.className);');
+  log(el, '  console.log("parent display:", getComputedStyle(parent).display);');
+  log(el, '  console.log("parent flex:", getComputedStyle(parent).flex);');
+  log(el, '  console.log("parent height:", getComputedStyle(parent).height);');
+  log(el, '}');
+}
+
+function test4() {
+  const container = document.getElementById('test-container');
+  container.innerHTML = '<iframe src="/" style="width:100%;height:100%;border:none;"></iframe>';
+  log(document.getElementById('result3'), '已加载首页，请在 iframe 中打开控制台测试', 'pass');
+}
+</script>
+
+</body>
+</html>

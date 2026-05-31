@@ -102,7 +102,7 @@ def _verify_api_key(req_key):
 # ── 管理员令牌（Web UI 管理用）─────────────────────────────────
 
 _ADMIN_TOKEN = secrets.token_hex(32)
-print(f"\n  🔐 API Key 管理令牌: {_ADMIN_TOKEN}\n")
+print(f"\n  [API Key] 管理令牌: {_ADMIN_TOKEN}\n")
 print("  Web UI 中已自动注入，无需手动配置。\n")
 
 
@@ -158,7 +158,7 @@ def api_v1_inspect():
 
     请求体：
         {
-            "db_type": "mysql|pg|oracle|dm|sqlserver|tidb",
+            "db_type": "mysql|pg|postgresql|oracle|dm|sqlserver|tidb|ivorysql",
             "host": "192.168.1.100",
             "port": 3306,
             "user": "root",
@@ -237,6 +237,7 @@ def api_v1_inspect():
             }), 400
 
         valid_types = ['mysql', 'pg', 'postgresql', 'oracle', 'dm', 'sqlserver', 'tidb', 'ivorysql']
+        # 标准化：postgresql → pg（内部统一用 pg 标识 PostgreSQL 协议类型）
         if db_type == 'postgresql':
             db_type = 'pg'
         if db_type not in valid_types:
@@ -432,8 +433,7 @@ def _execute_inspect(db_type, host, port, user, password, inspector, body, ssh):
         'password': password,
         'label': f'API-{inspector}',
     }
-
-    if db_type in ('pg', 'postgresql'):
+    if db_type in ('pg', 'postgresql', 'ivorysql'):
         db_info['database'] = body.get('database', 'postgres')
     if db_type == 'oracle':
         db_info['service_name'] = body.get('service_name', '')

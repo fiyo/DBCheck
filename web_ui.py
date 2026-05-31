@@ -11,7 +11,7 @@
 DBCheck Web UI - Flask 应用
 数据库巡检工具 Web 界面
 """
-import os, sys, threading, datetime, json, uuid, time, re, random, sqlite3
+import os, sys, platform, threading, datetime, json, uuid, time, re, random, sqlite3
 
 # ── 确保项目根目录在 sys.path（支持各种启动方式）──────────────────
 _script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -287,8 +287,177 @@ def get_reports():
             })
     return {'files': reports}
 
-# ── 巡检任务 ───────────────────────────────────────────────
-def run_mysql_task(task_id, db_info, inspector_name):
+
+# ── 远程终端 API ──────────────────────────────────────────
+
+@app.route('/api/shell/instances', methods=['GET'])
+def api_shell_instances():
+    """返回所有 ssh_enabled=1 的实例列表"""
+    try:
+        from pro import get_instance_manager
+        im = get_instance_manager()
+        instances = im.get_all_instances(mask_password=True)
+        result = []
+        for inst in instances:
+            if inst.get('ssh_enabled'):
+                result.append({
+                    'id': inst['id'],
+                    'name': inst.get('name', inst['id']),
+                    'ssh_host': inst.get('ssh_host', ''),
+                    'ssh_port': inst.get('ssh_port', 22),
+                    'ssh_user': inst.get('ssh_user', ''),
+                })
+        return jsonify({'ok': True, 'instances': result})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+# ── 通用巡检任务（MySQL/PG/TiDB/SQLServer/IvorySQL/DM8） ──
+def run_inspection_task(task_id, db_info, inspector_name, template_id=None):
+    """
+    通用数据库巡检任务函数
+    支持: MySQL, PostgreSQL, TiDB, SQL Server, IvorySQL, DM8
+    通过 task_configs 字典配置各数据库类型的差异参数
+    """
+    db_type = db_info.pop('_db_type', None)
+    if not db_type:
+        socketio.emit('error', {'msg': '缺少数据库类型'}, room=task_id)
+        return
+
+    task_configs = {
+        'mysql': dict(
+            module_name='main_mysql',
+            connect_test=test_mysql_connection,
+            connect_test_args=lambda info: [info['ip'], info['port'], info['user'], info['password']],
+            getdata_args=lambda info: ([info['ip'], info['port'], info['user'], info['password']],
+                                       {'ssh_info': {}, 'template_id': template_id}),
+            conn_attr='conn_db2',
+            smart_analyze='smart_analyze_mysql',
+            filename_key='webui.mysql_report_filename',
+            history_db_type='mysql',
+            instance_prefix='mysql',
+            error_task_name='MySQL',
+            log_start_key='webui.log_mysql_start',
+            err_module_key='webui.err_mysql_module',
+            label_default='unknown',
+            db_name_default='mysql',
+        ),
+        'pg': dict(
+            module_name='main_pg',
+            connect_test=test_pg_connection,
+            connect_test_args=lambda info: [info['ip'], info['port'], info['user'], info['password'], info.get('database', 'postgres')],
+            getdata_args=lambda info: ([info['ip'], info['port'], info['user'], info['password']],
+                                       {'ssh_info': {}, 'template_id': template_id, 'database': info.get('database', 'postgres')}),
+            conn_attr='conn_db2',
+            smart_analyze='smart_analyze_pg',
+            filename_key='webui.pg_report_filename',
+            history_db_type='pg',
+            instance_prefix='pg',
+            error_task_name='PostgreSQL',
+            log_start_key='webui.log_pg_start',
+            err_module_key='webui.err_pg_module',
+            label_default='unknown',
+            db_name_default='postgres',
+        ),
+        'tidb': dict(
+            module_name='main_tidb',
+            connect_test=test_tidb_connection,
+            connect_test_args=lambda info: [info['ip'], info['port'], info['user'], info['password'], info.get('database', 'mysql')],
+            getdata_args=lambda info: ([info['ip'], info['port'], info['user'], info['password']],
+                                       {'ssh_info': {}, 'template_id': template_id}),
+            conn_attr='conn_db2',
+            smart_analyze='smart_analyze_tidb',
+            filename_key='webui.tidb_report_filename',
+            history_db_type='tidb',
+            instance_prefix='tidb',
+            error_task_name='TiDB',
+            log_start_key='webui.log_tidb_start',
+            err_module_key='webui.err_tidb_module',
+            label_default='unknown',
+            db_name_default='mysql',
+        ),
+        'sqlserver': dict(
+            module_name='main_sqlserver',
+            connect_test=test_sqlserver_connection,
+            connect_test_args=lambda info: [info['ip'], info['port'], info['user'], info['password'], info.get('database', 'master')],
+            getdata_args=lambda info: ([info['ip'], info['port'], info['user'], info['password']],
+                                       {'ssh_info': {}, 'template_id': template_id, 'database': info.get('database'), 'label': info.get('name')}),
+            conn_attr='conn_db2',
+            smart_analyze='smart_analyze_sqlserver',
+            filename_key='webui.sqlserver_report_filename',
+            history_db_type='sqlserver',
+            instance_prefix='sqlserver',
+            error_task_name='SQL Server',
+            log_start_key='webui.log_sqlserver_start',
+            err_module_key='webui.err_sqlserver_module',
+            label_default='SQLServer',
+            db_name_default='master',
+        ),
+        'ivorysql': dict(
+            module_name='main_ivorysql',
+            connect_test=test_ivorysql_connection,
+            connect_test_args=lambda info: [info['ip'], info['port'], info['user'], info['password'], info.get('database', 'ivorysql')],
+            getdata_args=lambda info: ([info['ip'], info['port'], info['user'], info['password']],
+                                       {'ssh_info': {}, 'template_id': template_id, 'database': info.get('database', 'ivorysql')}),
+            conn_attr='conn_db2',
+            smart_analyze='smart_analyze_ivorysql',
+            filename_key='webui.ivorysql_report_filename',
+            history_db_type='ivorysql',
+            instance_prefix='ivorysql',
+            error_task_name='IvorySQL',
+            log_start_key='webui.log_ivorysql_start',
+            err_module_key='webui.err_ivorysql_module',
+            label_default='unknown',
+            db_name_default='ivorysql',
+        ),
+        'dm': dict(
+            module_name='main_dm',
+            connect_test=test_dm_connection,
+            connect_test_args=lambda info: [info['ip'], info['port'], info['user'], info['password']],
+            getdata_args=lambda info: ([info['ip'], info['port'], info['user'], info['password']],
+                                       {'ssh_info': {}, 'template_id': template_id, 'db_name': info.get('database', 'DAMENG')}),
+            conn_attr='conn_db',
+            smart_analyze='smart_analyze_dm',
+            filename_key='webui.dm_report_filename',
+            history_db_type='dm',
+            instance_prefix='dm',
+            error_task_name='DM8',
+            log_start_key='webui.log_dm_start',
+            err_module_key='webui.err_dm_module',
+            label_default='DM8',
+            db_name_default='DAMENG',
+        ),
+        'oracle': dict(
+            module_name='main_oracle_full',
+            connect_test=test_oracle_connection,
+            connect_test_args=lambda info: [info['ip'], info['port'], info.get('user', 'sys'), info['password'],
+                                            info.get('service_name') or info.get('sid') or info.get('database', 'orcl'),
+                                            bool(info.get('sysdba', info.get('user', 'sys').upper() == 'SYS'))],
+            getdata_args=lambda info: ([info['ip'], info['port'], info.get('user', 'sys'), info['password']],
+                                       {'ssh_info': {}, 'service_name': info.get('service_name'),
+                                        'sid': info.get('sid') or info.get('database', 'orcl'),
+                                        'sysdba': bool(info.get('sysdba', info.get('user', 'sys').upper() == 'SYS')),
+                                        'inspector_name': None, 'desensitize': info.get('desensitize', False),
+                                        'template_id': template_id}),
+            conn_attr=None,  # Oracle 连接在 single_inspection 内部管理，无需检查 conn_db
+            smart_analyze='smart_analyze_oracle',
+            filename_key='webui.oracle_report_filename',
+            history_db_type='oracle',
+            instance_prefix='oracle',
+            error_task_name='Oracle',
+            log_start_key='webui.log_oracle_start',
+            err_module_key='webui.err_oracle_module',
+            label_default='ORACLE',
+            db_name_default='orcl',
+        ),
+    }
+
+    cfg = task_configs.get(db_type)
+    if not cfg:
+        socketio.emit('error', {'msg': '不支持的数据库类型: ' + db_type}, room=task_id)
+        return
+
     emit = socketio.emit
     task = tasks.get(task_id)
     def _emit(event, data):
@@ -297,645 +466,94 @@ def run_mysql_task(task_id, db_info, inspector_name):
             task.setdefault('log', []).append(msg)
         emit(event, data, room=task_id)
 
-    _emit('log', {'msg': _t('webui.log_mysql_start').format(ts=_ts())})
+    _emit('log', {'msg': _t(cfg['log_start_key']).format(ts=_ts())})
     _emit('inspection_step', {'step': 0, 'msg': _t('webui.log_connecting').format(ts=_ts(), host=db_info['ip'], port=db_info['port'])})
 
-    if not main_mysql:
-        _emit('error', {'msg': _t('webui.err_mysql_module')})
-        return
-
     try:
-        import main_mysql as mod
+        mod = __import__(cfg['module_name'])
         _emit('log', {'msg': _t('webui.log_connecting').format(ts=_ts(), host=db_info['ip'], port=db_info['port'])})
-        ok, ver = test_mysql_connection(db_info['ip'], db_info['port'], db_info['user'], db_info['password'])
+
+        ok, ver = cfg['connect_test'](*cfg['connect_test_args'](db_info))
         if not ok:
             raise RuntimeError(_t('webui.err_db_connect').format(ver=ver))
         _emit('log', {'msg': _t('webui.log_connected').format(ts=_ts(), ver=ver)})
         _emit('inspection_step', {'step': 1, 'msg': _t('webui.log_executing_sql').format(ts=_ts())})
 
-        ssh_info = {}
-        if db_info.get('ssh_host'):
-            ssh_info = {k: db_info[k] for k in ('ssh_host','ssh_port','ssh_user','ssh_password','ssh_key_file') if k in db_info}
-
-        data = mod.getData(db_info['ip'], db_info['port'], db_info['user'], db_info['password'], ssh_info)
-        if data is None or data.conn_db2 is None:
-            raise RuntimeError(_t('webui.err_getdata_none'))
-
-        # ── stdout 重定向：捕获 checkdb() 内部的 AI 诊断等 print 输出 ───
-        import builtins as _bi
-        _orig_mysql_print = _bi.print
-        def _web_mysql_print(*_a, **_kw):
-            _sep = _kw.get('sep', ' ')
-            _msg = _sep.join(str(x) for x in _a)
-            _msg_clean = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', _msg)
-            if _msg_clean.strip():
-                _emit('log', {'msg': _msg_clean})
-            _orig_mysql_print(*_a, **_kw)
-        _bi.print = _web_mysql_print
-        _emit('inspection_step', {'step': 2, 'msg': _t('webui.log_analyzing').format(ts=_ts())})
-        try:
-            ret = data.checkdb('builtin')
-        finally:
-            _bi.print = _orig_mysql_print
-
-        if not ret:
-            raise RuntimeError(_t('webui.err_checkdb_false'))
-
-
-
-        # ── 生成 Word 报告 ───────────────────────────────────
-        _emit('inspection_step', {'step': 3, 'msg': _t('webui.log_generating_report').format(ts=_ts())})
-        _emit('log', {'msg': _t('webui.log_generating_report').format(ts=_ts())})
-        label_name = db_info.get('name', db_info.get('ip', 'unknown'))
-        db_name = db_info.get('database') or 'postgres'
-        ret.update({"co_name": [{'CO_NAME': db_name}]})
-        ret.update({"port": [{'PORT': db_info['port']}]})
-        ret.update({"ip": [{'IP': db_info['ip']}]})
-
-        inspector_name = db_info.get('inspector_name') or 'Jack'
-        ifile = mod.create_word_template(inspector_name)
-        if not ifile:
-            raise RuntimeError(_t('webui.err_template_create'))
-
-        reports_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reports')
-        if not os.path.exists(reports_dir):
-            os.makedirs(reports_dir)
-        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-        ext_name = _t('webui.mysql_report_filename').format(ip=db_info['ip'], name=label_name, ts=timestamp)
-        file_name = ext_name + '.docx'
-        ofile = os.path.join(reports_dir, file_name)
-
-        # ── 脱敏处理（如用户开启了脱敏导出）───────────────────
-        if db_info.get('desensitize'):
-            from desensitize import apply_desensitization
-            ret = apply_desensitization(ret)
-
-        savedoc = mod.saveDoc(context=ret, ofile=ofile, ifile=ifile, inspector_name=inspector_name)
-        if not savedoc.contextsave():
-            raise RuntimeError(_t('webui.err_report_generate'))
-        _emit('log', {'msg': _t('webui.log_report_ok').format(fname=file_name)})
-
-        # ── 智能分析（生成修复建议）────────────────────────────
-        try:
-            from analyzer import smart_analyze_mysql
-            auto_analyze = smart_analyze_mysql(ret)
-            if task:
-                task['auto_analyze'] = auto_analyze
-            _emit('log', {'msg': f"[智能分析] 完成，发现 {len(auto_analyze)} 个可优化项"})
-        except Exception as e:
-            auto_analyze = []
-            _emit('log', {'msg': f"[警告] 智能分析失败: {e}"})
-
-        if task:
-            task['status'] = 'done'
-            task['report_file'] = ofile
-            task['report_name'] = file_name
-
-        # ── 保存历史记录用于趋势分析 ──────────────────────────
-        try:
-            from analyzer import HistoryManager
-            hm = HistoryManager(os.path.dirname(os.path.abspath(__file__)))
-            hm.save_snapshot(
-                db_type='mysql',
-                host=db_info['ip'],
-                port=db_info['port'],
-                label=db_info.get('name', db_info['ip']),
-                context=ret
-            )
-        except Exception as e:
-            _emit('log', {'msg': f"[警告] 历史快照保存失败: {e}"})
-
-        # ── 保存巡检记录到 Pro 模块 ──────────────────────────
-        try:
-            from pro import get_instance_manager
-            # 获取风险数量
-            risk_count = ret.get('risk_count', 0)
-            if not risk_count:
-                issues = ret.get('issues', [])
-                risk_count = len(issues) if isinstance(issues, list) else 0
-
-            # 获取健康状态并转换为评分
-            health_status = ret.get('health_status', '')
-            if '优秀' in health_status or 'Excellent' in health_status:
-                health_score = 100
-            elif '良好' in health_status or 'Good' in health_status:
-                health_score = 80
-            elif '一般' in health_status or 'Fair' in health_status:
-                health_score = 60
-            elif '需关注' in health_status or 'Attention' in health_status:
-                health_score = 40
-            else:
-                health_score = 100 - min(risk_count * 5, 50)  # 默认计算
-
-            # 计算风险等级
-            if health_score >= 85:
-                risk_level = 'healthy'
-            elif health_score >= 70:
-                risk_level = 'low'
-            elif health_score >= 50:
-                risk_level = 'medium'
-            elif health_score >= 30:
-                risk_level = 'high'
-            else:
-                risk_level = 'critical'
-
-            # 生成实例ID（与数据源管理保持一致）
-            import hashlib
-            raw = f"mysql-{db_info['ip']}-{db_info['port']}".encode()
-            instance_id = hashlib.md5(raw).hexdigest()[:12]
-
-            im = get_instance_manager()
-            im.record_inspection(
-                instance_id=instance_id,
-                instance_name=label_name,
-                db_type='mysql',
-                health_score=health_score,
-                risk_count=risk_count,
-                risk_level=risk_level,
-                report_path=ofile,
-                duration=0,  # 暂不计算耗时
-                host=db_info['ip'],
-                auto_analyze=auto_analyze if auto_analyze else []
-            )
-            # ── 保存结果用于分享 ──────────────────────────
-            if task:
-                task['result'] = {
-                    'db_type': 'mysql',
-                    'host': db_info['ip'],
-                    'port': db_info['port'],
-                    'label': label_name,
-                    'health_score': health_score,
-                    'health_status': health_status,
-                    'risk_count': risk_count,
-                    'risk_level': risk_level,
-                    'finished_at': datetime.datetime.now().isoformat(),
-                    'issues': [{'level': _tr(item.get('col2', '')), 'description': _tr(item.get('col1', '')), 'suggestion': _tr(item.get('col3', ''))} for item in (task.get('auto_analyze') or [])],
-                    'report_file': ofile,
-                    'report_name': file_name,
-                }
-        except Exception as e:
-            _emit('log', {'msg': f"[警告] Pro 巡检记录保存失败: {e}"})
-
-        _emit('inspection_step', {'step': 4})
-        _emit('done', {'msg': _t('webui.log_inspection_done').format(ver=ver), 'task_id': task_id})
-    except Exception as e:
-        _emit('error', {'msg': _t('webui.err_inspection').format(task='MySQL', e=e)})
-        if task:
-            task['status'] = 'error'
-            task['error_msg'] = str(e)
-
-def run_pg_task(task_id, db_info, inspector_name):
-    emit = socketio.emit
-    task = tasks.get(task_id)
-    def _emit(event, data):
-        msg = data.get('msg', '')
-        if msg and task is not None:
-            task.setdefault('log', []).append(msg)
-        emit(event, data, room=task_id)
-
-    _emit('log', {'msg': _t('webui.log_pg_start').format(ts=_ts())})
-
-    if not main_pg:
-        _emit('error', {'msg': _t('webui.err_pg_module')})
-        return
-
-    try:
-        import main_pg as mod
-        _emit('log', {'msg': _t('webui.log_connecting').format(ts=_ts(), host=db_info['ip'], port=db_info['port'])})
-        ok, ver = test_pg_connection(db_info['ip'], db_info['port'], db_info['user'], db_info['password'], db_info.get('database', 'postgres'))
-        if not ok:
-            raise RuntimeError(_t('webui.err_db_connect').format(ver=ver))
-        _emit('log', {'msg': _t('webui.log_connected').format(ts=_ts(), ver=ver)})
-        _emit('inspection_step', {'step': 1, 'msg': _t('webui.log_executing_sql').format(ts=_ts())})
-
-        ssh_info = {}
-        if db_info.get('ssh_host'):
-            ssh_info = {k: db_info[k] for k in ('ssh_host','ssh_port','ssh_user','ssh_password','ssh_key_file') if k in db_info}
-
-        _emit('log', {'msg': _t('webui.log_executing_sql').format(ts=_ts())})
-        data = mod.getData(db_info['ip'], db_info['port'], db_info['user'], db_info['password'],
-                           database=db_info.get('database', 'postgres'), ssh_info=ssh_info)
-        if data is None or data.conn_db2 is None:
-            raise RuntimeError(_t('webui.err_getdata_none'))
-
-        # ── stdout 重定向：捕获 checkdb() 内部的 AI 诊断等 print 输出 ───
-        import builtins as _bi
-        _orig_pg_print = _bi.print
-        def _web_pg_print(*_a, **_kw):
-            _sep = _kw.get('sep', ' ')
-            _msg = _sep.join(str(x) for x in _a)
-            _msg_clean = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', _msg)
-            if _msg_clean.strip():
-                _emit('log', {'msg': _msg_clean})
-            _orig_pg_print(*_a, **_kw)
-        _bi.print = _web_pg_print
-        _emit('inspection_step', {'step': 2, 'msg': _t('webui.log_analyzing').format(ts=_ts())})
-        try:
-            ret = data.checkdb('builtin')
-        finally:
-            _bi.print = _orig_pg_print
-
-        if not ret:
-            raise RuntimeError(_t('webui.err_checkdb_false'))
-
-        # ── 生成 Word 报告 ───────────────────────────────────
-        _emit('inspection_step', {'step': 3, 'msg': _t('webui.log_generating_report').format(ts=_ts())})
-        _emit('log', {'msg': _t('webui.log_generating_report').format(ts=_ts())})
-        label_name = db_info.get('name', db_info.get('ip', 'unknown'))
-        db_name = db_info.get('database') or 'postgres'
-        ret.update({"co_name": [{'CO_NAME': db_name}]})
-        ret.update({"port": [{'PORT': db_info['port']}]})
-        ret.update({"ip": [{'IP': db_info['ip']}]})
-
-        inspector_name = db_info.get('inspector_name') or 'Jack'
-        ifile = mod.create_word_template(inspector_name)
-        if not ifile:
-            raise RuntimeError(_t('webui.err_template_create'))
-
-        reports_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reports')
-        if not os.path.exists(reports_dir):
-            os.makedirs(reports_dir)
-        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-        ext_name = _t('webui.pg_report_filename').format(ip=db_info['ip'], name=label_name, ts=timestamp)
-        file_name = ext_name + '.docx'
-        ofile = os.path.join(reports_dir, file_name)
-
-        # ── 脱敏处理（如用户开启了脱敏导出）───────────────────
-        if db_info.get('desensitize'):
-            from desensitize import apply_desensitization
-            ret = apply_desensitization(ret)
-
-        savedoc = mod.saveDoc(context=ret, ofile=ofile, ifile=ifile, inspector_name=inspector_name)
-        if not savedoc.contextsave():
-            raise RuntimeError(_t('webui.err_report_generate'))
-        _emit('log', {'msg': _t('webui.log_report_ok').format(fname=file_name)})
-
-        # ── 智能分析（生成修复建议）────────────────────────────
-        try:
-            from analyzer import smart_analyze_pg
-            auto_analyze = smart_analyze_pg(ret)
-            if task:
-                task['auto_analyze'] = auto_analyze
-            _emit('log', {'msg': f"[智能分析] 完成，发现 {len(auto_analyze)} 个可优化项"})
-        except Exception as e:
-            auto_analyze = []
-            _emit('log', {'msg': f"[警告] 智能分析失败: {e}"})
-
-        if task:
-            task['status'] = 'done'
-            task['report_file'] = ofile
-            task['report_name'] = file_name
-
-        # ── 保存历史记录用于趋势分析 ──────────────────────────
-        try:
-            from analyzer import HistoryManager
-            hm = HistoryManager(os.path.dirname(os.path.abspath(__file__)))
-            hm.save_snapshot(
-                db_type='pg',
-                host=db_info['ip'],
-                port=db_info['port'],
-                label=db_info.get('name', db_info['ip']),
-                context=ret
-            )
-        except Exception as e:
-            _emit('log', {'msg': f"[警告] 历史快照保存失败: {e}"})
-
-        # ── 保存巡检记录到 Pro 模块 ──────────────────────────
-        try:
-            from pro import get_instance_manager
-            risk_count = ret.get('risk_count', 0)
-            if not risk_count:
-                issues = ret.get('issues', [])
-                risk_count = len(issues) if isinstance(issues, list) else 0
-
-            health_status = ret.get('health_status', '')
-            if '优秀' in health_status or 'Excellent' in health_status:
-                health_score = 100
-            elif '良好' in health_status or 'Good' in health_status:
-                health_score = 80
-            elif '一般' in health_status or 'Fair' in health_status:
-                health_score = 60
-            elif '需关注' in health_status or 'Attention' in health_status:
-                health_score = 40
-            else:
-                health_score = 100 - min(risk_count * 5, 50)
-
-            if health_score >= 85:
-                risk_level = 'healthy'
-            elif health_score >= 70:
-                risk_level = 'low'
-            elif health_score >= 50:
-                risk_level = 'medium'
-            elif health_score >= 30:
-                risk_level = 'high'
-            else:
-                risk_level = 'critical'
-
-            import hashlib
-            raw = f"pg-{db_info['ip']}-{db_info['port']}".encode()
-            instance_id = hashlib.md5(raw).hexdigest()[:12]
-
-            im = get_instance_manager()
-            im.record_inspection(
-                instance_id=instance_id,
-                instance_name=label_name,
-                db_type='pg',
-                health_score=health_score,
-                risk_count=risk_count,
-                risk_level=risk_level,
-                report_path=ofile,
-                duration=0,
-                host=db_info['ip'],
-                auto_analyze=auto_analyze if auto_analyze else []
-            )
-            # ── 保存结果用于分享 ──────────────────────────
-            if task:
-                task['result'] = {
-                    'db_type': 'postgresql',
-                    'host': db_info['ip'],
-                    'port': db_info['port'],
-                    'label': label_name,
-                    'health_score': health_score,
-                    'health_status': health_status,
-                    'risk_count': risk_count,
-                    'risk_level': risk_level,
-                    'finished_at': datetime.datetime.now().isoformat(),
-                    'issues': [{'level': _tr(item.get('col2', '')), 'description': _tr(item.get('col1', '')), 'suggestion': _tr(item.get('col3', ''))} for item in (task.get('auto_analyze') or [])],
-                    'report_file': ofile,
-                    'report_name': file_name,
-                }
-        except Exception as e:
-            _emit('log', {'msg': f"[警告] Pro 巡检记录保存失败: {e}"})
-
-        _emit('inspection_step', {'step': 4})
-        _emit('done', {'msg': _t('webui.log_inspection_done').format(ver=ver), 'task_id': task_id})
-    except Exception as e:
-        _emit('error', {'msg': _t('webui.err_inspection').format(task='PostgreSQL', e=e)})
-        if task:
-            task['status'] = 'error'
-            task['error_msg'] = str(e)
-
-def run_oracle_full_task(task_id, db_info, inspector_name):
-    """Oracle 全面巡检（增强版）Web UI 任务"""
-    emit = socketio.emit
-    task = tasks.get(task_id)
-    def _emit(event, data):
-        msg = data.get('msg', '')
-        if msg and task is not None:
-            task.setdefault('log', []).append(msg)
-        emit(event, data, room=task_id)
-
-    _emit('log', {'msg': _t('webui.log_oracle_start').format(ts=_ts())})
-
-    if not main_oracle_full:
-        _emit('error', {'msg': _t('webui.err_oracle_module')})
-        return
-
-    try:
-        import main_oracle_full as mod
-
-        # ── 构造 args 命名空间 ─────────────────────────────────
-        class _Args:
-            pass
-        args = _Args()
-        args.host        = db_info.get('ip', '')
-        args.port        = int(db_info.get('port', 1521) or 1521)
-        args.user        = db_info.get('user', 'sys')
-        args.password    = db_info.get('password', '')
-        # Oracle 连接方式：优先 service_name，其次 sid
-        args.servicename = db_info.get('service_name') or None
-        args.sid         = db_info.get('sid') or None
-        # 如果都没指定，默认用 orcl 作为 SID
-        if not args.sid and not args.servicename:
-            args.sid = db_info.get('database', 'orcl')
-        # 解析 "user as sysdba" 语法，分离真实用户名和 SYSDBA 标识
-        _raw_user = db_info.get('user', 'sys').strip()
-        _sysdba_from_user = bool(re.search(r'\bas\s+sysdba\b', _raw_user, re.IGNORECASE))
-        _real_user = re.sub(r'\s+as\s+sysdba\b', '', _raw_user, flags=re.IGNORECASE).strip()
-        args.user = _real_user
-        # sys 用户默认以 SYSDBA 登录（除非用户名已含 as sysdba 则不再重复覆盖）
-        args.sysdba = bool(db_info.get('sysdba', _sysdba_from_user or _real_user.upper() == 'SYS'))
         # SSH
-        args.ssh_host  = db_info.get('ssh_host') or None
-        args.ssh_port  = int(db_info.get('ssh_port', 22) or 22)
-        args.ssh_user  = db_info.get('ssh_user') or None
-        args.ssh_pass  = db_info.get('ssh_password') or None
-        # 输出
-        args.output     = db_info.get('output_dir') or None
-        args.zip        = bool(db_info.get('zip', False))
-        # 巡检人
-        args.inspector  = inspector_name or ''
-        # 脱敏导出
-        args.desensitize = bool(db_info.get('desensitize', False))
-
-        service_desc = args.servicename or f"SID={args.sid}"
-        _emit('log', {'msg': f"[{_ts()}] 连接 Oracle {args.host}:{args.port}/{service_desc}..."})
-
-        ok, ver = test_oracle_connection(args.host, args.port, args.user, args.password, args.servicename or args.sid, args.sysdba)
-        if not ok:
-            raise RuntimeError(_t('webui.err_db_connect').format(ver=ver))
-        _emit('log', {'msg': _t('webui.log_connected').format(ts=_ts(), ver=ver)})
-
-        _emit('log', {'msg': _t('webui.log_oracle_inspecting').format(ts=_ts())})
-
-        # ── 将 mod.single_inspection 中的 print 输出重定向到 WebUI 日志 ──────
-        import builtins
-        _orig_print = builtins.print
-
-        def _web_print(*args_list, **kwargs):
-            sep = kwargs.get('sep', ' ')
-            msg = sep.join(str(a) for a in args_list)
-            # 去掉 ANSI 转义码再发送
-            msg_clean = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', msg)
-            _emit('log', {'msg': msg_clean})
-            # 同时写回原 print（服务器 stdout）
-            _orig_print(*args_list, **kwargs)
-
-        builtins.print = _web_print
-        try:
-            context = mod.single_inspection(args)
-        finally:
-            builtins.print = _orig_print
-        # ── 智能分析 ────────────────────────────────────────
-        try:
-            from analyzer import smart_analyze_oracle
-            auto_analyze = smart_analyze_oracle(context) if context else []
-            if task:
-                task['auto_analyze'] = auto_analyze
-            _emit('log', {'msg': "[智能分析] 完成，发现 %d 个可优化项" % len(auto_analyze)})
-        except Exception as e:
-            auto_analyze = []
-            _emit('log', {'msg': "[警告] 智能分析失败: %s" % str(e)})
-
-        # ── 保存巡检记录到 Pro 模块 ──────────────────────
-        try:
-            from pro import get_instance_manager
-            health_score = 85
-            risk_count = len(auto_analyze) if auto_analyze else 0
-            for a in auto_analyze:
-                if '高风险' in str(a.get('col2', '')):
-                    health_score -= 20
-                elif '中风险' in str(a.get('col2', '')):
-                    health_score -= 10
-            health_score = max(0, min(100, health_score))
-            # 计算风险等级
-            if health_score >= 85:
-                risk_level = 'healthy'
-            elif health_score >= 70:
-                risk_level = 'low'
-            elif health_score >= 50:
-                risk_level = 'medium'
-            elif health_score >= 30:
-                risk_level = 'high'
-            else:
-                risk_level = 'critical'
-
-            im = get_instance_manager()
-            db_label = db_info.get('name') or "Oracle_%s" % db_info['ip']
-            # 生成实例ID
-            import hashlib
-            raw = f"oracle-{db_info.get('host', db_info['ip'])}-{db_info.get('port', 1521)}".encode()
-            instance_id = hashlib.md5(raw).hexdigest()[:12]
-            im.record_inspection(
-                instance_id=instance_id,
-                instance_name=db_label,
-                db_type='oracle',
-                health_score=health_score,
-                risk_count=risk_count,
-                risk_level=risk_level,
-                report_path='',
-                duration=0,
-                host=db_info['ip'],
-                auto_analyze=auto_analyze if auto_analyze else []
-            )
-            _emit('log', {'msg': "[记录] 巡检记录已保存"})
-            # ── 保存结果用于分享 ──────────────────────────
-            if task:
-                _issues = []
-                for a in (auto_analyze or []):
-                    _issues.append({
-                        'level': _tr(str(a.get('col2', ''))),
-                        'description': _tr(str(a.get('col3', a.get('col1', '')))),
-                        'suggestion': _tr(str(a.get('col5', a.get('suggestion', '')))),
-                    })
-                _h_status = 'healthy' if health_score >= 85 else ('good' if health_score >= 70 else ('fair' if health_score >= 50 else 'poor'))
-                task['result'] = {
-                    'db_type': 'oracle',
-                    'host': db_info.get('host', db_info['ip']),
-                    'port': db_info.get('port', 1521),
-                    'label': db_label,
-                    'health_score': health_score,
-                    'health_status': _h_status,
-                    'risk_count': risk_count,
-                    'risk_level': risk_level,
-                    'finished_at': datetime.datetime.now().isoformat(),
-                    'issues': _issues,
-                    'report_file': '',
-                    'report_name': '',
-                }
-        except Exception as e:
-            _emit('log', {'msg': "[警告] 巡检记录保存失败: %s" % str(e)})
-
-        if task:
-            task['status'] = 'done'
-        _emit('done', {'msg': _t('webui.log_oracle_done'), 'task_id': task_id})
-    except Exception as e:
-        _emit('error', {'msg': _t('webui.err_inspection').format(task='Oracle 全面巡检', e=e)})
-        if task:
-            task['status'] = 'error'
-            task['error_msg'] = str(e)
-
-
-def run_dm_task(task_id, db_info, inspector_name):
-    emit = socketio.emit
-    task = tasks.get(task_id)
-    def _emit(event, data):
-        msg = data.get('msg', '')
-        if msg and task is not None:
-            task.setdefault('log', []).append(msg)
-        emit(event, data, room=task_id)
-
-    _emit('log', {'msg': _t('webui.log_dm_start').format(ts=_ts())})
-
-    if not main_dm:
-        _emit('error', {'msg': _t('webui.err_dm_module')})
-        return
-
-    try:
-        import main_dm as mod
-        _emit('log', {'msg': _t('webui.log_connecting').format(ts=_ts(), host=db_info['ip'], port=db_info['port'])})
-        ok, ver = test_dm_connection(db_info['ip'], db_info['port'], db_info['user'], db_info['password'])
-        if not ok:
-            raise RuntimeError(_t('webui.err_db_connect').format(ver=ver))
-        _emit('log', {'msg': _t('webui.log_connected').format(ts=_ts(), ver=ver)})
-        _emit('inspection_step', {'step': 1, 'msg': _t('webui.log_executing_sql').format(ts=_ts())})
-
         ssh_info = {}
         if db_info.get('ssh_host'):
-            ssh_info = {k: db_info[k] for k in ('ssh_host','ssh_port','ssh_user','ssh_password','ssh_key_file') if k in db_info}
+            ssh_info = {k: db_info[k] for k in ('ssh_host', 'ssh_port', 'ssh_user', 'ssh_password', 'ssh_key_file') if k in db_info}
 
-        _emit('log', {'msg': _t('webui.log_executing_sql').format(ts=_ts())})
-        # 传 db_name（getData 第5参数），CLI 模式默认 DAMENG
-        data = mod.getData(db_info['ip'], db_info['port'], db_info['user'], db_info['password'],
-                           db_name=db_info.get('database', 'DAMENG'), ssh_info=ssh_info)
-        if data is None or data.conn_db is None:
-            raise RuntimeError(_t('webui.err_getdata_none'))
-        _emit('log', {'msg': _t('webui.log_dm_analyzing').format(ts=_ts())})
-        # ── stdout 重定向：捕获 checkdb() 内部的 AI 诊断等 print 输出 ───
+        # 激活 print 拦截器（需在 getData 之前就激活，因为 Oracle 的日志在 getData 内部产生）
         import builtins as _bi
-        _orig_dm_print = _bi.print
-        def _web_dm_print(*_a, **_kw):
+        _orig_print = _bi.print
+        def _web_print(*_a, **_kw):
             _sep = _kw.get('sep', ' ')
             _msg = _sep.join(str(x) for x in _a)
             _msg_clean = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', _msg)
             if _msg_clean.strip():
                 _emit('log', {'msg': _msg_clean})
-            _orig_dm_print(*_a, **_kw)
-        _bi.print = _web_dm_print
+            _orig_print(*_a, **_kw)
+        _bi.print = _web_print
+
         try:
+            # getData
+            _pos, _kw = cfg['getdata_args'](db_info)
+            if ssh_info:
+                _kw['ssh_info'] = ssh_info
+            data = mod.getData(*_pos, **_kw)
+
+            if data is None or (cfg['conn_attr'] and getattr(data, cfg['conn_attr'], None) is None):
+                raise RuntimeError(_t('webui.err_getdata_none'))
+
+            # AI诊断
+            _emit('inspection_step', {'step': 2, 'msg': _t('webui.log_analyzing').format(ts=_ts())})
+
             context = data.checkdb('builtin')
+
         finally:
-            _bi.print = _orig_dm_print
+            _bi.print = _orig_print
 
         if not context:
-            raise RuntimeError(_t('webui.err_checkdb_empty'))
+            raise RuntimeError(_t('webui.err_checkdb_false'))
 
-        # 修正 co_name、dm_version 和 dm_instance（checkdb 内部查询结果可能为空）
-        context['co_name'] = [{'DB_NAME': db_info.get('database') or 'DAMENG'}]
-        context['dm_version'] = [{'BANNER': _t('webui.dm_banner')}]
-        # dm_instance 用于第1章表格，确保不为空
-        if not context.get('dm_instance'):
-            context['dm_instance'] = [{'INSTANCE_NAME': db_info.get('database') or 'DAMENG'}]
-
-        # AI 诊断结果（checkdb 内部已执行）
         if context.get('ai_advice'):
             _emit('log', {'msg': _t('webui.log_ai_done').format(ts=_ts())})
         if task:
             task['ai_advice'] = context.get('ai_advice', '')
 
-        # 生成报告文件
+        # 生成报告
         _emit('inspection_step', {'step': 3, 'msg': _t('webui.log_generating_report').format(ts=_ts())})
-        _emit('log', {'msg': _t('webui.log_generating_report').format(ts=_ts())})
+        label_name = db_info.get('name', cfg['label_default'])
+        db_name = db_info.get('database') or cfg['db_name_default']
+
+        context['co_name'] = [{'CO_NAME': db_name}]
+        context['port'] = [{'PORT': db_info['port']}]
+        context['ip'] = [{'IP': db_info['ip']}]
+
+        inspector_nm = db_info.get('inspector_name') or inspector_name or 'Jack'
+
         reports_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reports')
         os.makedirs(reports_dir, exist_ok=True)
-        _dt = __import__('datetime').datetime
-        label_name = db_info.get('name', 'DM8')
-        ofile = os.path.join(reports_dir, _t('webui.dm_report_filename').format(ip=db_info['ip'], name=label_name, ts=_dt.now().strftime('%Y%m%d_%H%M%S')) + '.docx')
-        ifile = mod.create_word_template(inspector_name)
-        # ── 脱敏处理（如用户开启了脱敏导出）───────────────────
+        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename_tmpl = _t(cfg['filename_key'])
+        ext_name = filename_tmpl.format(ip=db_info['ip'], name=label_name, ts=timestamp)
+        file_name = ext_name + '.docx'
+        ofile = os.path.join(reports_dir, file_name)
+
         if db_info.get('desensitize'):
             from desensitize import apply_desensitization
             context = apply_desensitization(context)
 
-        saver = mod.saveDoc(context, ofile, ifile, inspector_name, H=data.H, P=data.P)
-        if not saver.contextsave():
-            raise RuntimeError(_t('webui.err_report_failed'))
-        _emit('log', {'msg': _t('webui.log_report_done').format(ts=_ts(), fname=os.path.basename(ofile))})
+        ofile_result = data.generate_report(ofile, inspector_nm)
+        if not ofile_result:
+            raise RuntimeError(_t('webui.err_report_generate'))
+        _emit('log', {'msg': _t('webui.log_report_ok').format(fname=file_name)})
 
-        # ── 智能分析（生成修复建议）────────────────────────────
+        # 智能分析
         try:
-            from analyzer import smart_analyze_dm
-            auto_analyze = smart_analyze_dm(context)
+            _analyzer_mod = __import__('analyzer')
+            auto_analyze = getattr(_analyzer_mod, cfg['smart_analyze'])(context)
             if task:
                 task['auto_analyze'] = auto_analyze
             _emit('log', {'msg': f"[智能分析] 完成，发现 {len(auto_analyze)} 个可优化项"})
@@ -945,15 +563,15 @@ def run_dm_task(task_id, db_info, inspector_name):
 
         if task:
             task['status'] = 'done'
-            task['report_name'] = os.path.basename(ofile)
             task['report_file'] = ofile
+            task['report_name'] = file_name
 
-        # ── 保存历史记录用于趋势分析 ──────────────────────────
+        # 历史快照
         try:
             from analyzer import HistoryManager
             hm = HistoryManager(os.path.dirname(os.path.abspath(__file__)))
             hm.save_snapshot(
-                db_type='dm',
+                db_type=cfg['history_db_type'],
                 host=db_info['ip'],
                 port=db_info['port'],
                 label=db_info.get('name', db_info['ip']),
@@ -962,7 +580,7 @@ def run_dm_task(task_id, db_info, inspector_name):
         except Exception as e:
             _emit('log', {'msg': f"[警告] 历史快照保存失败: {e}"})
 
-        # ── 保存巡检记录到 Pro 模块 ──────────────────────────
+        # Pro巡检记录
         try:
             from pro import get_instance_manager
             risk_count = context.get('risk_count', 0)
@@ -994,14 +612,14 @@ def run_dm_task(task_id, db_info, inspector_name):
                 risk_level = 'critical'
 
             import hashlib
-            raw = f"dm-{db_info['ip']}-{db_info['port']}".encode()
+            raw = f"{cfg['instance_prefix']}-{db_info['ip']}-{db_info['port']}".encode()
             instance_id = hashlib.md5(raw).hexdigest()[:12]
 
             im = get_instance_manager()
             im.record_inspection(
                 instance_id=instance_id,
                 instance_name=label_name,
-                db_type='dm',
+                db_type=cfg['history_db_type'],
                 health_score=health_score,
                 risk_count=risk_count,
                 risk_level=risk_level,
@@ -1009,10 +627,10 @@ def run_dm_task(task_id, db_info, inspector_name):
                 duration=0,
                 auto_analyze=auto_analyze if auto_analyze else []
             )
-            # ── 保存结果用于分享 ──────────────────────────
+
             if task:
                 task['result'] = {
-                    'db_type': 'dm',
+                    'db_type': cfg['history_db_type'],
                     'host': db_info['ip'],
                     'port': db_info['port'],
                     'label': label_name,
@@ -1023,7 +641,7 @@ def run_dm_task(task_id, db_info, inspector_name):
                     'finished_at': datetime.datetime.now().isoformat(),
                     'issues': [{'level': _tr(item.get('col2', '')), 'description': _tr(item.get('col1', '')), 'suggestion': _tr(item.get('col3', ''))} for item in (task.get('auto_analyze') or [])],
                     'report_file': ofile,
-                    'report_name': os.path.basename(ofile) if ofile else '',
+                    'report_name': file_name,
                 }
         except Exception as e:
             _emit('log', {'msg': f"[警告] Pro 巡检记录保存失败: {e}"})
@@ -1033,609 +651,10 @@ def run_dm_task(task_id, db_info, inspector_name):
     except Exception as e:
         import traceback
         traceback.print_exc(file=sys.stdout)
-        _emit('error', {'msg': _t('webui.err_inspection').format(task='DM8', e=f"{e}\n{traceback.format_exc()}")})
+        _emit('error', {'msg': _t('webui.err_inspection').format(task=cfg['error_task_name'], e=f"{e}\n{traceback.format_exc()}")})
         if task:
             task['status'] = 'error'
             task['error_msg'] = str(e)
-
-
-def run_sqlserver_task(task_id, db_info, inspector_name):
-    """SQL Server Web UI 巡检任务"""
-    emit = socketio.emit
-    task = tasks.get(task_id)
-    def _emit(event, data):
-        msg = data.get('msg', '')
-        if msg and task is not None:
-            task.setdefault('log', []).append(msg)
-        emit(event, data, room=task_id)
-
-    _emit('log', {'msg': _t('webui.log_sqlserver_start').format(ts=_ts())})
-
-    if not main_sqlserver:
-        _emit('error', {'msg': _t('webui.err_sqlserver_module')})
-        return
-
-    try:
-        import main_sqlserver as mod
-        _emit('log', {'msg': _t('webui.log_connecting').format(ts=_ts(), host=db_info['ip'], port=db_info['port'])})
-        ok, ver = test_sqlserver_connection(
-            db_info['ip'],
-            db_info['port'],
-            db_info['user'],
-            db_info['password'],
-            db_info.get('database', 'master')
-        )
-        if not ok:
-            raise RuntimeError(_t('webui.err_db_connect').format(ver=ver))
-        _emit('log', {'msg': _t('webui.log_connected').format(ts=_ts(), ver=ver)})
-        _emit('inspection_step', {'step': 1, 'msg': _t('webui.log_executing_sql').format(ts=_ts())})
-
-        ssh_info = {}
-        if db_info.get('ssh_host'):
-            ssh_info = {k: db_info[k] for k in ('ssh_host', 'ssh_port', 'ssh_user', 'ssh_password', 'ssh_key_file') if k in db_info}
-
-        _emit('log', {'msg': _t('webui.log_executing_sql').format(ts=_ts())})
-        # 创建 DBCheckSQLServer 实例
-        inspector = mod.DBCheckSQLServer(
-            host=db_info['ip'],
-            port=int(db_info['port']),
-            user=db_info['user'],
-            password=db_info['password'],
-            database=db_info.get('database'),
-            label=db_info.get('name') or db_info.get('ip', 'SQLServer'),
-            inspector=inspector_name,
-            ssh_host=db_info.get('ssh_host'),
-            ssh_user=db_info.get('ssh_user'),
-            ssh_password=db_info.get('ssh_password'),
-            ssh_key_file=db_info.get('ssh_key_file')
-        )
-
-        # ── stdout 重定向：捕获 checkdb() 内部的 AI 诊断等 print 输出 ───
-        import builtins as _bi
-        _orig_sqlserver_print = _bi.print
-        def _web_sqlserver_print(*_a, **_kw):
-            _sep = _kw.get('sep', ' ')
-            _msg = _sep.join(str(x) for x in _a)
-            _msg_clean = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', _msg)
-            if _msg_clean.strip():
-                _emit('log', {'msg': _msg_clean})
-            _orig_sqlserver_print(*_a, **_kw)
-        _bi.print = _web_sqlserver_print
-        try:
-            ret = inspector.checkdb()
-        finally:
-            _bi.print = _orig_sqlserver_print
-
-        if not ret:
-            raise RuntimeError(_t('webui.err_checkdb_false'))
-
-        # AI 诊断结果
-        if inspector.data.get('ai_advice'):
-            _emit('log', {'msg': _t('webui.log_ai_done').format(ts=_ts())})
-        if task:
-            task['ai_advice'] = inspector.data.get('ai_advice', '')
-
-        # 生成报告文件
-        _emit('inspection_step', {'step': 3, 'msg': _t('webui.log_generating_report').format(ts=_ts())})
-        _emit('log', {'msg': _t('webui.log_generating_report').format(ts=_ts())})
-        reports_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reports')
-        os.makedirs(reports_dir, exist_ok=True)
-        _dt = __import__('datetime').datetime
-        label_name = db_info.get('name', 'SQLServer')
-        ofile = os.path.join(reports_dir, _t('webui.sqlserver_report_filename').format(ip=db_info['ip'], name=label_name, ts=_dt.now().strftime('%Y%m%d_%H%M%S')) + '.docx')
-
-        if inspector.report_path and os.path.exists(inspector.report_path):
-            # checkdb 已生成报告，直接使用
-            ofile = inspector.report_path
-        else:
-            # 手动生成报告
-            generator = mod.WordTemplateGeneratorSQLServer(inspector.data)
-            generator.generate(ofile)
-
-        _emit('log', {'msg': _t('webui.log_report_done').format(ts=_ts(), fname=os.path.basename(ofile))})
-
-        # ── 智能分析（生成修复建议）────────────────────────────
-        try:
-            from analyzer import smart_analyze_sqlserver
-            auto_analyze = smart_analyze_sqlserver(inspector.data)
-            if task:
-                task['auto_analyze'] = auto_analyze
-            _emit('log', {'msg': f"[智能分析] 完成，发现 {len(auto_analyze)} 个可优化项"})
-        except Exception as e:
-            auto_analyze = []
-            _emit('log', {'msg': f"[警告] 智能分析失败: {e}"})
-
-        if task:
-            task['status'] = 'done'
-            task['report_name'] = os.path.basename(ofile)
-            task['report_file'] = ofile
-
-        # ── 保存历史记录用于趋势分析 ──────────────────────────
-        try:
-            from analyzer import HistoryManager
-            hm = HistoryManager(os.path.dirname(os.path.abspath(__file__)))
-            hm.save_snapshot(
-                db_type='sqlserver',
-                host=db_info['ip'],
-                port=db_info['port'],
-                label=db_info.get('name', db_info['ip']),
-                context=inspector.data
-            )
-        except Exception as e:
-            _emit('log', {'msg': f"[警告] 历史快照保存失败: {e}"})
-
-        # ── 保存巡检记录到 Pro 模块 ──────────────────────────
-        try:
-            from pro import get_instance_manager
-            risk_count = inspector.data.get('risk_count', 0)
-            if not risk_count:
-                issues = inspector.data.get('issues', [])
-                risk_count = len(issues) if isinstance(issues, list) else 0
-
-            health_status = inspector.data.get('health_status', '')
-            if '优秀' in health_status or 'Excellent' in health_status:
-                health_score = 100
-            elif '良好' in health_status or 'Good' in health_status:
-                health_score = 80
-            elif '一般' in health_status or 'Fair' in health_status:
-                health_score = 60
-            elif '需关注' in health_status or 'Attention' in health_status:
-                health_score = 40
-            else:
-                health_score = 100 - min(risk_count * 5, 50)
-
-            if health_score >= 85:
-                risk_level = 'healthy'
-            elif health_score >= 70:
-                risk_level = 'low'
-            elif health_score >= 50:
-                risk_level = 'medium'
-            elif health_score >= 30:
-                risk_level = 'high'
-            else:
-                risk_level = 'critical'
-
-            import hashlib
-            raw = f"sqlserver-{db_info['ip']}-{db_info['port']}".encode()
-            instance_id = hashlib.md5(raw).hexdigest()[:12]
-
-            im = get_instance_manager()
-            im.record_inspection(
-                instance_id=instance_id,
-                instance_name=label_name,
-                db_type='sqlserver',
-                health_score=health_score,
-                risk_count=risk_count,
-                risk_level=risk_level,
-                report_path=ofile,
-                duration=0,
-                auto_analyze=auto_analyze if auto_analyze else []
-            )
-            # ── 保存结果用于分享 ──────────────────────────
-            if task:
-                task['result'] = {
-                    'db_type': 'sqlserver',
-                    'host': db_info['ip'],
-                    'port': db_info['port'],
-                    'label': label_name,
-                    'health_score': health_score,
-                    'health_status': health_status,
-                    'risk_count': risk_count,
-                    'risk_level': risk_level,
-                    'finished_at': datetime.datetime.now().isoformat(),
-                    'issues': [{'level': _tr(item.get('col2', '')), 'description': _tr(item.get('col1', '')), 'suggestion': _tr(item.get('col3', ''))} for item in (task.get('auto_analyze') or [])],
-                    'report_file': ofile,
-                    'report_name': os.path.basename(ofile) if ofile else '',
-                }
-        except Exception as e:
-            _emit('log', {'msg': f"[警告] Pro 巡检记录保存失败: {e}"})
-
-        _emit('done', {'msg': _t('webui.log_inspection_done').format(ver=ver), 'task_id': task_id,
-                       'ai_advice': inspector.data.get('ai_advice', '')})
-    except Exception as e:
-        import traceback
-        traceback.print_exc(file=sys.stdout)
-        _emit('error', {'msg': _t('webui.err_inspection').format(task='SQL Server', e=f"{e}\n{traceback.format_exc()}")})
-        if task:
-            task['status'] = 'error'
-            task['error_msg'] = str(e)
-
-# ── TiDB 巡检任务 ──────────────────────────────────────────
-def run_tidb_task(task_id, db_info, inspector_name):
-    """TiDB 巡检 Web UI 任务"""
-    emit = socketio.emit
-    task = tasks.get(task_id)
-    def _emit(event, data):
-        msg = data.get('msg', '')
-        if msg and task is not None:
-            task.setdefault('log', []).append(msg)
-        emit(event, data, room=task_id)
-
-    _emit('log', {'msg': _t('webui.log_tidb_start').format(ts=_ts())})
-
-    if not main_tidb:
-        _emit('error', {'msg': _t('webui.err_tidb_module')})
-        return
-
-    try:
-        import main_tidb as mod
-        _emit('log', {'msg': _t('webui.log_connecting').format(ts=_ts(), host=db_info['ip'], port=db_info['port'])})
-        ok, ver = test_tidb_connection(db_info['ip'], db_info['port'], db_info['user'], db_info['password'], db_info.get('database'))
-        if not ok:
-            raise RuntimeError(_t('webui.err_db_connect').format(ver=ver))
-        _emit('log', {'msg': _t('webui.log_connected').format(ts=_ts(), ver=ver)})
-        _emit('inspection_step', {'step': 1, 'msg': _t('webui.log_executing_sql').format(ts=_ts())})
-
-        ssh_info = {}
-        if db_info.get('ssh_host'):
-            ssh_info = {k: db_info[k] for k in ('ssh_host','ssh_port','ssh_user','ssh_password','ssh_key_file') if k in db_info}
-
-        data = mod.getData(db_info['ip'], db_info['port'], db_info['user'], db_info['password'], ssh_info)
-        if data is None or data.conn_db2 is None:
-            raise RuntimeError(_t('webui.err_getdata_none'))
-
-        # ── stdout 重定向：捕获 checkdb() 内部的 AI 诊断 print 输出 ──
-        import builtins as _bi
-        _orig_tidb_print = _bi.print
-        def _web_tidb_print(*_a, **_kw):
-            _sep = _kw.get('sep', ' ')
-            _msg = _sep.join(str(x) for x in _a)
-            _msg_clean = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', _msg)
-            if _msg_clean.strip():
-                _emit('log', {'msg': _msg_clean})
-            _orig_tidb_print(*_a, **_kw)
-        _bi.print = _web_tidb_print
-        _emit('inspection_step', {'step': 2, 'msg': _t('webui.log_analyzing').format(ts=_ts())})
-        try:
-            ret = data.checkdb('builtin')
-        finally:
-            _bi.print = _orig_tidb_print
-
-        if not ret:
-            raise RuntimeError(_t('webui.err_checkdb_false'))
-
-        # ── 生成 Word 报告 ──────────────────────────────────────────
-        _emit('inspection_step', {'step': 3, 'msg': _t('webui.log_generating_report').format(ts=_ts())})
-        _emit('log', {'msg': _t('webui.log_generating_report').format(ts=_ts())})
-        label_name = db_info.get('name', db_info.get('ip', 'unknown'))
-        db_name = db_info.get('database') or 'postgres'
-        ret.update({"co_name": [{'CO_NAME': db_name}]})
-        ret.update({"port": [{'PORT': db_info['port']}]})
-        ret.update({"ip": [{'IP': db_info['ip']}]})
-
-        inspector_name = db_info.get('inspector_name') or 'Jack'
-        ifile = mod.create_word_template_tidb(inspector_name)
-        if not ifile:
-            raise RuntimeError(_t('webui.err_template_create'))
-
-        reports_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reports')
-        if not os.path.exists(reports_dir):
-            os.makedirs(reports_dir)
-        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-        ext_name = _t('webui.tidb_report_filename').format(ip=db_info['ip'], name=label_name, ts=timestamp)
-        file_name = ext_name + '.docx'
-        ofile = os.path.join(reports_dir, file_name)
-
-        # ── 脱敏处理（如用户开启了脱敏导出）────────────────────────
-        if db_info.get('desensitize'):
-            from desensitize import apply_desensitization
-            ret = apply_desensitization(ret)
-
-        savedoc = mod.saveDoc(context=ret, ofile=ofile, ifile=ifile, inspector_name=inspector_name)
-        if not savedoc.contextsave():
-            raise RuntimeError(_t('webui.err_report_generate'))
-        _emit('log', {'msg': _t('webui.log_report_ok').format(fname=file_name)})
-
-        # ── 智能分析（生成修复建议）────────────────────────────
-        try:
-            from analyzer import smart_analyze_tidb
-            auto_analyze = smart_analyze_tidb(ret)
-            if task:
-                task['auto_analyze'] = auto_analyze
-            _emit('log', {'msg': f"[智能分析] 完成，发现 {len(auto_analyze)} 个可优化项"})
-        except Exception as e:
-            _emit('log', {'msg': f"[警告] 智能分析失败: {e}"})
-
-        if task:
-            task['status'] = 'done'
-            task['report_file'] = ofile
-            task['report_name'] = file_name
-
-        # ── 保存历史记录用于趋势分析 ──────────────────────────
-        try:
-            from analyzer import HistoryManager
-            hm = HistoryManager(os.path.dirname(os.path.abspath(__file__)))
-            hm.save_snapshot(
-                db_type='tidb',
-                host=db_info['ip'],
-                port=db_info['port'],
-                label=db_info.get('name', db_info['ip']),
-                context=ret
-            )
-        except Exception as e:
-            _emit('log', {'msg': f"[警告] 历史快照保存失败: {e}"})
-
-        # ── 保存巡检记录到 Pro 模块 ──────────────────────────
-        try:
-            from pro import get_instance_manager
-            risk_count = ret.get('risk_count', 0)
-            if not risk_count:
-                issues = ret.get('issues', [])
-                risk_count = len(issues) if isinstance(issues, list) else 0
-
-            health_status = ret.get('health_status', '')
-            if '优秀' in health_status or 'Excellent' in health_status:
-                health_score = 100
-            elif '良好' in health_status or 'Good' in health_status:
-                health_score = 80
-            elif '一般' in health_status or 'Fair' in health_status:
-                health_score = 60
-            elif '需关注' in health_status or 'Attention' in health_status:
-                health_score = 40
-            else:
-                health_score = 100 - min(risk_count * 5, 50)
-
-            if health_score >= 85:
-                risk_level = 'healthy'
-            elif health_score >= 70:
-                risk_level = 'low'
-            elif health_score >= 50:
-                risk_level = 'medium'
-            elif health_score >= 30:
-                risk_level = 'high'
-            else:
-                risk_level = 'critical'
-
-            import hashlib
-            raw = f"tidb-{db_info['ip']}-{db_info['port']}".encode()
-            instance_id = hashlib.md5(raw).hexdigest()[:12]
-
-            im = get_instance_manager()
-            im.record_inspection(
-                instance_id=instance_id,
-                instance_name=label_name,
-                db_type='tidb',
-                health_score=health_score,
-                risk_count=risk_count,
-                risk_level=risk_level,
-                report_path=ofile,
-                duration=0
-            )
-            # ── 保存结果用于分享 ──────────────────────────
-            if task:
-                task['result'] = {
-                    'db_type': 'tidb',
-                    'host': db_info['ip'],
-                    'port': db_info['port'],
-                    'label': label_name,
-                    'health_score': health_score,
-                    'health_status': health_status,
-                    'risk_count': risk_count,
-                    'risk_level': risk_level,
-                    'finished_at': datetime.datetime.now().isoformat(),
-                    'issues': [{'level': _tr(item.get('col2', '')), 'description': _tr(item.get('col1', '')), 'suggestion': _tr(item.get('col3', ''))} for item in (task.get('auto_analyze') or [])],
-                    'report_file': ofile,
-                    'report_name': file_name,
-                }
-        except Exception as e:
-            _emit('log', {'msg': f"[警告] Pro 巡检记录保存失败: {e}"})
-
-        _emit('inspection_step', {'step': 4})
-        _emit('done', {'msg': _t('webui.log_inspection_done').format(ver=ver), 'task_id': task_id})
-    except Exception as e:
-        import traceback
-        traceback.print_exc(file=sys.stdout)
-        _emit('error', {'msg': _t('webui.err_inspection').format(task='TiDB', e=f"{e}\n{traceback.format_exc()}")})
-        if task:
-            task['status'] = 'error'
-            task['error_msg'] = str(e)
-
-
-# ── IvorySQL 巡检任务 ──────────────────────────────────────────
-def run_ivorysql_task(task_id, db_info, inspector_name):
-    """IvorySQL 巡检 Web UI 任务"""
-    emit = socketio.emit
-    task = tasks.get(task_id)
-    def _emit(event, data):
-        msg = data.get('msg', '')
-        if msg and task is not None:
-            task.setdefault('log', []).append(msg)
-        emit(event, data, room=task_id)
-
-    _emit('log', {'msg': _t('webui.log_ivorysql_start').format(ts=_ts())})
-
-    if not main_ivorysql:
-        _emit('error', {'msg': _t('webui.err_ivorysql_module')})
-        return
-
-    try:
-        import main_ivorysql as mod
-        _emit('log', {'msg': _t('webui.log_connecting').format(ts=_ts(), host=db_info['ip'], port=db_info['port'])})
-        ok, ver = test_ivorysql_connection(db_info['ip'], db_info['port'], db_info['user'], db_info['password'], db_info.get('database'))
-        if not ok:
-            raise RuntimeError(_t('webui.err_db_connect').format(ver=ver))
-        _emit('log', {'msg': _t('webui.log_connected').format(ts=_ts(), ver=ver)})
-        _emit('inspection_step', {'step': 1, 'msg': _t('webui.log_executing_sql').format(ts=_ts())})
-
-        ssh_info = {}
-        if db_info.get('ssh_host'):
-            ssh_info = {k: db_info[k] for k in ('ssh_host','ssh_port','ssh_user','ssh_password','ssh_key_file') if k in db_info}
-
-        _emit('log', {'msg': _t('webui.log_executing_sql').format(ts=_ts())})
-        data = mod.getData(db_info['ip'], db_info['port'], db_info['user'], db_info['password'],
-                           database=db_info.get('database', 'postgres'), ssh_info=ssh_info, label=db_info.get('name'))
-        if data is None or data.conn_db2 is None:
-            raise RuntimeError(_t('webui.err_getdata_none'))
-
-        # ── stdout 重定向：捕获 checkdb() 内部的 AI 诊断 print 输出 ──
-        import builtins as _bi
-        _orig_print = _bi.print
-        def _web_print(*_a, **_kw):
-            _sep = _kw.get('sep', ' ')
-            _msg = _sep.join(str(x) for x in _a)
-            _msg_clean = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', _msg)
-            if _msg_clean.strip():
-                _emit('log', {'msg': _msg_clean})
-            _orig_print(*_a, **_kw)
-        _bi.print = _web_print
-        _emit('inspection_step', {'step': 2, 'msg': _t('webui.log_analyzing').format(ts=_ts())})
-        try:
-            ret = data.checkdb('builtin')
-        finally:
-            _bi.print = _orig_print
-
-        if not ret:
-            raise RuntimeError(_t('webui.err_checkdb_false'))
-
-        # ── 生成 Word 报告 ──────────────────────────────────────────
-        _emit('inspection_step', {'step': 3, 'msg': _t('webui.log_generating_report').format(ts=_ts())})
-        _emit('log', {'msg': _t('webui.log_generating_report').format(ts=_ts())})
-        label_name = db_info.get('name', db_info.get('ip', 'unknown'))
-        db_name = db_info.get('database') or 'postgres'
-        ret.update({"co_name": [{'CO_NAME': db_name}]})
-        ret.update({"port": [{'PORT': db_info['port']}]})
-        ret.update({"ip": [{'IP': db_info['ip']}]})
-
-        inspector_name = db_info.get('inspector_name') or 'Jack'
-        ifile = mod.create_word_template(inspector_name)
-        if not ifile:
-            raise RuntimeError(_t('webui.err_template_create'))
-
-        reports_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reports')
-        if not os.path.exists(reports_dir):
-            os.makedirs(reports_dir)
-        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-        ext_name = _t('webui.ivorysql_report_filename').format(ip=db_info['ip'], name=label_name, ts=timestamp)
-        file_name = ext_name + '.docx'
-        ofile = os.path.join(reports_dir, file_name)
-
-        if db_info.get('desensitize'):
-            from desensitize import apply_desensitization
-            ret = apply_desensitization(ret)
-
-        savedoc = mod.saveDoc(context=ret, ofile=ofile, ifile=ifile, inspector_name=inspector_name)
-        if not savedoc.contextsave():
-            raise RuntimeError(_t('webui.err_report_generate'))
-        _emit('log', {'msg': _t('webui.log_report_ok').format(fname=file_name)})
-
-        # ── 智能分析 ────────────────────────────────────────────
-        try:
-            from analyzer import smart_analyze_pg
-            auto_analyze = smart_analyze_pg(ret)
-            if task:
-                task['auto_analyze'] = auto_analyze
-            _emit('log', {'msg': f"[智能分析] 完成，发现 {len(auto_analyze)} 个可优化项"})
-        except Exception as e:
-            _emit('log', {'msg': f"[警告] 智能分析失败: {e}"})
-
-        if task:
-            task['status'] = 'done'
-            task['report_file'] = ofile
-            task['report_name'] = file_name
-
-        # ── 保存历史记录 ────────────────────────────────────────
-        try:
-            from analyzer import HistoryManager
-            hm = HistoryManager(os.path.dirname(os.path.abspath(__file__)))
-            hm.save_snapshot(
-                db_type='ivorysql',
-                host=db_info['ip'],
-                port=db_info['port'],
-                label=db_info.get('name', db_info['ip']),
-                context=ret
-            )
-        except Exception as e:
-            _emit('log', {'msg': f"[警告] 历史快照保存失败: {e}"})
-
-        # ── 保存巡检记录到 Pro 模块 ──────────────────────────
-        try:
-            from pro import get_instance_manager
-            risk_count = ret.get('risk_count', 0)
-            if not risk_count:
-                issues = ret.get('issues', [])
-                risk_count = len(issues) if isinstance(issues, list) else 0
-
-            health_status = ret.get('health_status', '')
-            if '优秀' in health_status or 'Excellent' in health_status:
-                health_score = 100
-            elif '良好' in health_status or 'Good' in health_status:
-                health_score = 80
-            elif '一般' in health_status or 'Fair' in health_status:
-                health_score = 60
-            elif '需关注' in health_status or 'Attention' in health_status:
-                health_score = 40
-            else:
-                health_score = 100 - min(risk_count * 5, 50)
-
-            if health_score >= 85:
-                risk_level = 'healthy'
-            elif health_score >= 70:
-                risk_level = 'low'
-            elif health_score >= 50:
-                risk_level = 'medium'
-            elif health_score >= 30:
-                risk_level = 'high'
-            else:
-                risk_level = 'critical'
-
-            import hashlib
-            raw = f"ivorysql-{db_info['ip']}-{db_info['port']}".encode()
-            instance_id = hashlib.md5(raw).hexdigest()[:12]
-
-            im = get_instance_manager()
-            im.record_inspection(
-                instance_id=instance_id,
-                instance_name=label_name,
-                db_type='ivorysql',
-                health_score=health_score,
-                risk_count=risk_count,
-                risk_level=risk_level,
-                report_path=ofile,
-                duration=0,
-                host=db_info['ip'],
-                auto_analyze=auto_analyze if auto_analyze else []
-            )
-
-            # ── 保存巡检结果到 task，供分享报告使用 ──
-            # issues 从 auto_analyze 构造，context(ret) 里没有 issues 键
-            _issues = []
-            if isinstance(auto_analyze, list):
-                for item in auto_analyze:
-                    if isinstance(item, dict):
-                        _issues.append({
-                            'level': _tr(item.get('col2', '')),
-                            'description': _tr(item.get('col1', '')),
-                            'suggestion': _tr(item.get('col3', '')),
-                        })
-            if task:
-                task['result'] = {
-                    'db_type': 'ivorysql',
-                    'host': db_info['ip'],
-                    'port': db_info['port'],
-                    'label': label_name,
-                    'health_score': health_score,
-                    'health_status': health_status,
-                    'risk_count': risk_count,
-                    'risk_level': risk_level,
-                    'finished_at': datetime.datetime.now().isoformat(),
-                    'issues': _issues,
-                    'report_file': ofile,
-                    'report_name': file_name,
-                }
-        except Exception as e:
-            _emit('log', {'msg': f"[警告] Pro 巡检记录保存失败: {e}"})
-
-        _emit('inspection_step', {'step': 4})
-        _emit('done', {'msg': _t('webui.log_inspection_done').format(ver=ver), 'task_id': task_id})
-    except Exception as e:
-        import traceback
-        traceback.print_exc(file=sys.stdout)
-        _emit('error', {'msg': _t('webui.err_inspection').format(task='IvorySQL', e=f"{e}\n{traceback.format_exc()}")})
-        if task:
-            task['status'] = 'error'
-            task['error_msg'] = str(e)
-
-
 # ── 配置基线检查任务 ────────────────────────────────────────
 def run_config_task(task_id, db_info, output_format='txt'):
     """配置基线检查 Web UI 任务"""
@@ -1876,7 +895,42 @@ def test_oracle_connection(host, port, user, password, service_name='ORCL', sysd
         kw = dict(user=_user, password=password, host=host, port=int(port), service_name=service_name)
         if _mode is not None:
             kw['mode'] = _mode
-        conn = oracledb.connect(**kw)
+        try:
+            conn = oracledb.connect(**kw)
+        except Exception as e:
+            err_str = str(e)
+            if 'DPY-3010' in err_str:
+                # thin mode 不支持 11g，尝试 thick mode
+                _ok = False
+                try:
+                    oracledb.init_oracle_client()
+                    _ok = True
+                except Exception:
+                    pass
+                if not _ok:
+                    _sys = platform.system().lower()
+                    if _sys == 'windows':
+                        _sub, _mk = 'windows_x64', 'oci.dll'
+                    elif _sys == 'linux':
+                        _sub, _mk = 'linux_x64', 'libclntsh.so'
+                    elif _sys == 'darwin':
+                        _sub, _mk = 'darwin_x64', 'libclntsh.dylib'
+                    else:
+                        _sub, _mk = None, None
+                    if _sub:
+                        _base = os.path.dirname(os.path.abspath(__file__))
+                        _bd = os.path.join(_base, 'oracle_client', _sub)
+                        if os.path.isdir(_bd) and os.path.isfile(os.path.join(_bd, _mk)):
+                            try:
+                                oracledb.init_oracle_client(lib_dir=_bd)
+                                _ok = True
+                            except Exception:
+                                pass
+                if not _ok:
+                    return False, 'Oracle 11g 需要 Instant Client，请将包解压到 oracle_client/windows_x64 目录'
+                conn = oracledb.connect(**kw)
+            else:
+                raise
         cur = conn.cursor()
         cur.execute("SELECT BANNER FROM V$VERSION WHERE ROWNUM=1")
         ver = cur.fetchone()[0]
@@ -2291,24 +1345,38 @@ def api_test_db():
     data = request.json
     db_type = data.get('db_type', 'mysql')
 
+    result = {'ok': False, 'msg': ''}
     if db_type == 'mysql':
         ok, msg = test_mysql_connection(data['host'], data['port'], data['user'], data['password'], data.get('database'))
+        result = {'ok': ok, 'msg': msg}
     elif db_type == 'pg':
         ok, msg = test_pg_connection(data['host'], data['port'], data['user'], data['password'], data.get('database', 'postgres'))
+        result = {'ok': ok, 'msg': msg}
     elif db_type == 'oracle':
         ok, msg = test_oracle_connection(data['host'], data['port'], data['user'], data['password'], data.get('service_name', 'ORCL'), bool(data.get('sysdba')))
+        result = {'ok': ok, 'msg': msg}
+        if ok:
+            # 提取 Oracle 大版本（11 / 12 / 18 / 19 / 21 等）
+            import re as _re
+            m = _re.search(r'(\d{2})\.', msg)
+            if m:
+                result['oracle_major_version'] = int(m.group(1))
     elif db_type == 'dm':
         ok, msg = test_dm_connection(data['host'], data['port'], data['user'], data['password'])
+        result = {'ok': ok, 'msg': msg}
     elif db_type == 'sqlserver':
         ok, msg = test_sqlserver_connection(data['host'], data['port'], data['user'], data['password'], data.get('database', 'master'))
+        result = {'ok': ok, 'msg': msg}
     elif db_type == 'tidb':
         ok, msg = test_tidb_connection(data['host'], data['port'], data['user'], data['password'], data.get('database'))
+        result = {'ok': ok, 'msg': msg}
     elif db_type == 'ivorysql':
         ok, msg = test_ivorysql_connection(data['host'], data['port'], data['user'], data['password'], data.get('database', 'postgres'))
+        result = {'ok': ok, 'msg': msg}
     else:
         return jsonify({'ok': False, 'msg': _t('webui.err_unknown_db_type')})
 
-    return jsonify({'ok': ok, 'msg': msg})
+    return jsonify(result)
 
 
 @app.route('/api/test_ollama', methods=['POST'])
@@ -2445,24 +1513,27 @@ def api_start_inspection():
             })
 
         task_id = str(uuid.uuid4())
+        template_id = data.get('template_id') or None
         tasks[task_id] = {
             'id':            task_id,
             'db_type':       db_type,
             'db_info':       db_info,
             'datasource_id': data.get('datasource_id') or None,
+            'template_id':   template_id,
             'inspector':     inspector_name,
             'status':        'running',
             'started_at':    datetime.datetime.now().isoformat()
         }
+        db_info['_db_type'] = db_type
         t = threading.Thread(target={
-            'mysql':      run_mysql_task,
-            'pg':         run_pg_task,
-            'oracle':run_oracle_full_task,
-            'dm':         run_dm_task,
-            'sqlserver':  run_sqlserver_task,
-            'tidb':       run_tidb_task,
-            'ivorysql':   run_ivorysql_task,
-        }.get(db_type, run_mysql_task), args=(task_id, db_info, inspector_name))
+            'mysql':      run_inspection_task,
+            'pg':         run_inspection_task,
+            'oracle':run_inspection_task,
+            'dm':         run_inspection_task,
+            'sqlserver':  run_inspection_task,
+            'tidb':       run_inspection_task,
+            'ivorysql':   run_inspection_task,
+        }.get(db_type, run_inspection_task), args=(task_id, db_info, inspector_name, template_id))
         t.daemon = True
         t.start()
         return jsonify({'ok': True, 'task_id': task_id})
@@ -2470,6 +1541,394 @@ def api_start_inspection():
         import traceback, sys
         traceback.print_exc(file=sys.stdout)
         return jsonify({'ok': False, 'msg': repr(e)})
+
+
+
+from inspection_dal import (
+    get_all_templates, get_template, get_templates_by_db_type,
+    create_template, update_template,
+    delete_template, get_chapters_by_template, get_chapter, create_chapter,
+    update_chapter, delete_chapter, reorder_chapters,
+    get_queries_by_chapter, get_query, create_query, update_query,
+    delete_query, export_template, import_template,
+    init_database as icfg_init_db,
+    create_baseline, get_baselines_by_db_type, get_baseline,
+    update_baseline, delete_baseline, init_default_baselines,
+)
+
+# ── 基线配置 API ───────────────────────────────────────────
+
+@app.route('/api/inspection/baselines', methods=['GET'])
+def api_list_baselines():
+    """获取基线配置列表"""
+    try:
+        icfg_init_db()
+        db_type = request.args.get('db_type', '')
+        if db_type:
+            rows = get_baselines_by_db_type(db_type, enabled_only=False)
+        else:
+            conn = __import__('inspection_dal').get_db_connection()
+            rows = [dict(r) for r in conn.execute(
+                'SELECT * FROM inspection_baseline ORDER BY db_type, param_name'
+            ).fetchall()]
+            conn.close()
+        return jsonify({'success': True, 'data': rows})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/inspection/baselines', methods=['POST'])
+def api_create_baseline():
+    """新增基线配置"""
+    try:
+        icfg_init_db()
+        d = request.json
+        bid = create_baseline(
+            db_type=d.get('db_type', ''), param_name=d.get('param_name', ''),
+            query_sql=d.get('query_sql', ''), operator=d.get('operator', '='),
+            expected_value=d.get('expected_value'),
+            expected_value_min=d.get('expected_value_min'),
+            expected_value_max=d.get('expected_value_max'),
+            risk_level=d.get('risk_level', 'MEDIUM'),
+            description_zh=d.get('description_zh'),
+            description_en=d.get('description_en'),
+        )
+        return jsonify({'success': True, 'message': '创建成功', 'data': {'id': bid}})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/inspection/baselines/<int:bid>', methods=['GET'])
+def api_get_baseline(bid):
+    """获取单条基线配置"""
+    try:
+        icfg_init_db()
+        row = get_baseline(bid)
+        if row:
+            return jsonify({'success': True, 'data': row})
+        return jsonify({'success': False, 'message': '未找到该基线配置'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/inspection/baselines/<int:bid>', methods=['PUT'])
+def api_update_baseline(bid):
+    """更新基线配置"""
+    try:
+        icfg_init_db()
+        d = request.json
+        update_baseline(
+            bid,
+            param_name=d.get('param_name'),
+            query_sql=d.get('query_sql'),
+            operator=d.get('operator'),
+            expected_value=d.get('expected_value'),
+            expected_value_min=d.get('expected_value_min'),
+            expected_value_max=d.get('expected_value_max'),
+            risk_level=d.get('risk_level'),
+            description_zh=d.get('description_zh'),
+            description_en=d.get('description_en'),
+        )
+        return jsonify({'success': True, 'message': '更新成功'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/inspection/baselines/<int:bid>', methods=['DELETE'])
+def api_delete_baseline(bid):
+    """删除基线配置"""
+    try:
+        icfg_init_db()
+        delete_baseline(bid)
+        return jsonify({'success': True, 'message': '删除成功'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/inspection/baselines/init', methods=['POST'])
+def api_init_default_baselines():
+    """初始化默认基线配置"""
+    try:
+        icfg_init_db()
+        init_default_baselines()
+        return jsonify({'success': True, 'message': '默认基线配置初始化成功'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+# ── 巡检模板 API ───────────────────────────────────────────
+
+@app.route('/api/inspection/templates', methods=['GET'])
+def api_list_icfg_templates():
+    """获取巡检模板列表，支持按 db_type 过滤"""
+    try:
+        icfg_init_db()
+        db_type = request.args.get('db_type')
+        # 前端 db_type 简称 → 数据库 template 全称映射
+        _DB_TYPE_MAP = {'pg': 'postgresql', 'dm': 'dm8'}
+        if db_type:
+            db_type = _DB_TYPE_MAP.get(db_type, db_type)
+            rows = get_templates_by_db_type(db_type)
+        else:
+            rows = get_all_templates()
+        return jsonify({'success': True, 'data': rows})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/inspection/templates', methods=['POST'])
+def api_create_icfg_template():
+    """创建巡检模板"""
+    try:
+        icfg_init_db()
+        d = request.json
+        tid = create_template(
+            db_type=d.get('db_type', ''),
+            template_name=d.get('template_name', ''),
+            template_name_en=d.get('template_name_en', ''),
+            version=d.get('version', 'v1'),
+            description=d.get('description', ''),
+            is_default=1 if d.get('is_default') else 0,
+        )
+        return jsonify({'success': True, 'data': {'id': tid}})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/inspection/templates/<int:tid>', methods=['GET'])
+def api_get_icfg_template(tid):
+    """获取巡检模板详情"""
+    try:
+        icfg_init_db()
+        row = get_template(tid)
+        if row:
+            return jsonify({'success': True, 'data': row})
+        return jsonify({'success': False, 'message': '模板不存在'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/inspection/templates/<int:tid>', methods=['PUT'])
+def api_update_icfg_template(tid):
+    """更新巡检模板"""
+    try:
+        icfg_init_db()
+        d = request.json
+        update_template(
+            tid,
+            template_name=d.get('template_name'),
+            version=d.get('version'),
+            description=d.get('description'),
+            is_default=d.get('is_default'),
+        )
+        return jsonify({'success': True, 'message': '模板更新成功'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/inspection/templates/<int:tid>', methods=['DELETE'])
+def api_delete_icfg_template(tid):
+    """删除巡检模板（级联删除章节和查询）"""
+    try:
+        icfg_init_db()
+        delete_template(tid)
+        return jsonify({'success': True, 'message': '模板删除成功'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/inspection/templates/<int:tid>/export', methods=['GET'])
+def api_export_icfg_template(tid):
+    """导出巡检模板（含章节和查询）"""
+    try:
+        icfg_init_db()
+        data = export_template(tid)
+        return jsonify({'success': True, 'data': data})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/inspection/templates/import', methods=['POST'])
+def api_import_icfg_template():
+    """导入巡检模板"""
+    try:
+        icfg_init_db()
+        d = request.json
+        result = import_template(
+            d.get('template_config', {}),
+            overwrite=d.get('overwrite', False),
+        )
+        return jsonify({'success': True, 'message': '模板导入成功 (ID: %d)' % result, 'data': {'id': result}})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+# ── 章节管理 API ───────────────────────────────────────────
+
+@app.route('/api/inspection/templates/<int:tid>/chapters', methods=['GET'])
+def api_list_icfg_chapters(tid):
+    """获取模板下的章节列表"""
+    try:
+        icfg_init_db()
+        rows = get_chapters_by_template(tid)
+        for ch in rows:
+            queries = get_queries_by_chapter(ch['id'])
+            ch['query_count'] = len(queries)
+        return jsonify({'success': True, 'data': rows})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/inspection/templates/<int:tid>/chapters', methods=['POST'])
+def api_create_icfg_chapter(tid):
+    """在模板下创建章节"""
+    try:
+        icfg_init_db()
+        d = request.json
+        cid = create_chapter(
+            template_id=tid,
+            chapter_number=d.get('chapter_number', 1),
+            chapter_title_zh=d.get('chapter_title_zh', ''),
+            chapter_title_en=d.get('chapter_title_en', ''),
+            description=d.get('description', ''),
+            enabled=1 if d.get('enabled', 1) else 0,
+        )
+        return jsonify({'success': True, 'data': {'id': cid}})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/inspection/chapters/<int:cid>', methods=['GET'])
+def api_get_icfg_chapter(cid):
+    """获取章节详情"""
+    try:
+        icfg_init_db()
+        row = get_chapter(cid)
+        if row:
+            return jsonify({'success': True, 'data': row})
+        return jsonify({'success': False, 'message': '章节不存在'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/inspection/chapters/<int:cid>', methods=['PUT'])
+def api_update_icfg_chapter(cid):
+    """更新章节"""
+    try:
+        icfg_init_db()
+        d = request.json
+        update_chapter(
+            cid,
+            chapter_number=d.get('chapter_number'),
+            chapter_title_zh=d.get('chapter_title_zh'),
+            chapter_title_en=d.get('chapter_title_en'),
+            description=d.get('description'),
+            enabled=d.get('enabled'),
+        )
+        return jsonify({'success': True, 'message': '章节更新成功'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/inspection/chapters/<int:cid>', methods=['DELETE'])
+def api_delete_icfg_chapter(cid):
+    """删除章节（级联删除查询）"""
+    try:
+        icfg_init_db()
+        delete_chapter(cid)
+        return jsonify({'success': True, 'message': '章节删除成功'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/inspection/chapters/reorder', methods=['POST'])
+def api_reorder_icfg_chapters():
+    """章节拖拽排序"""
+    try:
+        icfg_init_db()
+        d = request.json
+        template_id = d.get('template_id')
+        chapter_ids = d.get('chapter_ids', [])
+        reorder_chapters(template_id, chapter_ids)
+        return jsonify({'success': True, 'message': '排序保存成功'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+# ── SQL 查询管理 API ───────────────────────────────────────
+
+@app.route('/api/inspection/chapters/<int:cid>/queries', methods=['GET'])
+def api_list_icfg_queries(cid):
+    """获取章节下的查询列表"""
+    try:
+        icfg_init_db()
+        rows = get_queries_by_chapter(cid)
+        return jsonify({'success': True, 'data': rows})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/inspection/chapters/<int:cid>/queries', methods=['POST'])
+def api_create_icfg_query(cid):
+    """在章节下创建查询"""
+    try:
+        icfg_init_db()
+        d = request.json
+        qid = create_query(
+            chapter_id=cid,
+            query_key=d.get('query_key', ''),
+            query_sql=d.get('query_sql', ''),
+            query_description_zh=d.get('query_description_zh', ''),
+            query_description_en=d.get('query_description_en', ''),
+            enabled=1 if d.get('enabled', 1) else 0,
+        )
+        return jsonify({'success': True, 'data': {'id': qid}})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/inspection/queries/<int:qid>', methods=['GET'])
+def api_get_icfg_query(qid):
+    """获取查询详情"""
+    try:
+        icfg_init_db()
+        row = get_query(qid)
+        if row:
+            return jsonify({'success': True, 'data': row})
+        return jsonify({'success': False, 'message': '查询不存在'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/inspection/queries/<int:qid>', methods=['PUT'])
+def api_update_icfg_query(qid):
+    """更新查询"""
+    try:
+        icfg_init_db()
+        d = request.json
+        update_query(
+            qid,
+            query_key=d.get('query_key'),
+            query_sql=d.get('query_sql'),
+            query_description_zh=d.get('query_description_zh'),
+            query_description_en=d.get('query_description_en'),
+            enabled=d.get('enabled'),
+        )
+        return jsonify({'success': True, 'message': '查询更新成功'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/inspection/queries/<int:qid>', methods=['DELETE'])
+def api_delete_icfg_query(qid):
+    """删除查询"""
+    try:
+        icfg_init_db()
+        delete_query(qid)
+        return jsonify({'success': True, 'message': '查询删除成功'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
 
 
 @app.route('/api/start_config_baseline', methods=['POST'])
@@ -2913,6 +2372,7 @@ def api_scheduler_add():
                 'notify_on_done': bool(data.get('notify_on_done', True)),
                 'cron': cron,
                 'enabled': True,
+                'template_id': data.get('template_id') or None,
                 'db_info': {
                     'datasource_id': datasource_id,
                     'label': data.get('label', datasource_id),
@@ -2927,6 +2387,7 @@ def api_scheduler_add():
                 'notify_on_done': bool(data.get('notify_on_done', True)),
                 'cron': cron,
                 'enabled': True,
+                'template_id': data.get('template_id') or None,
                 'db_info': {
                     'label': data.get('label', ''),
                     'db_type': data.get('db_type', 'mysql'),
@@ -3713,7 +3174,28 @@ def api_pro_datasources_test_conn():
                         _thick_ok = True
                     except Exception:
                         pass
-                    # 2. 自动检测失败，尝试读用户配置的路径
+                    # 2. 自动检测失败，尝试 DBCheck 内置的 Instant Client
+                    if not _thick_ok:
+                        _sys_name = platform.system().lower()
+                        if _sys_name == 'windows':
+                            _subdir, _marker = 'windows_x64', 'oci.dll'
+                        elif _sys_name == 'linux':
+                            _subdir, _marker = 'linux_x64', 'libclntsh.so'
+                        elif _sys_name == 'darwin':
+                            _subdir, _marker = 'darwin_x64', 'libclntsh.dylib'
+                        else:
+                            _subdir, _marker = None, None
+
+                        if _subdir:
+                            _base_dir = os.path.dirname(os.path.abspath(__file__))
+                            _bundled = os.path.join(_base_dir, 'oracle_client', _subdir)
+                            if os.path.isdir(_bundled) and os.path.isfile(os.path.join(_bundled, _marker)):
+                                try:
+                                    oracledb.init_oracle_client(lib_dir=_bundled)
+                                    _thick_ok = True
+                                except Exception:
+                                    pass
+                    # 3. 内置 Client 失败，尝试读用户配置的路径
                     if not _thick_ok:
                         try:
                             import json
@@ -3729,7 +3211,8 @@ def api_pro_datasources_test_conn():
                         return jsonify(
                             ok=False,
                             error='Oracle 11g 及以下版本需要 Oracle Instant Client。'
-                                  '请在设置中配置"Oracle Client 路径"，或启用 SSH 隧道直连。'
+                                  '请将 Instant Client 解压到 DBCheck/oracle_client/windows_x64（或 linux_x64/darwin_x64），'
+                                  '或在设置中配置"Oracle Client 路径"。'
                         )
                     try:
                         conn = oracledb.connect(**params)
@@ -3803,6 +3286,254 @@ def api_pro_datasources_import():
         import traceback
         traceback.print_exc()
         return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+# ══════════════════════════════════════════════════════════════
+#  SQL 编辑器 API（数据库树 / 对象列表）
+# ══════════════════════════════════════════════════════════════
+
+@app.route('/api/pro/datasources/<ds_id>/databases', methods=['GET'])
+def api_ds_databases(ds_id):
+    """返回某数据源的数据库列表"""
+    from pro import get_instance_manager
+    mgr = get_instance_manager()
+    inst = mgr.get_instance_decrypted(ds_id)
+    if not inst:
+        return jsonify({'error': f'数据源不存在: {ds_id}'}), 404
+
+    db_type = inst.get('db_type', '').replace('oracle_full', 'oracle')
+    if db_type == 'pg':
+        db_type = 'postgresql'
+    host     = inst.get('host', '')
+    port     = int(inst.get('port', 3306))
+    user     = inst.get('user', '')
+    pwd      = inst.get('password') or ''
+    timeout  = 10
+
+    try:
+        databases = []
+        if db_type == 'mysql':
+            import pymysql
+            conn = pymysql.connect(host=host, port=port, user=user, password=pwd,
+                                   connect_timeout=timeout, charset='utf8mb4')
+            cur = conn.cursor()
+            cur.execute("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA ORDER BY SCHEMA_NAME")
+            databases = [r[0] for r in cur.fetchall()]
+            conn.close()
+        elif db_type in ('postgresql', 'ivorysql'):
+            import psycopg2
+            conn = psycopg2.connect(host=host, port=port, user=user, password=pwd,
+                                    dbname='postgres', connect_timeout=timeout)
+            cur = conn.cursor()
+            cur.execute("SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname")
+            databases = [r[0] for r in cur.fetchall()]
+            conn.close()
+        elif db_type == 'tidb':
+            import pymysql
+            conn = pymysql.connect(host=host, port=port, user=user, password=pwd,
+                                   connect_timeout=timeout, charset='utf8mb4')
+            cur = conn.cursor()
+            cur.execute("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA ORDER BY SCHEMA_NAME")
+            databases = [r[0] for r in cur.fetchall()]
+            conn.close()
+        elif db_type == 'sqlserver':
+            import pyodbc
+            drv = '{ODBC Driver 17 for SQL Server}'
+            conn = pyodbc.connect(
+                f'DRIVER={drv};SERVER={host},{port};UID={user};PWD={pwd};Timeout={timeout}'
+            )
+            cur = conn.cursor()
+            cur.execute("SELECT name FROM sys.databases WHERE name NOT IN ('master','tempdb','model','msdb') ORDER BY name")
+            databases = [r[0] for r in cur.fetchall()]
+            conn.close()
+        elif db_type == 'oracle':
+            import oracledb
+            svc = inst.get('service_name','') or ''
+            sid = inst.get('sid','') or ''
+            if svc:
+                dsn = oracledb.makedsn(host=host, port=int(port), service_name=svc)
+            elif sid:
+                dsn = oracledb.makedsn(host=host, port=int(port), sid=sid)
+            else:
+                return jsonify({'error': 'Oracle 数据源未配置 service_name 或 sid'}), 400
+            sysdba = inst.get('sysdba', False)
+            if sysdba:
+                conn = oracledb.connect(user=user, password=pwd, dsn=dsn, mode=oracledb.AuthMode.SYSDBA)
+            else:
+                conn = oracledb.connect(user=user, password=pwd, dsn=dsn)
+            cur = conn.cursor()
+            cur.execute("SELECT username FROM all_users ORDER BY username")
+            databases = [r[0] for r in cur.fetchall()]
+            conn.close()
+        elif db_type == 'dm':
+            import dmPython as dm
+            conn = dm.connect(user=user, password=pwd, server=host, port=port)
+            cur = conn.cursor()
+            cur.execute("SELECT username FROM all_users ORDER BY username")
+            system_dbs = ('SYSDBA', 'SYSAUDITOR', 'SYS', 'SYSSESSION', 'INFORMATION_SCHEMA')
+            databases = [r[0] for r in cur.fetchall() if r[0].upper() not in system_dbs]
+            conn.close()
+        else:
+            return jsonify({'error': f'暂不支持该数据库类型: {db_type}'}), 400
+
+        return jsonify({'databases': databases, 'db_type': db_type})
+    except Exception as e:
+        return jsonify({'error': str(e), 'db_type': db_type}), 500
+
+
+@app.route('/api/pro/datasources/<ds_id>/objects', methods=['GET'])
+def api_ds_objects(ds_id):
+    """返回某数据库下的表、视图等对象"""
+    database = request.args.get('database', '').strip()
+    if not database:
+        return jsonify({'error': '缺少 database 参数'}), 400
+
+    from pro import get_instance_manager
+    mgr = get_instance_manager()
+    inst = mgr.get_instance_decrypted(ds_id)
+    if not inst:
+        return jsonify({'error': f'数据源不存在: {ds_id}'}), 404
+
+    db_type = inst.get('db_type', '').replace('oracle_full', 'oracle')
+    if db_type == 'pg':
+        db_type = 'postgresql'
+    host    = inst.get('host', '')
+    port    = int(inst.get('port', 3306))
+    user    = inst.get('user', '')
+    pwd     = inst.get('password') or ''
+    timeout = 10
+
+    try:
+        tables, views = [], []
+        if db_type == 'mysql':
+            import pymysql
+            conn = pymysql.connect(host=host, port=port, user=user, password=pwd,
+                                   database=database, connect_timeout=timeout, charset='utf8mb4')
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT TABLE_NAME, TABLE_TYPE FROM INFORMATION_SCHEMA.TABLES "
+                "WHERE TABLE_SCHEMA=%s ORDER BY TABLE_NAME",
+                (database,)
+            )
+            for row in cur.fetchall():
+                if row[1] == 'BASE TABLE':
+                    tables.append(row[0])
+                elif row[1] == 'VIEW':
+                    views.append(row[0])
+            conn.close()
+        elif db_type in ('postgresql', 'ivorysql'):
+            import psycopg2
+            conn = psycopg2.connect(host=host, port=port, user=user, password=pwd,
+                                    dbname=database, connect_timeout=timeout)
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT tablename FROM pg_catalog.pg_tables "
+                "WHERE schemaname = 'public' ORDER BY tablename"
+            )
+            tables = [r[0] for r in cur.fetchall()]
+            cur.execute(
+                "SELECT viewname FROM pg_catalog.pg_views "
+                "WHERE schemaname = 'public' ORDER BY viewname"
+            )
+            views = [r[0] for r in cur.fetchall()]
+            conn.close()
+        elif db_type == 'tidb':
+            import pymysql
+            conn = pymysql.connect(host=host, port=port, user=user, password=pwd,
+                                   database=database, connect_timeout=timeout, charset='utf8mb4')
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT TABLE_NAME, TABLE_TYPE FROM INFORMATION_SCHEMA.TABLES "
+                "WHERE TABLE_SCHEMA=%s ORDER BY TABLE_NAME",
+                (database,)
+            )
+            for row in cur.fetchall():
+                if row[1] == 'BASE TABLE':
+                    tables.append(row[0])
+                elif row[1] == 'VIEW':
+                    views.append(row[0])
+            conn.close()
+        elif db_type == 'sqlserver':
+            import pyodbc
+            drv = '{ODBC Driver 17 for SQL Server}'
+            conn = pyodbc.connect(
+                f'DRIVER={drv};SERVER={host},{port};DATABASE={database};UID={user};PWD={pwd};Timeout={timeout}'
+            )
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES "
+                "WHERE TABLE_TYPE='BASE TABLE' AND TABLE_CATALOG=%s ORDER BY TABLE_NAME",
+                (database,)
+            )
+            tables = [r[0] for r in cur.fetchall()]
+            cur.execute(
+                "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES "
+                "WHERE TABLE_TYPE='VIEW' AND TABLE_CATALOG=%s ORDER BY TABLE_NAME",
+                (database,)
+            )
+            views = [r[0] for r in cur.fetchall()]
+            conn.close()
+        elif db_type == 'oracle':
+            import oracledb
+            svc = inst.get('service_name','') or ''
+            sid = inst.get('sid','') or ''
+            if svc:
+                dsn = oracledb.makedsn(host=host, port=int(port), service_name=svc)
+            elif sid:
+                dsn = oracledb.makedsn(host=host, port=int(port), sid=sid)
+            else:
+                return jsonify({'error': 'Oracle 数据源未配置 service_name 或 sid'}), 400
+            sysdba = inst.get('sysdba', False)
+            if sysdba:
+                conn = oracledb.connect(user=user, password=pwd, dsn=dsn, mode=oracledb.AuthMode.SYSDBA)
+            else:
+                conn = oracledb.connect(user=user, password=pwd, dsn=dsn)
+            cur = conn.cursor()
+            owner = (database or '').upper()
+            cur.execute(
+                "SELECT table_name FROM all_tables WHERE owner = :owner ORDER BY table_name",
+                {'owner': owner}
+            )
+            tables = [r[0] for r in cur.fetchall()]
+            cur.execute(
+                "SELECT view_name FROM all_views WHERE owner = :owner ORDER BY view_name",
+                {'owner': owner}
+            )
+            views = [r[0] for r in cur.fetchall()]
+            conn.close()
+        elif db_type == 'dm':
+            import dmPython as dm
+            conn = dm.connect(user=user, password=pwd, server=host, port=port)
+            cur = conn.cursor()
+            owner = (database or '').upper()
+            try:
+                cur.execute(
+                    'SELECT table_name FROM ALL_TABLES WHERE owner = ? ORDER BY table_name',
+                    (owner,)
+                )
+                tables = [r[0] for r in cur.fetchall()]
+            except Exception:
+                pass
+            try:
+                cur.execute(
+                    'SELECT view_name FROM ALL_VIEWS WHERE owner = ? ORDER BY view_name',
+                    (owner,)
+                )
+                views = [r[0] for r in cur.fetchall()]
+            except Exception:
+                pass
+            conn.close()
+        else:
+            return jsonify({'error': f'暂不支持该数据库类型: {db_type}'}), 400
+
+        return jsonify({
+            'database': database,
+            'db_type':  db_type,
+            'tables':   sorted(tables),
+            'views':    sorted(views),
+        })
+    except Exception as e:
+        return jsonify({'error': str(e), 'db_type': db_type}), 500
 
 
 # ══════════════════════════════════════════════════════════════
@@ -5097,16 +4828,17 @@ def api_chat():
             }
 
             # 启动巡检线程
+            db_info['_db_type'] = db_type
             task_func_map = {
-                'mysql': run_mysql_task,
-                'pg': run_pg_task,
-                'oracle': run_oracle_full_task,
-                'dm': run_dm_task,
-                'sqlserver': run_sqlserver_task,
-                'tidb': run_tidb_task,
-                'ivorysql': run_ivorysql_task,
+                'mysql': run_inspection_task,
+                'pg': run_inspection_task,
+                'oracle': run_inspection_task,
+                'dm': run_inspection_task,
+                'sqlserver': run_inspection_task,
+                'tidb': run_inspection_task,
+                'ivorysql': run_inspection_task,
             }
-            task_func = task_func_map.get(db_type, run_mysql_task)
+            task_func = task_func_map.get(db_type, run_inspection_task)
             t = threading.Thread(target=task_func, args=(task_id, db_info, inspector_name))
             t.daemon = True
             t.start()

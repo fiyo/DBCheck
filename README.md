@@ -2,7 +2,7 @@
 
 ![logo](snapshot/dbcheck_logo_info_gray.png)
 
-DBCheck is an open-source, cross-platform automated database health check tool that supports seven mainstream relational databases: **MySQL**, **PostgreSQL**, **Oracle**, **SQL Server**, **DM8**, **TiDB**, and **IvorySQL**. The tool automatically generates standardized Microsoft Word inspection reports by executing predefined SQL checks and collecting system resources. It also provides advanced features such as historical trend analysis, AI-powered intelligent diagnostics, configuration baseline compliance checks, index health analysis, in-depth slow query analysis, server inspection, share links, and data-masked export. DBCheck aims to free DBAs from repetitive and time-consuming manual inspection work, improving database operation and maintenance efficiency and risk detection capabilities.
+DBCheck is an open-source, cross-platform automated database health check tool that supports seven mainstream relational databases: **MySQL**, **PostgreSQL**, **Oracle**, **SQL Server**, **DM8**, **TiDB**, and **IvorySQL**. The tool automatically generates standardized Microsoft Word inspection reports by executing predefined SQL checks and collecting system resources. It also provides advanced features such as SQL editor, remote terminal, configurable inspection chapters, configuration baseline management, historical trend analysis, AI-powered intelligent diagnostics, index health analysis, in-depth slow query analysis, server inspection, share links, and data-masked export. DBCheck aims to free DBAs from repetitive and time-consuming manual inspection work, improving database operation and maintenance efficiency and risk detection capabilities.
 > website：https://dbcheck.top
 
 > Language: [English](./README.md) | [中文](./README_zh.md)
@@ -20,6 +20,7 @@ DBCheck is an open-source, cross-platform automated database health check tool t
 [![Downloads Latest](https://img.shields.io/github/downloads/fiyo/dbcheck/latest/total?style=flat-square&label=Latest)]()
 [![WebSite](https://img.shields.io/badge/WebSite-www.dbcheck.top-green.svg)]()
 
+---
 
 ## 🌍 Multi-Language Support
 
@@ -101,6 +102,61 @@ Each risk is presented as a card: **Risk Level (High/Medium/Low) → Issue Descr
 | 🔍 150+ Enhanced Rules | Full-dimensional risk detection across seven databases (MySQL 35+, PG 27+, Oracle 20+, SQL Server 15+, DM8 16+, TiDB 18+, IvorySQL 27+) — including 28 new slow query deep analysis rules |
 | 🖥️ Server Inspection | Comprehensive check of server hardware and system resource status, generating professional server inspection reports |
 | 🔗 Share Links | Generate online share links with one click, supporting both server and database inspection report sharing |
+
+---
+
+## SQL Editor
+
+> Built-in interactive SQL editor — write, execute, and debug SQL queries directly in the Web UI without switching tools.
+
+| Feature | Description |
+|---------|-------------|
+| Multi-Database Support | MySQL / PostgreSQL / Oracle / SQL Server / DM8 / TiDB / IvorySQL |
+| Syntax Highlighting | Color-coded SQL statements for better readability |
+| Result Grid | Query results displayed in a scrollable table with row numbers |
+| Execution History | Recent queries are preserved within the current session |
+| Error Feedback | Database errors are translated into friendly, actionable prompts |
+
+---
+
+## Remote Terminal
+
+> SSH-based remote terminal built into Web UI — manage database servers directly from your browser.
+
+| Feature | Description |
+|---------|-------------|
+| SSH Connection | Password and key-based authentication supported |
+| Tab Management | Multiple terminal sessions in separate tabs |
+| Full-Screen Mode | Expand to full screen for extended command-line work |
+| Session Persistence | Terminal state preserved during page navigation |
+
+---
+
+## Inspection Config Management
+
+> Flexible inspection chapter management — freely customize inspection scope per database type without modifying code. The inspection engine is now config-driven: chapters are automatically generated based on the active configuration, replacing the previous hardcoded approach.
+
+| Feature | Description |
+|---------|-------------|
+| Chapter Management | Add, remove, reorder, or enable/disable inspection chapters per database type |
+| Visual Toggle | Enable/disable individual inspection items with one click |
+| Config Persistence | Saved to configuration file, survives restarts |
+| Dynamic Report Generation | Word report chapters are generated from the active config — only enabled items appear in the report |
+
+---
+
+## Baseline Config Management
+
+> Visual baseline configuration management through the Web UI — customize recommended values, thresholds, and compliance rules for each database type.
+
+Complements the **Configuration Baseline Checks** feature described below. In addition to the built-in baselines, you can now:
+
+| Feature | Description |
+|---------|-------------|
+| Edit Thresholds | Adjust recommended values and warning/critical thresholds via Web UI |
+| Add Custom Rules | Define new baseline parameters beyond the built-in set |
+| Per-Database Overrides | Apply different baselines for different instances or environments |
+| Visual Management | All changes through the Web UI — no code edits required |
 
 ---
 

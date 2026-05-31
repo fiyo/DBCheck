@@ -203,6 +203,7 @@ python run_inspection.py \
 ```
 
 > **Oracle 特权连接**：用户名输入 `sys as sysdba`，工具自动识别并使用 SYSDBA 模式连接。
+> **Oracle 11g 兼容**：v2.5.0 已修复 11g R2 认证兼容性和 SQL 模板列差异。
 
 #### SQL Server 巡检
 
@@ -334,7 +335,7 @@ python run_inspection.py \
 #### 完整参数参考
 
 ```
---type           数据库类型: mysql / pg / oracle / sqlserver / dm / tidb（完整巡检必需）
+--type           数据库类型: mysql / pg / oracle / sqlserver / dm / tidb / ivorysql（完整巡检必需）
 --host           数据库主机 IP 或域名
 --port           数据库端口（默认 MySQL 3306, TiDB 4000, PG 5432, Oracle 1521, SQL Server 1433, DM8 5236）
 --user           数据库用户名
@@ -377,7 +378,11 @@ python run_inspection.py \
 
 生成的 Word 报告包含以下章节（各数据库结构略有差异）：
 
-- **封面**：数据库基本信息（名称/版本/实例/主机名/启动时间/巡检人员/平台/报告时间）
+> **v2.5.0 架构变更**：巡检引擎已升级为配置驱动模式。报告章节不再硬编码，而是根据巡检配置管理中的章节定义自动生成。通过 Web UI 的巡检配置管理可自由启用/禁用/调整巡检章节，仅启用的章节会出现在报告中。
+
+默认章节结构（可通过巡检配置管理自定义）：
+
+- **封面**：数据库基本信息（名称/版本/实例/启动时间/巡检人员/平台/报告时间）
 - **第1章**：数据库基本信息（版本/实例名/服务器版本等）
 - **第2章**：巡检执行摘要（执行时间、耗时、异常项统计）
 - **第3章**：表空间使用情况（各数据库文件使用率）
@@ -429,6 +434,6 @@ python run_inspection.py \
 - TiDB 使用 MySQL 协议（pymysql），默认端口 4000；权限配置与 MySQL 完全相同
 - **本地文件写入**：巡检会在 `reports/` 生成 Word 报告、在当前目录写入 `history.json`（纯数值指标）、`autoDoc.log`（运行日志），均在本地机器上
 - **AI 诊断限制**：仅支持本地 Ollama，API 地址必须是 localhost/127.0.0.1；不支持任何远程 AI 服务
-- **配置基线检查**：仅支持 MySQL/PostgreSQL，依赖 `performance_schema`（MySQL）或 `pg_stat_statements`（PG）获取统计信息
+- **配置基线检查**：仅支持 MySQL/PostgreSQL，依赖 `performance_schema`（MySQL）或 `pg_stat_statements`（PG）获取统计信息；v2.5.0 可通过 Web UI 的基线配置管理自定义推荐值和阈值
 - **索引健康分析**：仅支持 MySQL/PostgreSQL，MySQL 依赖 `performance_schema.table_statistics`，PG 依赖 `pg_stat_user_indexes`
 - **PDF 导出**：依赖 LibreOffice（跨平台，推荐）或 `docx2pdf`（Windows 专用）；如需 PDF 格式报告请安装：`pip install reportlab`（用于直接生成 PDF 报告）
