@@ -119,8 +119,10 @@ MYSQL_DEFAULT_CHAPTERS = [
              'desc_zh': 'InnoDB 行操作统计',      'desc_en': 'InnoDB row operation stats'},
             {'key': 'innodb_data_ops','sql': "SHOW GLOBAL STATUS LIKE 'Innodb_data_%';",
              'desc_zh': 'InnoDB 数据读写统计',     'desc_en': 'InnoDB data R/W stats'},
-            {'key': 'cache_hit_ratio', 'sql': "SELECT ROUND((1 - (variable_value / (SELECT variable_value FROM performance_schema.global_status WHERE variable_name='Innodb_buffer_pool_reads')) * 100, 2) AS buffer_pool_hit_ratio FROM performance_schema.global_status WHERE variable_name='Innodb_buffer_pool_read_requests';",
-             'desc_zh': '缓冲池命中率',            'desc_en': 'Buffer pool hit ratio'},
+            {'key': 'cache_hit_ratio', 'sql': "SHOW GLOBAL STATUS LIKE 'Innodb_buffer_pool_reads';",
+             'desc_zh': '缓冲池物理读次数',       'desc_en': 'Buffer pool physical reads'},
+            {'key': 'cache_hit_requests', 'sql': "SHOW GLOBAL STATUS LIKE 'Innodb_buffer_pool_read_requests';",
+             'desc_zh': '缓冲池读请求次数',       'desc_en': 'Buffer pool read requests'},
         ]
     },
     {

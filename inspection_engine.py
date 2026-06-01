@@ -470,6 +470,32 @@ class BaseInspectionEngine:
         except Exception as e:
             print(self._t(f'{self.db_type}_query_loop_fail', default='dm8_query_loop_fail').format(e=e))
 
+        # MySQL: 从 cache_hit_ratio / cache_hit_requests 计算缓冲池命中率
+        # SHOW GLOBAL STATUS LIKE 返回 Variable_name / Value 两列（所有 MySQL 版本兼容）
+        if self.db_type == 'mysql':
+            def _get_show_status_value(data):
+                """从 SHOW GLOBAL STATUS 结果提取 Value"""
+                if not data or not isinstance(data, list):
+                    return 0
+                row = data[0]
+                if not isinstance(row, dict):
+                    return 0
+                # 兼容不同驱动的大小写差异: Value / value / VALUE
+                val = row.get('Value') or row.get('value') or row.get('VALUE')
+                if val is None:
+                    return 0
+                try:
+                    return int(str(val).replace(',', ''))
+                except (ValueError, TypeError):
+                    return 0
+
+            reads = _get_show_status_value(self.context.get('cache_hit_ratio', []))
+            requests = _get_show_status_value(self.context.get('cache_hit_requests', []))
+            if requests > 0:
+                self.context['cache_hit_ratio_pct'] = round((1.0 - reads / requests) * 100, 2)
+            else:
+                self.context['cache_hit_ratio_pct'] = 0.0
+
         # 容错执行结果存入 context
         self.context['_safe_errors'] = getattr(self._execute_query_safe, '_errors', [])
 
@@ -1245,18 +1271,33 @@ class BaseInspectionEngine:
                     })
                     
                 except Exception as e:
-                    print(f"[WARN] 基线检查失败: {param_name}, 错误: {e}")
-                    results.append({
-                        'param_name': param_name,
-                        'current_value': 'ERROR',
-                        'expected_value': expected_value,
-                        'operator': operator,
-                        'status': 'ERROR',
-                        'risk_level': risk_level,
-                        'description_zh': description_zh,
-                        'description_en': description_en,
-                        'message': str(e)
-                    })
+                    error_str = str(e)
+                    # MySQL 8.0+ 不存在 query_cache_size，或未安装 validate_password 插件时跳过
+                    if 'Unknown system variable' in error_str:
+                        results.append({
+                            'param_name': param_name,
+                            'current_value': 'N/A (变量不存在)',
+                            'expected_value': expected_value,
+                            'operator': operator,
+                            'status': 'SKIP',
+                            'risk_level': risk_level,
+                            'description_zh': description_zh,
+                            'description_en': description_en,
+                            'message': '当前 MySQL 版本不存在此系统变量'
+                        })
+                    else:
+                        print(f"[WARN] 基线检查失败: {param_name}, 错误: {e}")
+                        results.append({
+                            'param_name': param_name,
+                            'current_value': 'ERROR',
+                            'expected_value': expected_value,
+                            'operator': operator,
+                            'status': 'ERROR',
+                            'risk_level': risk_level,
+                            'description_zh': description_zh,
+                            'description_en': description_en,
+                            'message': error_str
+                        })
             
             self.context['baseline_results'] = results
             print(f"[INFO] 基线检查完成，共 {len(results)} 项")

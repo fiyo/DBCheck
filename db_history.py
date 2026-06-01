@@ -219,6 +219,7 @@ class SQLiteHistoryManager:
             m['max_used_connections'] = _safe_int(context.get('max_used_connections', []))
             queries_data = context.get('queries', [])
             m['queries_total'] = _safe_int(queries_data)
+            m['cache_hit_ratio'] = context.get('cache_hit_ratio_pct', 0.0)
             m['version'] = (context.get('myversion', [{}]) or [{}])[0].get('version', '') if context.get('myversion') else ''
         elif db_type in ('postgres', 'postgresql'):
             pg_conn = context.get('pg_connections', [])

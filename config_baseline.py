@@ -525,6 +525,9 @@ def check_mysql_config_baseline(conn):
             continue  # MySQL 8.x 使用 binlog_expire_logs_seconds
         if param_name == 'binlog_expire_logs_seconds' and mysql_ver < 8:
             continue  # MySQL 5.x 使用 expire_logs_days
+        # MySQL 8.0 已移除查询缓存相关变量
+        if param_name == 'query_cache_size' and mysql_ver >= 8:
+            continue  # MySQL 8.0+ 无 query_cache_size
 
         try:
             # 获取当前值
