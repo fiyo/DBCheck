@@ -1,12 +1,8 @@
 {
     "language": "zh",
     "ai": {
-        "backend": "ollama",
+        "backend": "disabled",
         "online_enabled": false,
-        "api_key": "",
-        "api_url": "http://localhost:11434",
-        "model": "qwen3:8b",
-        "timeout": 600,
         "rag": {
             "enabled": true,
             "embedding_model": "nomic-embed-text",

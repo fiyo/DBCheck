@@ -517,11 +517,13 @@ POSTGRESQL_DEFAULT_CHAPTERS = [
             {'key': 'pg_blocking_chain', 'sql': """
                 SELECT blocked_locks.pid AS blocked_pid, blocked_activity.usename AS blocked_user,
                        left(blocked_activity.query, 200) AS blocked_query,
-                       blocking_locks.pid AS blocking_pid, blocking_activity.usename AS blocking_user,
-                       left(blocking_activity.query, 200) AS blocking_query
+                       blocking_locks.pid AS blocking_pid, blocking_activity_block.usename AS blocking_user,
+                       left(blocking_activity_block.query, 200) AS blocking_query
                 FROM pg_catalog.pg_locks blocked_locks
                 JOIN pg_catalog.pg_stat_activity blocked_activity ON blocked_activity.pid = blocked_locks.pid
                 JOIN pg_catalog.pg_locks blocking_locks ON blocking_locks.locktype = blocked_locks.locktype
+                    AND blocking_locks.pid != blocked_locks.pid AND blocking_locks.granted
+                JOIN pg_catalog.pg_stat_activity blocking_activity_block ON blocking_activity_block.pid = blocking_locks.pid
                 WHERE NOT blocked_locks.granted
                 ORDER BY blocked_activity.query_start;
             """,
@@ -619,8 +621,8 @@ POSTGRESQL_DEFAULT_CHAPTERS = [
         'queries': [
             {'key': 'pg_tablespace_size', 'sql': "SELECT spcname, pg_size_pretty(pg_tablespace_size(oid)) AS size FROM pg_tablespace;",
              'desc_zh': '表空间大小',                 'desc_en': 'Tablespace sizes'},
-            {'key': 'pg_io_stats', 'sql': "SELECT * FROM pg_stat_io LIMIT 20;",
-             'desc_zh': 'I/O 统计（PG 15+）',       'desc_en': 'I/O stats (PG 15+)'},
+            {'key': 'pg_io_stats', 'sql': "SELECT datname, blks_read, blks_hit, temp_files, temp_bytes FROM pg_stat_database WHERE datname NOT IN ('template0','template1') ORDER BY blks_read + blks_hit DESC LIMIT 20;",
+             'desc_zh': '数据库 I/O 统计',         'desc_en': 'Database I/O stats'},
         ]
     },
     {
@@ -659,19 +661,24 @@ POSTGRESQL_DEFAULT_CHAPTERS = [
         'description': '最耗时/最频繁的 SQL',
         'queries': [
             {'key': 'pg_top_elapsed', 'sql': """
-                SELECT queryid, query, calls, total_time, mean_time, rows
-                FROM pg_stat_statements
-                ORDER BY total_time DESC
+                SELECT LEFT(query, 200) AS query, COUNT(*) AS calls,
+                       MAX(EXTRACT(EPOCH FROM now() - xact_start))::numeric AS max_duration_sec
+                FROM pg_stat_activity
+                WHERE state != 'idle' AND query NOT LIKE 'SELECT query%' AND datname IS NOT NULL
+                GROUP BY LEFT(query, 200)
+                ORDER BY max_duration_sec DESC
                 LIMIT 10;
             """,
-             'desc_zh': 'TOP SQL（总耗时）',          'desc_en': 'Top SQL by total time'},
+             'desc_zh': 'TOP SQL（当前活跃，需 pg_stat_statements 获取历史）', 'desc_en': 'Top SQL by duration (active, full history needs pg_stat_statements)'},
             {'key': 'pg_top_calls', 'sql': """
-                SELECT queryid, query, calls, total_time, mean_time, rows
-                FROM pg_stat_statements
-                ORDER BY calls DESC
+                SELECT LEFT(query, 200) AS query, COUNT(*) AS active_count, state
+                FROM pg_stat_activity
+                WHERE state != 'idle' AND query NOT LIKE 'SELECT query%' AND datname IS NOT NULL
+                GROUP BY LEFT(query, 200), state
+                ORDER BY active_count DESC
                 LIMIT 10;
             """,
-             'desc_zh': 'TOP SQL（执行次数）',       'desc_en': 'Top SQL by calls'},
+             'desc_zh': 'TOP SQL（活跃并发，需 pg_stat_statements 获取历史）', 'desc_en': 'Top SQL by concurrency (full history needs pg_stat_statements)'},
         ]
     },
     {
@@ -781,7 +788,7 @@ POSTGRESQL_DEFAULT_CHAPTERS = [
         'queries': [
             {'key': 'pg_archive_status', 'sql': "SELECT * FROM pg_stat_archiver;",
              'desc_zh': '归档进程状态',                'desc_en': 'Archiver process status'},
-            {'key': 'pg_archive_ready', 'sql': "SELECT count(*) AS ready_count FROM pg_ls_dir('pg_wal/archive_status') WHERE filename LIKE '%.ready';",
+            {'key': 'pg_archive_ready', 'sql': "SELECT count(*) AS ready_count FROM (SELECT * FROM pg_ls_dir('pg_wal/archive_status')) AS files WHERE pg_ls_dir LIKE '%.ready';",
              'desc_zh': '待归档 WAL 数量',           'desc_en': 'WAL files waiting for archive'},
         ]
     },
@@ -2294,16 +2301,12 @@ DM8_DEFAULT_CHAPTERS = [
         'description': '表空间和数据文件使用情况',
         'queries': [
             {'key': 'tablespace_usage', 'sql': """
-                SELECT
-                    TS.NAME AS tablespace_name,
-                    ROUND(SUM(DF.TOTAL_SIZE) / 1024 / 1024, 2) AS total_mb,
-                    ROUND(SUM(DF.TOTAL_SIZE - DF.FREE_SIZE) / 1024 / 1024, 2) AS used_mb,
-                    ROUND(SUM(DF.FREE_SIZE) / 1024 / 1024, 2) AS free_mb,
-                    ROUND((SUM(DF.TOTAL_SIZE - DF.FREE_SIZE) / SUM(DF.TOTAL_SIZE)) * 100, 2) AS used_pct
-                FROM DBA_TABLESPACES TS
-                LEFT JOIN DBA_DATA_FILES DF ON TS.NAME = DF.TABLESPACE_NAME
-                GROUP BY TS.NAME
-                ORDER BY used_pct DESC;
+                SELECT T.TABLESPACE_NAME, T.STATUS AS TS_STATUS,
+                       D.FILE_NAME, D.BYTES/1024/1024 AS FILE_SIZE_MB,
+                       D.STATUS AS FILE_STATUS
+                FROM DBA_TABLESPACES T
+                LEFT JOIN DBA_DATA_FILES D ON T.TABLESPACE_NAME = D.TABLESPACE_NAME
+                ORDER BY T.TABLESPACE_NAME;
             """,
              'desc_zh': '表空间使用率', 'desc_en': 'Tablespace usage rate'},
         ]
@@ -2327,10 +2330,10 @@ DM8_DEFAULT_CHAPTERS = [
         'description': '非只读参数和关键配置检查',
         'queries': [
             {'key': 'dm_params', 'sql': """
-                SELECT PARA_NAME, PARA_VALUE, DEFAULT_VALUE, IS_DYNAMIC
+                SELECT NAME, TYPE, VALUE, SYS_VALUE
                 FROM V$PARAMETER
-                WHERE IS_DYNAMIC = 'TRUE'
-                ORDER BY PARA_NAME;
+                WHERE TYPE != 'R'
+                ORDER BY NAME;
             """,
              'desc_zh': '非只读参数一览', 'desc_en': 'Non-readonly parameters'},
         ]
@@ -2342,12 +2345,11 @@ DM8_DEFAULT_CHAPTERS = [
         'description': '归档日志开启状态和最近归档情况',
         'queries': [
             {'key': 'archive_status', 'sql': """
-                SELECT ARCH_TYPE, ARCH_DEST, ARCH_FILE_SIZE, ARCH_SPACE_LIMIT, ARCH_IS_VALID
-                FROM V$ARCHIVED_LOG
-                ORDER BY CREATE_TIME DESC
-                LIMIT 20;
+                SELECT NAME, VALUE
+                FROM V$PARAMETER
+                WHERE NAME IN ('ARCH_MODE', 'ARCH_FILE_SIZE', 'ARCH_SPACE_LIMIT')
             """,
-             'desc_zh': '最近归档日志', 'desc_en': 'Recent archived logs'},
+             'desc_zh': '归档配置参数', 'desc_en': 'Archive configuration parameters'},
         ]
     },
     {
@@ -2370,7 +2372,7 @@ DM8_DEFAULT_CHAPTERS = [
         'queries': [
             {'key': 'lock_wait', 'sql': "SELECT * FROM V$LOCK ORDER BY TABLE_ID;",
              'desc_zh': '锁等待会话', 'desc_en': 'Lock waiting sessions'},
-            {'key': 'long_trx', 'sql': "SELECT * FROM V$TRX WHERE DATEDIFF(NOW(), START_TIME) > 60 ORDER BY START_TIME;",
+            {'key': 'long_trx', 'sql': "SELECT trx.ID AS trx_id, trx.SESS_ID, trx.STATUS, sess.USER_NAME, sess.CLNT_IP, DATEDIFF(SS, sess.CREATE_TIME, SYSDATE) AS duration_sec FROM V$TRX trx JOIN V$SESSIONS sess ON trx.SESS_ID=sess.SESS_ID WHERE DATEDIFF(SS, sess.CREATE_TIME, SYSDATE) > 60 ORDER BY duration_sec DESC;",
              'desc_zh': '运行超过 60 秒的长事务', 'desc_en': 'Long transactions > 60s'},
         ]
     },
@@ -2465,12 +2467,8 @@ DM8_DEFAULT_CHAPTERS = [
         'chapter_title_en': 'Job Status',
         'description': '数据库作业状态',
         'queries': [
-            {'key': 'dba_jobs', 'sql': """
-                SELECT JOB, LOG_USER, PRIV_USER, LAST_DATE, NEXT_DATE, BROKEN, FAILURES
-                FROM DBA_JOBS
-                ORDER BY JOB;
-            """,
-             'desc_zh': '作业状态列表', 'desc_en': 'Job status list'},
+            {'key': 'dm_jobs', 'sql': "SELECT 'DM8 不支持 DBA_JOBS/DBA_SCHEDULER_JOBS 视图，请通过 DM 管理工具查看作业' AS message;",
+             'desc_zh': '数据库作业状态列表', 'desc_en': 'Database job status list (not supported in DM8)'},
         ]
     },
     {
@@ -2500,12 +2498,14 @@ DM8_DEFAULT_CHAPTERS = [
         'description': '表统计信息新鲜度',
         'queries': [
             {'key': 'stale_tables', 'sql': """
-                SELECT TABLE_OWNER, TABLE_NAME, NUM_ROWS, LAST_ANALYZED, STALE_STATS
-                FROM DBA_TAB_STATISTICS
-                WHERE STALE_STATS = 'YES'
-                ORDER BY TABLE_OWNER, TABLE_NAME;
+                SELECT OWNER AS TABLE_OWNER, TABLE_NAME, NUM_ROWS, LAST_ANALYZED
+                FROM DBA_TABLES
+                WHERE OWNER NOT IN ('SYS','SYSTEM')
+                  AND (LAST_ANALYZED IS NULL OR LAST_ANALYZED < SYSDATE - 90)
+                ORDER BY OWNER, TABLE_NAME
+                LIMIT 30;
             """,
-             'desc_zh': '统计信息过期的表', 'desc_en': 'Tables with stale statistics'},
+             'desc_zh': '超过90天未分析或从未分析的表', 'desc_en': 'Tables not analyzed in 90+ days'},
         ]
     },
     {
@@ -2517,9 +2517,7 @@ DM8_DEFAULT_CHAPTERS = [
             {'key': 'datafile_status', 'sql': """
                 SELECT FILE_ID, FILE_NAME, TABLESPACE_NAME,
                        ROUND(BYTES / 1024 / 1024, 2) AS size_mb,
-                       AUTOEXTENSIBLE,
-                       ROUND(MAXBYTES / 1024 / 1024, 2) AS max_mb,
-                       STATUS, ONLINE_STATUS
+                       STATUS
                 FROM DBA_DATA_FILES
                 ORDER BY TABLESPACE_NAME, FILE_ID;
             """,
@@ -2643,7 +2641,7 @@ TIDB_DEFAULT_CHAPTERS = [
              'desc_zh': 'InnoDB 行操作统计',      'desc_en': 'InnoDB row operation stats'},
             {'key': 'innodb_data_ops','sql': "SHOW GLOBAL STATUS LIKE 'Innodb_data_%';",
              'desc_zh': 'InnoDB 数据读写统计',     'desc_en': 'InnoDB data R/W stats'},
-            {'key': 'cache_hit_ratio', 'sql': "SELECT ROUND((1 - (variable_value / (SELECT variable_value FROM performance_schema.global_status WHERE variable_name='Innodb_buffer_pool_reads')) * 100, 2) AS buffer_pool_hit_ratio FROM performance_schema.global_status WHERE variable_name='Innodb_buffer_pool_read_requests';",
+            {'key': 'cache_hit_ratio', 'sql': "SELECT 'TiDB uses TiKV with different cache mechanism' AS info;",
              'desc_zh': '缓冲池命中率',            'desc_en': 'Buffer pool hit ratio'},
         ]
     },
@@ -2712,14 +2710,14 @@ TIDB_DEFAULT_CHAPTERS = [
         'chapter_title_en': 'Replication Status',
         'description': '主从复制状态检查',
         'queries': [
-            {'key': 'slave_status',    'sql': "SHOW SLAVE STATUS\\G",
-             'desc_zh': '从库复制状态',           'desc_en': 'Slave replication status'},
-            {'key': 'master_status',    'sql': "SHOW MASTER STATUS;",
-             'desc_zh': '主库 Binlog 位置',      'desc_en': 'Master binlog position'},
-            {'key': 'slave_io_running', 'sql': "SHOW SLAVE STATUS\\G",
-             'desc_zh': '复制 IO 线程状态',       'desc_en': 'Replication IO thread status'},
-            {'key': 'replication_lag',  'sql': "SHOW SLAVE STATUS\\G",
-             'desc_zh': '复制延迟（Seconds_Behind_Master）', 'desc_en': 'Replication lag'},
+            {'key': 'slave_status',    'sql': "SELECT 'TiDB has no master-slave replication' AS info;",
+             'desc_zh': 'TiDB 无主从复制',           'desc_en': 'TiDB no replication'},
+            {'key': 'master_status',    'sql': "SELECT 'TiDB has no master-slave replication' AS info;",
+             'desc_en': 'TiDB no replication', 'desc_zh': 'TiDB 无主从复制'},
+            {'key': 'slave_io_running', 'sql': "SELECT 'TiDB has no master-slave replication' AS info;",
+             'desc_zh': 'TiDB 无主从复制',       'desc_en': 'TiDB no replication'},
+            {'key': 'replication_lag',  'sql': "SELECT 'TiDB has no master-slave replication' AS info;",
+             'desc_zh': 'TiDB 无主从复制延迟', 'desc_en': 'TiDB no replication lag'},
         ]
     },
     {
@@ -2728,29 +2726,12 @@ TIDB_DEFAULT_CHAPTERS = [
         'chapter_title_en': 'InnoDB Lock Analysis',
         'description': 'InnoDB 锁等待和长事务检查',
         'queries': [
-            {'key': 'innodb_lock_chain', 'sql': """
-                SELECT r.trx_id AS waiting_trx_id, r.trx_mysql_thread_id AS waiting_thread,
-                       LEFT(COALESCE(r.trx_query, ''), 200) AS waiting_query,
-                       r.trx_state AS waiting_state,
-                       b.trx_id AS blocking_trx_id, b.trx_mysql_thread_id AS blocking_thread,
-                       LEFT(COALESCE(b.trx_query, ''), 200) AS blocking_query
-                FROM information_schema.INNODB_TRX r
-                JOIN performance_schema.data_lock_waits w ON r.trx_id = w.REQUESTING_ENGINE_TRANSACTION_ID
-                JOIN information_schema.INNODB_TRX b ON w.BLOCKING_ENGINE_TRANSACTION_ID = b.trx_id
-                ORDER BY r.trx_started;
-            """,
-             'desc_zh': 'InnoDB 锁等待链',      'desc_en': 'InnoDB lock wait chain'},
-            {'key': 'innodb_long_trx', 'sql': """
-                SELECT trx_id, trx_mysql_thread_id, trx_state,
-                       LEFT(COALESCE(trx_query, ''), 200) AS trx_query,
-                       TIMESTAMPDIFF(SECOND, trx_started, NOW()) AS trx_duration_sec
-                FROM information_schema.INNODB_TRX
-                WHERE TIMESTAMPDIFF(SECOND, trx_started, NOW()) > 60
-                ORDER BY trx_started;
-            """,
+            {'key': 'innodb_lock_chain', 'sql': "SELECT 'Lock wait info available in tidb_trx and slow query log' AS info;",
+             'desc_zh': 'TiDB 锁等待链',      'desc_en': 'TiDB lock wait chain'},
+            {'key': 'innodb_long_trx', 'sql': "SELECT * FROM information_schema.tidb_trx LIMIT 50;",
              'desc_zh': '运行超过 60 秒的长事务', 'desc_en': 'Long transactions > 60s'},
-            {'key': 'innodb_deadlock', 'sql': "SHOW ENGINE INNODB STATUS\\G",
-             'desc_zh': 'InnoDB 引擎状态（含死锁信息）', 'desc_en': 'InnoDB engine status'},
+            {'key': 'innodb_deadlock', 'sql': "SELECT 'Deadlock info available in slow query log and TiDB Dashboard' AS info;",
+             'desc_zh': 'TiDB 锁等待详情', 'desc_en': 'TiDB lock wait details'},
         ]
     },
     {
@@ -2773,12 +2754,12 @@ TIDB_DEFAULT_CHAPTERS = [
         'chapter_title_en': 'Transaction & Lock Analysis',
         'description': '事务状态和锁等待分析',
         'queries': [
-            {'key': 'trx_list',   'sql': "SELECT * FROM information_schema.INNODB_TRX ORDER BY trx_started;",
-             'desc_zh': '当前 InnoDB 事务列表',   'desc_en': 'Current InnoDB transactions'},
-            {'key': 'lock_waits', 'sql': "SELECT * FROM performance_schema.data_lock_waits LIMIT 20;",
+            {'key': 'trx_list',   'sql': "SELECT * FROM information_schema.tidb_trx LIMIT 50;",
+             'desc_zh': '当前 TiDB 事务列表',   'desc_en': 'Current TiDB transactions'},
+            {'key': 'lock_waits', 'sql': "SELECT 'Lock wait info available in tidb_trx and slow query log' AS info;",
              'desc_zh': '锁等待列表',              'desc_en': 'Lock wait list'},
-            {'key': 'lock_summary', 'sql': "SELECT lock_mode, lock_type, COUNT(*) AS cnt FROM performance_schema.data_locks GROUP BY lock_mode, lock_type;",
-             'desc_zh': '锁类型统计',               'desc_en': 'Lock type statistics'},
+            {'key': 'lock_summary', 'sql': "SELECT 'Lock state stats available in slow query log' AS info;",
+             'desc_zh': '锁状态统计',               'desc_en': 'Lock state statistics'},
         ]
     },
     {
@@ -2830,23 +2811,10 @@ TIDB_DEFAULT_CHAPTERS = [
         'chapter_title_en': 'Index Usage Analysis',
         'description': '索引使用率和冗余索引分析',
         'queries': [
-            {'key': 'unused_indexes', 'sql': """
-                SELECT object_schema, object_name, index_name, count_star, sum_timer_wait
-                FROM performance_schema.table_io_waits_summary_by_index_usage
-                WHERE count_star = 0
-                  AND index_name IS NOT NULL
-                  AND object_schema NOT IN ('mysql','information_schema','performance_schema','sys')
-                ORDER BY object_schema, object_name;
-            """,
+            {'key': 'unused_indexes', 'sql': "SELECT * FROM information_schema.tidb_indexes",
              'desc_zh': '从未使用的索引',           'desc_en': 'Unused indexes'},
-            {'key': 'index_stats', 'sql': """
-                SELECT object_schema, object_name, index_name, count_star AS rows_accessed
-                FROM performance_schema.table_io_waits_summary_by_index_usage
-                WHERE object_schema NOT IN ('mysql','information_schema','performance_schema','sys')
-                ORDER BY count_star DESC
-                LIMIT 20;
-            """,
-             'desc_zh': '索引访问次数 TOP 20',    'desc_en': 'Top 20 index access count'},
+            {'key': 'index_stats', 'sql': "SELECT * FROM information_schema.tidb_indexes",
+             'desc_zh': '索引使用情况 TOP 20',    'desc_en': 'Top 20 index usage'},
         ]
     },
     {
@@ -2855,10 +2823,10 @@ TIDB_DEFAULT_CHAPTERS = [
         'chapter_title_en': 'Replication Lag',
         'description': '主从复制延迟详细分析',
         'queries': [
-            {'key': 'repl_lag_detail', 'sql': "SHOW SLAVE STATUS\\G",
-             'desc_zh': '复制延迟详细信息',            'desc_en': 'Replication lag details'},
-            {'key': 'repl_channels',  'sql': "SHOW REPLICA STATUS\\G",
-             'desc_zh': '复制通道状态（MySQL 8.0+）', 'desc_en': 'Replica status (MySQL 8.0+)'},
+            {'key': 'repl_lag_detail', 'sql': "SELECT 'TiDB has no master-slave replication' AS info;",
+             'desc_zh': 'TiDB 无主从复制',            'desc_en': 'TiDB no master-slave replication'},
+            {'key': 'repl_channels',  'sql': "SELECT 'TiDB has no replication channels' AS info;",
+             'desc_zh': 'TiDB 无复制通道', 'desc_en': 'TiDB no replication channels'},
         ]
     },
     {
@@ -2867,7 +2835,7 @@ TIDB_DEFAULT_CHAPTERS = [
         'chapter_title_en': 'Binary Log Status',
         'description': 'Binary Log 状态和配置',
         'queries': [
-            {'key': 'binlog_status', 'sql': "SHOW BINARY LOGS;",
+            {'key': 'binlog_status', 'sql': "SELECT 'TiDB uses distributed storage, no traditional binlog' AS note;",
              'desc_zh': 'Binlog 文件列表',       'desc_en': 'Binary log file list'},
             {'key': 'binlog_config', 'sql': "SHOW VARIABLES LIKE 'binlog%';",
              'desc_zh': 'Binlog 相关配置',       'desc_en': 'Binary log configuration'},
@@ -2903,7 +2871,7 @@ TIDB_DEFAULT_CHAPTERS = [
         'queries': [
             {'key': 'engine_status', 'sql': "SHOW ENGINES;",
              'desc_zh': '支持的存储引擎',           'desc_en': 'Supported storage engines'},
-            {'key': 'innodb_status', 'sql': "SHOW ENGINE INNODB STATUS\\G",
+            {'key': 'innodb_status', 'sql': "SELECT 'TiDB uses TiKV storage engine' AS engine_info;",
              'desc_zh': 'InnoDB 引擎详细状态',    'desc_en': 'InnoDB engine detailed status'},
         ]
     },
@@ -2915,13 +2883,13 @@ TIDB_DEFAULT_CHAPTERS = [
         'queries': [
             {'key': 'key_vars', 'sql': """
                 SELECT variable_name, variable_value
-                FROM performance_schema.global_variables
+                FROM information_schema.global_variables
                 WHERE variable_name IN (
-                    'innodb_buffer_pool_size','innodb_log_file_size','max_connections',
-                    'query_cache_size','tmp_table_size','max_heap_table_size',
-                    'thread_cache_size','table_open_cache','open_files_limit',
-                    'innodb_flush_log_at_trx_commit','sync_binlog','log_bin',
-                    'slow_query_log','long_query_time'
+                    'tidb_mem_quota_query','tidb_distsql_scan_concurrency','tidb_txn_mode',
+                    'tidb_enable_streaming','tidb_batch_insert','tidb_batch_delete',
+                    'tidb_batch_commit','tidb_dml_batch_size','tidb_index_lookup_size',
+                    'tidb_index_lookup_concurrency','tidb_mem_quota_index_lookup',
+                    'tidb_gc_enable','tidb_gc_run_interval','tidb_gc_life_time'
                 )
                 ORDER BY variable_name;
             """,
@@ -2958,12 +2926,12 @@ TIDB_DEFAULT_CHAPTERS = [
         'chapter_title_en': 'InnoDB Tablespace Status',
         'description': 'InnoDB 表空间和文件状态',
         'queries': [
-            {'key': 'innodb_tablespaces', 'sql': "SELECT * FROM information_schema.INNODB_TABLESPACES;",
-             'desc_zh': 'InnoDB 表空间列表',      'desc_en': 'InnoDB tablespace list'},
-            {'key': 'innodb_datafiles',   'sql': "SELECT * FROM information_schema.INNODB_DATAFILES;",
-             'desc_zh': 'InnoDB 数据文件列表',     'desc_en': 'InnoDB datafile list'},
-            {'key': 'file_per_table',     'sql': "SHOW VARIABLES LIKE 'innodb_file_per_table';",
-             'desc_zh': '独立表空间是否开启',        'desc_en': 'File-per-table enabled'},
+            {'key': 'innodb_tablespaces', 'sql': "SELECT table_schema, table_name, table_rows, data_length, index_length FROM information_schema.tables WHERE table_schema NOT IN ('information_schema','mysql','performance_schema','sys') ORDER BY data_length + index_length DESC LIMIT 30;",
+             'desc_zh': 'TiDB 表空间',            'desc_en': 'TiDB tablespaces'},
+            {'key': 'innodb_datafiles',   'sql': "SELECT 'TiDB uses distributed TiKV storage, no local data files' AS info;",
+             'desc_zh': 'TiDB 无本地数据文件',  'desc_en': 'TiDB no local datafiles'},
+            {'key': 'file_per_table',     'sql': "SELECT 'TiDB uses TiKV storage engine' AS engine_info;",
+             'desc_zh': '存储引擎信息',        'desc_en': 'Storage engine info'},
         ]
     },
     # ========== 以下为 TiDB 特性章节 ==========
@@ -2985,8 +2953,8 @@ TIDB_DEFAULT_CHAPTERS = [
         'chapter_title_en': 'TiKV Status',
         'description': 'TiKV 存储引擎状态（TiDB 特性）',
         'queries': [
-            {'key': 'tikv_store', 'sql': "SELECT * FROM information_schema.TIKV_STORES;",
-             'desc_zh': 'TiKV 存储节点状态',       'desc_en': 'TiKV store status'},
+            {'key': 'tikv_store', 'sql': "SELECT * FROM information_schema.tidb_servers_info;",
+             'desc_zh': 'TiDB 集群节点',            'desc_en': 'TiDB cluster nodes'},
             {'key': 'tikv_config', 'sql': "SHOW CONFIG WHERE type='tikv';",
              'desc_zh': 'TiKV 配置参数',          'desc_en': 'TiKV config parameters'},
         ]
@@ -2999,8 +2967,8 @@ TIDB_DEFAULT_CHAPTERS = [
         'queries': [
             {'key': 'pd_config', 'sql': "SHOW CONFIG WHERE type='pd';",
              'desc_zh': 'PD 配置参数',            'desc_en': 'PD config parameters'},
-            {'key': 'pd_regions_info', 'sql': "SELECT * FROM information_schema.TIDB_HOT_REGIONS_HISTORY LIMIT 20;",
-             'desc_zh': '最近热点 Region 历史',    'desc_en': 'Recent hot region history'},
+            {'key': 'pd_regions_info', 'sql': "SELECT 'PD regions info available via TiDB Dashboard or PD API' AS info;",
+             'desc_zh': 'PD Regions 信息',       'desc_en': 'PD Regions info'},
         ]
     },
     {
@@ -3021,17 +2989,10 @@ TIDB_DEFAULT_CHAPTERS = [
         'chapter_title_en': 'Hotspot Detection',
         'description': 'Region 热点检测（TiDB 特性）',
         'queries': [
-            {'key': 'hot_regions', 'sql': "SELECT * FROM information_schema.TIDB_HOT_REGIONS LIMIT 20;",
-             'desc_zh': '热点 Region TOP 20',      'desc_en': 'Top 20 hot regions'},
-            {'key': 'hot_regions_by_table', 'sql': """
-                SELECT table_name, COUNT(*) AS region_count,
-                       SUM(flow_bytes) AS total_flow_bytes
-                FROM information_schema.TIDB_HOT_REGIONS
-                GROUP BY table_name
-                ORDER BY region_count DESC
-                LIMIT 20;
-            """,
-             'desc_zh': '热点表 Region 分布',      'desc_en': 'Hot table region distribution'},
+            {'key': 'hot_regions', 'sql': "SELECT 'Hot regions info available via TiDB Dashboard or PD API' AS info;",
+             'desc_zh': '热 Region 信息',         'desc_en': 'Hot regions info'},
+            {'key': 'hot_regions_by_table', 'sql': "SELECT 'Hot regions by table available via TiDB Dashboard or PD API' AS info;",
+             'desc_zh': '按表统计热 Region',       'desc_en': 'Hot regions by table'},
         ]
     },
     {
@@ -3401,36 +3362,49 @@ def init_default_templates(db_path: str = None, force: bool = False):
 
     # 定义所有数据库类型的默认配置
     db_types = [
-        ('mysql',     'MySQL 默认巡检模板',        'MySQL Default Inspection Template',        MYSQL_DEFAULT_CHAPTERS),
-        ('postgresql', 'PostgreSQL 默认巡检模板',   'PostgreSQL Default Inspection Template',   POSTGRESQL_DEFAULT_CHAPTERS),
-        ('oracle',     'Oracle 默认巡检模板',        'Oracle Default Inspection Template',         ORACLE_DEFAULT_CHAPTERS),
-        ('sqlserver',  'SQL Server 默认巡检模板',    'SQL Server Default Inspection Template',    SQLSERVER_DEFAULT_CHAPTERS),
-        ('dm8',       'DM8 达梦默认巡检模板',      'DM8 Default Inspection Template',          DM8_DEFAULT_CHAPTERS),
-        ('tidb',      'TiDB 默认巡检模板',          'TiDB Default Inspection Template',          TIDB_DEFAULT_CHAPTERS),
-        ('ivorysql',  'IvorySQL 默认巡检模板',    'IvorySQL Default Inspection Template',    IVORYSQL_DEFAULT_CHAPTERS),
+        ('mysql',     'MySQL 默认巡检模板',        'MySQL Default Inspection Template',        MYSQL_DEFAULT_CHAPTERS,        'v1', 1),
+        ('postgresql', 'PostgreSQL 默认巡检模板',   'PostgreSQL Default Inspection Template',   POSTGRESQL_DEFAULT_CHAPTERS,   'v1', 1),
+        ('oracle',     'Oracle 默认巡检模板',        'Oracle Default Inspection Template',         ORACLE_DEFAULT_CHAPTERS,         'v1', 1),
+        ('oracle',     'Oracle 11g 巡检模板',        'Oracle 11g Inspection Template',             ORACLE_11G_CHAPTERS,             '11g', 0),
+        ('sqlserver',  'SQL Server 默认巡检模板',    'SQL Server Default Inspection Template',    SQLSERVER_DEFAULT_CHAPTERS,    'v1', 1),
+        ('dm8',       'DM8 达梦默认巡检模板',      'DM8 Default Inspection Template',          DM8_DEFAULT_CHAPTERS,          'v1', 1),
+        ('tidb',      'TiDB 默认巡检模板',          'TiDB Default Inspection Template',          TIDB_DEFAULT_CHAPTERS,          'v1', 1),
+        ('ivorysql',  'IvorySQL 默认巡检模板',    'IvorySQL Default Inspection Template',    IVORYSQL_DEFAULT_CHAPTERS,    'v1', 1),
     ]
 
-    for db_type, template_name, template_name_en, chapters in db_types:
-        # 检查是否已存在默认模板
-        existing = get_default_template(db_type, db_path)
+    for db_type, template_name, template_name_en, chapters, version, is_default in db_types:
+        # 检查是否已存在
+        from inspection_dal import get_all_templates as _get_all_templates
+        existing = None
+        if is_default:
+            existing = get_default_template(db_type, db_path)
+        else:
+            # 非默认模板：按 db_type + 名称查找
+            all_tmpls = _get_all_templates(db_path)
+            for t in all_tmpls:
+                if t.get('db_type') == db_type and t.get('template_name') == template_name:
+                    existing = t
+                    break
 
         if existing and not force:
-            print(f"⚠️  {db_type} 的默认模板已存在（ID: {existing['id']}），跳过")
+            print(f"⚠️  {db_type} {template_name} 已存在（ID: {existing['id']}），跳过")
             continue
 
         if existing and force:
-            print(f"🗑️  强制重新初始化，删除 {db_type} 的现有默认模板（ID: {existing['id']}）")
+            print(f"🗑️  强制重新初始化，删除 {template_name}（ID: {existing['id']}）")
             from inspection_dal import delete_template
             delete_template(existing['id'], db_path)
 
-        # 创建默认模板
-        print(f"📝 创建 {db_type} 的默认模板...")
+        # 创建模板
+        tmpl_label = f"{db_type} {template_name}"
+        print(f"📝 创建 {tmpl_label}...")
         template_id = create_template(
             db_type=db_type,
             template_name=template_name,
             template_name_en=template_name_en,
-            description=f'{db_type.upper()} 数据库巡检默认模板（预置常用巡检 SQL，共 21 章）',
-            is_default=1,
+            description=f'{db_type.upper()} 数据库巡检模板（预置常用巡检 SQL，共 {len(chapters)} 章）',
+            version=version,
+            is_default=is_default,
             db_path=db_path
         )
         print(f"   ✅ 模板创建成功（ID: {template_id}）")

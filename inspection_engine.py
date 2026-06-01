@@ -375,13 +375,36 @@ class BaseInspectionEngine:
                         ORDER BY ch.sort_order, q.sort_order
                     ''', (self.db_type,))
                 queries = c.fetchall()
-                conn_db.close()
 
                 # 直接用 dict 存储，不再经过 configparser
                 for name, sql in queries:
                     if sql:
                         sql_clean = sql.replace('\n', ' ').replace('\r', ' ').strip()
+                        # 自动修复旧版 pg_blocking_chain SQL（缺少 blocking_activity JOIN）
+                        if name == 'pg_blocking_chain' and 'blocking_activity_block' not in sql_clean:
+                            sql_clean = (
+                                "SELECT blocked_locks.pid AS blocked_pid, blocked_activity.usename AS blocked_user, "
+                                "left(blocked_activity.query, 200) AS blocked_query, "
+                                "blocking_locks.pid AS blocking_pid, blocking_activity_block.usename AS blocking_user, "
+                                "left(blocking_activity_block.query, 200) AS blocking_query "
+                                "FROM pg_catalog.pg_locks blocked_locks "
+                                "JOIN pg_catalog.pg_stat_activity blocked_activity ON blocked_activity.pid = blocked_locks.pid "
+                                "JOIN pg_catalog.pg_locks blocking_locks ON blocking_locks.locktype = blocked_locks.locktype "
+                                "AND blocking_locks.pid != blocked_locks.pid AND blocking_locks.granted "
+                                "JOIN pg_catalog.pg_stat_activity blocking_activity_block ON blocking_activity_block.pid = blocking_locks.pid "
+                                "WHERE NOT blocked_locks.granted ORDER BY blocked_activity.query_start;"
+                            )
+                            # 同步修复数据库
+                            try:
+                                conn_db.execute(
+                                    "UPDATE inspection_query SET query_sql=? WHERE query_key='pg_blocking_chain'",
+                                    (sql_clean,)
+                                )
+                                conn_db.commit()
+                            except Exception:
+                                pass
                         sql_dict[name] = sql_clean
+                conn_db.close()
             else:
                 # 兼容模式：外部传入 INI 字符串时用 configparser
                 cfg = configparser.RawConfigParser()
@@ -705,7 +728,7 @@ class BaseInspectionEngine:
             return []
     
     def _execute_query_safe(self, cursor, sql, item_name=""):
-        """安全执行 SQL"""
+        """安全执行 SQL — 报错时 rollback 当前事务，防止 PostgreSQL 级联失败"""
         try:
             cursor.execute(sql)
             columns = [col[0] for col in cursor.description]
@@ -715,6 +738,12 @@ class BaseInspectionEngine:
             return {"columns": columns, "data": data}
         except Exception as e:
             print(f"[WARN] 执行 SQL 失败: {item_name}, 错误: {e}")
+            # PostgreSQL: 一条 SQL 报错后事务被 abort，必须 rollback 才能继续执行后续 SQL
+            if self.conn:
+                try:
+                    self.conn.rollback()
+                except Exception:
+                    pass
             return {"columns": [], "data": []}
     
     def _analyze_health_status(self):
@@ -933,7 +962,7 @@ class BaseInspectionEngine:
             if not isinstance(disk, dict): continue
             mp = disk.get('mountpoint', '/')
             if mp in IGNORE_MOUNTS: continue
-            usage = self._safe_float_val(disk, 'usage_percent')
+            usage = self._safe_float_val(disk.get('usage_percent', 0))
             if usage > 90:
                 self.context['auto_analyze'].append({
                     'col1': f'磁盘空间不足 ({mp})', 'col2': '高风险',

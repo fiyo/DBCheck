@@ -2464,19 +2464,6 @@ def api_task_status(task_id):
     return jsonify(resp)
 
 
-# ── WebSocket 事件 ──────────────────────────────────────────
-@socketio.on('connect')
-def on_connect():
-    pass
-
-@socketio.on('join')
-def on_join(data):
-    task_id = data.get('task_id')
-    if task_id:
-        join_room(task_id)
-        socketio.emit('log', {'msg': _t('webui.ws_connected_waiting').format(ts=_ts())}, room=task_id)
-
-# ══════════════════════════════════════════════════════════════
 # 定时调度 API
 # ══════════════════════════════════════════════════════════════
 
@@ -4566,15 +4553,13 @@ def api_inspection_execute_sql():
             conn.close()
 
         elif db_type == 'oracle':
-            import oracledb
-            dsn = db_info.get('service_name') or f"{db_info.get('host')}:{db_info.get('port')}/orcl"
-            mode = oracledb.SYSDBA if db_info.get('sysdba') else oracledb.DEFAULT_MODE
-            conn = oracledb.connect(
-                user=db_info.get('user', ''),
-                password=db_info.get('password', ''),
-                dsn=dsn,
-                mode=mode
-            )
+            import oracledb as _od
+            host_o = db_info.get('host')
+            port_o = db_info.get('port', 1521)
+            svc_o = db_info.get('service_name') or 'orcl'
+            dsn_o = _od.makedsn(host_o, port_o, service_name=svc_o) if host_o and port_o else db_info.get('service_name', '')
+            sysdba_o = db_info.get('sysdba', False)
+            conn = _connect_oracle_thick_fallback(db_info.get('user', ''), db_info.get('password', ''), dsn_o, sysdba=sysdba_o)
             cursor = conn.cursor()
             statements = _split_sql(sql)
             total_affected = 0
@@ -5512,6 +5497,20 @@ def on_remote_shell_input(data):
             _remote_sessions[sid]['channel'].send(data.get('data', ''))
         except Exception:
             pass
+
+
+@socketio.on('remote_shell_resize')
+def on_remote_shell_resize(data):
+    """终端窗口大小调整"""
+    sid = request.sid
+    if sid not in _remote_sessions:
+        return
+    try:
+        cols = int(data.get('cols', 80))
+        rows = int(data.get('rows', 24))
+        _remote_sessions[sid]['channel'].resize_pty(width=cols, height=rows)
+    except Exception:
+        pass
 
 
 @socketio.on('remote_shell_disconnect')
