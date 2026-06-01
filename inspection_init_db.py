@@ -3063,8 +3063,8 @@ IVORYSQL_DEFAULT_CHAPTERS = [
              'desc_zh': '获取 IvorySQL 版本',       'desc_en': 'Get IvorySQL version'},
             {'key': 'ivorysql_uptime', 'sql': "SELECT now() - pg_postmaster_start_time() AS uptime;",
              'desc_zh': '数据库运行时长',        'desc_en': 'Database uptime'},
-            {'key': 'ivorysql_compat', 'sql': "SHOW ivorysql.compatible_db;",
-             'desc_zh': 'Oracle 兼容模式',         'desc_en': 'Oracle compatibility mode'},
+            {'key': 'ivorysql_compat', 'sql': "SELECT name, setting FROM pg_settings WHERE name = 'ivorysql.compatible_db';",
+             'desc_zh': 'Oracle 兼容模式（仅 ORAMODE）', 'desc_en': 'Oracle compatibility mode (ORAMODE only)'},
         ]
     },
     {
@@ -3087,8 +3087,8 @@ IVORYSQL_DEFAULT_CHAPTERS = [
         'queries': [
             {'key': 'shared_buffers',         'sql': "SHOW shared_buffers;",
              'desc_zh': '共享缓冲区大小',         'desc_en': 'Shared buffers size'},
-            {'key': 'ivorysql_compat_db', 'sql': "SHOW ivorysql.compatible_db;",
-             'desc_zh': 'Oracle 兼容数据库名',      'desc_en': 'Oracle compatible db name'},
+            {'key': 'ivorysql_compat_db', 'sql': "SELECT name, setting FROM pg_settings WHERE name = 'ivorysql.compatible_db';",
+             'desc_zh': 'Oracle 兼容数据库名（仅 ORAMODE）', 'desc_en': 'Oracle compatible db name (ORAMODE only)'},
             {'key': 'pg_settings_key', 'sql': """
                 SELECT name, setting, unit, short_desc
                 FROM pg_settings
@@ -3106,9 +3106,9 @@ IVORYSQL_DEFAULT_CHAPTERS = [
         'description': 'IvorySQL Oracle 兼容模式下的对象检查',
         'queries': [
             {'key': 'ora_syonyms', 'sql': """
-                SELECT * FROM pg_synonyms LIMIT 20;
+                SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name = 'pg_synonyms') AS pg_synonyms_exists;
             """,
-             'desc_zh': 'Oracle 同义词列表（前20）', 'desc_en': 'Oracle synonyms list (top 20)'},
+             'desc_zh': 'pg_synonyms 表是否存在（仅 ORAMODE）', 'desc_en': 'Check pg_synonyms table exists (ORAMODE only)'},
             {'key': 'ora_sequences', 'sql': """
                 SELECT * FROM pg_sequences LIMIT 20;
             """,
@@ -3242,14 +3242,14 @@ IVORYSQL_DEFAULT_CHAPTERS = [
                 ORDER BY total_time DESC
                 LIMIT 10;
             """,
-             'desc_zh': 'TOP SQL（总耗时）',      'desc_en': 'Top SQL by total time'},
+             'desc_zh': 'TOP SQL（总耗时，需 pg_stat_statements）', 'desc_en': 'Top SQL by total time (requires pg_stat_statements)'},
             {'key': 'pg_top_calls', 'sql': """
                 SELECT queryid, query, calls, total_time, mean_time, rows
                 FROM pg_stat_statements
                 ORDER BY calls DESC
                 LIMIT 10;
             """,
-             'desc_zh': 'TOP SQL（执行次数）',     'desc_en': 'Top SQL by calls'},
+             'desc_zh': 'TOP SQL（执行次数，需 pg_stat_statements）', 'desc_en': 'Top SQL by calls (requires pg_stat_statements)'},
         ]
     },
     {

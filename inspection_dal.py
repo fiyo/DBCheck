@@ -1661,7 +1661,7 @@ def init_default_baselines(db_path: str = None):
             {'param_name': 'archive_mode', 'query_sql': "SHOW archive_mode", 'operator': '=', 'expected_value': 'on', 'risk_level': 'MEDIUM', 'description_zh': '归档模式应开启', 'description_en': 'Archive mode should be on'},
             # ── 运维 ──
             {'param_name': 'autovacuum', 'query_sql': "SHOW autovacuum", 'operator': '=', 'expected_value': 'on', 'risk_level': 'MEDIUM', 'description_zh': '自动清理（autovacuum）应开启', 'description_en': 'Autovacuum should be enabled'},
-            {'param_name': 'oracle_compatibility', 'query_sql': "SHOW ivorysql.oracle_compatibility", 'operator': '=', 'expected_value': 'on', 'risk_level': 'LOW', 'description_zh': 'Oracle 兼容模式应开启', 'description_en': 'Oracle compatibility mode should be on'},
+            {'param_name': 'oracle_compatibility', 'query_sql': "SELECT setting FROM pg_settings WHERE name = 'ivorysql.oracle_compatibility'", 'operator': '=', 'expected_value': 'on', 'risk_level': 'LOW', 'description_zh': 'Oracle 兼容模式应开启（仅 ORAMODE）', 'description_en': 'Oracle compatibility mode should be on (ORAMODE only)'},
         ],
     }
     

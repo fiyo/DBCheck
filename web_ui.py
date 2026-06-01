@@ -1355,6 +1355,10 @@ def _get_oracle_platform_key():
     return 'windows_x64'  # fallback
 
 
+# Oracle Instant Client 下载进度（全局，供 download 和 status 接口共享）
+_oracle_client_download_progress = {'progress': 0, 'status': 'idle', 'message': '', 'error': None}
+
+
 def _check_oracle_client_installed(platform_key=None):
     """检查 Oracle Instant Client 是否已安装，返回 dict"""
     if platform_key is None:
@@ -1427,8 +1431,8 @@ def api_oracle_client_download():
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
 
-    # 下载状态存储
-    download_state = {'progress': 0, 'status': 'downloading', 'message': '正在启动下载...', 'error': None}
+    # 重置全局下载状态
+    _oracle_client_download_progress.update({'progress': 0, 'status': 'downloading', 'message': '正在启动下载...', 'error': None})
 
     def _do_download():
         try:
@@ -1438,12 +1442,16 @@ def api_oracle_client_download():
                 sys.path.insert(0, script_dir)
                 sys_path_added = True
 
-            from download_oracle_client import download_instant_client
+            # 强制重新加载模块，确保使用最新代码（避免 Python 模块缓存）
+            import importlib
+            import download_oracle_client
+            importlib.reload(download_oracle_client)
+            download_instant_client = download_oracle_client.download_instant_client
 
             def on_progress(status_str, progress, total, msg):
-                download_state['status'] = status_str
-                download_state['progress'] = progress
-                download_state['message'] = msg
+                _oracle_client_download_progress['status'] = status_str
+                _oracle_client_download_progress['progress'] = progress
+                _oracle_client_download_progress['message'] = msg
 
             result = download_instant_client(
                 platform_key=platform_key,
@@ -1452,18 +1460,18 @@ def api_oracle_client_download():
             )
 
             if result['success']:
-                download_state['status'] = 'done'
-                download_state['progress'] = 100
-                download_state['message'] = f"Oracle Instant Client {result['version']} 安装成功"
+                _oracle_client_download_progress['status'] = 'done'
+                _oracle_client_download_progress['progress'] = 100
+                _oracle_client_download_progress['message'] = f"Oracle Instant Client {result['version']} 安装成功"
             else:
-                download_state['status'] = 'error'
-                download_state['error'] = result.get('error', '未知错误')
-                download_state['message'] = result.get('error', '下载失败')
+                _oracle_client_download_progress['status'] = 'error'
+                _oracle_client_download_progress['error'] = result.get('error', '未知错误')
+                _oracle_client_download_progress['message'] = result.get('error', '下载失败')
 
         except Exception as e:
-            download_state['status'] = 'error'
-            download_state['error'] = str(e)
-            download_state['message'] = f'下载异常: {e}'
+            _oracle_client_download_progress['status'] = 'error'
+            _oracle_client_download_progress['error'] = str(e)
+            _oracle_client_download_progress['message'] = f'下载异常: {e}'
         finally:
             if sys_path_added and script_dir in sys.path:
                 sys.path.remove(script_dir)
@@ -1478,12 +1486,18 @@ def api_oracle_client_download():
 @app.route('/api/oracle_client_download_status', methods=['GET'])
 def api_oracle_client_download_status():
     """获取下载进度（配合 SSE 或轮询使用）"""
-    # 重新检查安装状态来判断是否完成
+    # 检查安装状态
     status = _check_oracle_client_installed()
+    # 返回真实下载进度（来自全局变量）
+    progress = _oracle_client_download_progress.copy()
     return jsonify({
         'installed': status['installed'],
         'version': status['version'],
-        'platform': status['platform']
+        'platform': status['platform'],
+        'download_progress': progress['progress'],
+        'download_status': progress['status'],
+        'download_message': progress['message'],
+        'download_error': progress['error'],
     })
 
 
@@ -1812,7 +1826,7 @@ def api_list_icfg_templates():
         icfg_init_db()
         db_type = request.args.get('db_type')
         # 前端 db_type 简称 → 数据库 template 全称映射
-        _DB_TYPE_MAP = {'pg': 'postgresql', 'dm': 'dm8'}
+        _DB_TYPE_MAP = {'pg': 'postgresql', 'dm': 'dm8', 'ivorysql': 'ivorysql'}
         if db_type:
             db_type = _DB_TYPE_MAP.get(db_type, db_type)
             rows = get_templates_by_db_type(db_type)

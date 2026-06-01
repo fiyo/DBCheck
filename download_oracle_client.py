@@ -15,45 +15,183 @@ import re
 from pathlib import Path
 
 # Oracle Instant Client Basic 下载配置
-# Oracle 使用 OTN (Oracle Technology Network) 下载，需要通过浏览器获取临时链接
-# 这里使用 Oracle CDN 的公共下载路径
+# Oracle 使用 OTN (Oracle Technology Network) 下载
+#
+# URL 发现策略（三层兜底）：
+#   1. 从 Oracle 官网下载页面自动抓取最新下载链接
+#   2. 抓取失败时使用硬编码的最新已知 URL
+#   3. 硬编码 URL 也 404 时提示用户手动下载
+#
+# 这样即使 Oracle 未来再次变更 URL 格式，软件仍可通过在线发现获取新链接
 
-VERSION = "23.26"  # instantclient-basic 版本号
+VERSION = "23.26.2.0.0"  # instantclient-basic 默认版本号
+VERSION_DIR = "2326200"  # 下载路径中的版本目录 (去掉点)
 
-DOWNLOAD_CONFIG = {
-    "windows_x64": {
-        "url": (
-            "https://download.oracle.com/otn-pub/otn_software/jdbc/instantclient/"
-            f"oracle-instantclient-basic-nt.x64-{VERSION.replace('.', '_')}.zip"
-        ),
-        "filename": f"oracle-instantclient-basic-nt.x64-{VERSION.replace('.', '_')}.zip",
-        "ext": ".zip",
-    },
-    "linux_x64": {
-        "url": (
-            "https://download.oracle.com/otn-pub/otn_software/jdbc/instantclient/"
-            f"instantclient-basic-linux.x64-{VERSION.replace('.', '_')}.zip"
-        ),
-        "filename": f"instantclient-basic-linux.x64-{VERSION.replace('.', '_')}.zip",
-        "ext": ".zip",
-    },
-    "darwin_x64": {
-        "url": (
-            "https://download.oracle.com/otn-pub/otn_software/jdbc/instantclient/"
-            f"instantclient-basic-macos.x64-{VERSION.replace('.', '_')}.zip"
-        ),
-        "filename": f"instantclient-basic-macos.x64-{VERSION.replace('.', '_')}.zip",
-        "ext": ".zip",
-    },
-    "darwin_arm64": {
-        "url": (
-            "https://download.oracle.com/otn-pub/otn_software/jdbc/instantclient/"
-            f"instantclient-basic-macos.arm64-{VERSION.replace('.', '_')}.zip"
-        ),
-        "filename": f"instantclient-basic-macos.arm64-{VERSION.replace('.', '_')}.zip",
-        "ext": ".zip",
-    },
+# GitHub 镜像下载 URL（首选）—— 不受 Oracle 授权限制，直接下载
+GITHUB_DOWNLOAD_URLS = {
+    "windows_x64": "https://github.com/fiyo/DBCheck/releases/download/instantclient/instantclient-basic-windows.x64-23.26.1.0.0.zip",
+    "linux_x64": "https://github.com/fiyo/DBCheck/releases/download/instantclient/instantclient-basic-linux.x64-23.26.2.0.0.zip",
+    "darwin_x64": "https://github.com/fiyo/DBCheck/releases/download/instantclient/instantclient-basic-macos.x64-19.16.0.0.0dbru.dmg",
+    "darwin_arm64": "https://github.com/fiyo/DBCheck/releases/download/instantclient/instantclient-basic-macos.arm64-23.26.1.0.0.dmg",
 }
+
+# 百度网盘备用下载（手动）—— 当 GitHub 无法访问时使用
+# 代码无法直接下载网盘文件，需要提供手动下载指引
+BAIDU_PAN_URL = "https://pan.baidu.com/s/1Gq9QrXN-Wv979cGcYfeEew?pwd=cray"
+BAIDU_PAN_CODE = "cray"
+BAIDU_FILENAMES = {
+    "windows_x64": "instantclient-basic-windows.x64-23.26.1.0.0.zip",
+    "linux_x64": "instantclient-basic-linux.x64-23.26.2.0.0.zip",
+    "darwin_x64": "instantclient-basic-macos.x64-19.16.0.0.0dbru.dmg",
+    "darwin_arm64": "instantclient-basic-macos.arm64-23.26.1.0.0.dmg",
+}
+
+# Oracle 官方下载页面（按平台）—— GitHub 无镜像时从此页面抓取实际下载 URL
+ORACLE_DOWNLOAD_PAGES = {
+    "windows_x64": "https://www.oracle.com/database/technologies/instant-client/winx64-64-downloads.html",
+    "linux_x64": "https://www.oracle.com/database/technologies/instant-client/linux-x86-64-downloads.html",
+    "darwin_x64": "https://www.oracle.com/database/technologies/instant-client/macos-intel-x64-downloads.html",
+    "darwin_arm64": "https://www.oracle.com/database/technologies/instant-client/macos-arm64-downloads.html",
+}
+
+# 硬编码兜底 URL（Oracle 2026 URL 格式）—— Oracle 页面抓取失败时使用
+FALLBACK_URLS = {
+    "windows_x64": (
+        f"https://download.oracle.com/otn_software/nt/instantclient/"
+        f"{VERSION_DIR}/instantclient-basic-windows.x64-{VERSION}.zip"
+    ),
+    "linux_x64": (
+        f"https://download.oracle.com/otn_software/linux/instantclient/"
+        f"{VERSION_DIR}/instantclient-basic-linux.x64-{VERSION}.zip"
+    ),
+    "darwin_x64": (
+        f"https://download.oracle.com/otn_software/mac/instantclient/"
+        f"{VERSION_DIR}/instantclient-basic-macos.x64-{VERSION}.zip"
+    ),
+    "darwin_arm64": (
+        f"https://download.oracle.com/otn_software/mac/instantclient/"
+        f"{VERSION_DIR}/instantclient-basic-macos.arm64-{VERSION}.zip"
+    ),
+}
+
+
+def _discover_download_url(platform_key):
+    """
+    从 Oracle 官网下载页面自动抓取 instantclient-basic ZIP 的下载 URL。
+    返回 (url, filename) 或 (None, None) 如果抓取失败。
+
+    平台页面结构：Oracle 下载页面用 <a> 标签包含 download= 查询参数指向实际文件，
+    例如 <a href="/pre-fm-redirect/instantclient/...?platform_id=...&download=...">
+    download 参数的值就是 download.oracle.com 下的相对路径。
+    """
+    page_url = ORACLE_DOWNLOAD_PAGES.get(platform_key)
+    if not page_url:
+        return None, None
+
+    # 确定平台对应的文件名关键词
+    if platform_key == "windows_x64":
+        keyword = "instantclient-basic-windows.x64"
+    elif platform_key == "linux_x64":
+        keyword = "instantclient-basic-linux.x64"
+    elif platform_key == "darwin_x64":
+        keyword = "instantclient-basic-macos.x64"
+    elif platform_key == "darwin_arm64":
+        keyword = "instantclient-basic-macos.arm64"
+    else:
+        return None, None
+
+    req = urllib.request.Request(page_url)
+    req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+
+    try:
+        response = urllib.request.urlopen(req, timeout=15)
+        html = response.read().decode('utf-8', errors='ignore')
+        response.close()
+    except Exception:
+        return None, None
+
+    # 策略1: 从 download= 查询参数中提取路径
+    # 匹配: download=/otn_software/nt/instantclient/2326200/instantclient-basic-windows.x64-23.26.2.0.0.zip
+    pattern_download = re.compile(
+        r'download=([^\s&"\'<>]+\binstantclient-basic[^\s"\'<>]+\.\w+)',
+        re.IGNORECASE
+    )
+    for match in pattern_download.finditer(html):
+        path = match.group(1).strip()
+        # 取第一个路径段作为文件名匹配
+        filename = path.rsplit('/', 1)[-1] if '/' in path else path
+        if keyword in filename:
+            # 移除末尾可能多带的 &platform_id=xxx
+            filename_clean = re.sub(r'[&?].*$', '', filename)
+            dl_url = f"https://download.oracle.com{path}"
+            return dl_url, filename_clean
+
+    # 策略2: 直接匹配 download.oracle.com 完整 URL
+    pattern_direct = re.compile(
+        r'https?://download\.oracle\.com(/[^\s"\'<>]*' + re.escape(keyword) + r'[^\s"\'<>]*\.\w+)'
+    )
+    for match in pattern_direct.finditer(html):
+        path = match.group(1).strip()
+        dl_url = f"https://download.oracle.com{path}"
+        filename = path.rsplit('/', 1)[-1] if '/' in path else path
+        filename_clean = re.sub(r'[&?].*$', '', filename)
+        return dl_url, filename_clean
+
+    return None, None
+
+
+def _get_download_config(platform_key):
+    """
+    获取下载配置，三层优先级：
+      1. GitHub 镜像（不受 Oracle 授权限制，直接下载）
+      2. Oracle 官网在线发现
+      3. Oracle 硬编码兜底
+    返回 dict with 'url', 'filename', 'ext'.
+    """
+    # 1. GitHub 镜像（首选）
+    github_url = GITHUB_DOWNLOAD_URLS.get(platform_key, "")
+    if github_url:
+        filename = github_url.rsplit('/', 1)[-1] if '/' in github_url else github_url
+        _, ext = os.path.splitext(filename)
+        return {
+            'url': github_url,
+            'filename': filename,
+            'ext': ext,
+            'source': 'github',
+        }
+
+    # 2. 尝试 Oracle 官网在线发现
+    discovered_url, discovered_filename = _discover_download_url(platform_key)
+    if discovered_url and discovered_filename:
+        return {
+            'url': discovered_url,
+            'filename': discovered_filename,
+            'ext': '.zip',
+            'source': 'discovered',
+        }
+
+    # 3. 使用 Oracle 硬编码兜底
+    fallback_url = FALLBACK_URLS.get(platform_key)
+    if not fallback_url:
+        return None
+
+    if platform_key == "windows_x64":
+        filename = f"instantclient-basic-windows.x64-{VERSION}.zip"
+    elif platform_key == "linux_x64":
+        filename = f"instantclient-basic-linux.x64-{VERSION}.zip"
+    elif platform_key == "darwin_x64":
+        filename = f"instantclient-basic-macos.x64-{VERSION}.zip"
+    elif platform_key == "darwin_arm64":
+        filename = f"instantclient-basic-macos.arm64-{VERSION}.zip"
+    else:
+        return None
+
+    return {
+        'url': fallback_url,
+        'filename': filename,
+        'ext': '.zip',
+        'source': 'fallback',
+    }
 
 
 def detect_platform():
@@ -74,7 +212,10 @@ def detect_platform():
 
 
 def _urlretrieve_with_headers(url, filename, headers=None, callback=None):
-    """使用 urllib 下载文件，支持自定义 headers 和进度回调"""
+    """使用 urllib 下载文件，支持自定义 headers 和进度回调
+
+    带下载速度检测：如果速度低于 30KB/s 持续 10 秒，主动中断并抛出 SlowDownloadError。
+    """
     req = urllib.request.Request(url)
     if headers:
         for k, v in headers.items():
@@ -84,7 +225,6 @@ def _urlretrieve_with_headers(url, filename, headers=None, callback=None):
         response = urllib.request.urlopen(req, timeout=30)
     except urllib.error.HTTPError as e:
         if e.code == 401 or e.code == 403:
-            # Oracle OTN 需要认证 cookie，尝试通过 Oracle 官网获取
             raise RuntimeError(
                 "Oracle 官网需要登录才能下载。请手动访问 "
                 "https://www.oracle.com/database/technologies/instant-client/downloads.html "
@@ -96,6 +236,11 @@ def _urlretrieve_with_headers(url, filename, headers=None, callback=None):
     total = int(total) if total else 0
     downloaded = 0
     buf_size = 8192
+    import time
+    start_time = time.time()
+    last_callback_time = start_time
+    max_initial_wait = 8  # 8 秒内如果速度低于阈值就中断
+    min_speed = 20 * 1024  # 20 KB/s 最低可接受速度
 
     with open(filename, 'wb') as f:
         while True:
@@ -104,8 +249,37 @@ def _urlretrieve_with_headers(url, filename, headers=None, callback=None):
                 break
             f.write(chunk)
             downloaded += len(chunk)
-            if callback:
-                callback(downloaded, total)
+
+            now = time.time()
+            elapsed = now - start_time
+
+            # 每 1 秒回调一次，显示真实速度和已下载量
+            if now - last_callback_time >= 1:
+                avg_speed = downloaded / elapsed if elapsed > 0 else 0
+                if avg_speed >= 1024 * 1024:
+                    speed_str = f'{avg_speed / 1024 / 1024:.1f} MB/s'
+                else:
+                    speed_str = f'{avg_speed / 1024:.1f} KB/s'
+                dl_str = f'{downloaded / 1024 / 1024:.1f} MB' if downloaded >= 1024 * 1024 else f'{downloaded / 1024:.0f} KB'
+                if callback:
+                    callback(downloaded, total, speed_str, dl_str)
+                last_callback_time = now
+
+            # 8 秒后检查速度：如果低于 20KB/s，直接中断
+            if elapsed > max_initial_wait and avg_speed < min_speed:
+                response.close()
+                raise RuntimeError(
+                    f'下载速度过慢（{speed_str}），已自动中断。\n\n'
+                    '请改用百度网盘手动下载（详见下方指引）。'
+                )
+
+            # 硬超时：GitHub 在国内下载 135MB，如果超过 300 秒就中断
+            if elapsed > 300:
+                response.close()
+                raise RuntimeError(
+                    f'下载超时（已超过 5 分钟，仅下载 {dl_str}），已自动中断。\n\n'
+                    '请改用百度网盘手动下载（详见下方指引）。'
+                )
 
     response.close()
 
@@ -135,7 +309,7 @@ def download_instant_client(platform_key=None, target_dir=None, progress_callbac
         except ValueError as e:
             return {'success': False, 'platform': '', 'version': '', 'install_dir': '', 'error': str(e)}
 
-    if platform_key not in DOWNLOAD_CONFIG:
+    if platform_key not in ORACLE_DOWNLOAD_PAGES:
         return {
             'success': False, 'platform': platform_key, 'version': '', 'install_dir': '',
             'error': f'不支持的平台: {platform_key}'
@@ -143,7 +317,15 @@ def download_instant_client(platform_key=None, target_dir=None, progress_callbac
 
     base_dir = Path(target_dir) if target_dir else Path(__file__).resolve().parent
     install_dir = base_dir / 'oracle_client' / platform_key
-    cfg = DOWNLOAD_CONFIG[platform_key]
+    cfg = _get_download_config(platform_key)
+    if cfg is None:
+        return {
+            'success': False, 'platform': platform_key, 'version': '', 'install_dir': '',
+            'error': f'无法获取 {platform_key} 的下载配置'
+        }
+
+    source_name = {'github': 'GitHub 镜像', 'discovered': 'Oracle 在线发现', 'fallback': 'Oracle 硬编码兜底'}.get(cfg.get('source', '?'), cfg.get('source', '?'))
+    print(f'[DBCheck Oracle Download] platform={platform_key}, source={cfg.get("source","?")} ({source_name}), url={cfg["url"][:80]}...')
 
     result = {
         'success': False,
@@ -153,8 +335,10 @@ def download_instant_client(platform_key=None, target_dir=None, progress_callbac
         'error': None
     }
 
-    # 检查是否已安装
+    # 检查是否已安装（先尝试展平嵌套子目录）
     if install_dir.exists():
+        _flatten_nested_client_dir(install_dir)
+
         if platform_key == 'windows_x64':
             marker = install_dir / 'oci.dll'
         elif platform_key == 'linux_x64':
@@ -176,8 +360,13 @@ def download_instant_client(platform_key=None, target_dir=None, progress_callbac
         tmp_dir = tempfile.mkdtemp(prefix='dbcheck_oracle_')
         tmp_file = os.path.join(tmp_dir, cfg['filename'])
 
+        # 使用发现的版本号（可能是最新版的）
+        dl_version_match = re.search(r'(\d+\.\d+(?:\.\d+)*)\.\w+$', cfg['filename'])
+        dl_version = dl_version_match.group(1) if dl_version_match else VERSION
+
         if progress_callback:
-            progress_callback('downloading', 0, 100, f'正在下载 Oracle Instant Client {VERSION} ({platform_key})...')
+            source_tag = '(在线获取链接中...)' if cfg.get('source') == 'discovered' else '(使用缓存链接)'
+            progress_callback('downloading', 0, 100, f'正在下载 Oracle Instant Client {dl_version} {source_tag}')
 
         # Oracle OTN 下载需要特定的 headers
         headers = {
@@ -186,13 +375,49 @@ def download_instant_client(platform_key=None, target_dir=None, progress_callbac
             'Accept-Language': 'en-US,en;q=0.5',
         }
 
-        _urlretrieve_with_headers(
-            cfg['url'], tmp_file, headers=headers,
-            callback=lambda d, t: progress_callback('downloading', int(d / max(t, 1) * 100), 100, f'下载中... {int(d / max(t, 1) * 100)}%') if progress_callback else None
-        )
+        try:
+            _urlretrieve_with_headers(
+                cfg['url'], tmp_file, headers=headers,
+                callback=lambda d, t, speed='', dl='': progress_callback('downloading', int(d / max(t, 1) * 100) if t else 0, 100, f'下载中 {dl} {speed}') if progress_callback else None
+            )
+        except Exception as dl_err:
+            # GitHub 下载失败（网络不可达、超时等），提示使用百度网盘手动下载
+            if cfg.get('source') == 'github':
+                _baidu_manual_filename = BAIDU_FILENAMES.get(platform_key, cfg['filename'])
+                raise RuntimeError(
+                    f'GitHub 下载失败（{dl_err}），请改用百度网盘手动下载：\n\n'
+                    f'  1. 浏览器打开: {BAIDU_PAN_URL}\n'
+                    f'  2. 输入提取码: {BAIDU_PAN_CODE}\n'
+                    f'  3. 下载文件: {_baidu_manual_filename}\n'
+                    f'  4. 解压到: {install_dir}\n'
+                    f'     (确保 oci.dll/libclntsh 等文件直接在该目录下)\n'
+                    f'  5. 解压完成后点击"检查安装状态"确认\n\n'
+                    f'如需安装到自定义目录，解压到: <DBCheck目录>/oracle_client/{platform_key}/'
+                )
+            raise
+
+        # 验证下载的文件
+        file_size = os.path.getsize(tmp_file)
+        if file_size < 5 * 1024 * 1024:  # Instant Client 至少 5MB
+            download_page = ORACLE_DOWNLOAD_PAGES.get(platform_key, 'https://www.oracle.com/database/technologies/instant-client/downloads.html')
+            _baidu_filename = BAIDU_FILENAMES.get(platform_key, cfg['filename'])
+            raise RuntimeError(
+                f'下载的文件过小 ({file_size:,} 字节)，Oracle 要求通过浏览器接受授权协议后才能下载。\n\n'
+                '=== 方案一：百度网盘手动下载（推荐） ===\n'
+                f'  1. 浏览器打开: {BAIDU_PAN_URL}\n'
+                f'  2. 输入提取码: {BAIDU_PAN_CODE}\n'
+                f'  3. 下载文件: {_baidu_filename}\n'
+                f'  4. 解压到: {install_dir}\n'
+                f'  5. 解压完成后点击"检查安装状态"确认\n\n'
+                '=== 方案二：Oracle 官网手动下载 ===\n'
+                f'  1. 浏览器打开: {download_page}\n'
+                f'  2. 勾选同意协议，下载 Instant Client Basic ZIP\n'
+                f'  3. 解压到: {install_dir}\n'
+                f'     (确保 oci.dll/libclntsh 等文件直接在该目录下)'
+            )
 
         if progress_callback:
-            progress_callback('extracting', 60, 100, '正在解压...')
+            progress_callback('extracting', 70, 100, '正在验证并解压...')
 
         # 解压
         if cfg['ext'] == '.zip':
@@ -226,6 +451,47 @@ def download_instant_client(platform_key=None, target_dir=None, progress_callbac
                 else:
                     # 没有顶层目录，直接解压
                     zf.extractall(install_dir)
+
+        elif cfg['ext'] == '.dmg':
+            # macOS DMG 格式：挂载后复制文件到目标目录
+            import subprocess
+            mount_point = None
+            try:
+                # 挂载 DMG
+                dmg_basename = os.path.basename(tmp_file)
+                result = subprocess.run(
+                    ['hdiutil', 'attach', tmp_file, '-nobrowse', '-mountpoint', '/Volumes/dbcheck_tmp_mount'],
+                    capture_output=True, text=True, timeout=60
+                )
+                if result.returncode != 0:
+                    raise RuntimeError(f'挂载 DMG 失败: {result.stderr}')
+                mount_point = '/Volumes/dbcheck_tmp_mount'
+
+                # 找到 Instant Client 顶层目录
+                dmg_root = Path(mount_point)
+                client_dir = None
+                for item in dmg_root.iterdir():
+                    if item.name.startswith('instantclient_'):
+                        client_dir = item
+                        break
+                if client_dir is None:
+                    # 没找到 instantclient_* 目录，复制所有内容
+                    client_dir = dmg_root
+
+                # 复制所有文件到目标目录
+                for item in client_dir.iterdir():
+                    dest = install_dir / item.name
+                    if item.is_dir():
+                        if dest.exists():
+                            shutil.rmtree(dest)
+                        shutil.copytree(item, dest)
+                    else:
+                        shutil.copy2(item, dest)
+            finally:
+                # 卸载 DMG
+                if mount_point:
+                    subprocess.run(['hdiutil', 'detach', mount_point],
+                                   capture_output=True, timeout=10)
         else:
             # tar.gz / tar.xz
             import tarfile
@@ -263,6 +529,39 @@ def download_instant_client(platform_key=None, target_dir=None, progress_callbac
     return result
 
 
+def _flatten_nested_client_dir(install_dir):
+    """用户手动解压 ZIP 后，文件通常在 instantclient_* 子目录下。
+    检测并自动将文件"展平"到 install_dir 根目录。
+    """
+    install_dir = Path(install_dir)
+    if not install_dir.exists():
+        return
+    nested = None
+    for item in install_dir.iterdir():
+        if item.is_dir() and item.name.startswith('instantclient_'):
+            nested = item
+            break
+    if nested is None:
+        return
+    # 把子目录里的所有文件移到父目录
+    for item in nested.iterdir():
+        dest = install_dir / item.name
+        if dest.exists():
+            if dest.is_dir():
+                shutil.rmtree(dest)
+            else:
+                dest.unlink()
+        if item.is_dir():
+            shutil.copytree(item, dest)
+        else:
+            shutil.copy2(item, dest)
+    # 移除空子目录
+    try:
+        shutil.rmtree(nested)
+    except Exception:
+        pass
+
+
 def check_installation(platform_key=None, base_dir=None):
     """
     检查 Oracle Instant Client 是否已安装
@@ -278,6 +577,9 @@ def check_installation(platform_key=None, base_dir=None):
 
     base = Path(base_dir) if base_dir else Path(__file__).resolve().parent
     install_dir = base / 'oracle_client' / platform_key
+
+    # 自动展平：处理用户手动解压后文件在 instantclient_* 子目录的情况
+    _flatten_nested_client_dir(install_dir)
 
     if platform_key == 'windows_x64':
         marker = install_dir / 'oci.dll'

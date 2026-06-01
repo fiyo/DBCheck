@@ -447,6 +447,8 @@ class BaseInspectionEngine:
         _prog_prefix = self._t(f'{self.db_type}_progress_prefix', default='dm8_progress_prefix')
         try:
             cursor = self.conn.cursor()
+            # IvorySQL/PG: 延迟检测 pg_stat_statements 扩展是否可用
+            self._pg_stat_statements_available = None
             # 统一获取查询列表：优先 dict，兼容 configparser
             if sql_dict:
                 variables_items = list(sql_dict.items())
@@ -455,6 +457,22 @@ class BaseInspectionEngine:
             else:
                 variables_items = []
             for i, (name, stmt) in enumerate(variables_items):
+                # IvorySQL/PG: 跳过需 pg_stat_statements 扩展的查询（未安装时静默跳过）
+                if self.db_type in ('ivorysql', 'pg') and name in ('pg_top_elapsed', 'pg_top_calls'):
+                    if not getattr(self, '_pg_stat_statements_available', None):
+                        self.context[name] = []
+                        continue
+                    # 首次遇到时检测扩展
+                    try:
+                        cursor.execute("SELECT 1 FROM pg_extension WHERE extname='pg_stat_statements'")
+                        self._pg_stat_statements_available = cursor.fetchone() is not None
+                        if not self._pg_stat_statements_available:
+                            self.context[name] = []
+                            continue
+                    except Exception:
+                        self._pg_stat_statements_available = False
+                        self.context[name] = []
+                        continue
                 current_step = int((i + 1) / len(variables_items) * (total_steps - 6)) + 1
                 self.print_progress_bar(current_step, total_steps, prefix=_prog_prefix, suffix=f'{name} ({i+1}/{len(variables_items)})')
                 # 清洗 SQL: 去除换行、CLI终止符(\G/\g)、末尾分号
@@ -1272,7 +1290,13 @@ class BaseInspectionEngine:
                     
                 except Exception as e:
                     error_str = str(e)
-                    # MySQL 8.0+ 不存在 query_cache_size，或未安装 validate_password 插件时跳过
+                    # PG/IvorySQL: 回滚防止事务级联 abort
+                    if self.db_type in ('pg', 'ivorysql') and self.conn:
+                        try:
+                            self.conn.rollback()
+                        except Exception:
+                            pass
+                    # MySQL: 不存在 query_cache_size 等系统变量时跳过
                     if 'Unknown system variable' in error_str:
                         results.append({
                             'param_name': param_name,
@@ -1283,7 +1307,20 @@ class BaseInspectionEngine:
                             'risk_level': risk_level,
                             'description_zh': description_zh,
                             'description_en': description_en,
-                            'message': '当前 MySQL 版本不存在此系统变量'
+                            'message': '当前版本不存在此系统变量'
+                        })
+                    # PG/IvorySQL: 不存在的配置参数跳过（如非 ORAMODE 下的 ivorysql.oracle_compatibility）
+                    elif 'unrecognized configuration parameter' in error_str:
+                        results.append({
+                            'param_name': param_name,
+                            'current_value': 'N/A (参数不存在)',
+                            'expected_value': expected_value,
+                            'operator': operator,
+                            'status': 'SKIP',
+                            'risk_level': risk_level,
+                            'description_zh': description_zh,
+                            'description_en': description_en,
+                            'message': '当前版本不存在此配置参数'
                         })
                     else:
                         print(f"[WARN] 基线检查失败: {param_name}, 错误: {e}")
