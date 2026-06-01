@@ -23,76 +23,234 @@
 
 .inspection-template-list {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 18px;
     margin-top: 16px;
 }
 
 .inspection-template-card {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 20px;
-    cursor: pointer;
-    transition: all 0.2s ease;
+    border-radius: 14px;
     position: relative;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
 
 .inspection-template-card:hover {
     border-color: var(--primary);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(99, 102, 241, 0.12), 0 2px 8px rgba(0, 0, 0, 0.04);
+    transform: translateY(-3px);
 }
 
-.inspection-template-card .card-header {
+[data-theme="dark"] .inspection-template-card:hover {
+    box-shadow: 0 8px 24px rgba(99, 102, 241, 0.2), 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* 左侧彩色条 */
+.card-accent-bar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: linear-gradient(180deg, var(--primary) 0%, #818cf8 100%);
+    opacity: 0;
+    transition: opacity 0.25s ease;
+}
+
+.inspection-template-card:hover .card-accent-bar {
+    opacity: 1;
+}
+
+/* 预置模板固定显示彩色条 */
+.inspection-template-card[data-preset="1"] .card-accent-bar {
+    opacity: 1;
+    background: linear-gradient(180deg, #6366f1 0%, #a78bfa 100%);
+}
+
+.card-content {
+    padding: 18px 18px 8px 18px;
+    flex: 1;
+}
+
+/* 顶部：标题 + 标签 */
+.card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.card-title-group {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    margin-bottom: 12px;
+    gap: 8px;
+    min-width: 0;
 }
 
-.inspection-template-card .card-header h3 {
-    font-size: 16px;
+.card-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--primary-light);
+    border-radius: 8px;
+}
+
+.inspection-template-card[data-preset="1"] .card-icon {
+    background: linear-gradient(135deg, #ede9fe 0%, #e0e7ff 100%);
+}
+
+[data-theme="dark"] .inspection-template-card[data-preset="1"] .card-icon {
+    background: linear-gradient(135deg, #312e81 0%, #1e1b4b 100%);
+}
+
+.card-title-group h3 {
+    font-size: 14px;
     font-weight: 600;
     color: var(--text);
     margin: 0;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.db-type-badge {
+.card-version {
+    font-size: 11px;
+    color: var(--primary);
+    font-weight: 500;
+    background: var(--primary-light);
+    padding: 1px 6px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+/* 标签组 */
+.card-tags {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.card-tag {
     display: inline-block;
     padding: 2px 8px;
-    background: var(--primary-light);
-    color: var(--primary);
-    border-radius: 4px;
-    font-size: 12px;
-    font-weight: 500;
-}
-
-.inspection-template-card .card-desc {
-    font-size: 13px;
-    color: var(--text-muted);
-    margin-bottom: 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
     line-height: 1.5;
 }
 
-.inspection-template-card .card-meta {
-    display: flex;
-    gap: 16px;
+.card-tag--preset {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: #fff;
+}
+
+.card-tag--default {
+    background: #ecfdf5;
+    color: #059669;
+}
+
+[data-theme="dark"] .card-tag--default {
+    background: #064e3b;
+    color: #6ee7b7;
+}
+
+/* 描述 */
+.card-content .card-desc {
     font-size: 12px;
     color: var(--text-muted);
-    margin-bottom: 12px;
+    margin: 0 0 10px 0;
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    padding-left: 36px;
 }
 
-.inspection-template-card .card-meta span {
+/* 统计行 */
+.card-stats {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 8px;
+    padding-left: 36px;
 }
 
-.inspection-template-card .card-footer {
+.stat-item {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.stat-num {
+    font-weight: 700;
+    color: var(--text);
+    font-size: 14px;
+}
+
+.stat-type {
+    font-size: 11px !important;
+    color: var(--primary) !important;
+    font-weight: 500;
+}
+
+.stat-dot {
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--border);
+    flex-shrink: 0;
+}
+
+/* 操作按钮行 */
+.card-actions {
     display: flex;
-    gap: 8px;
-    justify-content: flex-end;
+    gap: 0;
+    border-top: 1px solid var(--border);
+    padding: 0;
+    margin-top: 8px;
+}
+
+.card-action-btn {
+    flex: 1;
+    padding: 8px 0;
+    border: none;
+    background: transparent;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.card-action-btn:hover {
+    background: var(--primary-light);
+    color: var(--primary);
+}
+
+.card-action-btn--delete:hover {
+    background: #fef2f2;
+    color: #ef4444;
+}
+
+[data-theme="dark"] .card-action-btn--delete:hover {
+    background: #450a0a;
+    color: #fca5a5;
+}
+
+/* 分隔线 */
+.card-action-btn + .card-action-btn {
+    border-left: 1px solid var(--border);
 }
 
 

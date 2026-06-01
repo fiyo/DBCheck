@@ -159,11 +159,11 @@ def init_database(db_path: str = None):
         if 'is_preset' not in columns:
             cursor.execute("ALTER TABLE inspection_template ADD COLUMN is_preset INTEGER DEFAULT 0")
             print("🔄 已为 inspection_template 表添加 is_preset 字段")
-            # 将已有的默认模板标记为预置模板
-            cursor.execute("UPDATE inspection_template SET is_preset = 1 WHERE is_default = 1")
-            # Oracle 11g 模板也是预置模板（is_default=0 但同样不可删除）
-            cursor.execute("UPDATE inspection_template SET is_preset = 1 WHERE db_type = 'oracle' AND version = '11g'")
-            conn.commit()
+        # 将已有的默认模板标记为预置模板（无论列是新建还是已有，每次都确保标记）
+        cursor.execute("UPDATE inspection_template SET is_preset = 1 WHERE is_default = 1")
+        # Oracle 11g 模板也是预置模板（is_default=0 但同样不可删除）
+        cursor.execute("UPDATE inspection_template SET is_preset = 1 WHERE db_type = 'oracle' AND version = '11g'")
+        conn.commit()
 
         conn.commit()
         print("✅ 数据库初始化成功")

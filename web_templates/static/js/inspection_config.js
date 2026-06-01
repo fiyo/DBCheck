@@ -75,27 +75,41 @@ function renderInspectionTemplateList(templates) {
             'mysql': 'MySQL', 'postgresql': 'PostgreSQL', 'oracle': 'Oracle',
             'sqlserver': 'SQL Server', 'dm8': 'DM8 达梦', 'tidb': 'TiDB', 'ivorysql': 'IvorySQL'
         };
+        const dbTypeIconMap = {
+            'mysql': '🐬', 'postgresql': '🦴', 'oracle': '🔶',
+            'sqlserver': '🗄️', 'dm8': '💎', 'tidb': '🌊', 'ivorysql': '🐘'
+        };
         const dbTypeLabel = dbTypeMap[t.db_type] || t.db_type;
-        const isDefault = t.is_default ? ' ✔️ 默认' : '';
+        const dbTypeIcon = dbTypeIconMap[t.db_type] || '📋';
+        const isDefault = t.is_default;
         const isPreset = t.is_preset == 1;
-        const presetLabel = isPreset ? '<span class="preset-badge">预置</span>' : '';
-        const versionLabel = t.version ? `[${escapeHtml(t.version)}]` : '';
+        const presetLabel = isPreset ? '<span class="card-tag card-tag--preset">预置</span>' : '';
+        const defaultLabel = isDefault ? '<span class="card-tag card-tag--default">默认</span>' : '';
+        const versionLabel = t.version && t.version !== 'v1' ? `<span class="card-version">${escapeHtml(t.version)}</span>` : '';
         html += `
-        <div class="inspection-template-card${isPreset ? ' inspection-template-card--preset' : ''}" onclick="editInspectionTemplate(${t.id})">
-            <div class="card-header">
-                <h3>${escapeHtml(t.template_name)}${versionLabel}${isDefault}</h3>
-                <span>${presetLabel}<span class="db-type-badge">${dbTypeLabel}</span></span>
-            </div>
-            <div class="card-body">
+        <div class="inspection-template-card" data-preset="${isPreset ? '1' : '0'}" onclick="editInspectionTemplate(${t.id})">
+            <div class="card-accent-bar"></div>
+            <div class="card-content">
+                <div class="card-top">
+                    <div class="card-title-group">
+                        <span class="card-icon">${dbTypeIcon}</span>
+                        <h3>${escapeHtml(t.template_name)}</h3>
+                        ${versionLabel}
+                    </div>
+                    <div class="card-tags">${presetLabel}${defaultLabel}</div>
+                </div>
                 ${t.description ? `<p class="card-desc">${escapeHtml(t.description)}</p>` : ''}
-                <div class="card-meta">
-                    <span>章节: ${t.chapter_count || 0}</span>
-                    <span>查询: ${t.query_count || 0}</span>
+                <div class="card-stats">
+                    <span class="stat-item"><span class="stat-num">${t.chapter_count || 0}</span> 章节</span>
+                    <span class="stat-dot"></span>
+                    <span class="stat-item"><span class="stat-num">${t.query_count || 0}</span> 查询</span>
+                    <span class="stat-dot"></span>
+                    <span class="stat-item stat-type">${dbTypeLabel}</span>
                 </div>
             </div>
-            <div class="card-footer">
-                <button class="btn btn-xs btn-ghost" onclick="event.stopPropagation(); exportInspectionTemplate(${t.id})">导出</button>
-                ${!isPreset ? `<button class="btn btn-xs btn-danger" onclick="event.stopPropagation(); deleteInspectionTemplate(${t.id}, '${escapeHtml(t.template_name)}')">删除</button>` : ''}
+            <div class="card-actions">
+                <button class="card-action-btn card-action-btn--export" onclick="event.stopPropagation(); exportInspectionTemplate(${t.id})">导出</button>
+                ${!isPreset ? `<button class="card-action-btn card-action-btn--delete" onclick="event.stopPropagation(); deleteInspectionTemplate(${t.id}, '${escapeHtml(t.template_name)}')">删除</button>` : ''}
             </div>
         </div>`;
     });

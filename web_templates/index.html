@@ -3474,12 +3474,6 @@ function formatBytes(bytes) {
     <div class="nav-item" onclick="showPage('datasources')" id="nav-datasources">
       <span class="icon">🗄️</span> <span data-i18n="webui.nav_datasources">数据源管理</span>
     </div>
-    <div class="nav-item" onclick="showPage('sql-editor')" id="nav-sql-editor">
-      <span class="icon">📝</span> <span data-i18n="webui.nav_sql_editor">SQL 编辑器</span>
-    </div>
-    <div class="nav-item" onclick="showPage('remote-shell')" id="nav-remote-shell">
-      <span class="icon">🖥️</span> <span data-i18n="remote_shell.title">远程终端</span>
-    </div>
     <div class="nav-item" onclick="showPage('inspection-config')" id="nav-inspection-config">
       <span class="icon">📋</span> <span data-i18n="webui.nav_inspection_config">巡检配置管理</span>
     </div>
@@ -3494,6 +3488,12 @@ function formatBytes(bytes) {
     {% endif %}
     <div class="nav-item" onclick="showPage('rag')" id="nav-rag">
       <span class="icon">📚</span> <span data-i18n="webui.rag_nav">RAG 知识库</span>
+    </div>
+    <div class="nav-item" onclick="showPage('sql-editor')" id="nav-sql-editor">
+      <span class="icon">📝</span> <span data-i18n="webui.nav_sql_editor">SQL 编辑器</span>
+    </div>
+    <div class="nav-item" onclick="showPage('remote-shell')" id="nav-remote-shell">
+      <span class="icon">🖥️</span> <span data-i18n="remote_shell.title">远程终端</span>
     </div>
 
     <!-- ── 系统配置 ── -->
@@ -3522,8 +3522,6 @@ function formatBytes(bytes) {
     </div>
 
     <div class="sidebar-footer">
-      Oracle · MySQL · PostgreSQL · SQL Server<br/>DM · TiDB · IvorySQL<br/>
-      <span style="opacity:.5">© 2026 DBCheck · Powered by <a href="https://dbcheck.top" style="color:inherit;text-decoration:none">dbcheck.top</a></span>
       <span class="version-badge" id="version-badge">{{ version }}</span>
     </div>
   </aside>
@@ -12203,48 +12201,151 @@ async function deleteBackupHistory(recordId) {
   </script>
 
 <!-- ─── About Modal ───────────────────────────────────── -->
-<div id="about-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:10000;background:rgba(0,0,0,0.55);backdrop-filter:blur(6px);" onclick="closeAboutModal(event)">
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;max-width:580px;width:92%;margin:80px auto;padding:36px 32px;position:relative;box-shadow:0 12px 40px rgba(0,0,0,0.5);max-height:85vh;overflow-y:auto;" onclick="event.stopPropagation()">
-    <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
-      <img src="/dbcheck_logo.png" alt="DBCheck" style="width:44px;height:44px;border-radius:10px;">
-      <div>
-        <h2 style="margin:0;font-size:20px;font-weight:700;color:var(--text);">DBCheck</h2>
-        <span style="font-size:12px;color:var(--text-muted);">Database Intelligent Inspector <span id="about-version">{{ version }}</span></span>
+<style>
+  .about-modal-overlay {
+    display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:10000;
+    background:rgba(0,0,0,0.55);backdrop-filter:blur(6px);
+    overflow-y:auto;
+  }
+  .about-modal-box {
+    background:var(--surface);border:1px solid var(--border);border-radius:20px;
+    max-width:560px;width:92%;margin:80px auto;padding:0;
+    position:relative;box-shadow:0 24px 64px rgba(0,0,0,0.4);
+    overflow:hidden;
+  }
+  [data-theme="light"] .about-modal-box {
+    box-shadow:0 24px 64px rgba(0,0,0,0.12), 0 4px 16px rgba(0,0,0,0.06);
+  }
+  .about-hero {
+    background:linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #a855f7 100%);
+    padding:32px 32px 24px;position:relative;overflow:hidden;
+  }
+  .about-hero::before {
+    content:'';position:absolute;top:-50%;right:-30%;width:300px;height:300px;
+    background:radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%);
+    border-radius:50%;
+  }
+  .about-hero::after {
+    content:'';position:absolute;bottom:-30%;left:-20%;width:200px;height:200px;
+    background:radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 70%);
+    border-radius:50%;
+  }
+  .about-hero-inner {
+    display:flex;align-items:center;gap:16px;position:relative;z-index:1;
+  }
+  .about-logo {
+    width:56px;height:56px;border-radius:14px;
+    box-shadow:0 4px 16px rgba(0,0,0,0.2);flex-shrink:0;
+  }
+  .about-hero-text h2 {
+    margin:0;font-size:24px;font-weight:800;color:#fff;letter-spacing:-0.5px;
+  }
+  .about-hero-text .about-sub {
+    font-size:12px;color:rgba(255,255,255,0.7);margin-top:2px;
+    font-weight:500;letter-spacing:0.3px;
+  }
+  .about-close-btn {
+    position:absolute;top:16px;right:16px;z-index:2;
+    background:rgba(255,255,255,0.15);border:none;
+    color:#fff;width:32px;height:32px;border-radius:10px;
+    cursor:pointer;font-size:14px;
+    display:flex;align-items:center;justify-content:center;
+    transition:background 0.2s;
+  }
+  .about-close-btn:hover { background:rgba(255,255,255,0.25); }
+  .about-body { padding:24px 32px 28px; }
+  .about-desc {
+    font-size:14px;line-height:1.8;color:var(--text);margin:0 0 8px;
+  }
+  .about-meta {
+    font-size:12.5px;color:var(--text-muted);margin:0 0 20px;
+    display:flex;flex-wrap:wrap;gap:6px 16px;
+  }
+  .about-meta-item { display:flex;align-items:center;gap:4px; }
+  .about-meta-item a { color:var(--accent2);text-decoration:none; }
+  .about-meta-item a:hover { text-decoration:underline; }
+  .about-dbs {
+    display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;
+  }
+  .about-db-chip {
+    display:inline-flex;align-items:center;gap:5px;
+    padding:5px 12px;
+    background:var(--surface2);border:1px solid var(--border);
+    border-radius:8px;font-size:12px;color:var(--text);font-weight:500;
+    transition:all 0.2s;
+  }
+  .about-db-chip:hover {
+    border-color:var(--primary);background:var(--primary-light);
+    color:var(--primary);transform:translateY(-1px);
+  }
+  .about-db-chip .db-emoji { font-size:14px; }
+  .about-agreement {
+    background:var(--surface2);border:1px solid var(--border);
+    border-radius:12px;padding:14px 16px;margin-bottom:0;
+  }
+  .about-agreement-title {
+    font-size:13px;font-weight:600;color:var(--warn);margin-bottom:8px;
+    display:flex;align-items:center;gap:6px;
+  }
+  .about-agreement-text {
+    margin:0;font-size:12.5px;line-height:1.8;color:var(--text-muted);
+  }
+  .about-footer {
+    text-align:center;padding:0 32px 20px;
+    font-size:11px;color:var(--text-muted);opacity:0.6;
+  }
+</style>
+<div id="about-modal" class="about-modal-overlay" onclick="closeAboutModal(event)">
+  <div class="about-modal-box" onclick="event.stopPropagation()">
+    <!-- Hero -->
+    <div class="about-hero">
+      <button class="about-close-btn" onclick="closeAboutModal()">✕</button>
+      <div class="about-hero-inner">
+        <img class="about-logo" src="/dbcheck_logo.png" alt="DBCheck">
+        <div class="about-hero-text">
+          <h2>DBCheck</h2>
+          <div class="about-sub">Database Intelligent Inspector <span id="about-version">{{ version }}</span></div>
+        </div>
       </div>
-      <button onclick="closeAboutModal()" style="margin-left:auto;background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">✕</button>
     </div>
-
-    <div style="font-size:13.5px;line-height:1.8;color:var(--text);margin-bottom:18px;">
-      <p style="margin:0 0 10px;" data-i18n="webui.about_desc">
+    <!-- Body -->
+    <div class="about-body">
+      <p class="about-desc" data-i18n="webui.about_desc">
         DBCheck 是一款开源数据库智能巡检工具，支持 MySQL、PostgreSQL、Oracle、SQL Server、达梦（DM）、TiDB、IvorySQL 等主流数据库的健康巡检与 AI 诊断。
       </p>
-      <p style="margin:0;color:var(--text-muted);font-size:12.5px;" data-i18n="webui.about_author">
-        作者：Jack Ge· 开源协议：MIT License · 官网：<a href="https://dbcheck.top" target="_blank" style="color:var(--accent2);">dbcheck.top</a>
-      </p>
-    </div>
-
-    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:18px;">
-      <div style="font-size:13px;font-weight:600;color:var(--warn);margin-bottom:10px;">⚠️ 君子协定（Gentleman's Agreement）</div>
-      <!-- 中文 -->
-      <div class="about-note" lang="zh" style="margin:0;font-size:12.5px;line-height:1.8;color:var(--text-muted);">
-        每年 <strong>5月19日至5月25日</strong>，DBCheck 界面将强制以<strong>灰度模式</strong>显示，且用户无法切换主题。<br/>
-        请尊重这一设计，不要尝试修改或绕过灰度模式。
+      <div class="about-meta">
+        <span class="about-meta-item">作者：Jack Ge</span>
+        <span class="about-meta-item">协议：MIT License</span>
+        <span class="about-meta-item">官网：<a href="https://dbcheck.top" target="_blank">dbcheck.top</a></span>
       </div>
-      <!-- 英文 -->
-      <div class="about-note" lang="en" style="display:none;margin:0;font-size:12.5px;line-height:1.8;color:var(--text-muted);">
-        Every year from <strong>May 19 to May 25</strong>, the DBCheck interface will be forced to <strong>grayscale mode</strong> and users cannot switch themes.<br/>
-        Please respect this design and do not attempt to modify or bypass the grayscale mode during this period each year.
+
+      <!-- 支持的数据库 -->
+      <div class="about-dbs">
+        <span class="about-db-chip"><span class="db-emoji">🐬</span> MySQL</span>
+        <span class="about-db-chip"><span class="db-emoji">🦴</span> PostgreSQL</span>
+        <span class="about-db-chip"><span class="db-emoji">🔶</span> Oracle</span>
+        <span class="about-db-chip"><span class="db-emoji">🗄️</span> SQL Server</span>
+        <span class="about-db-chip"><span class="db-emoji">💎</span> DM 达梦</span>
+        <span class="about-db-chip"><span class="db-emoji">🌊</span> TiDB</span>
+        <span class="about-db-chip"><span class="db-emoji">🐘</span> IvorySQL</span>
+      </div>
+
+      <!-- 君子协定 -->
+      <div class="about-agreement">
+        <div class="about-agreement-title">⚠️ 君子协定（Gentleman's Agreement）</div>
+        <div class="about-agreement-text" lang="zh">
+          每年 <strong>5月19日至5月25日</strong>，DBCheck 界面将强制以<strong>灰度模式</strong>显示，且用户无法切换主题。<br/>
+          请尊重这一设计，不要尝试修改或绕过灰度模式。
+        </div>
+        <div class="about-agreement-text" lang="en" style="display:none;">
+          Every year from <strong>May 19 to May 25</strong>, the DBCheck interface will be forced to <strong>grayscale mode</strong> and users cannot switch themes.<br/>
+          Please respect this design and do not attempt to modify or bypass the grayscale mode during this period each year.
+        </div>
       </div>
     </div>
-
-    <div style="display:flex;gap:10px;flex-wrap:wrap;">
-      <span style="display:inline-block;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:11.5px;color:var(--text-muted);">MySQL</span>
-      <span style="display:inline-block;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:11.5px;color:var(--text-muted);">PostgreSQL</span>
-      <span style="display:inline-block;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:11.5px;color:var(--text-muted);">Oracle</span>
-      <span style="display:inline-block;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:11.5px;color:var(--text-muted);">SQL Server</span>
-      <span style="display:inline-block;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:11.5px;color:var(--text-muted);">DM 达梦</span>
-      <span style="display:inline-block;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:11.5px;color:var(--text-muted);">TiDB</span>
-      <span style="display:inline-block;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:11.5px;color:var(--text-muted);">IvorySQL</span>
+    <!-- Footer -->
+    <div class="about-footer">
+      © 2026 DBCheck · Powered by dbcheck.top
     </div>
   </div>
 </div>
@@ -12253,9 +12354,8 @@ async function deleteBackupHistory(recordId) {
 function showAboutModal() {
   document.getElementById('about-modal').style.display = 'block';
   document.body.style.overflow = 'hidden';
-  // 根据当前语言切换君子协定说明的语言
   var isZh = (document.documentElement.lang === 'zh');
-  var notes = document.getElementsByClassName('about-note');
+  var notes = document.querySelectorAll('.about-agreement-text');
   for (var i = 0; i < notes.length; i++) {
     notes[i].style.display = (notes[i].getAttribute('lang') === (isZh ? 'zh' : 'en')) ? '' : 'none';
   }
