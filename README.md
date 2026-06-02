@@ -8,7 +8,7 @@ DBCheck is an open-source, cross-platform automated database health check tool t
 > Language: [English](./README.md) | [中文](./README_zh.md)
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://dbcheck.top)
-[![Version](https://img.shields.io/badge/version-v2.5.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-v2.5.1-blue.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-green.svg)]()
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)]()
 [![AI](https://img.shields.io/badge/AI-Ollama+RAG-orange.svg)]()
@@ -92,7 +92,7 @@ Each risk is presented as a card: **Risk Level (High/Medium/Low) → Issue Descr
 
 ---
 
-## Six Core Capabilities
+## Seven Core Capabilities
 
 | Capability | Description |
 |-----------|-------------|
@@ -102,6 +102,7 @@ Each risk is presented as a card: **Risk Level (High/Medium/Low) → Issue Descr
 | 🔍 150+ Enhanced Rules | Full-dimensional risk detection across seven databases (MySQL 35+, PG 27+, Oracle 20+, SQL Server 15+, DM8 16+, TiDB 18+, IvorySQL 27+) — including 28 new slow query deep analysis rules |
 | 🖥️ Server Inspection | Comprehensive check of server hardware and system resource status, generating professional server inspection reports |
 | 🔗 Share Links | Generate online share links with one click, supporting both server and database inspection report sharing |
+| 📡 Real-Time Monitoring | Real-time slow query and active connection monitoring across all datasources with auto-refresh, heatmaps, and CSV export |
 
 ---
 
@@ -116,6 +117,43 @@ Each risk is presented as a card: **Risk Level (High/Medium/Low) → Issue Descr
 | Result Grid | Query results displayed in a scrollable table with row numbers |
 | Execution History | Recent queries are preserved within the current session |
 | Error Feedback | Database errors are translated into friendly, actionable prompts |
+
+---
+
+## Real-Time Monitoring 📡
+
+> DBCheck provides real-time monitoring for slow queries and active connections across all your datasources — no agents needed. Monitor runs in the browser via periodic polling and visualizes data with professional dashboards.
+
+### Real-Time Slow Query Monitoring
+
+| Feature | Description |
+|---------|-------------|
+| Multi-Datasource Aggregation | Automatically aggregates Top SQL from all configured datasources, displayed in a unified table |
+| Smart Time Formatting | Execution times formatted contextually: milliseconds for sub-second, seconds for moderate, minutes for heavy queries |
+| DB Type Identification | Automatically detects database type from datasource name and displays color-coded tags (MySQL=blue, PG=purple, TiDB=orange, Oracle=red, DM8=green) |
+| Severity Indicators | Visual severity dots — 🔴 High (>60s), 🟡 Medium (>10s), 🟢 Low — for at-a-glance risk assessment |
+| Sorting & Filtering | Sort by average time, max time, total time, or execution count; filter by datasource, time range, or SQL keywords |
+| CSV Export | One-click export of current slow query data to CSV file with UTF-8 BOM encoding |
+| Auto-Refresh | Configurable polling interval (5–60 seconds) with live countdown indicator and manual start/stop controls |
+
+### Active Connection Monitoring
+
+| Feature | Description |
+|---------|-------------|
+| Connection Usage Bars | Visual bar chart showing current connections vs. maximum for each datasource, color-coded by usage percentage (green <50%, yellow 50-80%, red >80%) |
+| 12-Hour Heatmap | Historical connection usage heatmap aggregated by hour, with 5-level color coding for quick pattern recognition |
+| Active Session Table | Real-time TOP 10 active sessions with user, state, duration, and SQL preview — filterable by datasource |
+| Blocking Detection | Overview card highlights blocked sessions with affected datasource names |
+| Idle Connection Tracking | Monitors longest idle connections with duration in minutes |
+| Auto-Refresh | Shared polling engine with slow query monitor — one start/stop controls both pages |
+
+### How to Use
+
+1. Navigate to **📡 实时监控** in the Web UI sidebar
+2. Click **▶ 启动** (Start) on the page header to begin monitoring
+3. Set the polling interval (5–60 seconds) using the number input next to the start/stop buttons
+4. Use filters to drill down by datasource, time range, or SQL keywords
+5. Click **⏹ 停止** (Stop) to pause monitoring; data remains visible until next page refresh
 
 ---
 

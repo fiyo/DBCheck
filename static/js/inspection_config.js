@@ -7,6 +7,7 @@
 let currentInspectionTemplateId = null;
 let currentInspectionChapterId = null;
 let inspectionQueryUnsaved = false;  // 查询内联编辑是否有未保存内容
+let currentInspectionIsPreset = false;  // 当前编辑的模板是否为预置模板
 
 
 // ==================== 页面初始化 ====================
@@ -15,13 +16,11 @@ let inspectionQueryUnsaved = false;  // 查询内联编辑是否有未保存内�
  * 显示巡检配置管理页面
  */
 function showInspectionConfigPage() {
-    document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
+    // 不再重复隐藏/显示页面 — showPage() 已经处理过了
     const page = document.getElementById('page-inspection-config');
-    if (page) page.style.display = 'block';
-    const titleEl = document.getElementById('topbar-title');
-    const subEl = document.getElementById('topbar-sub');
-    if (titleEl) titleEl.textContent = i18n('webui.nav_inspection_config') || '巡检配置管理';
-    if (subEl) subEl.textContent = i18n('webui.nav_inspection_config_desc') || '管理数据库巡检模板、章节和 SQL 查询';
+    if (page) page.style.display = 'flex';
+    // 不直接用 getI18N()，交给 applyI18N() 统一处理
+    // 仅确保页面显示，标题由 showPage() + applyI18N() 负责
     showInspectionTemplateList();
 }
 
@@ -40,6 +39,7 @@ async function showInspectionTemplateList() {
     if (editPage) editPage.style.display = 'none';
     currentInspectionChapterId = null;
     inspectionQueryUnsaved = false;
+    currentInspectionIsPreset = false;
     loadInspectionTemplates();
 }
 
@@ -73,24 +73,41 @@ function renderInspectionTemplateList(templates) {
             'mysql': 'MySQL', 'postgresql': 'PostgreSQL', 'oracle': 'Oracle',
             'sqlserver': 'SQL Server', 'dm8': 'DM8 达梦', 'tidb': 'TiDB', 'ivorysql': 'IvorySQL'
         };
+        const dbTypeIconMap = {
+            'mysql': '🐬', 'postgresql': '🦴', 'oracle': '🔶',
+            'sqlserver': '🗄️', 'dm8': '💎', 'tidb': '🌊', 'ivorysql': '🐘'
+        };
         const dbTypeLabel = dbTypeMap[t.db_type] || t.db_type;
-        const isDefault = t.is_default ? ' ✔️ 默认' : '';
+        const dbTypeIcon = dbTypeIconMap[t.db_type] || '📋';
+        const isDefault = t.is_default;
+        const isPreset = t.is_preset == 1;
+        const presetLabel = isPreset ? '<span class="card-tag card-tag--preset">预置</span>' : '';
+        const defaultLabel = isDefault ? '<span class="card-tag card-tag--default">默认</span>' : '';
+        const versionLabel = t.version && t.version !== 'v1' ? `<span class="card-version">${escapeHtml(t.version)}</span>` : '';
         html += `
-        <div class="inspection-template-card" onclick="editInspectionTemplate(${t.id})">
-            <div class="card-header">
-                <h3>${escapeHtml(t.template_name)}${isDefault}</h3>
-                <span class="db-type-badge">${dbTypeLabel}</span>
-            </div>
-            <div class="card-body">
+        <div class="inspection-template-card" data-preset="${isPreset ? '1' : '0'}" onclick="editInspectionTemplate(${t.id})">
+            <div class="card-accent-bar"></div>
+            <div class="card-content">
+                <div class="card-top">
+                    <div class="card-title-group">
+                        <span class="card-icon">${dbTypeIcon}</span>
+                        <h3>${escapeHtml(t.template_name)}</h3>
+                        ${versionLabel}
+                    </div>
+                    <div class="card-tags">${presetLabel}${defaultLabel}</div>
+                </div>
                 ${t.description ? `<p class="card-desc">${escapeHtml(t.description)}</p>` : ''}
-                <div class="card-meta">
-                    <span>章节: ${t.chapter_count || 0}</span>
-                    <span>查询: ${t.query_count || 0}</span>
+                <div class="card-stats">
+                    <span class="stat-item"><span class="stat-num">${t.chapter_count || 0}</span> 章节</span>
+                    <span class="stat-dot"></span>
+                    <span class="stat-item"><span class="stat-num">${t.query_count || 0}</span> 查询</span>
+                    <span class="stat-dot"></span>
+                    <span class="stat-item stat-type">${dbTypeLabel}</span>
                 </div>
             </div>
-            <div class="card-footer">
-                <button class="btn btn-xs btn-ghost" onclick="event.stopPropagation(); exportInspectionTemplate(${t.id})">导出</button>
-                <button class="btn btn-xs btn-danger" onclick="event.stopPropagation(); deleteInspectionTemplate(${t.id}, '${escapeHtml(t.template_name)}')">删除</button>
+            <div class="card-actions">
+                <button class="card-action-btn card-action-btn--export" onclick="event.stopPropagation(); exportInspectionTemplate(${t.id})">导出</button>
+                ${!isPreset ? `<button class="card-action-btn card-action-btn--delete" onclick="event.stopPropagation(); deleteInspectionTemplate(${t.id}, '${escapeHtml(t.template_name)}')">删除</button>` : ''}
             </div>
         </div>`;
     });
@@ -131,10 +148,21 @@ async function loadInspectionTemplateDetail(templateId) {
 function fillInspectionTemplateEditForm(template) {
     const dbTypeEl = document.getElementById('inspection-edit-db-type');
     const nameEl = document.getElementById('inspection-edit-name');
+    const versionEl = document.getElementById('inspection-edit-version');
     const descEl = document.getElementById('inspection-edit-desc');
     const defaultEl = document.getElementById('inspection-edit-default');
+    currentInspectionIsPreset = template.is_preset == 1;
     if (dbTypeEl) dbTypeEl.value = template.db_type || '';
-    if (nameEl) nameEl.value = template.template_name || '';
+    if (nameEl) {
+        nameEl.value = template.template_name || '';
+        nameEl.readOnly = currentInspectionIsPreset;
+        nameEl.disabled = currentInspectionIsPreset;
+    }
+    if (versionEl) {
+        versionEl.value = template.version || 'v1';
+        versionEl.readOnly = currentInspectionIsPreset;
+        versionEl.disabled = currentInspectionIsPreset;
+    }
     if (descEl) descEl.value = template.description || '';
     if (defaultEl) defaultEl.checked = template.is_default == 1;
 }
@@ -142,12 +170,15 @@ function fillInspectionTemplateEditForm(template) {
 function clearInspectionTemplateEditForm() {
     const dbTypeEl = document.getElementById('inspection-edit-db-type');
     const nameEl = document.getElementById('inspection-edit-name');
+    const versionEl = document.getElementById('inspection-edit-version');
     const descEl = document.getElementById('inspection-edit-desc');
     const defaultEl = document.getElementById('inspection-edit-default');
     if (dbTypeEl) dbTypeEl.value = '';
-    if (nameEl) nameEl.value = '';
+    if (nameEl) { nameEl.value = ''; nameEl.readOnly = false; nameEl.disabled = false; }
+    if (versionEl) { versionEl.value = 'v1'; versionEl.readOnly = false; versionEl.disabled = false; }
     if (descEl) descEl.value = '';
     if (defaultEl) defaultEl.checked = false;
+    currentInspectionIsPreset = false;
     const chapterList = document.getElementById('inspection-chapter-list');
     if (chapterList) chapterList.innerHTML = '<div class="empty-state">暂无章节，请点击顶部"添加章节"按钮添加。</div>';
     clearInspectionChapterDetail();
@@ -156,10 +187,12 @@ function clearInspectionTemplateEditForm() {
 async function saveInspectionTemplate() {
     const dbTypeEl = document.getElementById('inspection-edit-db-type');
     const nameEl = document.getElementById('inspection-edit-name');
+    const versionEl = document.getElementById('inspection-edit-version');
     const descEl = document.getElementById('inspection-edit-desc');
     const defaultEl = document.getElementById('inspection-edit-default');
     const dbType = dbTypeEl ? dbTypeEl.value : '';
     const templateName = nameEl ? nameEl.value.trim() : '';
+    const version = versionEl ? versionEl.value.trim() : 'v1';
     const description = descEl ? descEl.value.trim() : '';
     const isDefault = defaultEl ? (defaultEl.checked ? 1 : 0) : 0;
     if (!dbType || !templateName) {
@@ -171,12 +204,12 @@ async function saveInspectionTemplate() {
         if (currentInspectionTemplateId) {
             res = await fetch(`/api/inspection/templates/${currentInspectionTemplateId}`, {
                 method: 'PUT', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({db_type: dbType, template_name: templateName, description: description, is_default: isDefault})
+                body: JSON.stringify({db_type: dbType, template_name: templateName, version: version, description: description, is_default: isDefault})
             });
         } else {
             res = await fetch('/api/inspection/templates', {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({db_type: dbType, template_name: templateName, description: description, is_default: isDefault})
+                body: JSON.stringify({db_type: dbType, template_name: templateName, version: version, description: description, is_default: isDefault})
             });
         }
         data = await res.json();
@@ -239,12 +272,17 @@ function renderInspectionChapters(chapters) {
     chapters.forEach((ch, idx) => {
         html += `
         <li class="chapter-item" data-chapter-id="${ch.id}" onclick="editInspectionChapter(${ch.id})">
-            <div class="chapter-item-header">
+            <div class="chapter-info">
                 <span class="chapter-number">${ch.chapter_number}</span>
-                <span class="chapter-title">${escapeHtml(ch.chapter_title_zh)}</span>
-                <span class="chapter-query-count">${ch.query_count || 0} 个查询</span>
+                <div class="chapter-text">
+                    <span class="chapter-title">${escapeHtml(ch.chapter_title_zh)}</span>
+                    ${ch.chapter_title_en ? `<span class="chapter-title-en">${escapeHtml(ch.chapter_title_en)}</span>` : ''}
+                </div>
             </div>
-            <button class="btn-delete-x" title="删除" onclick="event.stopPropagation(); deleteInspectionChapter(${ch.id}, '${escapeHtml(ch.chapter_title_zh)}')">✕</button>
+            <span class="chapter-query-count">${ch.query_count || 0}</span>
+            <div class="chapter-item-actions">
+                <button class="btn-delete-x" title="删除" onclick="event.stopPropagation(); deleteInspectionChapter(${ch.id}, '${escapeHtml(ch.chapter_title_zh)}')">✕</button>
+            </div>
         </li>`;
     });
     html += '</ul>';
@@ -445,7 +483,7 @@ function renderInspectionQueries(queries) {
                     <button class="btn btn-xs btn-danger" onclick="deleteInspectionQuery(${q.id}, '${escapeHtml(q.query_key)}')">删除</button>
                 </div>
             </div>
-            <div class="query-sql-preview">${escapeHtml(q.query_sql.substring(0, 100))}${q.query_sql.length > 100 ? '...' : ''}</div>
+            <div class="query-sql-preview">${escapeHtmlForTemplate(q.query_sql.substring(0, 100))}${q.query_sql.length > 100 ? '...' : ''}</div>
             <div class="query-inline-edit" id="query-edit-${q.id}" style="display:none;"></div>
         </li>`;
     });
@@ -505,7 +543,7 @@ function renderQueryInlineEditForm(query, container, isNew) {
     const enabled = q.enabled !== 0;
     let html = '<div class="inline-edit-form">';
     html += `<div class="form-group"><label>查询键名</label><input type="text" class="form-input inline-q-key" value="${escapeHtml(key)}" oninput="inspectionQueryUnsaved=true" /></div>`;
-    html += `<div class="form-group"><label>SQL 语句</label><textarea class="form-textarea inline-q-sql" style="height:100px;font-family:monospace;" oninput="inspectionQueryUnsaved=true">${escapeHtml(sql)}</textarea></div>`;
+    html += `<div class="form-group"><label>SQL 语句</label><textarea class="form-textarea inline-q-sql" style="height:100px;font-family:monospace;" oninput="inspectionQueryUnsaved=true">${escapeHtmlForTemplate(sql)}</textarea></div>`;
     html += `<div class="form-group"><label>描述（中文）</label><input type="text" class="form-input inline-q-desc-zh" value="${escapeHtml(descZh)}" oninput="inspectionQueryUnsaved=true" /></div>`;
     html += `<div class="form-group"><label>描述（英文）</label><input type="text" class="form-input inline-q-desc-en" value="${escapeHtml(descEn)}" oninput="inspectionQueryUnsaved=true" /></div>`;
     html += `<div class="form-group"><label><input type="checkbox" class="inline-q-enabled" ${enabled ? 'checked' : ''} onchange="inspectionQueryUnsaved=true" /> 启用</label></div>`;
@@ -543,7 +581,7 @@ function showInlineQueryForm(query) {
     const enabled = isNew ? true : (q.enabled !== 0);
     container.innerHTML = '<div class="inline-edit-form">'
         + `<div class="form-group"><label>查询键名</label><input type="text" class="form-input inline-q-key" value="${escapeHtml(key)}" oninput="inspectionQueryUnsaved=true" /></div>`
-        + `<div class="form-group"><label>SQL 语句</label><textarea class="form-textarea inline-q-sql" style="height:100px;font-family:monospace;" oninput="inspectionQueryUnsaved=true">${escapeHtml(sql)}</textarea></div>`
+        + `<div class="form-group"><label>SQL 语句</label><textarea class="form-textarea inline-q-sql" style="height:100px;font-family:monospace;" oninput="inspectionQueryUnsaved=true">${escapeHtmlForTemplate(sql)}</textarea></div>`
         + `<div class="form-group"><label>描述（中文）</label><input type="text" class="form-input inline-q-desc-zh" value="${escapeHtml(descZh)}" oninput="inspectionQueryUnsaved=true" /></div>`
         + `<div class="form-group"><label>描述（英文）</label><input type="text" class="form-input inline-q-desc-en" value="${escapeHtml(descEn)}" oninput="inspectionQueryUnsaved=true" /></div>`
         + `<div class="form-group"><label><input type="checkbox" class="inline-q-enabled" ${enabled ? 'checked' : ''} onchange="inspectionQueryUnsaved=true" /> 启用</label></div>`
@@ -708,13 +746,20 @@ function importInspectionTemplate() {
 // ==================== 工具函数 ====================
 
 function getI18N(key) {
-    return (window.I18N && window.I18N[key]) || key;
+    return (window.I18N && window.I18N[key] !== undefined) ? window.I18N[key] : undefined;
 }
 
 function escapeHtml(str) {
     if (!str) return '';
     const map = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'};
     return str.replace(/[&<>"']/g, function(m) { return map[m]; });
+}
+
+// 安全转义：HTML 转义 + 模板字符串 $ 转义（防止 ${var} 被 JS 插值）
+function escapeHtmlForTemplate(str) {
+    if (!str) return '';
+    const map = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'};
+    return str.replace(/[&<>"']/g, function(m) { return map[m]; }).replace(/\$/g, '$$');
 }
 
 
