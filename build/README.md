@@ -86,7 +86,7 @@ bash start.sh
 # or: ./dbcheck
 ```
 
-Access: `http://<server-ip>:5179`
+Access: `http://<server-ip>:5003`
 
 ---
 
