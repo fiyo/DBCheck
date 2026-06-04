@@ -33,3 +33,4 @@ reportlab>=4.0.0          # PDF report generation (for config baseline & index h
 
 # ── Automation & Notifications ────────────────────────────────────────────────
 apscheduler>=3.10.0      # Cron-style job scheduling for scheduled inspections
+PyPDF2>=3.0.1           # PDF manipulation for report generation

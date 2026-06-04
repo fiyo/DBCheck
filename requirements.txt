@@ -11,6 +11,7 @@ cryptography>=41.0.0     # Password encryption for data source manager
 # ── Web UI ───────────────────────────────────────────────────────────────────
 flask>=2.0.0
 flask-socketio>=5.0.0
+gevent>=24.0.0           # Required by flask-socketio async_mode='gevent' (Werkzeug 3.x dropped threading)
 
 # ── Database Drivers ──────────────────────────────────────────────────────────
 pymysql>=1.0.0          # MySQL / TiDB

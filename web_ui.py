@@ -11,6 +11,10 @@
 DBCheck Web UI - Flask 应用
 数据库巡检工具 Web 界面
 """
+# gevent monkey patch 必须放在所有 import 之前
+import gevent.monkey
+gevent.monkey.patch_all()
+
 import os, sys, platform, threading, datetime, json, uuid, time, re, random, sqlite3
 
 # ── 确保项目根目录在 sys.path（支持各种启动方式）──────────────────
@@ -130,10 +134,9 @@ def _sync_delete_trend_for_report(filename: str):
     except Exception:
         pass
 
-# async_mode='threading' 最稳定，跨平台/打包零兼容问题，
-# 满足 DBCheck Web UI 低并发使用场景（单用户/少量连接）。
-# 不依赖 gevent/eventlet，避免打包后版本冲突。
-socketio = SocketIO(cors_allowed_origins='*', async_mode='threading')
+# Werkzeug 3.x 移除了 threading 模式支持，改用 gevent。
+# gevent 已在 requirements.txt 中，打包时自动包含。
+socketio = SocketIO(cors_allowed_origins='*', async_mode='gevent')
 
 # ── 本地模块 ──────────────────────────────────────────────
 try:
@@ -5971,4 +5974,4 @@ def on_disconnect():
 if __name__ == '__main__':
     port = 5003
     print(_t('webui.startup_msg').format(port=port))
-    socketio.run(app, host='0.0.0.0', port=port, debug=False, allow_unsafe_werkzeug=True)
+    socketio.run(app, host='0.0.0.0', port=port, debug=False)

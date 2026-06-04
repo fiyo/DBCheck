@@ -1,5 +1,4 @@
 dist/
-build/
 __pycache__/
 *.pyc
 copyright_registration/
