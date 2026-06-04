@@ -8,7 +8,7 @@ DBCheck 是一款开源、跨平台的数据库自动化健康巡检工具，支
 > Language: [English](./README.md) | [中文](./README_zh.md)
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://dbcheck.top)
-[![Version](https://img.shields.io/badge/版本-v2.5.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/版本-v2.5.1-blue.svg)]()
 [![License](https://img.shields.io/badge/开源协议-MIT-green.svg)]()
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)]()
 [![AI](https://img.shields.io/badge/AI-Ollama-orange.svg)]()
