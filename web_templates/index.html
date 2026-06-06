@@ -364,6 +364,108 @@ async function executeFixSql(taskId, sql) {
   letter-spacing: .5px;
 }
 
+/* ─── Sidebar Collapse ─── */
+.sidebar {
+  transition: width 0.25s cubic-bezier(0.4,0,0.2,1);
+  overflow: hidden;
+  white-space: nowrap;
+}
+.sidebar.collapsed {
+  width: 56px;
+}
+
+/* Logo 折叠态 */
+.sidebar.collapsed .sidebar-logo {
+  padding: 16px 8px 12px;
+  text-align: center;
+}
+.sidebar.collapsed .sidebar-logo h1,
+.sidebar.collapsed .sidebar-logo p {
+  display: none;
+}
+.sidebar.collapsed .sidebar-logo img {
+  width: 32px;
+  height: 32px;
+  margin-bottom: 0;
+}
+/* 折叠态在 logo 下竖排显示 DBCheck - 通过 HTML 实现 */
+.sidebar.collapsed .sidebar-logo {
+  padding: 16px 8px 12px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.sidebar .sidebar-vertical-text {
+  display: none;
+}
+.sidebar.collapsed .sidebar-vertical-text {
+  display: block;
+  margin-top: 6px;
+  writing-mode: vertical-rl;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--accent);
+  line-height: 1;
+}
+
+/* 导航项折叠态 */
+.sidebar.collapsed .nav-section {
+  display: none;
+}
+/* 折叠态 tooltip - 用原生 title 属性 */
+.sidebar.collapsed .nav-item {
+  justify-content: center;
+  padding: 8px 0;
+  margin: 1px 4px;
+}
+.sidebar.collapsed .nav-item .icon {
+  margin-right: 0;
+  font-size: 18px;
+}
+.sidebar.collapsed .nav-item span:not(.icon) {
+  display: none;
+}
+
+/* footer 折叠态 */
+.sidebar.collapsed .sidebar-footer {
+  padding: 10px 0 46px;
+}
+.sidebar.collapsed .version-badge {
+  display: none;
+}
+
+/* 折叠按钮 */
+.sidebar-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+.sidebar-toggle:hover {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* 主内容区响应 */
+.main {
+  transition: margin-left 0.25s cubic-bezier(0.4,0,0.2,1);
+}
+.app-shell.sidebar-collapsed .main {
+  margin-left: 56px;
+}
+
 /* ─── Main ─── */
 .main {
   margin-left: 260px;
@@ -3660,6 +3762,7 @@ function formatBytes(bytes) {
   <aside class="sidebar">
     <div class="sidebar-logo">
       <img src="/dbcheck_logo.png" alt="DBCheck" style="width:40px;height:40px;margin-bottom:10px;">
+      <span class="sidebar-vertical-text">DBCheck</span>
       <h1>DBCheck <span class="edition-badge community" id="sidebar-edition-badge" data-i18n="webui.edition_badge">社区版</span></h1>
       <p data-i18n="webui.logo_subtitle">基于 AI 的智能数据库巡检工具</p>
     </div>
@@ -3760,6 +3863,7 @@ function formatBytes(bytes) {
     </div><!-- /sidebar-nav -->
 
     <div class="sidebar-footer">
+      <button class="sidebar-toggle" onclick="toggleSidebar()" title="折叠/展开菜单" id="sidebar-toggle-btn">«</button>
       <span class="version-badge" id="version-badge">{{ version }}</span>
     </div>
   </aside>
@@ -15551,6 +15655,42 @@ function mkdirRemote() {
     setTimeout(function() {
       if (_quoteDetector) { clearInterval(_quoteDetector); _quoteDetector = null; }
     }, 60000);
+  </script>
+
+  <script>
+    /* ─── Sidebar 折叠/展开 ─── */
+    function toggleSidebar() {
+      var sidebar = document.querySelector('.sidebar');
+      var appShell = document.querySelector('.app-shell');
+      var btn = document.getElementById('sidebar-toggle-btn');
+
+      sidebar.classList.toggle('collapsed');
+      appShell.classList.toggle('sidebar-collapsed');
+
+      var isCollapsed = sidebar.classList.contains('collapsed');
+      btn.textContent = isCollapsed ? '»' : '«';
+      localStorage.setItem('dbcheck_sidebar_collapsed', isCollapsed);
+    }
+
+    // 页面加载时恢复折叠状态
+    document.addEventListener('DOMContentLoaded', function() {
+      var collapsed = localStorage.getItem('dbcheck_sidebar_collapsed') === 'true';
+      if (collapsed) {
+        document.querySelector('.sidebar').classList.add('collapsed');
+        document.querySelector('.app-shell').classList.add('sidebar-collapsed');
+        var btn = document.getElementById('sidebar-toggle-btn');
+        if (btn) btn.textContent = '»';
+      }
+
+      // 为每个菜单项设置 tooltip（折叠态悬浮提示）
+      var items = document.querySelectorAll('.sidebar .nav-item');
+      for (var i = 0; i < items.length; i++) {
+        var label = items[i].querySelector('span:not(.icon)');
+        if (label) {
+          items[i].title = label.textContent.trim();
+        }
+      }
+    });
   </script>
 </body>
 </html>
