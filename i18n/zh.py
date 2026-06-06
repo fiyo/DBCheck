@@ -2610,7 +2610,7 @@ ZI = {
     "webui.network_error": "网络错误，请稍后重试",
     # ── 关于页面 ──
     "webui.nav_about": "关于 DBCheck",
-    "webui.about_desc": "DBCheck 是一款开源数据库智能巡检工具，支持 MySQL、PostgreSQL、Oracle、SQL Server、达梦（DM）、TiDB、IvorySQL 等主流数据库的健康巡检与 AI 诊断。",
+    "webui.about_desc": "DBCheck 是一款开源数据库智能巡检工具，支持 MySQL、PostgreSQL、Oracle、SQL Server、达梦（DM）、TiDB、IvorySQL、YashanDB 等主流数据库的健康巡检与 AI 诊断。",
     "webui.about_author": "作者：Jack Ge · 开源协议：MIT License · 官网：dbcheck.top",
     "webui.about_grayscale_note": "每年 <strong>5月19日至5月25日</strong>，DBCheck 界面将强制以<strong>灰度模式</strong>显示，且用户无法切换主题。<br/><br/>请尊重这一设计，不要尝试修改或绕过灰度模式。",
 

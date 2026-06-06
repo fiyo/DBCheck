@@ -1,0 +1,406 @@
+/* ═══════════════════════════════════════
+   DBCheck 登录页样式 - 2026-06-06
+   ═══════════════════════════════════════ */
+
+/* ═══════════════════════════════════════
+   动态背景
+   ═══════════════════════════════════════ */
+#login-overlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(160deg, #0a0a1a 0%, #12122e 50%, #1a1040 100%);
+}
+[data-theme="light"] #login-overlay {
+  background: linear-gradient(160deg, #f0f4ff 0%, #e8ecff 50%, #f5f0ff 100%);
+}
+
+#login-overlay .bg-glow {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(100px);
+  opacity: 0.35;
+  z-index: 0;
+  animation: glowFloat 18s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+#login-overlay .bg-glow.g1 {
+  width: 600px; height: 600px;
+  background: #6c5ce7;
+  top: -200px; left: -100px;
+}
+#login-overlay .bg-glow.g2 {
+  width: 500px; height: 500px;
+  background: #0984e3;
+  bottom: -150px; right: -100px;
+  animation-delay: -6s; animation-duration: 22s;
+}
+#login-overlay .bg-glow.g3 {
+  width: 350px; height: 350px;
+  background: #e84393;
+  top: 40%; left: 60%;
+  animation-delay: -12s; animation-duration: 25s;
+  opacity: 0.2;
+}
+
+@keyframes glowFloat {
+  0%   { transform: translate(0, 0) scale(1); }
+  33%  { transform: translate(40px, -30px) scale(1.08); }
+  66%  { transform: translate(-20px, 25px) scale(0.95); }
+  100% { transform: translate(15px, -10px) scale(1.03); }
+}
+
+#login-overlay .bg-grid {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background-image:
+    linear-gradient(rgba(108,92,231,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(108,92,231,0.04) 1px, transparent 1px);
+  background-size: 60px 60px;
+  mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 30%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 30%, transparent 100%);
+  pointer-events: none;
+}
+
+/* ═══════════════════════════════════════
+   登录卡片
+   ═══════════════════════════════════════ */
+#login-overlay .login-wrap {
+  position: relative;
+  z-index: 1;
+  animation: cardEntry .7s cubic-bezier(.16,1,.3,1) both;
+}
+@keyframes cardEntry {
+  from { opacity: 0; transform: translateY(32px) scale(.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+#login-overlay .login-card {
+  position: relative;
+  width: 400px;
+  padding: 40px 36px 36px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 22px;
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  box-shadow:
+    0 8px 32px rgba(0,0,0,0.25),
+    0 2px 8px rgba(0,0,0,0.15),
+    inset 0 1px 0 rgba(255,255,255,0.06);
+  overflow: hidden;
+}
+[data-theme="light"] #login-overlay .login-card {
+  background: rgba(255,255,255,0.92);
+  border: 1px solid rgba(108,92,231,0.12);
+  box-shadow:
+    0 20px 60px rgba(108,92,231,0.12),
+    0 4px 16px rgba(0,0,0,0.06);
+}
+
+/* 卡片顶部光边 */
+#login-overlay .login-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), #a29bfe, transparent);
+  opacity: 0.7;
+}
+
+/* ═══════════════════════════════════════
+   Logo 区域
+   ═══════════════════════════════════════ */
+#login-overlay .logo-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 32px;
+}
+
+#login-overlay .logo-ring {
+  width: 88px;
+  height: 88px;
+  border-radius: 22px;
+  margin-bottom: 20px;
+  animation: ringPulse 3s ease-in-out infinite;
+}
+@keyframes ringPulse {
+  0%, 100% { filter: drop-shadow(0 0 12px rgba(108,92,231,0.5)) drop-shadow(0 0 28px rgba(108,92,231,0.25)); }
+  50%       { filter: drop-shadow(0 0 20px rgba(108,92,231,0.7)) drop-shadow(0 0 40px rgba(162,155,254,0.35)); }
+}
+
+#login-overlay .logo-inner {
+  width: 100%;
+  height: 100%;
+  border-radius: 20px;
+  background: #0a0a1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  font-weight: 900;
+  color: #6c5ce7;
+}
+[data-theme="light"] #login-overlay .logo-inner {
+  background: #f0f4ff;
+}
+
+#login-overlay .logo-img {
+  width: 82px;
+  height: 82px;
+  border-radius: 20px;
+  object-fit: contain;
+  display: block;
+}
+
+#login-overlay .login-title {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  background: linear-gradient(135deg, #fff 0%, #a29bfe 50%, #6c5ce7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 6px;
+  text-align: center;
+}
+[data-theme="light"] #login-overlay .login-title {
+  background: linear-gradient(135deg, #1e293b 0%, #6c5ce7 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+#login-overlay .login-subtitle {
+  font-size: 12.5px;
+  color: rgba(255,255,255,0.45);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  font-weight: 500;
+  text-align: center;
+  margin-bottom: 32px;
+}
+[data-theme="light"] #login-overlay .login-subtitle {
+  color: #94a3b8;
+}
+
+/* ═══════════════════════════════════════
+   表单
+   ═══════════════════════════════════════ */
+#login-overlay .form-group {
+  margin-bottom: 18px;
+  position: relative;
+}
+
+#login-overlay .form-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.45);
+  margin-bottom: 7px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+[data-theme="light"] #login-overlay .form-label {
+  color: #64748b;
+}
+
+#login-overlay .form-input {
+  width: 100%;
+  padding: 13px 16px 13px 44px;
+  background: rgba(255,255,255,0.05);
+  border: 1.5px solid rgba(255,255,255,0.12);
+  border-radius: 14px;
+  color: #e2e8f0;
+  font-size: 14px;
+  outline: none;
+  transition: border-color .25s, box-shadow .25s, background .25s;
+  box-sizing: border-box;
+}
+[data-theme="light"] #login-overlay .form-input {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #1e293b;
+}
+#login-overlay .form-input:focus {
+  border-color: var(--accent);
+  background: rgba(108,92,231,0.06);
+  box-shadow: 0 0 0 3px rgba(108,92,231,0.1), inset 0 1px 4px rgba(108,92,231,0.05);
+}
+#login-overlay .form-input::placeholder { color: rgba(255,255,255,0.2); }
+[data-theme="light"] #login-overlay .form-input::placeholder { color: #94a3b8; }
+
+#login-overlay .input-icon {
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  color: rgba(255,255,255,0.3);
+  pointer-events: none;
+  transition: color .25s;
+  margin-top: 10px;
+}
+#login-overlay .form-group:focus-within .input-icon { color: var(--accent); }
+
+#login-overlay .pwd-toggle {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.3);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color .25s, background .25s;
+  margin-top: 10px;
+}
+#login-overlay .pwd-toggle:hover {
+  color: var(--accent);
+  background: rgba(108,92,231,0.08);
+}
+
+/* ═══════════════════════════════════════
+   登录按钮
+   ═══════════════════════════════════════ */
+#login-overlay .login-btn {
+  width: 100%;
+  padding: 14px;
+  margin-top: 6px;
+  background: linear-gradient(135deg, var(--accent) 0%, #a29bfe 50%, #6c5ce7 100%);
+  background-size: 200% 200%;
+  border: none;
+  border-radius: 14px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform .25s, box-shadow .25s;
+  letter-spacing: 0.5px;
+  position: relative;
+  overflow: hidden;
+  animation: btnBgShift 4s ease-in-out infinite;
+}
+@keyframes btnBgShift {
+  0%, 100% { background-position: 0% 50%; }
+  50%       { background-position: 100% 50%; }
+}
+#login-overlay .login-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.15), transparent);
+  opacity: 0;
+  transition: opacity .25s;
+}
+#login-overlay .login-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(108,92,231,0.4), 0 2px 8px rgba(108,92,231,0.2);
+}
+#login-overlay .login-btn:hover::before { opacity: 1; }
+#login-overlay .login-btn:active { transform: translateY(0) scale(0.98); }
+
+/* 加载状态 */
+#login-overlay .login-btn.loading { pointer-events: none; opacity: 0.75; }
+#login-overlay .login-btn.loading::after {
+  content: '';
+  position: absolute;
+  width: 20px; height: 20px;
+  top: 50%; left: 50%;
+  margin: -10px 0 0 -10px;
+  border: 2.5px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: loginSpin .6s linear infinite;
+}
+@keyframes loginSpin { to { transform: rotate(360deg); } }
+
+/* 涟漪 */
+#login-overlay .ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.3);
+  transform: scale(0);
+  animation: rippleOut .5s ease-out;
+  pointer-events: none;
+}
+@keyframes rippleOut { to { transform: scale(4); opacity: 0; } }
+
+/* ═══════════════════════════════════════
+   错误提示
+   ═══════════════════════════════════════ */
+#login-overlay .login-error {
+  color: #ff6b6b;
+  font-size: 12.5px;
+  margin-top: 14px;
+  text-align: center;
+  min-height: 20px;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity .2s, transform .2s;
+}
+#login-overlay .login-error.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* 卡片抖动 */
+#login-overlay .login-card.shake {
+  animation: cardShake .4s ease;
+}
+@keyframes cardShake {
+  0%,100% { transform: translateX(0); }
+  20%     { transform: translateX(-8px); }
+  40%     { transform: translateX(8px); }
+  60%     { transform: translateX(-5px); }
+  80%     { transform: translateX(5px); }
+}
+
+/* ═══════════════════════════════════════
+   底部版本信息
+   ═══════════════════════════════════════ */
+#login-overlay .login-footer {
+  text-align: center;
+  margin-top: 24px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.25);
+}
+[data-theme="light"] #login-overlay .login-footer {
+  color: #94a3b8;
+  opacity: 0.6;
+}
+
+/* ═══════════════════════════════════════
+   主题切换按钮
+   ═══════════════════════════════════════ */
+#login-theme-toggle {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000000;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04);
+  backdrop-filter: blur(12px);
+  color: rgba(255,255,255,0.45);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  transition: color .25s, border-color .25s, transform .25s;
+}
+#login-theme-toggle:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  transform: rotate(15deg);
+}

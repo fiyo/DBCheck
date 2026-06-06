@@ -327,8 +327,8 @@ async function executeFixSql(taskId, sql) {
 
 .nav-item {
   display: flex; align-items: center; gap: 10px;
-  padding: 10px 16px;
-  margin: 2px 8px;
+  padding: 5px 16px;
+  margin: 1px 8px;
   border-radius: 8px;
   cursor: pointer;
   font-size: 13.5px;
@@ -347,6 +347,7 @@ async function executeFixSql(taskId, sql) {
 .sidebar-footer {
   margin-top: auto;
   padding: 16px;
+  padding-bottom: 42px;
   border-top: 1px solid var(--border);
   font-size: 11px; color: var(--text-muted);
   text-align: center;
@@ -2456,6 +2457,7 @@ async function executeFixSql(taskId, sql) {
 
   <!-- xterm.js（远程终端） -->
   <link rel="stylesheet" href="/static/css/xterm.css" />
+  <link rel="stylesheet" href="/static/css/login.css">
   <script src="/static/js/xterm.js"></script>
   <script src="/static/js/xterm-addon-fit.js"></script>
   <script src="/static/js/xterm-addon-attach.js"></script>
@@ -5128,8 +5130,8 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
                 <option value="sqlserver">SQL Server</option>
                 <option value="dm">DM8</option>
                 <option value="tidb">TiDB</option>
-              <option value="ivorysql">IvorySQL</option>
                 <option value="ivorysql">IvorySQL</option>
+                <option value="yashandb">YashanDB</option>
                 <option value="all">全部类型</option>
               </select>
             </div>
@@ -10016,128 +10018,62 @@ async function executeFixSql(taskId, sql) {
 <!-- Toast 通知容器 -->
 <div id="toast-container" style="position:fixed;top:20px;right:20px;z-index:999999;display:flex;flex-direction:column;gap:10px;pointer-events:none"></div>
 
+<!-- 登录遮罩 - 新设计 2026-06-06 -->
+<div id="login-overlay" style="position:fixed;top:0;left:0;right:0;bottom:0;z-index:999999;display:none;">
 
-<style>
-  #login-overlay {
-    background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%);
-  }
-  [data-theme="light"] #login-overlay {
-    background: linear-gradient(135deg, #e0e7ff 0%, #f0e6ff 40%, #fce7f3 100%);
-  }
-  #login-overlay .login-card {
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 16px;
-    padding: 28px;
-    width: 360px;
-    backdrop-filter: blur(10px);
-  }
-  [data-theme="light"] #login-overlay .login-card {
-    background: rgba(255,255,255,0.85);
-    border: 1px solid rgba(255,255,255,0.8);
-    box-shadow: 0 20px 60px rgba(108,92,231,0.12), 0 4px 16px rgba(0,0,0,0.06);
-    backdrop-filter: blur(20px);
-  }
-  #login-overlay .login-label {
-    text-align: left;
-    font-size: 11px;
-    color: rgba(255,255,255,0.4);
-    margin-bottom: 4px;
-  }
-  [data-theme="light"] #login-overlay .login-label {
-    color: #64748b;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-  }
-  #login-overlay .login-input {
-    width: 100%;
-    padding: 11px 14px;
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.15);
-    border-radius: 10px;
-    color: #fff;
-    font-size: 14px;
-    box-sizing: border-box;
-    outline: none;
-    transition: border-color 0.2s;
-  }
-  [data-theme="light"] #login-overlay .login-input {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    color: #1e293b;
-  }
-  #login-overlay .login-btn {
-    width: 100%;
-    padding: 12px;
-    background: linear-gradient(135deg, var(--accent), #6c5ce7);
-    border: none;
-    border-radius: 10px;
-    color: #fff;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: transform 0.15s, box-shadow 0.15s;
-  }
-</style>
-<style>
-  #login-overlay .login-title {
-    font-size:32px;font-weight:800;color:#fff;letter-spacing:-1px;margin-bottom:4px;
-  }
-  [data-theme="light"] #login-overlay .login-title {
-    color: #1e293b;
-  }
-  #login-overlay .login-subtitle {
-    font-size:13px;color:rgba(255,255,255,0.5);margin-bottom:16px;
-  }
-  [data-theme="light"] #login-overlay .login-subtitle {
-    color: #64748b;
-  }
-  #login-overlay .login-field-input {
-    width:100%;padding:11px 14px;
-    background:rgba(255,255,255,0.06);
-    border:1px solid rgba(255,255,255,0.15);
-    border-radius:10px;color:#fff;
-    font-size:14px;box-sizing:border-box;outline:none;
-    transition:border-color 0.2s, box-shadow 0.2s;
-  }
-  [data-theme="light"] #login-overlay .login-field-input {
-    background:#f8fafc;
-    border:1px solid #e2e8f0;
-    color:#1e293b;
-  }
-  [data-theme="light"] #login-overlay .login-field-input:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(108,92,231,0.1);
-  }
-  #login-overlay .login-field-input:focus {
-    border-color: var(--accent);
-  }
-</style>
-<!-- 登录遮罩 -->
-<div id="login-overlay" style="position:fixed;top:0;left:0;right:0;bottom:0;z-index:999999;display:flex;align-items:flex-start;justify-content:center;padding-top:20vh;">
-  <div style="text-align:center;animation:fadeInUp 0.6s ease;">
-    <!-- Logo -->
-    <img src="/dbcheck_logo.png" class="login-logo" style="width:80px;height:80px;margin:0 auto 8px;border-radius:18px;box-shadow:0 8px 32px rgba(108,92,231,0.3);" alt="DBCheck">
-    <!-- Title -->
-    <div class="login-title" data-i18n="webui.login_title">DBCheck</div>
-    <div class="login-subtitle" data-i18n="webui.login_subtitle">数据库智能巡检工具</div>
-    <!-- Form card -->
+  <!-- 背景层 -->
+  <div class="bg-glow g1"></div>
+  <div class="bg-glow g2"></div>
+  <div class="bg-glow g3"></div>
+  <div class="bg-grid"></div>
+
+  <!-- 主题切换 -->
+  <button id="login-theme-toggle" onclick="toggleLoginTheme()" title="切换主题">🌓</button>
+
+  <!-- 登录卡片 -->
+  <div class="login-wrap">
     <div class="login-card">
-      <div style="margin-bottom:14px;">
-        <div class="login-label" data-i18n="webui.login_username">用户名</div>
-        <input id="login-user" type="text" class="login-field-input" placeholder="请输入用户名" data-i18n-placeholder="webui.login_username_placeholder" autocomplete="username">
+
+      <!-- Logo 区域 -->
+      <div class="logo-area">
+        <div class="logo-ring">
+          <img src="/dbcheck_logo.png" class="logo-img" alt="DBCheck"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+          <div class="logo-inner" style="display:none;">D</div>
+        </div>
+        <div class="login-title">DBCheck</div>
+        <div class="login-subtitle">智能数据库巡检与性能分析平台</div>
       </div>
-      <div style="margin-bottom:6px;">
-        <div class="login-label" data-i18n="webui.login_password">密码</div>
-        <input id="login-pass" type="password" class="login-field-input" placeholder="请输入密码" data-i18n-placeholder="webui.login_password_placeholder" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+
+      <!-- 表单 -->
+      <div class="form-group">
+        <label class="form-label">用户名</label>
+        <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <input id="login-user" type="text" class="form-input" placeholder="请输入用户名" autocomplete="username" autofocus>
       </div>
-      <div id="login-error" style="color:#ff6b6b;font-size:12px;margin-bottom:14px;min-height:18px;text-align:left;display:none;"></div>
-      <button id="btn-login" class="login-btn" data-i18n="webui.login_btn"
-        onmouseover="this.style.transform='scale(1.02)';this.style.boxShadow='0 4px 16px rgba(108,92,231,0.4)'"
-        onmouseout="this.style.transform='';this.style.boxShadow=''">
-        登 录
+
+      <div class="form-group">
+        <label class="form-label">密码</label>
+        <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <input id="login-pass" type="password" class="form-input" placeholder="请输入密码" autocomplete="current-password">
+        <button type="button" class="pwd-toggle" onclick="toggleLoginPwd()" title="显示/隐藏密码">
+          <svg id="login-eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+
+      <div id="login-error" class="login-error"></div>
+
+      <button id="btn-login" class="login-btn" type="button" onclick="doLogin()">
+        <span id="btn-text">登  录</span>
       </button>
+
+      <div class="login-footer">
+        <span id="login-version">--</span> · DBCheck © 2026
+      </div>
     </div>
+  </div>
+</div>
+
   </div>
 </div>
 
@@ -14293,7 +14229,7 @@ async function deleteBackupHistory(recordId) {
     <!-- Body -->
     <div class="about-body">
       <p class="about-desc" data-i18n="webui.about_desc">
-        DBCheck 是一款开源数据库智能巡检工具，支持 MySQL、PostgreSQL、Oracle、SQL Server、达梦（DM）、TiDB、IvorySQL 等主流数据库的健康巡检与 AI 诊断。
+        DBCheck 是一款开源数据库智能巡检工具，支持 MySQL、PostgreSQL、Oracle、SQL Server、达梦（DM）、TiDB、IvorySQL、YashanDB 等主流数据库的健康巡检与 AI 诊断。
       </p>
       <div class="about-meta">
         <span class="about-meta-item">作者：Jack Ge</span>
@@ -14310,6 +14246,7 @@ async function deleteBackupHistory(recordId) {
         <span class="about-db-chip"><span class="db-emoji">💎</span> DM 达梦</span>
         <span class="about-db-chip"><span class="db-emoji">🌊</span> TiDB</span>
         <span class="about-db-chip"><span class="db-emoji">🐘</span> IvorySQL</span>
+        <span class="about-db-chip"><span class="db-emoji">🏔️</span> YashanDB</span>
       </div>
 
       <!-- 君子协定 -->
@@ -15477,7 +15414,7 @@ function mkdirRemote() {
   <div class="sb-item">
     <span>📊</span>
     <span data-i18n="webui.status_version">版本</span>
-    <span class="sb-val">v2.5.0</span>
+    <span class="sb-val" id="footer-version">v2.5.1</span>
   </div>
   <div class="sb-item" id="sb-inspection">
     <span>⏱️</span>
@@ -15520,6 +15457,7 @@ function mkdirRemote() {
 })();
 </script>
 
+  <script src="/static/js/login.js"></script>
 </body>
 </html>
 
