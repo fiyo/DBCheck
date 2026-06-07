@@ -8,7 +8,7 @@ DBCheck 是一款开源、跨平台的数据库自动化健康巡检工具，支
 > Language: [English](./README.md) | [中文](./README_zh.md)
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://dbcheck.top)
-[![Version](https://img.shields.io/badge/版本-v2.5.1-blue.svg)]()
+[![Version](https://img.shields.io/badge/版本-v2.5.3-blue.svg)]()
 [![License](https://img.shields.io/badge/开源协议-MIT-green.svg)]()
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)]()
 [![AI](https://img.shields.io/badge/AI-Ollama-orange.svg)]()
@@ -1004,6 +1004,47 @@ Web UI 中的 **📚 RAG 知识库** 页面提供：
 
 ---
 
+## Oracle AWR 报告分析 📊
+
+> 上传 Oracle AWR HTML 报告（由 awrrpt.sql 生成），DBCheck 自动解析报告内容，提取关键性能指标，生成结构化的 Word 分析报告，并支持 AI 智能诊断。
+
+### 功能概述
+
+AWR 报告分析功能让 DBA 无需手动阅读冗长的 AWR HTML 报告：
+
+- **智能解析**：自动提取 AWR HTML 报告中的元数据（数据库名、实例名、版本、RAC 状态）和所有章节数据
+- **元数据识别**：自动识别 Snap 范围、数据库版本、实例信息及 RAC 集群状态
+- **Word 报告生成**：将 AWR 数据渲染为格式规范的 Word 文档，包含封面、章节数据表和分析摘要
+- **AI 诊断建议**：启用 AI 后，自动从 AWR 数据中提取关键指标（负载、效率、缓存、I/O）构建诊断摘要，调用 AI 生成优化建议
+- **Markdown 渲染**：AI 输出的 Markdown 内容自动渲染为 Word 样式（加粗、代码块、列表、标题序号）
+- **进度指示**：报告生成过程分步显示进度（解析 AWR → AI 诊断 → 生成报告），避免等待焦虑
+
+### 报告章节
+
+AWR 分析报告自动包含以下章节（根据 AWR 原始报告内容动态生成）：
+
+| 章节 | 内容 |
+|------|------|
+| 元数据摘要 | 数据库名、实例名、版本、RAC 状态、Snap 时间范围 |
+| Load Profile | 每秒/每事务负载指标 |
+| Instance Efficiency | 缓存命中率、库缓存命中率等效率指标 |
+| 等待事件 Top | 按等待时间排序的 Top 等待事件 |
+| SQL 统计 | 按执行次数/耗时/逻辑读的 Top SQL |
+| 表空间 I/O | 各表空间读写统计 |
+| 共享池与库缓存 | 共享池内存使用、库缓存命中率 |
+| Latch 统计 | Top Latch 争用分析 |
+| 缓冲池 Advisor | 缓冲池大小建议 |
+| AI 诊断建议 | 基于 AWR 关键指标的 AI 优化建议（可选） |
+
+### 使用方式
+
+1. 在 Web UI 侧边栏导航至 **📊 AWR 报告分析**
+2. 点击或拖拽 AWR HTML 文件到上传区域
+3. 查看解析结果（元数据 + 章节摘要）
+4. 点击「📝 生成分析报告」下载 Word 文档
+
+---
+
 ## 环境要求
 
 - **操作系统**：Linux / macOS / Windows
@@ -1508,6 +1549,7 @@ DBCheck 从初版到功能完善，历经了大量版本迭代和实测打磨。
 | 2026-5-4 | **政 |
 | 2026-6-2 | **月光 | 
 | 2026-6-3 | *树 |
+| 2026-6-7 | *0518 |
 | *期待你的支持！* |  |
 
 > 如已捐赠但未出现在此名单中，请联系 sdfiyon@gmail.com 补充。
