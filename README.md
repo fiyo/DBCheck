@@ -1478,14 +1478,14 @@ DBCheck has undergone extensive iteration and real-world testing to reach its cu
 
 Thank you to everyone who has supported this project! ❤️
 
-| Date | Name / Nickname |
-|------|------------------|
-| 2026-4-28 | *ck |
-| 2026-4-29 | *嵘 |
-| 2026-5-4 | **政 |
-| 2026-6-2 | **月光 |
-| 2026-6-3 | *树 |
-| 2026-6-7 | *0518 |
+| Date | Name / Nickname |Serial number|
+|------|-----------|-----|
+| 2026-4-28 | *ck |<img src="snapshot/DBCheck-000001.png" alt="PayPal 捐赠二维码" width="200" />|
+| 2026-4-29 | *嵘 |<img src="snapshot/DBCheck-000002.png" alt="PayPal 捐赠二维码" width="200" />|
+| 2026-5-4 | **政 |<img src="snapshot/DBCheck-000003.png" alt="PayPal 捐赠二维码" width="200" />|
+| 2026-6-2 | **月光 | <img src="snapshot/DBCheck-000004.png" alt="PayPal 捐赠二维码" width="200" />|
+| 2026-6-3 | *树 |<img src="snapshot/DBCheck-000005.png" alt="PayPal 捐赠二维码" width="200" />|
+| 2026-6-7 | *0518 |<img src="snapshot/DBCheck-000006.png" alt="PayPal 捐赠二维码" width="200" />|
 | *Looking forward to your support!* | |
 
 > If you've donated but don't see your name here, please contact us at sdfiyon@gmail.com to have it added.
