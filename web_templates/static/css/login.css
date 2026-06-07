@@ -370,11 +370,11 @@
   text-align: center;
   margin-top: 24px;
   font-size: 11px;
-  color: rgba(255,255,255,0.25);
+  color: rgba(255,255,255,0.5);
 }
 [data-theme="light"] #login-overlay .login-footer {
   color: #94a3b8;
-  opacity: 0.6;
+  opacity: 0.85;
 }
 
 /* ═══════════════════════════════════════

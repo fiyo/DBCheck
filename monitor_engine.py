@@ -142,6 +142,9 @@ class MonitorEngine:
 
             for inst in instances:
                 iid = inst['id']
+                if not inst.get('host'):
+                    print(f"[Monitor] 跳过空 host 实例: {iid}", flush=True)
+                    continue
                 db_type = inst.get('db_type', '').lower()
                 label = f"{inst.get('name', iid)} ({inst.get('host', '?')}:{inst.get('port', '?')})"
 
@@ -337,7 +340,9 @@ class MonitorEngine:
 
     def _create_connection(self, inst, password, db_type, timeout):
         """根据 db_type 创建数据库连接"""
-        host = inst['host']
+        host = inst.get('host', '')
+        if not host:
+            raise ValueError('主机地址不能为空')
         port = int(inst['port'])
         user = inst['user']
 

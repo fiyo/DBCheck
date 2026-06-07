@@ -12026,28 +12026,22 @@ async function deleteBackupHistory(recordId) {
       </p>
     </div>
 
+    <!-- 君子协定（Base64 encoded to prevent static search） -->
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:18px;">
-      <div style="font-size:13px;font-weight:600;color:var(--warn);margin-bottom:10px;">⚠️ 君子协定（Gentleman's Agreement）</div>
-      <!-- 中文 -->
-      <div class="about-note" lang="zh" style="margin:0;font-size:12.5px;line-height:1.8;color:var(--text-muted);">
-        每年 <strong>5月19日至5月25日</strong>，DBCheck 界面将强制以<strong>灰度模式</strong>显示，且用户无法切换主题。<br/>
-        请尊重这一设计，不要尝试修改或绕过灰度模式。
-      </div>
-      <!-- 英文 -->
-      <div class="about-note" lang="en" style="display:none;margin:0;font-size:12.5px;line-height:1.8;color:var(--text-muted);">
-        Every year from <strong>May 19 to May 25</strong>, the DBCheck interface will be forced to <strong>grayscale mode</strong> and users cannot switch themes.<br/>
-        Please respect this design and do not attempt to modify or bypass the grayscale mode during this period each year.
-      </div>
+      <div id="agreement-title" style="font-size:13px;font-weight:600;color:var(--warn);margin-bottom:10px;"></div>
+      <div id="agreement-zh" class="about-note" lang="zh" style="margin:0;font-size:12.5px;line-height:1.8;color:var(--text-muted);"></div>
+      <div id="agreement-en" class="about-note" lang="en" style="display:none;margin:0;font-size:12.5px;line-height:1.8;color:var(--text-muted);"></div>
     </div>
 
     <div style="display:flex;gap:10px;flex-wrap:wrap;">
-      <span style="display:inline-block;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:11.5px;color:var(--text-muted);">MySQL</span>
-      <span style="display:inline-block;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:11.5px;color:var(--text-muted);">PostgreSQL</span>
-      <span style="display:inline-block;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:11.5px;color:var(--text-muted);">Oracle</span>
-      <span style="display:inline-block;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:11.5px;color:var(--text-muted);">SQL Server</span>
-      <span style="display:inline-block;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:11.5px;color:var(--text-muted);">DM 达梦</span>
-      <span style="display:inline-block;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:11.5px;color:var(--text-muted);">TiDB</span>
-      <span style="display:inline-block;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:11.5px;color:var(--text-muted);">IvorySQL</span>
+      <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:11.5px;color:var(--text-muted);"><img src="/mysql.png" alt="" style="width:14px;height:14px;object-fit:contain">MySQL</span>
+      <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:11.5px;color:var(--text-muted);"><img src="/postgresql.png" alt="" style="width:14px;height:14px;object-fit:contain">PostgreSQL</span>
+      <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:11.5px;color:var(--text-muted);"><img src="/oracle.png" alt="" style="width:14px;height:14px;object-fit:contain">Oracle</span>
+      <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:11.5px;color:var(--text-muted);"><img src="/sqlserver.png" alt="" style="width:14px;height:14px;object-fit:contain">SQL Server</span>
+      <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:11.5px;color:var(--text-muted);"><img src="/dm.png" alt="" style="width:14px;height:14px;object-fit:contain">DM 达梦</span>
+      <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:11.5px;color:var(--text-muted);"><img src="/tidb.png" alt="" style="width:14px;height:14px;object-fit:contain">TiDB</span>
+      <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:11.5px;color:var(--text-muted);"><img src="/ivorysql.png" alt="" style="width:14px;height:14px;object-fit:contain">IvorySQL</span>
+      <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:11.5px;color:var(--text-muted);"><img src="/yashandb.png" alt="" style="width:14px;height:14px;object-fit:contain">YashanDB</span>
     </div>
   </div>
 </div>
@@ -12075,6 +12069,32 @@ document.getElementById('about-modal').addEventListener('click', function(e) {
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') closeAboutModal();
 });
+
+// ─── 君子协定内容解密 ───
+(function(){
+  try {
+    var _a=[
+      "4pqg77iPIOWQm+WtkOWNj+Wumu+8iEdlbnRsZW1hbidzIEFncmVlbWVudO+8iQ==",
+      "5q+P5bm0IDxzdHJvbmc+NeaciDE55pel6IezNeaciDI15pelPC9zdHJvbmc+77yMREJDaGVjayDnlYzpnaLlsIblvLrliLbku6U8c3Ryb25nPueBsOW6puaooeW8jzwvc3Ryb25nPuaYvuekuu+8jOS4lOeUqOaIt+aXoOazleWIh+aNouS4u+mimOOAgjxici8+6K+35bCK6YeN6L+Z5LiA6K6+6K6h77yM5LiN6KaB5bCd6K+V5L+u5pS55oiW57uV6L+H54Gw5bqm5qih5byP44CC",
+      "RXZlcnkgeWVhciBmcm9tIDxzdHJvbmc+TWF5IDE5IHRvIE1heSAyNTwvc3Ryb25nPiwgdGhlIERCQ2hlY2sgaW50ZXJmYWNlIHdpbGwgYmUgZm9yY2VkIHRvIDxzdHJvbmc+Z3JheXNjYWxlIG1vZGU8L3N0cm9uZz4gYW5kIHVzZXJzIGNhbm5vdCBzd2l0Y2ggdGhlbWVzLjxici8+UGxlYXNlIHJlc3BlY3QgdGhpcyBkZXNpZ24gYW5kIGRvIG5vdCBhdHRlbXB0IHRvIG1vZGlmeSBvciBieXBhc3MgdGhlIGdyYXlzY2FsZSBtb2RlIGR1cmluZyB0aGlzIHBlcmlvZCBlYWNoIHllYXIu"
+    ];
+    var _d=function(s){var b=atob(s);var l=b.length;var a=new Uint8Array(l);for(var i=0;i<l;i++)a[i]=b.charCodeAt(i);return new TextDecoder('utf-8').decode(a);};
+    var t=document.getElementById('agreement-title');
+    var z=document.getElementById('agreement-zh');
+    var e=document.getElementById('agreement-en');
+    console.log('[DBCheck] agreement elements:', !!t, !!z, !!e);
+    if(t&&z&&e){
+      var dt=_d(_a[0]); var dz=_d(_a[1]); var de=_d(_a[2]);
+      console.log('[DBCheck] decoded lengths:', dt.length, dz.length, de.length);
+      t.innerHTML=dt; z.innerHTML=dz; e.innerHTML=de;
+      console.log('[DBCheck] agreement content injected OK');
+    } else {
+      console.error('[DBCheck] agreement elements not found!');
+    }
+  } catch(err) {
+    console.error('[DBCheck] agreement decode error:', err);
+  }
+})();
 
   // ─── Slogan 动画循环 ───
   (function(){

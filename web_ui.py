@@ -6454,6 +6454,15 @@ def _load_quotes():
         _quotes_cache = []
     return _quotes_cache
 
+@app.route('/version.json', methods=['GET'])
+def api_version_json():
+    """返回版本信息 JSON，供登录页动态加载版本号"""
+    vpath = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'version.json')
+    if os.path.exists(vpath):
+        return send_file(vpath, mimetype='application/json')
+    return jsonify({'version': 'v2.5.1'})
+
+
 @app.route('/api/quotes/random', methods=['GET'])
 def api_random_quote():
     """返回一条随机语录"""
