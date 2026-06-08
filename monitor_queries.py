@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
+#
+# This file is part of DBCheck, an open-source database health inspection tool.
+# DBCheck is released under the MIT License with Attribution Requirements.
+# See LICENSE for full license text.
+#
+
 """
 实时监控 SQL 模板 — 各数据库类型的慢查询和活跃连接查询
 

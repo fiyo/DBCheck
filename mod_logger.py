@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
 #

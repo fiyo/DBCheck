@@ -14,7 +14,7 @@ from inspection_engine import BaseInspectionEngine
 
 """
 崖山 YashanDB 数据库自动化健康巡检工具 {VER}
-支持 YashanDB 2.0 及以上版本
+支持 YashanDB 23+ 及以上版本
 依赖: yasdb (pip install yasdb), python-docx, docxtpl, openpyxl, psutil, paramiko>=2.8,<2.10
 """
 

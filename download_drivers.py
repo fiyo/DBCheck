@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
+#
+# This file is part of DBCheck, an open-source database health inspection tool.
+# DBCheck is released under the MIT License with Attribution Requirements.
+# See LICENSE for full license text.
+#
+
 """
 DBCheck 驱动一键下载工具
 从 GitHub Releases 下载完整的 drivers.zip（包含 Oracle Instant Client + YashanDB 客户端）
