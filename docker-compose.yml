@@ -8,7 +8,7 @@ services:
       args:
         # Set to 1 to include DM8 driver (requires drivers/dm8/ to exist)
         WITH_DM: 0
-    image: jackge12345/dbcheck:v2.5.3
+    image: jackge12345/dbcheck:2.5.4
     container_name: dbcheck
     restart: unless-stopped
     ports:
@@ -27,7 +27,7 @@ services:
       # Override config path if needed
       # - DBCHECK_CONFIG=/app/data/config.json
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:5003/api/v1/health"]
       interval: 30s
       timeout: 10s
       retries: 3

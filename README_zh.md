@@ -8,7 +8,7 @@ DBCheck 是一款开源、跨平台的数据库自动化健康巡检工具，支
 > Language: [English](./README.md) | [中文](./README_zh.md)
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://dbcheck.top)
-[![Version](https://img.shields.io/badge/版本-v2.5.3-blue.svg)]()
+[![Version](https://img.shields.io/badge/版本-v2.5.4-blue.svg)]()
 [![License](https://img.shields.io/badge/开源协议-MIT-green.svg)]()
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)]()
 [![AI](https://img.shields.io/badge/AI-Ollama-orange.svg)]()
@@ -1092,12 +1092,18 @@ pip install -r requirements.txt
 **一行命令启动，无需手动安装依赖！**
 
 ```bash
+# Docker Hub（国际用户）
+docker pull jackge12345/dbcheck:2.5.4
+
+# GHCR（国内用户，推荐）
+docker pull ghcr.io/fiyo/dbcheck:2.5.4
+
 # 拉取并运行（基础版：MySQL / PG / Oracle / SQL Server / YashanDB）
 docker run -d -p 5003:5003 \
   -v dbcheck_data:/app/data \
   -v dbcheck_reports:/app/reports \
   --name dbcheck \
-  jackge12345/dbcheck:v2.5.3
+  jackge12345/dbcheck:2.5.4
 
 # 访问 http://localhost:5003
 ```
@@ -1108,7 +1114,7 @@ docker run -d -p 5003:5003 \
 | 📦 预装依赖 | 所有 Python 依赖已预装，开箱即用 |
 | 🔒 数据安全 | 数据和报告通过 volume 持久化，删除容器不丢数据 |
 | 🚀 快速启动 | 无需安装 Python、数据库驱动，秒级启动 |
-| 🔖 版本可控 | 指定版本号（v2.5.3），避免依赖冲突 |
+| 🔖 版本可控 | 指定版本号（v2.5.4），避免依赖冲突 |
 
 **使用 docker-compose（更推荐）：**
 
@@ -1133,12 +1139,12 @@ docker compose down
 **方式一：运行时安装（推荐）**
 ```bash
 # 1. 拉取并运行
-docker pull jackge12345/dbcheck:v2.5.3
+docker pull jackge12345/dbcheck:2.5.4
 docker run -d -p 5003:5003 \
   -v dbcheck_data:/app/data \
   -v dbcheck_reports:/app/reports \
   --name dbcheck \
-  jackge12345/dbcheck:v2.5.3
+  jackge12345/dbcheck:2.5.4
 
 # 2. 进入容器安装 dmpython
 docker exec -it dbcheck pip install dmpython
@@ -1152,7 +1158,7 @@ docker exec -it dbcheck pip install dmpython
 | 标签 | 说明 |
 |------|------|
 | `jackge12345/dbcheck:latest` | 最新版（不含 DM8 客户端库）|
-| `jackge12345/dbcheck:v2.5.3` | 指定版本 |
+| `jackge12345/dbcheck:2.5.4` | 指定版本 |
 
 ---
 
