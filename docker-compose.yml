@@ -12,7 +12,7 @@ services:
     container_name: dbcheck
     restart: unless-stopped
     ports:
-      - "5003:5000"
+      - "5003:5003"
     volumes:
       # Persist SQLite database and config
       - dbcheck_data:/app/data

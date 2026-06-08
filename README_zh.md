@@ -1091,7 +1091,7 @@ pip install -r requirements.txt
 
 ```bash
 # 拉取并运行（基础版：MySQL / PG / Oracle / SQL Server / YashanDB）
-docker run -d -p 5003:5000 \
+docker run -d -p 5003:5003 \
   -v dbcheck_data:/app/data \
   -v dbcheck_reports:/app/reports \
   --name dbcheck \
@@ -1136,7 +1136,7 @@ DM8 驱动受版权保护，无法打包进公共镜像，需自行构建：
 docker build -t jackge12345/dbcheck:full --build-arg WITH_DM=1 .
 
 # 3. 运行全量版
-docker run -d -p 5003:5000 \
+docker run -d -p 5003:5003 \
   -v dbcheck_data:/app/data \
   -v dbcheck_reports:/app/reports \
   --name dbcheck \

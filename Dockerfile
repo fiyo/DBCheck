@@ -6,7 +6,7 @@
 #   docker build -t jackge12345/dbcheck:latest .
 #
 # Run:
-#   docker run -d -p 5000:5000 \
+#   docker run -d -p 5003:5003 \
 #     -v dbcheck_data:/app/data \
 #     -v dbcheck_reports:/app/reports \
 #     jackge12345/dbcheck:v2.5.3
@@ -103,9 +103,9 @@ ENV TZ=Asia/Shanghai
 ENV FLASK_ENV=production
 ENV PYTHONUNBUFFERED=1
 
-EXPOSE 5000
+EXPOSE 5003
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-    CMD curl -f http://localhost:5000/api/v1/health || exit 1
+    CMD curl -f http://localhost:5003/api/v1/health || exit 1
 
 CMD ["python", "web_ui.py"]

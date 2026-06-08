@@ -1070,7 +1070,7 @@ pip install -r requirements.txt
 
 ```bash
 # Pull and run (base edition: MySQL / PG / Oracle / SQL Server / YashanDB)
-docker run -d -p 5003:5000 \
+docker run -d -p 5003:5003 \
   -v dbcheck_data:/app/data \
   -v dbcheck_reports:/app/reports \
   --name dbcheck \
@@ -1114,7 +1114,7 @@ docker build -t jackge12345/dbcheck:full .
 docker build -t jackge12345/dbcheck:v2.5.3-full .
 
 # Run full edition
-docker run -d -p 5003:5000 \
+docker run -d -p 5003:5003 \
   -v dbcheck_data:/app/data \
   -v dbcheck_reports:/app/reports \
   --name dbcheck \
