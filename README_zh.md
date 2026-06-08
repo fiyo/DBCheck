@@ -15,11 +15,12 @@ DBCheck 是一款开源、跨平台的数据库自动化健康巡检工具，支
 [![RAG](https://img.shields.io/badge/RAG-知识库增强-red.svg)]()
 [![WebUI](https://img.shields.io/badge/WebUI-Flask-success.svg)]()
 [![WeChat](https://img.shields.io/badge/公众号-山东Oracle用户组-brightgreen?logo=WeChat)]()
-[![Stars](https://img.shields.io/github/stars/fiyo/dbcheck?style=flat-square&label=仓库星标)]()
-[![Followers](https://img.shields.io/github/forks/fiyo/dbcheck?style=flat-square)]()
-[![Downloads](https://img.shields.io/github/downloads/fiyo/dbcheck/total?style=flat-square&label=下载量)]()
-[![Downloads Latest](https://img.shields.io/github/downloads/fiyo/dbcheck/latest/total?style=flat-square&label=最新版下载)]()
+[![Stars](https://img.shields.io/github/stars/jackge12345/dbcheck?style=flat-square&label=仓库星标)]()
+[![Followers](https://img.shields.io/github/forks/jackge12345/dbcheck?style=flat-square)]()
+[![Downloads](https://img.shields.io/github/downloads/jackge12345/dbcheck/total?style=flat-square&label=下载量)]()
+[![Downloads Latest](https://img.shields.io/github/downloads/jackge12345/dbcheck/latest/total?style=flat-square&label=最新版下载)]()
 [![WebSite](https://img.shields.io/badge/网址-www.dbcheck.top-green.svg)](https://dbcheck.top)
+[![Docker Pulls](https://img.shields.io/docker/pulls/jackge12345/dbcheck?style=flat-square&label=Docker%20下载量)](https://hub.docker.com/r/jackge12345/dbcheck)
 
 ---
 
@@ -1083,6 +1084,77 @@ pip install -r requirements.txt
 ---
 
 ## 快速开始
+
+### 🐳 Docker 快速开始（推荐）
+
+**一行命令启动，无需手动安装依赖！**
+
+```bash
+# 拉取并运行（基础版：MySQL / PG / Oracle / SQL Server / YashanDB）
+docker run -d -p 5000:5000 \
+  -v dbcheck_data:/app/data \
+  -v dbcheck_reports:/app/reports \
+  --name dbcheck \
+  jackge12345/dbcheck:v2.5.3
+
+# 访问 http://localhost:5000
+```
+
+**特性：**
+| 特性 | 说明 |
+|------|------|
+| 📦 预装依赖 | 所有 Python 依赖已预装，开箱即用 |
+| 🔒 数据安全 | 数据和报告通过 volume 持久化，删除容器不丢数据 |
+| 🚀 快速启动 | 无需安装 Python、数据库驱动，秒级启动 |
+| 🔖 版本可控 | 指定版本号（v2.5.3），避免依赖冲突 |
+
+**使用 docker-compose（更推荐）：**
+
+```bash
+# 下载 docker-compose.yml（或手动创建）
+curl -o docker-compose.yml https://raw.githubusercontent.com/fiyo/DBCheck/main/docker-compose.yml
+
+# 启动
+docker compose up -d
+
+# 查看日志
+docker compose logs -f
+
+# 停止
+docker compose down
+```
+
+**全量版（含 DM8 达梦）：**
+
+DM8 驱动受版权保护，无法打包进公共镜像，需自行构建：
+
+```bash
+# 1. 获取 DM8 Python 驱动（dmpython wheel）
+#    从 DM8 安装包 drivers/python/ 目录获取，放到 drivers/dm8/ 下
+
+# 2. 构建全量镜像
+docker build -t jackge12345/dbcheck:full --build-arg WITH_DM=1 .
+
+# 3. 运行全量版
+docker run -d -p 5000:5000 \
+  -v dbcheck_data:/app/data \
+  -v dbcheck_reports:/app/reports \
+  --name dbcheck \
+  jackge12345/dbcheck:full
+```
+
+**镜像版本说明：**
+| 标签 | 说明 |
+|------|------|
+| `jackge12345/dbcheck:latest` | 基础版最新版 |
+| `jackge12345/dbcheck:v2.5.3` | 基础版指定版本 |
+| `jackge12345/dbcheck:full` | 全量版（需自行构建）|
+| `jackge12345/dbcheck:v2.5.3-full` | 全量版指定版本（需自行构建）|
+
+> 💡 构建全量版前，请确认 `drivers/dm8/` 目录下有 `dmpython-*.whl` 文件。
+> 详情见项目根目录 `Dockerfile` 文件注释。
+
+---
 
 ### Web UI（可视化界面）
 

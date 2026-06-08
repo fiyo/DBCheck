@@ -1,0 +1,70 @@
+# Docker ignore rules for DBCheck
+# Similar to .gitignore, files listed here will NOT be sent to Docker daemon
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg-info/
+dist/
+build/
+eggs/
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Project-specific (not needed in image)
+*.db-shm
+*.db-wal
+*.log
+logs/
+
+# Test / temp files
+test_*.py
+*_test.py
+tmp/
+temp/
+debug_*.py
+clean_*.py
+dedup_*.py
+fix_*.py
+rebuild_*.py
+apply_*.py
+
+# Sensitive
+config.json
+secrets/
+*.pem
+*.key
+*.crt
+
+# Large binaries (all drivers — app downloads them at runtime)
+drivers/
+
+# Documentation (optional, keep if you want docs in image)
+# *.md
+# !README.md

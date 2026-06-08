@@ -14,11 +14,12 @@ DBCheck is an open-source, cross-platform automated database health check tool t
 [![AI](https://img.shields.io/badge/AI-Ollama+RAG-orange.svg)]()
 [![WebUI](https://img.shields.io/badge/WebUI-Flask-success.svg)]()
 [![WeChat](https://img.shields.io/badge/WeChat_Official_Account-sdougwx-brightgreen?logo=WeChat)]()
-[![Stars](https://img.shields.io/github/stars/fiyo/dbcheck?style=flat-square&label=Star)]()
-[![Followers](https://img.shields.io/github/forks/fiyo/dbcheck?style=flat-square)]()
-[![Downloads](https://img.shields.io/github/downloads/fiyo/dbcheck/total?style=flat-square&label=Downloads)]()
-[![Downloads Latest](https://img.shields.io/github/downloads/fiyo/dbcheck/latest/total?style=flat-square&label=Latest)]()
+[![Stars](https://img.shields.io/github/stars/jackge12345/dbcheck?style=flat-square&label=Star)]()
+[![Followers](https://img.shields.io/github/forks/jackge12345/dbcheck?style=flat-square)]()
+[![Downloads](https://img.shields.io/github/downloads/jackge12345/dbcheck/total?style=flat-square&label=Downloads)]()
+[![Downloads Latest](https://img.shields.io/github/downloads/jackge12345/dbcheck/latest/total?style=flat-square&label=Latest)]()
 [![WebSite](https://img.shields.io/badge/WebSite-www.dbcheck.top-green.svg)]()
+[![Docker Pulls](https://img.shields.io/docker/pulls/jackge12345/dbcheck?style=flat-square&label=Docker%20Downloads)](https://hub.docker.com/r/jackge12345/dbcheck)
 
 ---
 
@@ -1060,6 +1061,75 @@ pip install -r requirements.txt
 > Oracle Driver Notes:
 > - `oracledb`: Pure Python implementation, no Instant Client required, recommended
 > - `cx_Oracle`: Requires downloading [Oracle Instant Client](https://www.oracle.com/database/technologies/instant-client.html) and configuring environment variables
+
+---
+
+### 🐳 Docker Quick Start (Recommended)
+
+**One command to start — no manual dependency installation needed!**
+
+```bash
+# Pull and run (base edition: MySQL / PG / Oracle / SQL Server / YashanDB)
+docker run -d -p 5000:5000 \
+  -v dbcheck_data:/app/data \
+  -v dbcheck_reports:/app/reports \
+  --name dbcheck \
+  jackge12345/dbcheck:v2.5.3
+
+# Visit http://localhost:5000
+```
+
+**Features:**
+| Feature | Description |
+|---------|-------------|
+| 📦 Pre-installed deps | All Python dependencies are pre-installed, ready to use out of the box |
+| 🔒 Data safe | Data and reports are persisted via volumes, no data loss when removing container |
+| 🚀 Fast startup | No need to install Python or database drivers, starts in seconds |
+| 🔖 Version controlled | Specify version (v2.5.3) to avoid dependency conflicts |
+
+**Using docker-compose (recommended):**
+
+```bash
+# Download docker-compose.yml (or create manually)
+curl -o docker-compose.yml https://raw.githubusercontent.com/fiyo/DBCheck/main/docker-compose.yml
+
+# Start
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Stop
+docker compose down
+```
+
+**Full Edition (with DM8 Dameng):**
+
+DM8 driver (`dmpython`) is available on PyPI and will be installed automatically during build. No manual download needed.
+
+```bash
+# Build full image (includes all 8 database types)
+docker build -t jackge12345/dbcheck:full .
+# or with specific version
+docker build -t jackge12345/dbcheck:v2.5.3-full .
+
+# Run full edition
+docker run -d -p 5000:5000 \
+  -v dbcheck_data:/app/data \
+  -v dbcheck_reports:/app/reports \
+  --name dbcheck \
+  jackge12345/dbcheck:full
+```
+
+**Image Tags:**
+| Tag | Description |
+|-----|-------------|
+| `jackge12345/dbcheck:latest` | Latest base edition |
+| `jackge12345/dbcheck:v2.5.3` | Base edition, specific version |
+| `jackge12345/dbcheck:full` | Full edition (all 8 DB types) |
+| `jackge12345/dbcheck:v2.5.3-full` | Full edition, specific version |
+
+> 💡 See `Dockerfile` in project root for build details.
 
 ---
 

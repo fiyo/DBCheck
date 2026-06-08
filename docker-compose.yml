@@ -1,0 +1,57 @@
+version: "3.8"
+
+services:
+  dbcheck:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Set to 1 to include DM8 driver (requires drivers/dm8/ to exist)
+        WITH_DM: 0
+    image: jackge12345/dbcheck:v2.5.3
+    container_name: dbcheck
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      # Persist SQLite database and config
+      - dbcheck_data:/app/data
+      # Persist generated reports
+      - dbcheck_reports:/app/reports
+      # Mount drivers directory (read-only) for runtime driver installation
+      - ./drivers:/app/drivers:ro
+    environment:
+      - TZ=Asia/Shanghai
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+      # Override config path if needed
+      # - DBCHECK_CONFIG=/app/data/config.json
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - dbcheck_net
+
+  # Optional: PostgreSQL for centralized result storage (future use)
+  # postgres:
+  #   image: postgres:16-alpine
+  #   environment:
+  #     POSTGRES_DB: dbcheck
+  #     POSTGRES_USER: dbcheck
+  #     POSTGRES_PASSWORD: changeme
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   networks:
+  #     - dbcheck_net
+
+volumes:
+  dbcheck_data:
+  dbcheck_reports:
+  # postgres_data:
+
+networks:
+  dbcheck_net:
+    driver: bridge
