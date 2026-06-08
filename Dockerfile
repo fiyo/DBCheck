@@ -46,8 +46,9 @@ RUN python -m venv /opt/venv \
         psycopg2-binary>=2.9.0 \
         oracledb>=1.4.0 \
         pyodbc>=4.0.0 \
-        dmpython>=1.0.0 \
         flask>=2.0.0 \
+    && /opt/venv/bin/pip install --no-cache-dir dmpython>=1.0.0 \
+        || echo "WARNING: dmpython installation failed (DM8 support disabled). Install manually if needed."
         flask-socketio>=5.0.0 \
         gevent>=24.0.0 \
         psutil>=5.9.0 \

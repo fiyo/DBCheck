@@ -1107,31 +1107,33 @@ docker compose logs -f
 docker compose down
 ```
 
-**Full Edition (with DM8 Dameng):**
+**DM8 Dameng Database Support:**
 
-DM8 driver (`dmpython`) is available on PyPI and will be installed automatically during build. No manual download needed.
+`dmpython` requires DM8 client libraries and cannot be pre-installed in the base image. To enable DM8 support:
 
+**Option 1: Install at runtime (Recommended)**
 ```bash
-# Build full image (includes all 8 database types)
-docker build -t jackge12345/dbcheck:full .
-# or with specific version
-docker build -t jackge12345/dbcheck:v2.5.3-full .
-
-# Run full edition
+# 1. Pull and run
+docker pull jackge12345/dbcheck:v2.5.3
 docker run -d -p 5003:5003 \
   -v dbcheck_data:/app/data \
   -v dbcheck_reports:/app/reports \
   --name dbcheck \
-  jackge12345/dbcheck:full
+  jackge12345/dbcheck:v2.5.3
+
+# 2. Install dmpython inside the container
+docker exec -it dbcheck pip install dmpython
 ```
+
+**Option 2: Build custom image with DM8**
+
+See [docs/enable-dm8.md](docs/enable-dm8.md)
 
 **Image Tags:**
 | Tag | Description |
 |-----|-------------|
-| `jackge12345/dbcheck:latest` | Latest base edition |
-| `jackge12345/dbcheck:v2.5.3` | Base edition, specific version |
-| `jackge12345/dbcheck:full` | Full edition (all 8 DB types) |
-| `jackge12345/dbcheck:v2.5.3-full` | Full edition, specific version |
+| `jackge12345/dbcheck:latest` | Latest (without DM8 client libs) |
+| `jackge12345/dbcheck:v2.5.3` | Specific version |
 
 > 💡 See `Dockerfile` in project root for build details.
 

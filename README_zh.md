@@ -1126,35 +1126,33 @@ docker compose logs -f
 docker compose down
 ```
 
-**全量版（含 DM8 达梦）：**
+**DM8 达梦数据库支持：**
 
-DM8 驱动受版权保护，无法打包进公共镜像，需自行构建：
+`dmpython` 需要 DM8 客户端库，无法在基础镜像中预装。启用 DM8 支持有两种方式：
 
+**方式一：运行时安装（推荐）**
 ```bash
-# 1. 获取 DM8 Python 驱动（dmpython wheel）
-#    从 DM8 安装包 drivers/python/ 目录获取，放到 drivers/dm8/ 下
-
-# 2. 构建全量镜像
-docker build -t jackge12345/dbcheck:full --build-arg WITH_DM=1 .
-
-# 3. 运行全量版
+# 1. 拉取并运行
+docker pull jackge12345/dbcheck:v2.5.3
 docker run -d -p 5003:5003 \
   -v dbcheck_data:/app/data \
   -v dbcheck_reports:/app/reports \
   --name dbcheck \
-  jackge12345/dbcheck:full
+  jackge12345/dbcheck:v2.5.3
+
+# 2. 进入容器安装 dmpython
+docker exec -it dbcheck pip install dmpython
 ```
+
+**方式二：自行构建含 DM8 的镜像**
+
+详见 [docs/enable-dm8.md](docs/enable-dm8.md)
 
 **镜像版本说明：**
 | 标签 | 说明 |
 |------|------|
-| `jackge12345/dbcheck:latest` | 基础版最新版 |
-| `jackge12345/dbcheck:v2.5.3` | 基础版指定版本 |
-| `jackge12345/dbcheck:full` | 全量版（需自行构建）|
-| `jackge12345/dbcheck:v2.5.3-full` | 全量版指定版本（需自行构建）|
-
-> 💡 构建全量版前，请确认 `drivers/dm8/` 目录下有 `dmpython-*.whl` 文件。
-> 详情见项目根目录 `Dockerfile` 文件注释。
+| `jackge12345/dbcheck:latest` | 最新版（不含 DM8 客户端库）|
+| `jackge12345/dbcheck:v2.5.3` | 指定版本 |
 
 ---
 
