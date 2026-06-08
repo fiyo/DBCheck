@@ -73,6 +73,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libaio1 \
     tzdata \
     ca-certificates \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy Python venv from builder
@@ -80,6 +81,10 @@ COPY --from=builder /opt/venv /opt/venv
 
 # Copy application code from builder
 COPY --from=builder /build /app
+
+# Copy entrypoint script and make it executable
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 WORKDIR /app
 
@@ -89,9 +94,12 @@ ENV TZ=Asia/Shanghai
 ENV FLASK_ENV=production
 ENV PYTHONUNBUFFERED=1
 
+# Create VERSION.txt for entrypoint download logic
+RUN echo "2.5.3" > /app/VERSION.txt
+
 EXPOSE 5003
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
     CMD curl -f http://localhost:5003/api/v1/health || exit 1
 
-CMD ["python", "web_ui.py"]
+ENTRYPOINT ["docker-entrypoint.sh"]
