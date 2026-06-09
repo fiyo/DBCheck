@@ -4058,7 +4058,7 @@ def api_ds_databases(ds_id):
     if not inst:
         return jsonify({'error': f'数据源不存在: {ds_id}'}), 404
 
-    db_type = inst.get('db_type', '').replace('oracle_full', 'oracle')
+    db_type = inst.get('db_type', '').lower().replace('oracle_full', 'oracle')
     if db_type == 'pg':
         db_type = 'postgresql'
     host     = inst.get('host', '')
@@ -4155,7 +4155,7 @@ def api_ds_objects(ds_id):
     if not inst:
         return jsonify({'error': f'数据源不存在: {ds_id}'}), 404
 
-    db_type = inst.get('db_type', '').replace('oracle_full', 'oracle')
+    db_type = inst.get('db_type', '').lower().replace('oracle_full', 'oracle')
     if db_type == 'pg':
         db_type = 'postgresql'
     host    = inst.get('host', '')
@@ -4187,16 +4187,19 @@ def api_ds_objects(ds_id):
             conn = psycopg2.connect(host=host, port=port, user=user, password=pwd,
                                     dbname=database, connect_timeout=timeout)
             cur = conn.cursor()
+            # 查所有非系统 schema 的表
             cur.execute(
-                "SELECT tablename FROM pg_catalog.pg_tables "
-                "WHERE schemaname = 'public' ORDER BY tablename"
+                "SELECT schemaname, tablename FROM pg_catalog.pg_tables "
+                "WHERE schemaname NOT IN ('pg_catalog','information_schema','pg_toast') "
+                "ORDER BY schemaname, tablename"
             )
-            tables = [r[0] for r in cur.fetchall()]
+            tables = [r[0] + '.' + r[1] if r[0] != 'public' else r[1] for r in cur.fetchall()]
             cur.execute(
-                "SELECT viewname FROM pg_catalog.pg_views "
-                "WHERE schemaname = 'public' ORDER BY viewname"
+                "SELECT schemaname, viewname FROM pg_catalog.pg_views "
+                "WHERE schemaname NOT IN ('pg_catalog','information_schema') "
+                "ORDER BY schemaname, viewname"
             )
-            views = [r[0] for r in cur.fetchall()]
+            views = [r[0] + '.' + r[1] if r[0] != 'public' else r[1] for r in cur.fetchall()]
             conn.close()
         elif db_type == 'tidb':
             import pymysql

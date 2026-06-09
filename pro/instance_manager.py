@@ -89,6 +89,9 @@ class DatabaseInstance:
             self.created_at = datetime.now().isoformat()
         if not self.updated_at:
             self.updated_at = datetime.now().isoformat()
+        # 归一化 db_type 为小写，避免 IvorySQL/PG 等大小写不匹配
+        if self.db_type:
+            self.db_type = self.db_type.lower().replace('oracle_full', 'oracle')
 
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
