@@ -895,7 +895,6 @@ def check_local_service_status():
             'wuauserv': 'Windows Update',
             'BITS': '后台智能传输服务',
             'sshd': 'OpenSSH Server',
-            'com.docker.service': 'Docker Desktop',
             'W3SVC': 'IIS',
             'EventLog': 'Windows 事件日志',
         }
@@ -916,6 +915,17 @@ def check_local_service_status():
                 results.append({'name': display_name, 'status': status})
             except Exception:
                 results.append({'name': display_name, 'status': 'not_installed'})
+
+        # Docker Desktop 检测：用 docker info 直接检测守护进程是否可访问
+        # 比检测 Windows 服务更准确，因为 Docker Desktop 不一定以服务形式运行
+        docker_status = 'stopped'
+        try:
+            result = subprocess.run(['docker', 'info'], capture_output=True, text=True, timeout=5)
+            docker_status = 'running' if result.returncode == 0 else 'stopped'
+        except Exception:
+            docker_status = 'not_installed'
+        results.append({'name': 'Docker Desktop', 'status': docker_status})
+
         return results
 
     elif sys_name == 'Darwin':  # macOS
@@ -924,7 +934,6 @@ def check_local_service_status():
             'ssh': 'SSH 远程登录',
             'nginx': 'Nginx',
             'httpd': 'Apache (httpd)',
-            'docker': 'Docker Desktop',
             'postgresql': 'PostgreSQL',
             'mysql': 'MySQL',
             'redis': 'Redis',
@@ -949,6 +958,16 @@ def check_local_service_status():
                         results.append({'name': display_name, 'status': 'stopped'})
             except Exception:
                 results.append({'name': display_name, 'status': 'not_installed'})
+
+        # Docker Desktop 检测：用 docker info 直接检测守护进程
+        docker_status = 'stopped'
+        try:
+            result = subprocess.run(['docker', 'info'], capture_output=True, text=True, timeout=5)
+            docker_status = 'running' if result.returncode == 0 else 'stopped'
+        except Exception:
+            docker_status = 'not_installed'
+        results.append({'name': 'Docker Desktop', 'status': docker_status})
+
         return results
 
     else:
