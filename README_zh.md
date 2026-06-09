@@ -18,7 +18,6 @@ DBCheck 是一款开源、跨平台的数据库自动化健康巡检工具，支
 [![Stars](https://img.shields.io/github/stars/fiyo/dbcheck?style=flat-square&label=Star)]()
 [![Followers](https://img.shields.io/github/forks/fiyo/dbcheck?style=flat-square&label=Followers)]()
 [![Downloads](https://img.shields.io/github/downloads/fiyo/dbcheck/total?style=flat-square&label=下载量)]()
-[![Downloads Latest](https://img.shields.io/github/downloads/fiyo/dbcheck/latest/total?style=flat-square&label=最新版下载)]()
 [![WebSite](https://img.shields.io/badge/网址-www.dbcheck.top-green.svg)](https://dbcheck.top)
 [![Docker Pulls](https://img.shields.io/docker/pulls/jackge12345/dbcheck?style=flat-square&label=Docker%20下载量)](https://hub.docker.com/r/jackge12345/dbcheck)
 
