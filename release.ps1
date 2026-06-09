@@ -1,120 +1,114 @@
-<# ============================================================
-  DBCheck 版本发布脚本 (PowerShell)
-  Usage: .\release.ps1 -Version "2.5.4"
-  ============================================================ #>
+# DBCheck Release Script (simplified)
+# Usage: .\release.ps1 -Version "2.5.5"
+# GitHub Actions will handle Docker build/push and GitHub Release automatically.
 
-[CmdletBinding()]
 param(
-    [Parameter(Mandatory=$true, HelpMessage="New version number, e.g. 2.5.4")]
+    [Parameter(Mandatory=$true)]
     [string]$Version
 )
 
 $ErrorActionPreference = "Stop"
+$VersionWithV = "v$Version"
+$ProjectRoot = Split-Path $MyInvocation.MyCommand.Path
 
-# ── 版本号格式验证 ──────────────────────────────────────────
+# Validate version format
 if ($Version -notmatch '^\d+\.\d+\.\d+$') {
-    Write-Host "❌ 版本号格式错误！正确格式：X.Y.Z（如 2.5.4）" -ForegroundColor Red
+    Write-Host "ERROR: Version must be x.y.z (e.g. 2.5.5)" -ForegroundColor Red
     exit 1
 }
 
-$VersionWithV = "v$Version"   # v2.5.4
-$ProjectRoot = $PSScriptRoot
-
-Write-Host "══════════════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host "  DBCheck 版本发布" -ForegroundColor Cyan
-Write-Host "  新版本: $VersionWithV" -ForegroundColor Cyan
-Write-Host "══════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host "============================================" -ForegroundColor Cyan
+Write-Host "  DBCheck Release" -ForegroundColor Cyan
+Write-Host "  New Version: $VersionWithV" -ForegroundColor Cyan
+Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
 
-# ── 1. 检查 Git 状态 ────────────────────────────────────────
-Write-Host "[1/7] 检查 Git 状态..." -ForegroundColor Yellow
-Set-Location $ProjectRoot
-git update-index --refresh 2>$null
-$Status = git status --porcelain
-if ($Status) {
-    Write-Host "⚠️  有未提交的更改，请先提交或暂存：" -ForegroundColor Yellow
-    $Status | ForEach-Object { Write-Host "  $_" }
-    $Confirm = Read-Host "是否继续？(y/N)"
+# Step 1: Check Git status
+Write-Host "[1/4] Checking Git status..." -ForegroundColor Yellow
+$gitStatus = git status --porcelain
+if ($gitStatus) {
+    Write-Host "WARNING: Uncommitted changes found:" -ForegroundColor Yellow
+    $gitStatus -split "`n" | ForEach-Object { Write-Host "   $_" -ForegroundColor Gray }
+    $Confirm = Read-Host "Continue? (y/N)"
     if ($Confirm -ne "y" -and $Confirm -ne "Y") {
-        Write-Host "❌ 已取消" -ForegroundColor Red
-        exit 1
+        Write-Host "Aborted." -ForegroundColor Yellow
+        exit 0
     }
 }
 
-# ── 2. 拉取最新代码 ──────────────────────────────────────────
-Write-Host "[2/7] 拉取最新代码..." -ForegroundColor Yellow
+# Step 2: Pull latest code (stash if needed)
+Write-Host "[2/4] Pulling latest code..." -ForegroundColor Yellow
+$stashed = $false
+git diff --quiet 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "  Stashing uncommitted changes..." -ForegroundColor Yellow
+    git stash --include-untracked 2>&1 | Out-Null
+    $stashed = $true
+}
 git pull --rebase 2>&1 | Out-Null
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "❌ git pull 失败，请手动解决冲突" -ForegroundColor Red
+    Write-Host "ERROR: git pull failed" -ForegroundColor Red
+    if ($stashed) { git stash pop 2>&1 | Out-Null }
     exit 1
 }
-Write-Host "  ✓ 已拉取最新代码" -ForegroundColor Green
+if ($stashed) {
+    Write-Host "  Restoring stashed changes..." -ForegroundColor Yellow
+    git stash pop 2>&1 | Out-Null
+}
+Write-Host "  OK: Pulled latest code" -ForegroundColor Green
 
-# ── 3. 更新 version.py ───────────────────────────────────────
-Write-Host "[3/7] 更新 version.py (__version__ = '$VersionWithV')..." -ForegroundColor Yellow
+# Step 3: Update version.py and Dockerfile
+Write-Host "[3/4] Updating version files..." -ForegroundColor Yellow
+
+# Update version.py
 $VersionPy = Join-Path $ProjectRoot "version.py"
 if (Test-Path $VersionPy) {
-    (Get-Content $VersionPy) -replace "^__version__\s*=\s*"".*"""", "__version__ = ""$VersionWithV""" | Set-Content $VersionPy -Encoding UTF8
-    Write-Host "  ✓ version.py 已更新" -ForegroundColor Green
+    python -c "import re; p=r'$VersionPy'; t=open(p,'r',encoding='utf-8').read(); t=re.sub(r'__version__\s*=\s*.+', \"__version__ = '$VersionWithV'\", t); open(p,'w',encoding='utf-8').write(t)"
+    Write-Host "  OK: version.py updated to $VersionWithV" -ForegroundColor Green
 } else {
-    Write-Host "  ⚠️  version.py 不存在，跳过" -ForegroundColor Yellow
+    Write-Host "  WARN: version.py not found, skipped" -ForegroundColor Yellow
 }
 
-# ── 4. 更新 Dockerfile VERSION.txt ───────────────────────────
-Write-Host "[4/7] 更新 Dockerfile (VERSION.txt = '$Version')..." -ForegroundColor Yellow
+# Update Dockerfile
 $Dockerfile = Join-Path $ProjectRoot "Dockerfile"
 if (Test-Path $Dockerfile) {
-    (Get-Content $Dockerfile) -replace 'RUN echo "[\d\.]+" > /app/VERSION\.txt', "RUN echo ""$Version"" > /app/VERSION.txt" | Set-Content $Dockerfile -Encoding UTF8
-    Write-Host "  ✓ Dockerfile 已更新" -ForegroundColor Green
+    python -c "import re; p=r'$Dockerfile'; t=open(p,'r',encoding='utf-8').read(); t=re.sub(r'RUN echo [^>]+\s+>\s+/app/VERSION\.txt', 'RUN echo \"$Version\" > /app/VERSION.txt', t); open(p,'w',encoding='utf-8').write(t)"
+    Write-Host "  OK: Dockerfile updated to $Version" -ForegroundColor Green
 } else {
-    Write-Host "  ⚠️  Dockerfile 不存在，跳过" -ForegroundColor Yellow
+    Write-Host "  WARN: Dockerfile not found, skipped" -ForegroundColor Yellow
 }
 
-# ── 5. 提交并推送代码 ────────────────────────────────────────
-Write-Host "[5/7] 提交并推送代码..." -ForegroundColor Yellow
-git add version.py Dockerfile release.ps1 2>$null
-git add -A 2>$null
-$CommitMsg = "Release v$Version"
-git commit -m $CommitMsg 2>&1 | Out-Null
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "  ⚠️  没有需要提交的更改" -ForegroundColor Yellow
+# Step 4: Commit, push, and create tag
+Write-Host "[4/4] Committing, pushing, and creating tag..." -ForegroundColor Yellow
+
+# Commit and push
+git add -A
+git diff --cached --quiet 2>$null
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "  WARN: Nothing to commit, skipping commit" -ForegroundColor Yellow
 } else {
+    git commit -m "Release $VersionWithV"
     git push origin main 2>&1 | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "❌ git push 失败" -ForegroundColor Red
-        exit 1
-    }
-    Write-Host "  ✓ 代码已推送" -ForegroundColor Green
+    Write-Host "  OK: Pushed to GitHub (main)" -ForegroundColor Green
 }
 
-# ── 6. 打 Tag 并推送 ────────────────────────────────────────
-Write-Host "[6/7] 打 Tag '$VersionWithV' 并推送..." -ForegroundColor Yellow
-# 删除本地旧 tag（如果存在）
+# Delete tag if exists (for re-run)
 git tag -d $VersionWithV 2>$null
-# 删除远程旧 tag（如果存在）
-git push origin ":refs/tags/$VersionWithV" 2>$null
-# 打新 tag
+git push origin :refs/tags/$VersionWithV 2>$null
+
+# Create and push tag (triggers GitHub Actions)
 git tag $VersionWithV
-git push origin $VersionWithV 2>&1 | Out-Null
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "❌ git push tag 失败" -ForegroundColor Red
+git push origin $VersionWithV
+if ($LASTEXITCODE -eq 0) {
+    Write-Host ""
+    Write-Host "============================================" -ForegroundColor Green
+    Write-Host "  Release $VersionWithV tagged successfully!" -ForegroundColor Green
+    Write-Host "  GitHub Actions is building and releasing..." -ForegroundColor Green
+    Write-Host "  Watch progress: https://github.com/fiyo/DBCheck/actions" -ForegroundColor White
+    Write-Host "  Release will be at: https://github.com/fiyo/DBCheck/releases/tag/$VersionWithV" -ForegroundColor White
+    Write-Host "  Docker Hub: https://hub.docker.com/r/jackge12345/dbcheck/tags" -ForegroundColor White
+    Write-Host "============================================" -ForegroundColor Green
+} else {
+    Write-Host "ERROR: Failed to push tag" -ForegroundColor Red
     exit 1
 }
-Write-Host "  ✓ Tag '$VersionWithV' 已推送" -ForegroundColor Green
-
-# ── 7. 输出后续操作说明 ────────────────────────────────────
-Write-Host ""
-Write-Host "══════════════════════════════════════════════════" -ForegroundColor Green
-Write-Host "  ✅ 版本 $VersionWithV 发布完成！" -ForegroundColor Green
-Write-Host "══════════════════════════════════════════════════" -ForegroundColor Green
-Write-Host ""
-Write-Host "📦 GitHub Actions 正在构建 Docker 镜像..." -ForegroundColor Cyan
-Write-Host "   查看进度: https://github.com/fiyo/DBCheck/actions" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "🐳 构建完成后拉取镜像：" -ForegroundColor Cyan
-Write-Host "   docker pull jackge12345/dbcheck:$Version" -ForegroundColor White
-Write-Host "   docker pull ghcr.io/fiyo/dbcheck:$Version" -ForegroundColor White
-Write-Host ""
-Write-Host "📝 创建 GitHub Release（可选）：" -ForegroundColor Cyan
-Write-Host "   https://github.com/fiyo/DBCheck/releases/new?tag=$VersionWithV" -ForegroundColor White
-Write-Host ""
