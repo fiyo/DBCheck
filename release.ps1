@@ -97,9 +97,11 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "  OK: Pushed to GitHub (main)" -ForegroundColor Green
 }
 
-# Delete tag if exists (for re-run)
+# Delete tag if exists (for re-run, suppress error if not found)
 git tag -d $VersionWithV 2>$null
+if ($LASTEXITCODE -ne 0) { Write-Host "  (tag not found locally, skipping)" -ForegroundColor Gray }
 git push origin :refs/tags/$VersionWithV 2>$null
+if ($LASTEXITCODE -ne 0) { Write-Host "  (remote tag not found, skipping)" -ForegroundColor Gray }
 
 # Create and push tag (triggers GitHub Actions)
 git tag $VersionWithV
