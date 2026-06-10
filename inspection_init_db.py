@@ -20,7 +20,7 @@
     python inspection_init_db.py [--db-path PATH] [--force]
 
 参数：
-    --db-path PATH: 数据库文件路径（默认：DBCheck 目录下的 inspection.db）
+    --db-path PATH: 数据库文件路径（默认：DBCheck 目录下的 data/inspection.db）
     --force: 强制重新初始化（会删除现有数据！）
 """
 
@@ -3649,7 +3649,7 @@ def init_default_templates(db_path: str = None, force: bool = False):
 def main():
     parser = argparse.ArgumentParser(description='初始化 DBCheck 巡检配置数据库')
     parser.add_argument('--db-path', type=str, default=None,
-                        help='数据库文件路径（默认：DBCheck 目录下的 inspection.db）')
+                        help='数据库文件路径（默认：DBCheck 目录下的 data/inspection.db）')
     parser.add_argument('--force', action='store_true',
                         help='强制重新初始化（会删除现有默认模板数据！）')
 

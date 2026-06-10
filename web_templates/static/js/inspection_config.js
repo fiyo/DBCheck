@@ -364,7 +364,8 @@ function showInspectionChapterEditForm(chapter) {
                 <div class="form-group"><label>章节描述</label><textarea id="inspection-chapter-desc" class="form-textarea"></textarea></div>
                 <div class="form-group"><label><input type="checkbox" id="inspection-chapter-enabled" checked /> 启用</label></div>
                 <div class="form-actions"><button class="btn btn-primary btn-sm" onclick="saveInspectionChapter()">保存章节</button></div>
-            </div>`;
+            </div>
+            <div id="inspection-query-list"></div>`;
     }
 }
 
@@ -466,7 +467,7 @@ function renderInspectionQueries(queries) {
     const container = document.getElementById('inspection-query-list');
     if (!container) return;
     if (!queries || queries.length === 0) {
-        container.innerHTML = '<div class="empty-state">暂无 SQL 查询，请点击"添加查询"按钮添加。</div>';
+        container.innerHTML = '<div class="empty-state" style="margin-top:12px;">暂无 SQL 查询。</div><button class="btn btn-xs btn-primary" style="margin-top:8px;" onclick="addInspectionQuery()">添加查询</button>';
         return;
     }
     let html = '<h4>SQL 查询列表</h4>';

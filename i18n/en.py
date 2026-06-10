@@ -2552,7 +2552,7 @@ EN = {
     "webui.dm_upgrade_ready": "Data status is healthy",
     "webui.dm_upgrade_need_backup": "It is recommended to backup data before upgrading",
     "webui.dm_upgrade_hint": "When upgrading DBCheck, make sure to backup the following core files:",
-    "webui.dm_upgrade_files": "data/ directory, pro_data/ directory, inspection.db, .db_key",
+    "webui.dm_upgrade_files": "data/ directory, pro_data/ directory, data/inspection.db, .db_key",
     "webui.dm_upgrade_total_size": "Total Data Size",
     "webui.dm_upgrade_backup_count": "Existing Backups",
     "webui.dm_upgrade_latest_backup": "Latest Backup",

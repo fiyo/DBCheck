@@ -351,7 +351,7 @@ def get_enabled_oracle_chapters(template_id):
     并通过 ORACLE_CHAPTER_TO_CHECK 映射为代码检查项名称"""
     try:
         import sqlite3
-        _db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'inspection.db')
+        _db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'inspection.db')
         if not os.path.exists(_db_path) or template_id is None:
             return None
         _conn = sqlite3.connect(_db_path)
@@ -382,7 +382,7 @@ def load_oracle_chapter_structure(template_id):
     格式: [{chapter_number, chapter_title_zh, queries: [{query_key, query_sql, query_description_zh}]}]"""
     try:
         import sqlite3
-        _db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'inspection.db')
+        _db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'inspection.db')
         if not os.path.exists(_db_path) or template_id is None:
             return []
         _conn = sqlite3.connect(_db_path)

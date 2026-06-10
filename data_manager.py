@@ -30,7 +30,7 @@ DATA_BACKUPS_DIR = os.path.join(BASE_DIR, 'data_backups')
 CRITICAL_FILES = [
     {'path': 'data/history.db', 'name': '巡检快照历史', 'category': 'data', 'required': True},
     {'path': 'data/server_history.db', 'name': '服务器巡检历史', 'category': 'data', 'required': True},
-    {'path': 'inspection.db', 'name': '巡检配置数据库', 'category': 'config', 'required': True},
+    {'path': 'data/inspection.db', 'name': '巡检配置数据库', 'category': 'config', 'required': True},
     {'path': '.db_key', 'name': '密码加密密钥', 'category': 'security', 'required': True},
 ]
 

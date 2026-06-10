@@ -317,7 +317,7 @@ class BaseInspectionEngine:
             return self._template_id
         # 2. 否则根据 db_type 从数据库自动查询默认模板
         try:
-            _db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'inspection.db')
+            _db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'inspection.db')
             if not os.path.exists(_db_path):
                 return None
             _conn = sqlite3.connect(_db_path)
@@ -358,7 +358,7 @@ class BaseInspectionEngine:
         try:
             if not sql_templates or sql_templates == '':
                 # 从 inspection.db 加载查询，直接用 dict 存储，避免 configparser 解析问题
-                _db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'inspection.db')
+                _db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'inspection.db')
                 if not os.path.exists(_db_path):
                     print(self._t(f'{self.db_type}_sql_template_fail', default='dm8_sql_template_fail').format(e="inspection.db 不存在"))
                     return self.context
@@ -728,7 +728,7 @@ class BaseInspectionEngine:
     def _load_chapters_from_db(self):
         """从 inspection.db 加载章节结构"""
         try:
-            _db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'inspection.db')
+            _db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'inspection.db')
             if not os.path.exists(_db_path):
                 return []
             

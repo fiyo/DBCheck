@@ -1904,7 +1904,7 @@ def api_get_server_thresholds():
     """获取服务器巡检阈值配置"""
     try:
         import sqlite3, os
-        db_path = os.path.join(os.path.dirname(__file__), 'inspection.db')
+        db_path = os.path.join(os.path.dirname(__file__), 'data', 'inspection.db')
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
@@ -1930,7 +1930,7 @@ def api_save_server_thresholds():
     """保存服务器巡检阈值配置（批量更新）"""
     try:
         import sqlite3, os, datetime
-        db_path = os.path.join(os.path.dirname(__file__), 'inspection.db')
+        db_path = os.path.join(os.path.dirname(__file__), 'data', 'inspection.db')
         items = request.get_json(force=True)
         if not isinstance(items, list):
             return jsonify({'success': False, 'message': '请求数据必须是数组'}), 400
@@ -6646,7 +6646,7 @@ def api_home_stats():
             pass
 
         # 4. 基线配置
-        inspection_db = os.path.join(base_dir, 'inspection.db')
+        inspection_db = os.path.join(base_dir, 'data', 'inspection.db')
         if os.path.exists(inspection_db):
             conn = sqlite3.connect(inspection_db)
             conn.row_factory = sqlite3.Row

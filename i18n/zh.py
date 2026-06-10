@@ -2576,7 +2576,7 @@ ZI = {
     "webui.dm_upgrade_ready": "数据状态正常",
     "webui.dm_upgrade_need_backup": "升级前建议先备份数据",
     "webui.dm_upgrade_hint": "升级 DBCheck 时，请确保备份以下核心文件：",
-    "webui.dm_upgrade_files": "data/ 目录、pro_data/ 目录、inspection.db、.db_key",
+    "webui.dm_upgrade_files": "data/ 目录、pro_data/ 目录、data/inspection.db、.db_key",
     "webui.dm_upgrade_total_size": "当前数据总量",
     "webui.dm_upgrade_backup_count": "现有备份数",
     "webui.dm_upgrade_latest_backup": "最近备份",

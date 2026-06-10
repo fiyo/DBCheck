@@ -28,7 +28,7 @@ from config_baseline import _get_default_baselines
 
 
 # 数据库文件路径
-DEFAULT_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'inspection.db')
+DEFAULT_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'inspection.db')
 
 
 def get_db_connection(db_path: str = None) -> sqlite3.Connection:
