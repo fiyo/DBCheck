@@ -122,3 +122,34 @@ def saveDoc(context, ofile, ifile, inspector_name):
             doc.save(self.ofile)
             return True
     return CompatWrapper(context, ofile)
+
+def main():
+    """MySQL 巡检 CLI 入口"""
+    import getpass
+
+    print(u"MySQL 数据库巡检")
+    print(u"=" * 50)
+
+    host = input(u"主机地址 [localhost]: ") or "localhost"
+    port = int(input(u"端口 [3306]: ") or 3306)
+    user = input(u"用户名: ")
+    if not user:
+        print(u"用户名不能为空"); return
+    password = getpass.getpass(u"密码: ")
+    database = input(u"数据库名 [mysql]: ") or "mysql"
+
+    inspector = MySQLInspector(host, port, user, password, database)
+    ok, ver = inspector.connect()
+    if not ok:
+        print(u"连接失败: {}".format(ver)); return
+    print(u"连接成功: {}".format(ver))
+
+    inspector.collect_data()
+    name = "{}_{}".format(host, port)
+    output = "MySQL_Inspection_Report_{}.docx".format(name)
+    inspector.generate_report(output, name)
+    print(u"报告已生成: {}".format(output))
+
+
+if __name__ == '__main__':
+    main()

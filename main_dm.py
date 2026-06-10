@@ -146,7 +146,8 @@ class DmInspector(BaseInspectionEngine):
 # ============================================================
 # CLI 入口
 # ============================================================
-def main():
+def main_cli():
+    """独立运行时的 argparse 入口"""
     parser = argparse.ArgumentParser(description=_t("dm8_cli_desc"))
     parser.add_argument('-H', '--host', required=True, help=_t("cli_host"))
     parser.add_argument('-P', '--port', type=int, default=5236, help=_t("dm8_cli_port"))
@@ -159,13 +160,11 @@ def main():
     parser.add_argument('--ssh-user', default='root', help=_t("cli_ssh_user"))
     parser.add_argument('--ssh-password', help=_t("cli_ssh_password"))
     args = parser.parse_args()
-    
-    # 获取密码
+
     password = args.password
     if not password:
         password = getpass.getpass(_t("cli_pwd_prompt"))
-    
-    # SSH 信息
+
     ssh_info = None
     if args.ssh_host:
         ssh_info = {
@@ -174,8 +173,7 @@ def main():
             'ssh_user': args.ssh_user,
             'ssh_password': args.ssh_password
         }
-    
-    # 创建巡检器
+
     inspector = DmInspector(
         host=args.host,
         port=args.port,
@@ -184,22 +182,54 @@ def main():
         database=args.database,
         ssh_info=ssh_info
     )
-    
-    # 连接数据库
+
     ok, version = inspector.connect()
     if not ok:
         print(_t("dm8_conn_fail_exit"))
         sys.exit(1)
-    
-    # 采集数据
+
     inspector.collect_data()
-    
-    # 生成报告
-    output_file = args.output or f"DM8_Inspection_Report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx"
+    output_file = args.output or "DM8_Inspection_Report_{}.docx".format(datetime.now().strftime('%Y%m%d_%H%M%S'))
     inspector.generate_report(output_file)
-    
     print(_t("dm8_report_generated").format(file=output_file))
 
 
+def main(host=None, port=None, user=None, password=None, database=None, output=None, ssh_info=None):
+    """DM8 巡检 CLI 入口 - 支持交互模式和参数模式"""
+    if host is None:
+        # 交互模式（从 main.py 调用时）
+        print(u"DM8 达梦数据库巡检")
+        print(u"=" * 50)
+        host = input(u"主机地址 [localhost]: ") or "localhost"
+        port = int(input(u"端口 [5236]: ") or 5236)
+        user = input(u"用户名: ")
+        if not user:
+            print(u"用户名不能为空")
+            return
+        if password is None:
+            password = getpass.getpass(u"密码: ")
+        database = input(u"数据库名: ") or ""
+        output = input(u"输出文件 [DM8_Inspection_Report.docx]: ") or "DM8_Inspection_Report.docx"
+
+    inspector = DmInspector(
+        host=host,
+        port=port,
+        user=user,
+        password=password,
+        database=database,
+        ssh_info=ssh_info
+    )
+
+    ok, version = inspector.connect()
+    if not ok:
+        print(u"连接失败: {}".format(version))
+        return
+
+    inspector.collect_data()
+    output_file = output or "DM8_Inspection_Report_{}.docx".format(datetime.now().strftime('%Y%m%d_%H%M%S'))
+    inspector.generate_report(output_file)
+    print(u"报告已生成: {}".format(output_file))
+
+
 if __name__ == '__main__':
-    main()
+    main_cli()

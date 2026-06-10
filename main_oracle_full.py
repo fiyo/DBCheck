@@ -3550,7 +3550,8 @@ def interactive_single_inspection():
     print_banner()
     single_inspection(args)
 
-def main():
+def main_cli():
+    """独立运行时的 argparse 入口"""
     import argparse
     parser = argparse.ArgumentParser(
         description=f'DBCheck Oracle 全面巡检工具 v{VER}（OS层+数据库层）',
@@ -3585,37 +3586,50 @@ def main():
 
     args = parser.parse_args()
 
-    # Local _t for main() error messages
-    try:
-        from i18n import get_lang
-        _lang = get_lang()
-    except Exception:
-        _lang = 'zh'
-
-    def _t(key):
-        try:
-            from i18n import t as _tt
-            return _tt(key, _lang)
-        except Exception:
-            return key
-
-    # 无参数时进入交互模式
-    if len(sys.argv) == 1 or (
-           not args.host and not args.sid and not args.servicename
-    ):
-        interactive_single_inspection()
-        return
-
     if not args.sid and not args.servicename:
-        print(f"❌ {_t('oracle_log_need_sid_svc')}")
+        print(f"❌ 需要指定 SID 或 ServiceName")
         return
 
     if args.ssh_host and not (args.ssh_user and args.ssh_pass):
-        print(f"❌ {_t('oracle_log_need_ssh_cred')}")
+        print(f"❌ SSH 连接需要用户名和密码")
         return
 
     print_banner()
     single_inspection(args)
+
+
+def main(host=None, port=None, user=None, password=None, sid=None, servicename=None, sysdba=False,
+         ssh_host=None, ssh_port=22, ssh_user=None, ssh_pass=None, output=None, inspector=None):
+    """Oracle 巡检 CLI 入口 - 支持交互模式和参数模式"""
+    if host is None:
+        # 交互模式（从 main.py 调用时）
+        interactive_single_inspection()
+        return
+
+    # 参数模式
+    class _Args:
+        pass
+    args = _Args()
+    args.host        = host
+    args.port        = int(port) if port else 1521
+    args.sid         = sid
+    args.servicename = servicename
+    args.user        = user or 'sys'
+    args.password    = password or ''
+    args.sysdba      = sysdba
+    args.ssh_host    = ssh_host
+    args.ssh_port    = int(ssh_port) if ssh_port else 22
+    args.ssh_user    = ssh_user
+    args.ssh_pass    = ssh_pass
+    args.output      = output
+    args.inspector   = inspector or 'dbcheck'
+
+    print_banner()
+    single_inspection(args)
+
+
+if __name__ == '__main__':
+    main_cli()
 
 # ═══════════════════════════════════════════════════════════════════════════
 # v19 兼容版覆盖函数（12c 基准不动，19c 出错项单独覆盖）
