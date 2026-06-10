@@ -105,6 +105,26 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
 
+      # ── Generate release notes ─────────────────────
+      - name: Generate release notes
+        id: notes
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            echo "📝 Generating notes from $PREV_TAG to HEAD"
+            NOTES=$(git log --pretty=format:"- %s" ${PREV_TAG}..HEAD)
+          else
+            echo "📝 No previous tag, using last 20 commits"
+            NOTES=$(git log --pretty=format:"- %s" -20)
+          fi
+          if [ -z "$NOTES" ]; then
+            NOTES="- Maintenance release"
+          fi
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       # ── Create GitHub Release ───────────────────────
       - name: Create GitHub Release (on tag push)
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
@@ -113,6 +133,9 @@ jobs:
           tag_name: ${{ steps.version.outputs.version }}
           name: DBCheck ${{ steps.version.outputs.version }}
           body: |
+            ## What's Changed
+            ${{ steps.notes.outputs.notes }}
+
             ## Docker Images
 
             ### Docker Hub

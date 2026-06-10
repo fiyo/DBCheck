@@ -3959,6 +3959,7 @@ function formatBytes(bytes) {
     </div>
 
     <!-- ── 巡检 ── -->
+    <!-- ── 巡检 ── -->
     <div class="nav-section" data-i18n="webui.nav_section_inspect">巡检</div>
     <div class="nav-item" onclick="showPage('wizard')" id="nav-wizard">
       <span class="icon">🔍</span> <span data-i18n="webui.nav_wizard">数据库巡检</span>
@@ -3973,8 +3974,8 @@ function formatBytes(bytes) {
       <span class="icon">📊</span> <span data-i18n="webui.awr_nav">AWR 报告分析</span>
     </div>
 
-    <!-- ── 巡检历史 ── -->
-    <div class="nav-section" data-i18n="webui.nav_section_history">巡检历史</div>
+    <!-- ── 历史 ── -->
+    <div class="nav-section" data-i18n="webui.nav_section_history">历史</div>
     <div class="nav-item" onclick="showPage('reports')" id="nav-reports">
       <span class="icon">📄</span> <span data-i18n="webui.reports_title">数据库巡检历史</span>
     </div>
@@ -3985,8 +3986,8 @@ function formatBytes(bytes) {
       <span class="icon">📈</span> <span data-i18n="webui.trend_title">历史趋势分析</span>
     </div>
 
-    <!-- ── 巡检配置 ── -->
-    <div class="nav-section" data-i18n="webui.nav_section_inspect_config">巡检配置</div>
+    <!-- ── 配置管理 ── -->
+    <div class="nav-section" data-i18n="webui.nav_section_config">配置管理</div>
     <div class="nav-item" onclick="showPage('datasources')" id="nav-datasources">
       <span class="icon">🗄️</span> <span data-i18n="webui.nav_datasources">数据源管理</span>
     </div>
@@ -3994,12 +3995,11 @@ function formatBytes(bytes) {
       <span class="icon">📋</span> <span data-i18n="webui.nav_inspection_config">巡检配置管理</span>
     </div>
     <div class="nav-item" onclick="showPage('baseline-config')" id="nav-baseline-config">
+      <span class="icon">📏</span> <span data-i18n="baseline.management_title">基线配置管理</span>
+    </div>
     <div class="nav-item" onclick="showPage('server-thresholds')" id="nav-server-thresholds">
       <span class="icon">⚙️</span> <span data-i18n="server_thresholds.title">服务器阈值配置</span>
     </div>
-      <span class="icon">📏</span> <span data-i18n="baseline.management_title">基线配置管理</span>
-    </div>
-
     {% if pro_available %}
     <div class="nav-item" onclick="showPage('rules')" id="nav-rules">
       <span class="icon">📋</span> <span data-i18n="webui.nav_rules">规则引擎</span>
@@ -4008,15 +4008,15 @@ function formatBytes(bytes) {
     <div class="nav-item" onclick="showPage('rag')" id="nav-rag">
       <span class="icon">📚</span> <span data-i18n="webui.rag_nav">RAG 知识库</span>
     </div>
+
+    <!-- ── 工具 ── -->
+    <div class="nav-section" data-i18n="webui.nav_section_tools">工具</div>
     <div class="nav-item" onclick="showPage('sql-editor')" id="nav-sql-editor">
       <span class="icon">📝</span> <span data-i18n="webui.nav_sql_editor">SQL 编辑器</span>
     </div>
     <div class="nav-item" onclick="showPage('remote-shell')" id="nav-remote-shell">
       <span class="icon">🖥️</span> <span data-i18n="remote_shell.title">远程终端</span>
     </div>
-
-    <!-- ── 实时监控 ── -->
-    <div class="nav-section" data-i18n="webui.nav_section_monitor">实时</div>
     <div class="nav-item" onclick="showPage('monitor-slow')" id="nav-monitor-slow">
       <span class="icon">📡</span> <span data-i18n="webui.nav_monitor_slow">实时慢查询</span>
     </div>
@@ -4024,8 +4024,8 @@ function formatBytes(bytes) {
       <span class="icon">🔥</span> <span data-i18n="webui.nav_monitor_conn">活跃连接监控</span>
     </div>
 
-    <!-- ── 系统配置 ── -->
-    <div class="nav-section" data-i18n="webui.nav_section_system">系统配置</div>
+    <!-- ── 系统 ── -->
+    <div class="nav-section" data-i18n="webui.nav_section_system">系统</div>
     <div class="nav-item" onclick="showPage('ai')" id="nav-ai">
       <span class="icon">🤖</span> <span data-i18n="webui.nav_ai">AI 诊断设置</span>
     </div>
@@ -4051,6 +4051,7 @@ function formatBytes(bytes) {
     <div class="nav-item" onclick="showAboutModal()" id="nav-about">
       <span class="icon">💡</span> <span data-i18n="webui.nav_about">关于 DBCheck</span>
     </div>
+
     </div><!-- /sidebar-nav -->
 
     <div class="sidebar-footer">
@@ -5035,7 +5036,7 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
   -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" \
   -d '{"db_type":"oracle","host":"192.168.1.200","port":1521,"service_name":"ORCL","user":"system","password":"****","ssh":{"host":"10.0.0.1","user":"oracle","password":"ssh_pass"}}'</pre>
               <div style="margin-top:12px;color:var(--text-muted);font-size:11px;">
-                <b>支持的 db_type</b>：mysql, pg, oracle, dm, sqlserver, tidb &nbsp;|&nbsp;
+                <b>支持的 db_type</b>：mysql, pg, oracle, dm, sqlserver, tidb, ivorysql, yashandb &nbsp;|&nbsp;
                 <b>可选参数</b>：database, sysdba, inspector, timeout
               </div>
               <div style="margin-top:8px;padding:8px 10px;background:var(--warn);border-radius:4px;font-size:11px;color:var(--text);">

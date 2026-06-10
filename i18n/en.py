@@ -2503,6 +2503,8 @@ EN = {
     "webui.nav_section_inspect_config": "Configuration",
     "webui.nav_inspect_config": "Inspection Config",
     "webui.nav_section_system": "System",
+    "webui.nav_section_config": "Config Management",
+    "webui.nav_section_tools": "Tools",
     "webui.nav_data_management": "Data Management",
     "webui.data_management_title": "Data Management",
     "webui.data_management_desc": "Manage DBCheck data files: backup, restore, upgrade detection",

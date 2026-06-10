@@ -158,7 +158,7 @@ def api_v1_inspect():
 
     请求体：
         {
-            "db_type": "mysql|pg|postgresql|oracle|dm|sqlserver|tidb|ivorysql",
+            "db_type": "mysql|pg|postgresql|oracle|dm|sqlserver|tidb|ivorysql|yashandb",
             "host": "192.168.1.100",
             "port": 3306,
             "user": "root",
@@ -461,6 +461,7 @@ def _execute_inspect(db_type, host, port, user, password, inspector, body, ssh):
         'sqlserver': ri.run_sqlserver,
         'tidb': ri.run_tidb,
         'ivorysql': ri.run_ivorysql,
+        'yashandb': ri.run_yashandb,
     }
     runner = runner_map.get(db_type)
     if not runner:

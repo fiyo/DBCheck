@@ -2532,6 +2532,8 @@ ZI = {
     "webui.nav_section_inspect": "巡检",
     "webui.nav_section_history": "巡检历史",
     "webui.nav_section_inspect_config": "巡检配置",
+    "webui.nav_section_config": "配置管理",
+    "webui.nav_section_tools": "工具",
     "webui.nav_inspect_config": "巡检配置管理",
     "webui.nav_section_system": "系统配置",
     "webui.nav_data_management": "数据管理",
