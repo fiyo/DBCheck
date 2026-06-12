@@ -13251,8 +13251,8 @@ async function deleteBackupHistory(recordId) {
   }
 
   function downloadServerReport() {
-    if (_si_report_file) {
-      window.open('/api/download/' + encodeURIComponent(_si_report_file.split(/[\\/]/).pop()), '_blank');
+    if (_si_task_id) {
+      window.open('/api/download/' + _si_task_id, '_blank');
     }
   }
 

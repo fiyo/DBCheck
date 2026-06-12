@@ -166,6 +166,33 @@ def init_database(db_path: str = None):
         cursor.execute("UPDATE inspection_template SET is_preset = 1 WHERE db_type = 'oracle' AND version = '11g'")
         conn.commit()
 
+        # 迁移：为 inspection_query 表补充缺失的列（旧版数据库可能没有）
+        cursor.execute("PRAGMA table_info(inspection_query)")
+        query_columns = [row[1] for row in cursor.fetchall()]
+        if query_columns:
+            if 'query_sql' not in query_columns:
+                cursor.execute("ALTER TABLE inspection_query ADD COLUMN query_sql TEXT NOT NULL DEFAULT ''")
+                print("🔄 已为 inspection_query 表添加 query_sql 字段")
+            if 'query_description_zh' not in query_columns:
+                cursor.execute("ALTER TABLE inspection_query ADD COLUMN query_description_zh TEXT")
+                print("🔄 已为 inspection_query 表添加 query_description_zh 字段")
+            if 'query_description_en' not in query_columns:
+                cursor.execute("ALTER TABLE inspection_query ADD COLUMN query_description_en TEXT")
+                print("🔄 已为 inspection_query 表添加 query_description_en 字段")
+            if 'enabled' not in query_columns:
+                cursor.execute("ALTER TABLE inspection_query ADD COLUMN enabled INTEGER DEFAULT 1")
+                print("🔄 已为 inspection_query 表添加 enabled 字段")
+            if 'sort_order' not in query_columns:
+                cursor.execute("ALTER TABLE inspection_query ADD COLUMN sort_order INTEGER DEFAULT 0")
+                print("🔄 已为 inspection_query 表添加 sort_order 字段")
+            if 'created_at' not in query_columns:
+                cursor.execute("ALTER TABLE inspection_query ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+                print("🔄 已为 inspection_query 表添加 created_at 字段")
+            if 'updated_at' not in query_columns:
+                cursor.execute("ALTER TABLE inspection_query ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+                print("🔄 已为 inspection_query 表添加 updated_at 字段")
+            conn.commit()
+
         conn.commit()
         print("[OK] 数据库初始化成功")
         
