@@ -38,8 +38,10 @@ Thumbs.db
 desktop.ini
 
 # Project-specific (not needed in image)
-*.db-shm
-*.db-wal
+# SQLite DB files: shipped in image (already contain table structures and default data)
+# *.db
+# *.db-shm
+# *.db-wal
 *.log
 logs/
 

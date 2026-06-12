@@ -6,9 +6,24 @@ set -e
 
 echo "==> DBCheck v$(cat /app/VERSION.txt 2>/dev/null || echo 'unknown')"
 
-# Ensure drivers/ directory exists and is writable
+# Ensure data/ and drivers/ directories exist and are writable
+mkdir -p /app/data
+chmod 755 /app/data
 mkdir -p /app/drivers
 chmod 755 /app/drivers
+
+# Initialize database tables (create if not exist)
+# This ensures inspection_template and other tables exist even on first run
+echo "==> Initializing database tables..."
+python -c "
+from inspection_dal import init_database
+init_database()
+print('inspection.db tables ready.')
+" 2>&1 || echo "WARNING: inspection.db init failed"
+
+# Initialize default inspection templates (skip if already exist)
+echo "==> Initializing default inspection templates..."
+python /app/inspection_init_db.py 2>&1 || echo "WARNING: inspection_init_db.py failed"
 
 # Check drivers status
 DRIVER_COUNT=$(find /app/drivers -type f 2>/dev/null | wc -l)
