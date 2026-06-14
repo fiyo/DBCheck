@@ -8,7 +8,7 @@ DBCheck is an open-source, cross-platform automated database health check tool t
 > Language: [English](./README.md) | [中文](./README_zh.md)
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://dbcheck.top)
-[![Version](https://img.shields.io/badge/version-v2.5.9-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-v2.5.11-blue.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-green.svg)]()
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)]()
 [![AI](https://img.shields.io/badge/AI-Ollama+RAG-orange.svg)]()
@@ -1091,7 +1091,7 @@ docker run -d -p 5003:5003 \
   -v dbcheck_data:/app/data \
   -v dbcheck_reports:/app/reports \
   --name dbcheck \
-  jackge12345/dbcheck:2.5.4
+  jackge12345/dbcheck:2.5.11
 
 # Visit http://localhost:5003
 ```
@@ -1102,7 +1102,7 @@ docker run -d -p 5003:5003 \
 | 📦 Pre-installed deps | All Python dependencies are pre-installed, ready to use out of the box |
 | 🔒 Data safe | Data and reports are persisted via volumes, no data loss when removing container |
 | 🚀 Fast startup | No need to install Python or database drivers, starts in seconds |
-| 🔖 Version controlled | Specify version (v2.5.4) to avoid dependency conflicts |
+| 🔖 Version controlled | Specify version (v2.5.11) to avoid dependency conflicts |
 
 **Using docker-compose (recommended):**
 
@@ -1127,12 +1127,12 @@ docker compose down
 **Option 1: Install at runtime (Recommended)**
 ```bash
 # 1. Pull and run
-docker pull jackge12345/dbcheck:2.5.4
+docker pull jackge12345/dbcheck:2.5.11
 docker run -d -p 5003:5003 \
   -v dbcheck_data:/app/data \
   -v dbcheck_reports:/app/reports \
   --name dbcheck \
-  jackge12345/dbcheck:2.5.4
+  jackge12345/dbcheck:2.5.11
 
 # 2. Install dmpython inside the container
 docker exec -it dbcheck pip install dmpython
@@ -1146,7 +1146,7 @@ See [docs/enable-dm8.md](docs/enable-dm8.md)
 | Tag | Description |
 |-----|-------------|
 | `jackge12345/dbcheck:latest` | Latest (without DM8 client libs) |
-| `jackge12345/dbcheck:2.5.4` | Specific version |
+| `jackge12345/dbcheck:2.5.11` | Specific version |
 
 > 💡 See `Dockerfile` in project root for build details.
 
@@ -1200,7 +1200,7 @@ python main.py --lang en
   ██║  ██║██╔══██╗██║     ██╔══██║██╔══╝  ██║     ██╔═██╗
   ██████╔╝██████╔╝╚██████╗██║  ██║███████╗╚██████╗██║  ██╗
   ╚═════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝ ╚═════╝╚═╝  ╚═╝
-          🗄️  Database Automation Inspector  v2.5.9  Main Menu
+          🗄️  Database Automation Inspector  v2.5.11  Main Menu
   ───────────────────────────────────────────────────────────
     🐬  1 │ MySQL (5.6/5.7/8.0+)
     🐘  2 │ PostgreSQL (10+)
