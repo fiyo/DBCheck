@@ -16,7 +16,7 @@ DBCheck 是一款开源、跨平台的数据库自动化健康巡检工具，支
 [![WebUI](https://img.shields.io/badge/WebUI-Flask-success.svg)]()
 [![WeChat](https://img.shields.io/badge/公众号-山东Oracle用户组-brightgreen?logo=WeChat)]()
 [![WebSite](https://img.shields.io/badge/网址-www.dbcheck.top-green.svg)](https://dbcheck.top)
-[![Docker Pulls](https://img.shields.io/docker/pulls/jackge12345/dbcheck?style=flat-square&label=Docker%&cacheSeconds=300)](https://hub.docker.com/r/jackge12345/dbcheck)
+[![Docker Pulls](https://img.shields.io/docker/pulls/jackge12345/dbcheck?style=flat-square&label=Docker%20Downloads&cacheSeconds=300)](https://hub.docker.com/r/jackge12345/dbcheck)
 
 ---
 
