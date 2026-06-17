@@ -68,6 +68,7 @@ class DatabaseInstance:
     password: str = ""  # 加密存储
     database: str = ""  # PG/IvorySQL 数据库名
     service_name: str = ""  # Oracle 专用
+    gbase_server_name: str = ""  # GBase 8s 服务器实例名
     sysdba: bool = False  # Oracle SYSDBA 连接
     ssh_host: str = ""     # SSH 跳板主机
     ssh_port: int = 22     # SSH 端口
@@ -241,6 +242,11 @@ class InstanceManager:
                 c.execute('ALTER TABLE instances ADD COLUMN "database" TEXT DEFAULT \'\'')
             except Exception:
                 pass
+            # 迁移：为旧表添加 gbase_server_name 列
+            try:
+                c.execute('ALTER TABLE instances ADD COLUMN "gbase_server_name" TEXT DEFAULT \'\'')
+            except Exception:
+                pass
             # 确保表存在
             c.execute("""
                 CREATE TABLE IF NOT EXISTS instances (
@@ -248,7 +254,7 @@ class InstanceManager:
                     name TEXT NOT NULL, db_type TEXT NOT NULL, host TEXT NOT NULL,
                     port INTEGER NOT NULL, "user" TEXT NOT NULL,                 password TEXT DEFAULT '',
                     "database" TEXT DEFAULT '',
-                    service_name TEXT DEFAULT '', sysdba INTEGER DEFAULT 0,
+                    service_name TEXT DEFAULT '', gbase_server_name TEXT DEFAULT '', sysdba INTEGER DEFAULT 0,
                     ssh_host TEXT DEFAULT '', ssh_port INTEGER DEFAULT 22,
                     ssh_user TEXT DEFAULT '', ssh_password TEXT DEFAULT '',
                     ssh_key_file TEXT DEFAULT '', ssh_enabled INTEGER DEFAULT 0,
@@ -262,14 +268,15 @@ class InstanceManager:
                 d = inst.to_dict() if not isinstance(inst, dict) else inst
                 c.execute("""
                     INSERT OR REPLACE INTO instances
-                    (id, name, db_type, host, port, "user", password, "database", service_name, sysdba,
+                    (id, name, db_type, host, port, "user", password, "database", service_name, gbase_server_name, sysdba,
                      ssh_host, ssh_port, ssh_user, ssh_password, ssh_key_file, ssh_enabled,
                      tags, "group", enabled, description, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     d.get("id", ""), d.get("name", ""), d.get("db_type", ""),
                     d.get("host", ""), d.get("port", 0), d.get("user", ""),
                     d.get("password", ""), d.get("database", ""), d.get("service_name", ""),
+                    d.get("gbase_server_name", ""),
                     1 if d.get("sysdba") else 0,
                     d.get("ssh_host", ""), d.get("ssh_port", 22),
                     d.get("ssh_user", ""), d.get("ssh_password", ""),
@@ -380,6 +387,7 @@ class InstanceManager:
                 'user': inst.user,
                 'password': '',  # 不导出明文密码
                 'service_name': inst.service_name,
+                'gbase_server_name': inst.gbase_server_name,
                 'sysdba': inst.sysdba,
                 'group': inst.group,
                 'tags': ','.join(inst.tags or []),
@@ -527,6 +535,24 @@ class InstanceManager:
                 conn.close()
                 return {'ok': True, 'message': '连接成功 (KingbaseES %s:%d)' % (inst.host, inst.port)}
 
+            elif db_type == 'gbase':
+                try:
+                    import pymysql
+                    conn = pymysql.connect(
+                        host=inst.host, port=inst.port,
+                        user=inst.user, password=password,
+                        database=inst.database or 'gbase01',
+                        connect_timeout=10, charset='utf8mb4'
+                    )
+                    conn.close()
+                    return {'ok': True, 'message': '连接成功 (GBase 8s %s:%d)' % (inst.host, inst.port)}
+                except ImportError as e:
+                    return {'ok': False, 'message': 'pymysql 驱动未安装: %s' % str(e)}
+                except Exception as e:
+                    err = str(e)
+                    if 'Lost connection' in err or 'Can not get' in err:
+                        return {'ok': False, 'message': '连接失败: %s\n提示：GBase 8s 需要开启 MySQL 协议支持' % err}
+                    return {'ok': False, 'message': '连接失败: %s' % err}
             else:
                 return {'ok': False, 'message': '不支持的数据库类型: %s' % db_type}
 

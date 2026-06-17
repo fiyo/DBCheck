@@ -3797,6 +3797,7 @@ def init_default_templates(db_path: str = None, force: bool = False):
         ('ivorysql',  'IvorySQL 默认巡检模板',    'IvorySQL Default Inspection Template',    IVORYSQL_DEFAULT_CHAPTERS,    'v1', 1, 1),
         ('kingbase',   'KingbaseES 默认巡检模板', 'KingbaseES Default Inspection Template',  KINGBASE_DEFAULT_CHAPTERS, 'v1', 1, 1),
         ('yashandb',  'YashanDB 默认巡检模板',    'YashanDB Default Inspection Template',    YASHANDB_DEFAULT_CHAPTERS,    'v1', 1, 1),
+        ('gbase',     'GBase 8s 默认巡检模板',     'GBase 8s Default Inspection Template',     GBASE_DEFAULT_CHAPTERS,     'v1', 1, 1),
     ]
 
     for db_type, template_name, template_name_en, chapters, version, is_default, is_preset in db_types:
@@ -3866,6 +3867,189 @@ def init_default_templates(db_path: str = None, force: bool = False):
     print("\n✅ 默认模板初始化完成！")
 
 
+# ── GBase 8s 配置（Informix 系 SQL 语法）───────────────────────────────
+# GBase 8s 基于 IBM Informix，不支持 MySQL 的 SHOW / VERSION() 等语法
+# 系统表：sysmaster 库（类似 MySQL 的 information_schema）
+GBASE_DEFAULT_CHAPTERS = [
+    {
+        'chapter_number': 1,
+        'chapter_title_zh': '健康状态概览',
+        'chapter_title_en': 'Health Overview',
+        'description': 'GBase 8s 数据库整体健康状态概览',
+        'queries': [
+            # GBase 8s 版本查询：DBINFO('version', 'full') 返回完整版本字符串
+            {'key': 'gbase_version',
+             'sql': 'SELECT DBINFO("version", "full") AS version FROM systables WHERE tabid = 1;',
+             'desc_zh': 'GBase 8s 版本信息',      'desc_en': 'GBase 8s version'},
+            # 实例状态：检查数据库是否可正常查询
+            {'key': 'gbase_instance_status',
+             'sql': 'SELECT COUNT(*) AS table_count FROM systables WHERE tabtype = "T";',
+             'desc_zh': '用户表数量（实例正常可访问时为正整数）', 'desc_en': 'User table count'},
+            # 数据库列表：sysdatabases 系统表
+            {'key': 'gbase_databases',
+             'sql': 'SELECT name, owner FROM sysdatabases ORDER BY name;',
+             'desc_zh': '数据库列表',                'desc_en': 'Database list'},
+        ]
+    },
+    {
+        'chapter_number': 2,
+        'chapter_title_zh': '连接状态检查',
+        'chapter_title_en': 'Connection Status',
+        'description': 'GBase 8s 数据库连接相关状态检查',
+        'queries': [
+            # 当前连接数：syssessions 系统表（sysmaster 库中）
+            {'key': 'gbase_current_sessions',
+             'sql': 'SELECT COUNT(*) AS session_count FROM syssessions;',
+             'desc_zh': '当前会话数',                'desc_en': 'Current session count'},
+            # 最大连接数配置：sysconfig 系统表（列名 cf_name / cf_effective）
+            {'key': 'gbase_max_connections',
+             "sql": "SELECT cf_name, cf_effective FROM sysconfig WHERE cf_name = 'MAXCONNECTIONS';",
+             'desc_zh': '最大连接数配置',           'desc_en': 'Max connections config'},
+            # 连接超时配置
+            {'key': 'gbase_connect_timeout',
+             "sql": "SELECT cf_name, cf_effective FROM sysconfig WHERE cf_name IN ('CONNECT_TIMEOUT', 'NETTYPE');",
+             'desc_zh': '连接超时配置',             'desc_en': 'Connection timeout config'},
+        ]
+    },
+    {
+        'chapter_number': 3,
+        'chapter_title_zh': '配置参数检查',
+        'chapter_title_en': 'Configuration Check',
+        'description': 'GBase 8s 关键配置参数检查',
+        'queries': [
+            # 字符集配置：sysconfig（列名 cf_name / cf_effective）
+            {'key': 'gbase_charset',
+             "sql": "SELECT cf_name, cf_effective FROM sysconfig WHERE cf_name LIKE '%CHAR%' OR cf_name LIKE '%LANG%' ORDER BY cf_name;",
+             'desc_zh': '字符集/语言配置',          'desc_en': 'Charset/language config'},
+            # 密码有效期配置
+            {'key': 'gbase_pwd_life',
+             "sql": "SELECT cf_name, cf_effective FROM sysconfig WHERE cf_name = 'PASSWORD_LIFE_DAYS';",
+             'desc_zh': '密码有效期配置',          'desc_en': 'Password life days config'},
+            # 日志模式配置
+            {'key': 'gbase_log_config',
+             "sql": "SELECT cf_name, cf_effective FROM sysconfig WHERE cf_name IN ('LOGMODE', 'LOGFILES', 'LOGSIZE');",
+             'desc_zh': '日志配置',                   'desc_en': 'Log configuration'},
+            # 内存配置
+            {'key': 'gbase_memory_config',
+             "sql": "SELECT cf_name, cf_effective FROM sysconfig WHERE cf_name IN ('SHMVIRTSIZE', 'BUFFERS', 'LOCKS');",
+             'desc_zh': '内存相关配置',             'desc_en': 'Memory related config'},
+        ]
+    },
+    {
+        'chapter_number': 4,
+        'chapter_title_zh': '表空间与存储检查',
+        'chapter_title_en': 'Tablespace & Storage Check',
+        'description': 'GBase 8s 表空间和存储使用情况',
+        'queries': [
+            # dbspace 列表（sysmaster 库）
+            {'key': 'gbase_dbspaces',
+             'sql': 'SELECT name, owner FROM sysdbspaces ORDER BY name;',
+             'desc_zh': 'dbspace 列表',              'desc_en': 'dbspace list'},
+            # dbspace 使用情况（sysdbspaces 实际列名：name, pagesize, nchunks, fchunk 等）
+            {'key': 'gbase_dbspace_usage',
+             'sql': "SELECT name AS dbspace_name, pagesize, nchunks, fchunk, create_size, extend_size, max_size FROM sysdbspaces ORDER BY name;",
+             'desc_zh': 'dbspace 使用情况',          'desc_en': 'dbspace usage'},
+        ]
+    },
+    {
+        'chapter_number': 5,
+        'chapter_title_zh': '数据库对象统计',
+        'chapter_title_en': 'Database Objects Statistics',
+        'description': 'GBase 8s 表和索引对象数量统计',
+        'queries': [
+            # systables：tabtype='T' 为用户表（当前连接数据库内）
+            {'key': 'gbase_table_list',
+             'sql': "SELECT tabname, owner, ncols, nrows FROM systables WHERE tabtype = 'T' ORDER BY tabname;",
+             'desc_zh': '当前数据库用户表列表',        'desc_en': 'User table list'},
+            # systables：表数量统计
+            {'key': 'gbase_table_count',
+             'sql': "SELECT COUNT(*) AS table_count FROM systables WHERE tabtype = 'T';",
+             'desc_zh': '用户表总数',        'desc_en': 'Total table count'},
+            # sysindices：索引列表（当前数据库内）
+            {'key': 'gbase_index_list',
+             'sql': "SELECT idxname, owner, tabid FROM sysindices ORDER BY idxname;",
+             'desc_zh': '当前数据库索引列表',      'desc_en': 'Index list'},
+            # syscolumns：列数量最多的前10张表
+            {'key': 'gbase_column_stats',
+             'sql': "SELECT tabid, COUNT(*) AS column_count FROM syscolumns GROUP BY tabid ORDER BY column_count DESC LIMIT 10;",
+             'desc_zh': '列数最多的前10张表',        'desc_en': 'Top 10 tables by column count'},
+        ]
+    },
+    {
+        'chapter_number': 6,
+        'chapter_title_zh': 'Chunks 与磁盘存储',
+        'chapter_title_en': 'Chunks & Disk Storage',
+        'description': 'GBase 8s Chunk 使用情况和磁盘存储状态',
+        'queries': [
+            # syschunks：chunk 状态（sysmaster 库，列名：chknum, dbsnum, chksize, nfree, offset）
+            {'key': 'gbase_chunks',
+             'sql': "SELECT chknum, dbsnum, chksize, nfree, offset FROM syschunks ORDER BY chknum;",
+             'desc_zh': 'Chunk 列表（大小/空闲页数）',   'desc_en': 'Chunk list (size/free pages)'},
+            # sysdbspaces + syschunks 关联：每个 dbspace 的 chunk 数量
+            {'key': 'gbase_dbspace_chunks',
+             'sql': "SELECT s.name AS dbspace_name, s.nchunks, s.pagesize FROM sysdbspaces s ORDER BY s.name;",
+             'desc_zh': 'dbspace 的 chunk 数量与页大小', 'desc_en': 'dbspace chunk count and page size'},
+        ]
+    },
+    {
+        'chapter_number': 7,
+        'chapter_title_zh': '日志与检查点状态',
+        'chapter_title_en': 'Logs & Checkpoint Status',
+        'description': 'GBase 8s 逻辑日志、物理日志和检查点状态',
+        'queries': [
+            # syslogs：逻辑日志状态（sysmaster 库，列名暂不假设，用 SELECT *）
+            {'key': 'gbase_logs',
+             'sql': "SELECT * FROM syslogs ORDER BY 1;",
+             'desc_zh': '逻辑日志状态（全列）',        'desc_en': 'Logical log status (all columns)'},
+            # sysprofile：检查点次数和耗时（sysmaster 库）
+            {'key': 'gbase_checkpoint_stats',
+             'sql': "SELECT name, value FROM sysprofile WHERE name LIKE '%checkpoint%' OR name LIKE '%ckpt%' ORDER BY name;",
+             'desc_zh': '检查点统计',          'desc_en': 'Checkpoint statistics'},
+            # 日志配置参数
+            {'key': 'gbase_log_config_detail',
+             "sql": "SELECT cf_name, cf_effective FROM sysconfig WHERE cf_name LIKE '%LOG%' OR cf_name LIKE '%CKPT%' ORDER BY cf_name;",
+             'desc_zh': '日志与检查点相关配置', 'desc_en': 'Log & checkpoint config'},
+        ]
+    },
+    {
+        'chapter_number': 8,
+        'chapter_title_zh': '会话详情与 SQL 执行统计',
+        'chapter_title_en': 'Session Details & SQL Statistics',
+        'description': 'GBase 8s 会话分布和 SQL 执行统计',
+        'queries': [
+            # syssessions：按用户名统计会话数
+            {'key': 'gbase_sessions_by_user',
+             'sql': "SELECT username, COUNT(*) AS session_count FROM syssessions GROUP BY username ORDER BY session_count DESC;",
+             'desc_zh': '按用户统计会话数',  'desc_en': 'Sessions by user'},
+            # syssessions：按主机统计会话数
+            {'key': 'gbase_sessions_by_host',
+             'sql': "SELECT hostname, COUNT(*) AS session_count FROM syssessions WHERE hostname IS NOT NULL GROUP BY hostname ORDER BY session_count DESC;",
+             'desc_zh': '按主机统计会话数',  'desc_en': 'Sessions by hostname'},
+            # sysprofile：SQL 执行统计（sysmaster 库）
+            {'key': 'gbase_sql_stats',
+             'sql': "SELECT name, value FROM sysprofile WHERE name IN ('select', 'update', 'insert', 'delete', 'commit', 'rollback') ORDER BY name;",
+             'desc_zh': 'SQL 执行次数统计',   'desc_en': 'SQL execution counts'},
+        ]
+    },
+    {
+        'chapter_number': 9,
+        'chapter_title_zh': '锁与等待分析',
+        'chapter_title_en': 'Locks & Wait Analysis',
+        'description': 'GBase 8s 锁等待和阻塞会话分析',
+        'queries': [
+            # syslocks：当前锁数量
+            {'key': 'gbase_lock_count',
+             'sql': "SELECT COUNT(*) AS total_locks FROM syslocks;",
+             'desc_zh': '当前锁总数',          'desc_en': 'Total lock count'},
+            # syslocks：按表统计锁数量（tabname 列存在，dbsname 可能不存在，用 SELECT * 探测）
+            {'key': 'gbase_locks_detail',
+             'sql': "SELECT * FROM syslocks LIMIT 50;",
+             'desc_zh': '锁详情（全列，最多50行）',    'desc_en': 'Lock details (all columns, max 50 rows)'},
+        ]
+    },
+]
+
+
 def main():
     parser = argparse.ArgumentParser(description='初始化 DBCheck 巡检配置数据库')
     parser.add_argument('--db-path', type=str, default=None,
@@ -3890,8 +4074,13 @@ def main():
     init_default_templates(db_path, args.force)
 
     # 初始化服务器巡检阈值配置
-    print("\n4. 初始化服务器巡检阈值配置...")
+    print("\n3. 初始化服务器巡检阈值配置...")
     init_server_thresholds(db_path, args.force)
+
+    # 初始化默认基线配置
+    print("\n4. 初始化默认基线配置...")
+    from inspection_dal import init_default_baselines
+    init_default_baselines(db_path)
 
     print("\n" + "=" * 50)
     print("✅ 初始化完成！")

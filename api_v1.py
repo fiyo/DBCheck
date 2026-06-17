@@ -236,7 +236,7 @@ def api_v1_inspect():
                 'error_code': 'MISSING_PARAMS',
             }), 400
 
-        valid_types = ['mysql', 'pg', 'postgresql', 'oracle', 'dm', 'sqlserver', 'tidb', 'ivorysql', 'yashandb', 'kingbase']
+        valid_types = ['mysql', 'pg', 'postgresql', 'oracle', 'dm', 'sqlserver', 'tidb', 'ivorysql', 'yashandb', 'kingbase', 'gbase']
         # 标准化：postgresql → pg（内部统一用 pg 标识 PostgreSQL 协议类型）
         if db_type == 'postgresql':
             db_type = 'pg'
@@ -330,11 +330,11 @@ def _parse_iso(iso_str):
 
 
 def _default_port(db_type):
-    return {'mysql': 3306, 'pg': 5432, 'oracle': 1521, 'dm': 5236, 'sqlserver': 1433, 'tidb': 4000, 'ivorysql': 5432, 'yashandb': 1688, 'kingbase': 54321}.get(db_type, 3306)
+    return {'mysql': 3306, 'pg': 5432, 'oracle': 1521, 'dm': 5236, 'sqlserver': 1433, 'tidb': 4000, 'ivorysql': 5432, 'yashandb': 1688, 'kingbase': 54321, 'gbase': 5258}.get(db_type, 3306)
 
 
 def _default_user(db_type):
-    return {'mysql': 'root', 'pg': 'postgres', 'oracle': 'system', 'dm': 'SYSDBA', 'sqlserver': 'sa', 'tidb': 'root', 'ivorysql': 'postgres', 'yashandb': 'sys', 'kingbase': 'kingbase'}.get(db_type, 'root')
+    return {'mysql': 'root', 'pg': 'postgres', 'oracle': 'system', 'dm': 'SYSDBA', 'sqlserver': 'sa', 'tidb': 'root', 'ivorysql': 'postgres', 'yashandb': 'sys', 'kingbase': 'kingbase', 'gbase': 'gbasedbt'}.get(db_type, 'root')
 
 
 # ── 查询任务状态 ──────────────────────────────────────────────
@@ -433,7 +433,7 @@ def _execute_inspect(db_type, host, port, user, password, inspector, body, ssh):
         'password': password,
         'label': f'API-{inspector}',
     }
-    if db_type in ('pg', 'postgresql', 'ivorysql', 'kingbase'):
+    if db_type in ('pg', 'postgresql', 'ivorysql', 'kingbase', 'gbase'):
         db_info['database'] = body.get('database', 'postgres')
     if db_type == 'oracle':
         db_info['service_name'] = body.get('service_name', '')
@@ -463,6 +463,7 @@ def _execute_inspect(db_type, host, port, user, password, inspector, body, ssh):
         'ivorysql': ri.run_ivorysql,
         'yashandb': ri.run_yashandb,
         'kingbase': ri.run_kingbase,
+        'gbase':    ri.run_gbase,
     }
     runner = runner_map.get(db_type)
     if not runner:

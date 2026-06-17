@@ -1,0 +1,119 @@
+# -*- coding: utf-8 -*-
+# GBase 8s 巡检规则
+# GBase 8s 基于 IBM Informix，使用 Informix 系系统表
+# 规则引擎补充规则（主要风险分析由 smart_analyze_gbase() 完成）
+
+rules:
+  # ── 连接检查 ──────────────────────────────────────
+  - id: gbase_conn_usage_high
+    name: 连接数使用率过高
+    name_zh: 连接数使用率过高
+    category: connection
+    db_types: [gbase]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 当前连接数 / MAXCONNECTIONS > 80%
+    description_zh: 当前连接数 / 最大连接数 > 80%，建议增大 MAXCONNECTIONS
+    condition: "max_conn > 0 and (cur_conn / max_conn * 100) > 80"
+    params:
+      cur_conn: "${context.gbase_current_sessions[0].session_count if context.get('gbase_current_sessions') else 0}"
+      max_conn: "${int(context.gbase_max_connections[0].cf_effective) if context.get('gbase_max_connections') and context.gbase_max_connections[0].get('cf_effective', '0').isdigit() else 0}"
+    message: "连接数使用率 {pct:.0f}%（{cur_conn}/{max_conn}），建议增大 MAXCONNECTIONS"
+    message_zh: "连接数使用率 {pct:.0f}%（{cur_conn}/{max_conn}），建议增大 MAXCONNECTIONS"
+    fix_sql: "# 修改 $GBASEDBTDIR/etc/onconfig 文件，设置 MAXCONNECTIONS 值并重启实例"
+
+  - id: gbase_conn_usage_medium
+    name: 连接数使用率预警
+    name_zh: 连接数使用率预警
+    category: connection
+    db_types: [gbase]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: 当前连接数 / MAXCONNECTIONS > 60%
+    description_zh: 当前连接数 / 最大连接数 > 60%，建议提前关注
+    condition: "max_conn > 0 and (cur_conn / max_conn * 100) > 60 and (cur_conn / max_conn * 100) <= 80"
+    params:
+      cur_conn: "${context.gbase_current_sessions[0].session_count if context.get('gbase_current_sessions') else 0}"
+      max_conn: "${int(context.gbase_max_connections[0].cf_effective) if context.get('gbase_max_connections') and context.gbase_max_connections[0].get('cf_effective', '0').isdigit() else 0}"
+    message: "连接数使用率 {pct:.0f}%（{cur_conn}/{max_conn}），建议提前关注"
+    message_zh: "连接数使用率 {pct:.0f}%（{cur_conn}/{max_conn}），建议提前关注"
+    fix_sql: "# 修改 $GBASEDBTDIR/etc/onconfig 文件，设置 MAXCONNECTIONS 值并重启实例"
+
+  # ── 存储检查 ──────────────────────────────────────
+  - id: gbase_single_dbspace
+    name: 仅使用单个 dbspace
+    name_zh: 仅使用单个 dbspace
+    category: storage
+    db_types: [gbase]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: dbspace 数量 <= 2，建议数据和日志分离存储
+    description_zh: 仅检测到 1~2 个 dbspace，建议创建专用日志 dbspace（plogspace）
+    condition: "dbspace_count <= 2"
+    params:
+      dbspace_count: "${len(context.get('gbase_dbspaces', []) or [])}"
+    message: "仅检测到 {dbspace_count} 个 dbspace，建议创建 plogspace 和临时 dbspace"
+    message_zh: "仅检测到 {dbspace_count} 个 dbspace，建议创建 plogspace 和临时 dbspace"
+    fix_sql: "# onspaces -c -d plogspace -p /path/to/chunk -o 0 -s 1024000"
+
+  # ── 配置检查 ──────────────────────────────────────
+  - id: gbase_logfiles_low
+    name: 逻辑日志文件数偏少
+    name_zh: 逻辑日志文件数偏少
+    category: config
+    db_types: [gbase]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: LOGFILES < 6，可能影响高可用和回滚
+    description_zh: 逻辑日志文件数 < 6，建议增加到 6 以上
+    condition: "logfiles < 6"
+    params:
+      logfiles: "${int(context.gbase_log_config[0].cf_effective) if context.get('gbase_log_config') and len(context.gbase_log_config) > 0 and context.gbase_log_config[0].get('cf_effective', '0').isdigit() else 999}"
+    message: "逻辑日志文件数仅为 {logfiles}，建议增加到 6 以上"
+    message_zh: "逻辑日志文件数仅为 {logfiles}，建议增加到 6 以上"
+    fix_sql: "# 修改 onconfig 文件，设置 LOGFILES 值并重启实例"
+
+  - id: gbase_shmvirtsize_low
+    name: 共享内存虚拟段大小偏低
+    name_zh: 共享内存虚拟段大小偏低
+    category: config
+    db_types: [gbase]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: SHMVIRTSIZE < 1GB，可能影响大内存操作
+    description_zh: 共享内存虚拟段大小 < 1GB，建议增加到 1GB 以上
+    condition: "shmvirtsize < 1073741824"
+    params:
+      shmvirtsize: "${int(context.gbase_memory_config[0].cf_effective) if context.get('gbase_memory_config') and len(context.gbase_memory_config) > 0 and context.gbase_memory_config[0].get('cf_effective', '0').isdigit() else 9999999999}"
+    message: "SHMVIRTSIZE 仅为 {shmvirtsize_mb:.0f}MB，建议增加到 1GB 以上"
+    message_zh: "SHMVIRTSIZE 仅为 {shmvirtsize_mb:.0f}MB，建议增加到 1GB 以上"
+    fix_sql: "# 修改 onconfig 文件，设置 SHMVIRTSIZE 值并重启实例"
+
+  # ── 安全检查 ──────────────────────────────────────
+  - id: gbase_pwd_life_not_set
+    name: 密码有效期未设置
+    name_zh: 密码有效期未设置
+    category: security
+    db_types: [gbase]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: PASSWORD_LIFE_DAYS 未设置或过大
+    description_zh: 密码有效期未设置或过大（> 180天），存在安全风险
+    condition: "pwd_life <= 0 or pwd_life > 180"
+    params:
+      pwd_life: "${int(context.gbase_pwd_life[0].cf_effective) if context.get('gbase_pwd_life') and len(context.gbase_pwd_life) > 0 and context.gbase_pwd_life[0].get('cf_effective', '0').isdigit() else -1}"
+    message: "密码有效期（PASSWORD_LIFE_DAYS）为 {pwd_life} 天，建议设置为 30~180 天"
+    message_zh: "密码有效期（PASSWORD_LIFE_DAYS）为 {pwd_life} 天，建议设置为 30~180 天"
+    fix_sql: "# 修改 onconfig 文件，设置 PASSWORD_LIFE_DAYS 值"

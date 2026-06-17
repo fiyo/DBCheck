@@ -1499,7 +1499,7 @@ class AIAdvisor:
                 oracle_extra += f"\n[Top SQL by Buffer Gets]\n{metrics['top_sql_top5']}"
 
         if lang == 'zh':
-            db_type_name = {'mysql': 'MySQL', 'pg': 'PostgreSQL', 'oracle': 'Oracle', 'sqlserver': 'SQL Server', 'tidb': 'TiDB', 'ivorysql': 'IvorySQL', 'kingbase': 'KingbaseES'}.get(db_type, db_type.upper())
+            db_type_name = {'mysql': 'MySQL', 'pg': 'PostgreSQL', 'oracle': 'Oracle', 'sqlserver': 'SQL Server', 'tidb': 'TiDB', 'ivorysql': 'IvorySQL', 'kingbase': 'KingbaseES', 'gbase': 'GBase 8s'}.get(db_type, db_type.upper())
             prompt = f"""你是一位拥有20年经验的 {db_type_name} 数据库资深DBA，擅长数据库性能分析及优化，对 {db_type_name} 的配置参数体系特别熟悉。你的诊断需要结合官方文档及下方提供的 RAG 参考文档，充分考虑当前数据库版本特性，给出适合当前版本的专业建议（例如：在 MySQL 8.0 中 expire_logs_days 已被弃用，应建议使用 binlog_expire_logs_seconds 替代）。以下是对 {db_type_name} 数据库「{label}」的全面巡检结果，请进行深度诊断。
 
 {sep}
@@ -2173,6 +2173,83 @@ def smart_analyze_kingbase(context: dict) -> list:
     return smart_analyze_pg(context)
 
 
+def smart_analyze_gbase(context: dict) -> list:
+    """
+    对 GBase 8s 巡检结果执行风险规则分析。
+    GBase 8s 基于 IBM Informix，使用 Informix 系系统表。
+
+    context 中查询结果的格式：list of dicts，例如：
+      context['gbase_current_sessions'] == [{'session_count': 5}]
+      context['gbase_max_connections'] == [{'cf_name': 'MAXCONNECTIONS', 'cf_effective': '100'}]
+    """
+    issues = []
+
+    # ── 规则1：连接数使用率过高 ──────────────────────────
+    try:
+        rows_s = context.get('gbase_current_sessions') or []
+        rows_m = context.get('gbase_max_connections') or []
+        if rows_s and rows_m:
+            cur = int((rows_s[0] or {}).get('session_count') or 0)
+            mx  = int((rows_m[0] or {}).get('cf_effective') or 0)
+            if mx > 0:
+                pct = cur * 100 // mx
+                if pct >= 80:
+                    issues.append({
+                        'rule_id':   'GBASE-001',
+                        'level':     'warning' if pct < 90 else 'critical',
+                        'title':     f'连接数使用率过高（{pct}%，当前 {cur}/{mx}）',
+                        'title_en':  f'High session usage ({pct}%, current {cur}/{mx})',
+                        'advice':    '检查应用连接池配置，考虑增加 MAXCONNECTIONS 或排查连接泄漏',
+                        'advice_en': 'Check connection pool config; consider increasing MAXCONNECTIONS or troubleshooting connection leaks',
+                    })
+    except Exception:
+        pass
+
+    # ── 规则2：dbspace 配置检查 ──────────────────────────
+    try:
+        rows = context.get('gbase_dbspace_usage') or []
+        dbspace_names = []
+        for row in rows:
+            name = row.get('dbspace_name') or row.get('name')
+            if name:
+                dbspace_names.append(name)
+        if len(dbspace_names) == 0:
+            issues.append({
+                'rule_id':   'GBASE-002',
+                'level':     'warning',
+                'title':     '未检测到任何 dbspace 配置信息',
+                'title_en':  'No dbspace configuration detected',
+                'advice':    '请确认 sysmaster.sysdbspaces 表可正常访问',
+                'advice_en': 'Confirm that sysmaster.sysdbspaces table is accessible',
+            })
+        elif len(dbspace_names) == 1:
+            issues.append({
+                'rule_id':   'GBASE-002',
+                'level':     'info',
+                'title':     f'仅检测到 1 个 dbspace（{dbspace_names[0]}），建议将数据和日志分离存储',
+                'title_en':  f'Only 1 dbspace detected ({dbspace_names[0]}), consider separating data and log storage',
+                'advice':    '建议创建专用日志 dbspace（plogspace）和临时 dbspace，提升 I/O 性能和数据安全',
+                'advice_en': 'Consider creating dedicated log dbspace and temp dbspace for better I/O performance',
+            })
+    except Exception:
+        pass
+
+    # ── 规则3：实例状态异常 ─────────────────────────────
+    inst = context.get('gbase_instance_status') or []
+    if not inst:
+        # 查询结果为空，可能是查询失败
+        issues.append({
+            'rule_id':   'GBASE-003',
+            'level':     'critical',
+            'title':     '实例状态检查失败，数据库可能异常',
+            'title_en':  'Instance status check failed, database may be abnormal',
+            'advice':    '检查 GBase 8s 服务状态（onstat -）、日志文件，确认数据库正常运行',
+            'advice_en': 'Check GBase 8s service status (onstat -), log files, confirm database is running normally',
+        })
+
+    return issues
+
+
 # ═══════════════════════════════════════════════════════
 #  5. 综合分析入口（供 main_mysql.py / main_pg.py 调用）
 # ═══════════════════════════════════════════════════════
@@ -2215,6 +2292,8 @@ def run_full_analysis(db_type: str, host: str, port, label: str,
         issues = smart_analyze_ivorysql(context)
     elif db_type == 'yashandb':
         issues = smart_analyze_yashandb(context)
+    elif db_type == 'gbase':
+        issues = smart_analyze_gbase(context)
     elif db_type == 'kingbase':
         issues = smart_analyze_kingbase(context)
     else:

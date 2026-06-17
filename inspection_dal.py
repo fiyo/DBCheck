@@ -1805,6 +1805,25 @@ def init_default_baselines(db_path: str = None):
             {'param_name': 'UNDO_RETENTION', 'query_sql': "SELECT NAME, VALUE FROM V$PARAMETER WHERE NAME='undo_retention'", 'operator': '>=', 'expected_value': '900', 'risk_level': 'LOW', 'description_zh': 'UNDO 保留时间应 >= 900 秒', 'description_en': 'UNDO retention should be >= 900 seconds'},
             {'param_name': 'DB_FILE_MULTIBLOCK_READ_COUNT', 'query_sql': "SELECT NAME, VALUE FROM V$PARAMETER WHERE NAME='db_file_multiblock_read_count'", 'operator': '>=', 'expected_value': '64', 'risk_level': 'LOW', 'description_zh': '多块读计数应 >= 64', 'description_en': 'Multiblock read count should be >= 64'},
         ],
+        # ══════════════════════════════════════════
+        # GBase 8s
+        # ══════════════════════════════════════════
+        'gbase': [
+            # ── 安全 ──
+            {'param_name': 'MAXCONNECTIONS', 'query_sql': "SELECT cf_name, cf_effective FROM sysconfig WHERE cf_name = 'MAXCONNECTIONS'", 'operator': '>=', 'expected_value': '200', 'risk_level': 'MEDIUM', 'description_zh': '最大连接数应 >= 200', 'description_en': 'MAXCONNECTIONS should be >= 200'},
+            {'param_name': 'CONNECT_TIMEOUT', 'query_sql': "SELECT cf_name, cf_effective FROM sysconfig WHERE cf_name = 'CONNECT_TIMEOUT'", 'operator': '>=', 'expected_value': '60', 'risk_level': 'LOW', 'description_zh': '连接超时应 >= 60 秒', 'description_en': 'CONNECT_TIMEOUT should be >= 60 seconds'},
+            {'param_name': 'PASSWORD_LIFE_DAYS', 'query_sql': "SELECT cf_name, cf_effective FROM sysconfig WHERE cf_name = 'PASSWORD_LIFE_DAYS'", 'operator': '<=', 'expected_value': '180', 'risk_level': 'MEDIUM', 'description_zh': '密码有效期应 <= 180 天', 'description_en': 'Password life should be <= 180 days'},
+            # ── 性能 ──
+            {'param_name': 'SHMVIRTSIZE', 'query_sql': "SELECT cf_name, cf_effective FROM sysconfig WHERE cf_name = 'SHMVIRTSIZE'", 'operator': '>=', 'expected_value': '1073741824', 'risk_level': 'MEDIUM', 'description_zh': '共享内存虚拟段大小应 >= 1GB', 'description_en': 'SHMVIRTSIZE should be >= 1GB'},
+            {'param_name': 'BUFFERS', 'query_sql': "SELECT cf_name, cf_effective FROM sysconfig WHERE cf_name = 'BUFFERS'", 'operator': '>=', 'expected_value': '100000', 'risk_level': 'MEDIUM', 'description_zh': '缓冲区数应 >= 100000', 'description_en': 'BUFFERS should be >= 100000'},
+            {'param_name': 'LOCKS', 'query_sql': "SELECT cf_name, cf_effective FROM sysconfig WHERE cf_name = 'LOCKS'", 'operator': '>=', 'expected_value': '20000', 'risk_level': 'LOW', 'description_zh': '锁数应 >= 20000', 'description_en': 'LOCKS should be >= 20000'},
+            # ── 高可用 ──
+            {'param_name': 'LOGFILES', 'query_sql': "SELECT cf_name, cf_effective FROM sysconfig WHERE cf_name = 'LOGFILES'", 'operator': '>=', 'expected_value': '6', 'risk_level': 'HIGH', 'description_zh': '逻辑日志文件数应 >= 6', 'description_en': 'LOGFILES should be >= 6 for high availability'},
+            {'param_name': 'LOGSIZE', 'query_sql': "SELECT cf_name, cf_effective FROM sysconfig WHERE cf_name = 'LOGSIZE'", 'operator': '>=', 'expected_value': '1048576', 'risk_level': 'MEDIUM', 'description_zh': '逻辑日志大小应 >= 1MB', 'description_en': 'LOGIZE should be >= 1MB'},
+            # ── 运维 ──
+            {'param_name': 'PHYSFILE', 'query_sql': "SELECT cf_name, cf_effective FROM sysconfig WHERE cf_name = 'PHYSFILE'", 'operator': '>=', 'expected_value': '1048576', 'risk_level': 'LOW', 'description_zh': '物理日志文件大小应 >= 1MB', 'description_en': 'PHYSFILE should be >= 1MB'},
+            {'param_name': 'LONGTX', 'query_sql': "SELECT cf_name, cf_effective FROM sysconfig WHERE cf_name = 'LONGTX'", 'operator': '<=', 'expected_value': '300', 'risk_level': 'MEDIUM', 'description_zh': '长事务超时应 <= 300 秒', 'description_en': 'LONGTX should be <= 300 seconds'},
+        ],
     }
     
     conn = get_db_connection(db_path)
@@ -1812,10 +1831,16 @@ def init_default_baselines(db_path: str = None):
     
     try:
         for db_type, baselines in default_baselines.items():
-            # 仅在该 db_type 没有任何基线时（首次使用）才插入
-            cursor.execute("SELECT COUNT(*) FROM inspection_baseline WHERE db_type = ?", (db_type,))
-            if cursor.fetchone()[0] > 0:
-                continue
+            # GBase 8s：强制重置（去掉幂等判断），确保新数据能写入
+            if db_type == 'gbase':
+                cursor.execute("DELETE FROM inspection_baseline WHERE db_type = ?", (db_type,))
+                print(f"[INFO] 强制重置 GBase 基线数据（删除 {cursor.rowcount} 条旧数据）")
+            else:
+                # 仅在该 db_type 没有任何基线时（首次使用）才插入
+                cursor.execute("SELECT COUNT(*) FROM inspection_baseline WHERE db_type = ?", (db_type,))
+                if cursor.fetchone()[0] > 0:
+                    continue
+            
             for bl in baselines:
                 cursor.execute("""
                     INSERT INTO inspection_baseline (

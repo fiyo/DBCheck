@@ -21,6 +21,8 @@ oracledb>=1.4.0         # Oracle (recommended, pure Python, no Instant Client)
 dmpython>=1.0.0         # Dameng DM8
 ./drivers/yashandb/yasdb-1.2.0-py3-none-any.whl   # YashanDB (崖山数据库) — 需先从 GitHub Releases 下载 drivers.zip
 pyodbc>=4.0.0           # SQL Server (also requires ODBC Driver 17)
+gbase8sdb>=0.2.0        # GBase 8s (官方 Python 驱动，需 GBase SDK)
+jaydebeapi>=1.2.0      # GBase 8s JDBC 连接（无需 SDK，需 JDK + JDBC 驱动 jar）
 
 # ── SSH & Remote Collection ───────────────────────────────────────────────────
 paramiko>=2.10.0

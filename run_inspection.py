@@ -548,6 +548,47 @@ def run_yashandb(db_info, inspector_name, ssh_info=None):
 
     return ofile, file_name
 
+
+def run_gbase(db_info, inspector_name, ssh_info=None):
+    """执行 GBase 8s 巡检"""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "main_gbase", os.path.join(SCRIPT_DIR, "main_gbase.py"))
+    mod = importlib.util.module_from_spec(spec)
+
+    class _FakeInfos:
+        label = db_info.get('label', 'DBCheck')
+        sqltemplates = 'builtin'
+        batch = False
+    mod.infos = _FakeInfos()
+    spec.loader.exec_module(mod)
+
+    reports_dir = os.path.join(SCRIPT_DIR, "reports")
+    os.makedirs(reports_dir, exist_ok=True)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    file_name = f"GBase巡检报告_{db_info['label']}_{timestamp}.docx"
+    output_file = os.path.join(reports_dir, file_name)
+
+    inspector = mod.GBaseInspector(
+        db_info['host'], db_info['port'], db_info['user'], db_info['password'],
+        db_info.get('database'), ssh_info
+    )
+    ok, ver = inspector.connect()
+    if not ok:
+        print(f"[GBase] 连接失败: {ver}")
+        sys.exit(1)
+    inspector.collect_data()
+    inspector_name = inspector_name or 'DBCheck'
+    template_id = db_info.get('template_id')
+    if template_id:
+        inspector.template_id = template_id
+    ret = inspector.generate_report(output_file, inspector_name)
+    if not ret:
+        raise RuntimeError("Word 报告渲染失败")
+
+    _record_inspection('gbase', db_info, ret, output_file)
+    return output_file, file_name
+
 def run_config_baseline(db_info, db_type, output_format='txt'):
     """
     执行配置基线检查。
@@ -740,8 +781,8 @@ def main():
                         help='配置基线/索引分析输出格式（默认 txt）')
     
     # 数据库连接参数（完整巡检模式需要）
-    parser.add_argument('--type', required=False, choices=['mysql', 'pg', 'oracle', 'sqlserver', 'dm', 'tidb', 'ivorysql'],
-                        help='数据库类型: mysql / pg / oracle / sqlserver / dm / tidb / ivorysql（完整巡检必需）')
+    parser.add_argument('--type', required=False, choices=['mysql', 'pg', 'oracle', 'sqlserver', 'dm', 'tidb', 'ivorysql', 'gbase'],
+                        help='数据库类型: mysql / pg / oracle / sqlserver / dm / tidb / ivorysql / gbase（完整巡检必需）')
     parser.add_argument('--host', help='数据库主机 IP 或域名')
     parser.add_argument('--port', type=int, default=None,
                         help='数据库端口（默认: MySQL/TiDB 3306/4000, PG 5432, Oracle 1521, SQL Server 1433, DM8 5236）')
@@ -847,7 +888,7 @@ def main():
         sys.exit(1)
     
     if args.port is None:
-        defaults = {'mysql': 3306, 'pg': 5432, 'oracle': 1521, 'sqlserver': 1433, 'dm': 5236, 'tidb': 4000, 'ivorysql': 5432, 'kingbase': 54321}
+        defaults = {'mysql': 3306, 'pg': 5432, 'oracle': 1521, 'sqlserver': 1433, 'dm': 5236, 'tidb': 4000, 'ivorysql': 5432, 'kingbase': 54321, 'gbase': 5258}
         args.port = defaults.get(args.type, 3306)
 
     db_info = {
@@ -873,7 +914,7 @@ def main():
             'ssh_key_file': args.ssh_key or '',
         }
 
-    type_labels = {'mysql': 'MySQL', 'pg': 'PostgreSQL', 'oracle': 'Oracle', 'sqlserver': 'SQL Server', 'dm': 'DM8', 'tidb': 'TiDB', 'ivorysql': 'IvorySQL', 'kingbase': 'KingbaseES'}
+    type_labels = {'mysql': 'MySQL', 'pg': 'PostgreSQL', 'oracle': 'Oracle', 'sqlserver': 'SQL Server', 'dm': 'DM8', 'tidb': 'TiDB', 'ivorysql': 'IvorySQL', 'kingbase': 'KingbaseES', 'gbase': 'GBase 8s'}
     print(f"\n[{type_labels.get(args.type, args.type)}] 开始巡检: {args.label} ({args.host}:{args.port})")
     print("-" * 50)
 
@@ -892,6 +933,8 @@ def main():
             ofile, fname = run_tidb(db_info, args.inspector, ssh_info)
         elif args.type == 'ivorysql':
             ofile, fname = run_ivorysql(db_info, args.inspector, ssh_info)
+        elif args.type == 'gbase':
+            ofile, fname = run_gbase(db_info, args.inspector, ssh_info)
 
         print("-" * 50)
         print(f"✅ 巡检完成！")

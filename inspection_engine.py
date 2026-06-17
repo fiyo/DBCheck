@@ -987,13 +987,13 @@ class BaseInspectionEngine:
         score = max(0, min(100, score))
         
         if critical_n > 0:
-            status = self._t('report.dm_status_critical')
+            status = self._t(f'report.{self.db_type}_status_critical', default='严重')
         elif warning_n >= 4:
-            status = self._t('report.dm_status_warning')
+            status = self._t(f'report.{self.db_type}_status_warning', default='警告')
         elif warning_n > 0:
-            status = self._t('report.dm_status_general')
+            status = self._t(f'report.{self.db_type}_status_general', default='一般')
         else:
-            status = self._t('report.dm_health_status_ok')
+            status = self._t(f'report.{self.db_type}_health_status_ok', default='健康')
         
         return {
             "status": status,
@@ -1675,14 +1675,20 @@ class BaseInspectionEngine:
 
             # ── 风险与建议 ─────────────────────────────────
             print(f"[INFO] auto_analyze count: {len(self.context.get('auto_analyze', []))}")
-            _add_heading(f"{_ch_prefix(ch_risk)} {self._t('report.dm_ch16')}")
+            _add_heading(f"{_ch_prefix(ch_risk)} {self._t(f'report.{self.db_type}_ch16', default='风险与建议')}")
             issues = self.context.get("auto_analyze", [])
             if issues:
-                _add_heading(self._t('report.dm_ch16_1'), 2)
+                _add_heading(self._t(f'report.{self.db_type}_ch16_1', default='智能分析问题明细'), 2)
                 tbl = doc.add_table(rows=1+len(issues), cols=7, style='Table Grid')
-                hdrs = [self._t('report.dm_col_seq'), self._t('report.dm_col_item'), self._t('report.dm_col_risk_level'),
-                            self._t('report.dm_col_desc'), self._t('report.dm_col_severity'), self._t('report.dm_col_owner'),
-                            self._t('report.dm_col_fix')]
+                hdrs = [
+                    self._t(f'report.{self.db_type}_col_seq', default='序号'),
+                    self._t(f'report.{self.db_type}_col_item', default='检查项'),
+                    self._t(f'report.{self.db_type}_col_risk_level', default='风险等级'),
+                    self._t(f'report.{self.db_type}_col_desc', default='描述'),
+                    self._t(f'report.{self.db_type}_col_severity', default='严重度'),
+                    self._t(f'report.{self.db_type}_col_owner', default='负责人'),
+                    self._t(f'report.{self.db_type}_col_fix', default='修复建议'),
+                ]
                 for j, (cell, ht) in enumerate(zip(tbl.rows[0].cells, hdrs)):
                     cell.text = ht
                     _set_cell_bg(cell, '336699')
@@ -1706,14 +1712,14 @@ class BaseInspectionEngine:
                                 run.font.size = Pt(9); run.font.name = '微软雅黑'
                 doc.add_paragraph()
             else:
-                p = doc.add_paragraph(self._t('report.dm_no_risk_found'))
+                p = doc.add_paragraph(self._t(f'report.{self.db_type}_no_risk_found', default='未发现明显风险项，数据库整体运行状况良好。'))
                 for r in p.runs:
                     r.font.size = Pt(10.5); r.font.name = '微软雅黑'
 
             # ── AI 诊断分析 ────────────────────────────────
             ai_advice = self.context.get('ai_advice', '')
             print(f"[INFO] ai_advice length: {len(ai_advice)}")
-            _add_heading(f"{_ch_prefix(ch_ai)} {self._t('report.dm_ch17')}")
+            _add_heading(f"{_ch_prefix(ch_ai)} {self._t(f'report.{self.db_type}_ch17', default='AI 诊断分析')}")
             if ai_advice and ai_advice.strip():
                 disclaimer = self._t('report.ai_disclaimer')
                 dp = doc.add_paragraph()
@@ -1939,7 +1945,7 @@ class BaseInspectionEngine:
                             doc.add_paragraph()
             else:
                 # 如果没有章节结构，直接渲染所有列表数据
-                _fmt_heading(self._t('report.dm_ch_data') if is_zh else 'Inspection Data', level=1)
+                _fmt_heading(self._t(f'report.{self.db_type}_ch_data', default='巡检数据' if is_zh else 'Inspection Data'), level=1)
                 for key in sorted(self.context.keys()):
                     if key.startswith('_') or key in ('auto_analyze', 'system_info', 'health_analysis', 'report_time', 'inspector_name', 'problem_count', 'health_status', 'co_name', 'version'):
                         continue

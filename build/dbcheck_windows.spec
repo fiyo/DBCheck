@@ -72,7 +72,7 @@ a = Analysis(
         'socketio.async_server.gevent',
         # App modules
         'main', 'main_mysql', 'main_pg', 'main_oracle_full',
-        'main_dm', 'main_sqlserver', 'main_tidb', 'main_ivorysql', 'main_yashandb', 'main_kingbase',
+        'main_dm', 'main_sqlserver', 'main_tidb', 'main_ivorysql', 'main_yashandb', 'main_kingbase', 'main_gbase',
         'analyzer', 'config_baseline', 'server_inspect',
         'run_inspection', 'inspection_init_db', 'inspection_engine',
         'inspection_dal', 'inspection_api', 'api_v1',

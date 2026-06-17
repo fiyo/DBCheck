@@ -29,6 +29,25 @@ from flask_socketio import SocketIO, emit, join_room, leave_room
 import socket
 from i18n import t as _t
 
+# ── GBase 8s JDBC 支持（jaydebeapi 需要 JAVA_HOME）─────────────────
+import os
+_GBASE_JAVA_CANDIDATES = [
+    os.environ.get('JAVA_HOME', ''),
+    'C:\\Program Files\\Java\\jdk-11',
+    'C:\\Program Files\\Java\\jdk-17',
+    'C:\\Program Files\\Java\\jdk-1.8',
+    'C:\\Program Files\\Eclipse Adoptium\\jdk-11',
+    'C:\\Program Files\\Eclipse Adoptium\\jdk-17',
+]
+for _j in _GBASE_JAVA_CANDIDATES:
+    if _j and os.path.isdir(_j):
+        os.environ['JAVA_HOME'] = _j
+        _jvm_dir = os.path.join(_j, 'bin', 'server')
+        if os.path.isdir(_jvm_dir):
+            os.environ['PATH'] = _jvm_dir + os.pathsep + os.environ.get('PATH', '')
+        break
+# ───────────────────────────────────────────────────────────────────────
+
 # ── 延迟导入调度器和通知器（避免循环依赖）─────────────────────
 _scheduler = None
 
@@ -74,6 +93,7 @@ def _parse_report_filename(name: str):
         ('TiDB巡检报告_', 'tidb'),
         ('IvorySQL巡检报告_', 'ivorysql'),
         ('YashanDB巡检报告_', 'yashandb'),
+        ('GBase 8s巡检报告_', 'gbase'),
     ]
     name_no_ext = name.replace('.docx', '')
     for prefix, db_type in mapping:
@@ -479,6 +499,25 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None):
             err_module_key='webui.err_yashandb_module',
             label_default='YashanDB',
             db_name_default='YASHANDB',
+        ),
+        'gbase': dict(
+            module_name='main_gbase',
+            connect_test=test_gbase_connection,
+            connect_test_args=lambda info: [info['ip'], info['port'], info['user'], info['password'], info.get('database', 'testdb'), info.get('gbase_server_name', 'gbase01')],
+            getdata_args=lambda info: ([info['ip'], info['port'], info['user'], info['password']],
+                                           {'ssh_info': {}, 'template_id': template_id,
+                                            'database': info.get('database', 'testdb'),
+                                            'gbase_server_name': info.get('gbase_server_name', 'gbase01')}),
+            conn_attr='conn_db2',
+            smart_analyze='smart_analyze_gbase',
+            filename_key='webui.gbase_report_filename',
+            history_db_type='gbase',
+            instance_prefix='gbase',
+            error_task_name='GBase 8s',
+            log_start_key='webui.log_gbase_start',
+            err_module_key='webui.err_gbase_module',
+            label_default='unknown',
+            db_name_default='gbase01',
         ),
         'oracle': dict(
             module_name='main_oracle_full',
@@ -1047,6 +1086,14 @@ def test_yashandb_connection(host, port, user, password):
     except Exception as e:
         return False, str(e)
 
+
+def test_gbase_connection(host, port, user, password, database='testdb', gbase_server_name='gbase01'):
+    """测试 GBase 8s 连接（JDBC 模式，使用 jaydebeapi）"""
+    try:
+        from main_gbase import test_gbase_jdbc_connection
+        return test_gbase_jdbc_connection(host, port, user, password, database, gbase_server_name)
+    except Exception as e:
+        return False, f"导入 main_gbase 失败：{e}"
 
 def _get_sqlserver_driver():
     """获取系统已安装的 SQL Server ODBC 驱动（按优先级排序）"""
@@ -1670,6 +1717,9 @@ def api_test_db():
     elif db_type == 'yashandb':
         ok, msg = test_yashandb_connection(data['host'], data['port'], data['user'], data['password'])
         result = {'ok': ok, 'msg': msg}
+    elif db_type == 'gbase':
+        ok, msg = test_gbase_connection(data['host'], data['port'], data['user'], data['password'], data.get('database', 'gbase01'))
+        result = {'ok': ok, 'msg': msg}
     else:
         return jsonify({'ok': False, 'msg': _t('webui.err_unknown_db_type')})
 
@@ -1779,7 +1829,7 @@ def api_start_inspection():
                 'port':      int(instance.get('port', 0) or 0),
                 'user':      instance.get('user', ''),
                 'password':  instance.get('password', ''),
-                'database':  'master' if db_type == 'sqlserver' else ('DAMENG' if db_type == 'dm' else (instance.get('database') or ('' if db_type == 'tidb' else 'postgres'))),
+                'database':  instance.get('database') or ('master' if db_type == 'sqlserver' else ('DAMENG' if db_type == 'dm' else ('testdb' if db_type == 'gbase' else ('' if db_type == 'tidb' else 'postgres')))),
                 'service_name': instance.get('service_name', None),
                 'name':      instance.get('name', ''),
                 'desensitize': bool(data.get('desensitize', False)),
@@ -1791,7 +1841,7 @@ def api_start_inspection():
                 'port':      int(data.get('port', 0) or 0),
                 'user':      data.get('user', ''),
                 'password':  data.get('password', ''),
-                'database':  'master' if db_type == 'sqlserver' else ('DAMENG' if db_type == 'dm' else (data.get('database') or ('' if db_type == 'tidb' else 'postgres'))),
+                'database':  data.get('database') or ('master' if db_type == 'sqlserver' else ('DAMENG' if db_type == 'dm' else ('testdb' if db_type == 'gbase' else ('' if db_type == 'tidb' else 'postgres')))),
                 'service_name': data.get('service_name', None),
                 'sid':       data.get('sid', None),
                 'output_dir': data.get('output_dir', None),
@@ -3868,6 +3918,7 @@ def api_pro_datasource_add():
             ssh_password=data.get('ssh_password', ''),
             ssh_key_file=data.get('ssh_key_file', ''),
             ssh_enabled=bool(data.get('ssh_enabled', False)),
+            gbase_server_name=data.get('gbase_server_name', ''),
             tags=data.get('tags', []),
             group=data.get('group', 'default'),
             description=data.get('description', ''),
@@ -4096,6 +4147,11 @@ def api_pro_datasources_test_conn():
                 conn.close()
             except ImportError as e:
                 return jsonify({'ok': False, 'error': f'yasdb 驱动未安装: {str(e)}'})
+        elif db_type == 'gbase':
+            gbase_server = data.get('gbase_server_name', 'gbase01')
+            result = test_gbase_connection(host, int(port), user, password, data.get('database', 'gbase01'), gbase_server)
+            if not result[0]:
+                return jsonify({'ok': False, 'error': result[1]})
         else:
             return jsonify({'ok': False, 'error': f'不支持的数据库类型: {db_type}'})
 
@@ -4256,6 +4312,18 @@ def api_ds_databases(ds_id):
             cur.execute("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA ORDER BY SCHEMA_NAME")
             databases = [r[0] for r in cur.fetchall()]
             conn.close()
+        elif db_type == 'gbase':
+            # GBase 8s 使用 JDBC 连接（jaydebeapi）
+            import jaydebeapi, os
+            _jdbc_driver = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'drivers', 'gbase', 'gbase-jdbc.jar')
+            _db = inst.get('database', 'gbase01') or 'gbase01'
+            _server = inst.get('gbase_server_name', 'gbase01') or 'gbase01'
+            _jdbc_url  = f"jdbc:gbasedbt-sqli://{host}:{int(port)}/{_db}:GBASEDBTSERVER={_server};"
+            conn = jaydebeapi.connect('com.gbasedbt.jdbc.IfxDriver', _jdbc_url, [user, pwd], _jdbc_driver)
+            cur = conn.cursor()
+            cur.execute("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA ORDER BY SCHEMA_NAME")
+            databases = [r[0] for r in cur.fetchall()]
+            conn.close()
         elif db_type == 'sqlserver':
             try:
                 conn_str = _build_sqlserver_conn_str(host, port, user, pwd, timeout=timeout)
@@ -4374,6 +4442,26 @@ def api_ds_objects(ds_id):
             cur.execute(
                 "SELECT TABLE_NAME, TABLE_TYPE FROM INFORMATION_SCHEMA.TABLES "
                 "WHERE TABLE_SCHEMA=%s ORDER BY TABLE_NAME",
+                (database,)
+            )
+            for row in cur.fetchall():
+                if row[1] == 'BASE TABLE':
+                    tables.append(row[0])
+                elif row[1] == 'VIEW':
+                    views.append(row[0])
+            conn.close()
+        elif db_type == 'gbase':
+            # GBase 8s 使用 JDBC 连接（jaydebeapi）
+            import jaydebeapi, os
+            _jdbc_driver = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'drivers', 'gbase', 'gbase-jdbc.jar')
+            _db = database or 'gbase01'
+            _server = inst.get('gbase_server_name', 'gbase01') or 'gbase01'
+            _jdbc_url  = f"jdbc:gbasedbt-sqli://{host}:{int(port)}/{_db}:GBASEDBTSERVER={_server};"
+            conn = jaydebeapi.connect('com.gbasedbt.jdbc.IfxDriver', _jdbc_url, [user, pwd], _jdbc_driver)
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT TABLE_NAME, TABLE_TYPE FROM INFORMATION_SCHEMA.TABLES "
+                "WHERE TABLE_SCHEMA=? ORDER BY TABLE_NAME",
                 (database,)
             )
             for row in cur.fetchall():
@@ -6249,6 +6337,9 @@ def api_chat():
                 'sqlserver': run_inspection_task,
                 'tidb': run_inspection_task,
                 'ivorysql': run_inspection_task,
+                'kingbase': run_inspection_task,
+                'yashandb': run_inspection_task,
+                'gbase':   run_inspection_task,
             }
             task_func = task_func_map.get(db_type, run_inspection_task)
             t = threading.Thread(target=task_func, args=(task_id, db_info, inspector_name))
