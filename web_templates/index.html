@@ -3697,7 +3697,7 @@ function formatBytes(bytes) {
         // 根据数据库类型更新 database 输入框的 placeholder
         var dbInput = document.getElementById('ds-database');
         if (dbInput) {
-          var _ph = {'pg':'postgres','ivorysql':'postgres','kingbase':'kingbase','gbase':'testdb'};
+          var _ph = {'pg':'postgres','ivorysql':'postgres','kingbase':'kingbase','gbase':'sysmaster'};
           dbInput.placeholder = _ph[dbType] || 'mysql';
         }
         // 根据数据库类型更新 database 标签
@@ -3733,7 +3733,7 @@ function formatBytes(bytes) {
         let dbName = (document.getElementById('ds-database')?.value || '').trim();
         if (!dbName && (dbType === 'pg' || dbType === 'ivorysql')) dbName = 'postgres';
         if (!dbName && dbType === 'kingbase') dbName = 'kingbase';
-        if (!dbName && dbType === 'gbase') dbName = 'testdb';
+        if (!dbName && dbType === 'gbase') dbName = 'sysmaster';
         const sysdba = document.getElementById('ds-sysdba')?.checked || false;
         const gbaseServer = document.getElementById('ds-gbase-server')?.value.trim() || '';
         const sshHost = document.getElementById('ds-ssh-host')?.value || '';
@@ -3851,7 +3851,7 @@ function formatBytes(bytes) {
                 document.getElementById('ds-database').value = ds.database || 'kingbase';
               }
               if (ds.db_type === 'gbase') {
-                document.getElementById('ds-database').value = ds.database || 'testdb';
+                document.getElementById('ds-database').value = ds.database || 'sysmaster';
                 document.getElementById('ds-gbase-server').value = ds.gbase_server_name || 'gbase01';
               }
               if (ds.db_type === 'oracle') {
@@ -7025,7 +7025,7 @@ async function onDatasourceChange() {
         document.getElementById('f-database').value = ds.database || 'kingbase';
       }
       if (ds.db_type === 'gbase') {
-        document.getElementById('f-database').value = ds.database || 'testdb';
+        document.getElementById('f-database').value = ds.database || 'sysmaster';
       }
       if (ds.db_type === 'oracle') {
         console.log('[Oracle模板] onDatasourceChange: oracle branch entered, ds:', ds);
@@ -7140,7 +7140,7 @@ async function selectDbType(type, skipReload) {
   var sysdbaWrap = document.getElementById('f-sysdba-wrap');
   if (sysdbaWrap) sysdbaWrap.style.display = type === 'oracle' ? '' : 'none';
   // 更新数据库名称输入框的 placeholder 并自动填写默认值
-  const defaultDbMap = { pg: 'postgres', ivorysql: 'postgres', kingbase: 'kingbase', gbase: 'testdb' };
+  const defaultDbMap = { pg: 'postgres', ivorysql: 'postgres', kingbase: 'kingbase', gbase: 'sysmaster' };
   var fDbEl = document.getElementById('f-database');
   if (fDbEl) {
     fDbEl.placeholder = '默认 ' + (defaultDbMap[type] || '');
@@ -7220,7 +7220,7 @@ async function testDb() {
         port:     parseInt(document.getElementById('f-port').value) || (dbType==='oracle'?1521:(dbType==='mysql'?3306:5432)),
         user:     document.getElementById('f-user').value.trim(),
         password: document.getElementById('f-password').value,
-        database: (dbType === 'pg' || dbType === 'ivorysql') ? (document.getElementById('f-database').value.trim() || 'postgres') : (dbType === 'kingbase') ? (document.getElementById('f-database').value.trim() || 'kingbase') : (dbType === 'gbase') ? (document.getElementById('f-database').value.trim() || 'testdb') : (document.getElementById('f-database').value.trim() || ''),
+        database: (dbType === 'pg' || dbType === 'ivorysql') ? (document.getElementById('f-database').value.trim() || 'postgres') : (dbType === 'kingbase') ? (document.getElementById('f-database').value.trim() || 'kingbase') : (dbType === 'gbase') ? (document.getElementById('f-database').value.trim() || 'sysmaster') : (document.getElementById('f-database').value.trim() || ''),
         service_name: document.getElementById('f-service-name') ? document.getElementById('f-service-name').value.trim() : null,
         sysdba: document.getElementById('f-sysdba').checked,
       })
@@ -7323,7 +7323,7 @@ async function testJobDb() {
       port:     parseInt(document.getElementById('job-port').value) || (portDefaults[dbType]||3306),
       user:     document.getElementById('job-user').value.trim(),
       password: document.getElementById('job-password').value,
-      database: (dbType === 'pg' || dbType === 'ivorysql') ? (document.getElementById('job-database').value.trim() || 'postgres') : (dbType === 'kingbase') ? (document.getElementById('job-database').value.trim() || 'kingbase') : (dbType === 'gbase') ? (document.getElementById('job-database').value.trim() || 'testdb') : '',
+      database: (dbType === 'pg' || dbType === 'ivorysql') ? (document.getElementById('job-database').value.trim() || 'postgres') : (dbType === 'kingbase') ? (document.getElementById('job-database').value.trim() || 'kingbase') : (dbType === 'gbase') ? (document.getElementById('job-database').value.trim() || 'sysmaster') : '',
     };
     if (dbType === 'oracle') {
       body.service_name = document.getElementById('job-service-name').value.trim() || null;
@@ -7635,7 +7635,7 @@ async function startInspection() {
   const port = parseInt(document.getElementById('f-port').value) || (dbType==='mysql'?3306:dbType==='oracle'?1521:dbType==='dm'?5236:dbType==='ivorysql'?5432:5432);
   const user = document.getElementById('f-user').value.trim() || (userDefaults[dbType]||'root');
   const password = document.getElementById('f-password').value;
-  const database = (dbType === 'pg' || dbType === 'ivorysql') ? (document.getElementById('f-database').value.trim() || 'postgres') : (dbType === 'kingbase') ? (document.getElementById('f-database').value.trim() || 'kingbase') : (dbType === 'gbase') ? (document.getElementById('f-database').value.trim() || 'testdb') : (document.getElementById('f-database').value.trim() || '');
+  const database = (dbType === 'pg' || dbType === 'ivorysql') ? (document.getElementById('f-database').value.trim() || 'postgres') : (dbType === 'kingbase') ? (document.getElementById('f-database').value.trim() || 'kingbase') : (dbType === 'gbase') ? (document.getElementById('f-database').value.trim() || 'sysmaster') : (document.getElementById('f-database').value.trim() || '');
   const svcName = document.getElementById('f-service-name') ? document.getElementById('f-service-name').value.trim() : null;
   const inspector = document.getElementById('f-inspector').value.trim() || 'Jack';
 
