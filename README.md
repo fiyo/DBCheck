@@ -1547,6 +1547,7 @@ Thank you to everyone who has supported this project! ❤️
 | 2026-6-2 | **月光 | <img src="snapshot/DBCheck-000004.png" alt="PayPal 捐赠二维码" width="100" />No.000004|
 | 2026-6-3 | *树 |<img src="snapshot/DBCheck-000005.png" alt="PayPal 捐赠二维码" width="100" />No.000005|
 | 2026-6-7 | *0518 |<img src="snapshot/DBCheck-000006.png" alt="PayPal 捐赠二维码" width="100" />No.000006|
+| 2026-6-17 | *轩 |<img src="snapshot/DBCheck-000007.png" alt="PayPal 捐赠二维码" width="100" />No.000007|
 | *Looking forward to your support!* | |
 
 > If you've donated but don't see your name here, please contact us at sdfiyon@gmail.com to have it added.

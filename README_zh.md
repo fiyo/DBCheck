@@ -1649,6 +1649,7 @@ DBCheck 从初版到功能完善，历经了大量版本迭代和实测打磨。
 | 2026-6-2 | **月光 | <img src="snapshot/DBCheck-000004.png" alt="PayPal 捐赠二维码" width="100" />No.000004|
 | 2026-6-3 | *树 |<img src="snapshot/DBCheck-000005.png" alt="PayPal 捐赠二维码" width="100" />No.000005|
 | 2026-6-7 | *0518 |<img src="snapshot/DBCheck-000006.png" alt="PayPal 捐赠二维码" width="100" />No.000006|
+| 2026-6-17 | *轩 |<img src="snapshot/DBCheck-000007.png" alt="PayPal 捐赠二维码" width="100" />No.000007|
 | *期待你的支持！* |  |
 
 > 如已捐赠但未出现在此名单中，请联系 sdfiyon@gmail.com 补充。
