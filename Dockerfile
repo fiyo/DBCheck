@@ -68,11 +68,6 @@ RUN if [ -f /build/drivers/yashandb/yasdb-1.2.0-py3-none-any.whl ]; then \
 # Copy application code
 COPY . .
 
-# Copy drivers directory from builder (if downloaded)
-# GBase 8s JDBC jar, Oracle client, etc.
-# Builder stage extracts drivers.zip into /build/drivers/
-COPY --from=builder /build/drivers /app/drivers/
-
 # Pre-compile .pyc for faster startup
 RUN /opt/venv/bin/python -m compileall /build 2>/dev/null || true
 
