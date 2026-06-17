@@ -106,7 +106,7 @@ ENV FLASK_ENV=production
 ENV PYTHONUNBUFFERED=1
 
 # Create VERSION.txt (without v prefix, matches Docker tag format)
-RUN echo 2.5.11 > /app/VERSION.txt
+RUN echo 2.5.12 > /app/VERSION.txt
 
 EXPOSE 5003
 
