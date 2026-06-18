@@ -4,6 +4,8 @@
 
 DBCheck is an open-source, cross-platform database health inspection tool supporting **10 mainstream relational databases**. It automatically generates standardized Word inspection reports by executing predefined SQL checks and collecting system resources. Advanced features include a SQL editor, remote terminal, configurable inspection chapters, configuration baseline management, historical trend analysis, AI-powered smart diagnostics, index health analysis, in-depth slow query analysis, server inspection, shareable links, and masked data export.
 
+> **Note:** The software names, logos, trademarks, badges, etc. of third parties contained in this article and DBCheck software are the property of the third-party companies or organizations. The display of these items in this article and DBCheck software only indicates that the software supports connection to the corresponding database or platform, and does not imply any affiliation or cooperation with them.
+
 > Website: [https://dbcheck.top](https://dbcheck.top) &nbsp;|&nbsp; Email: sdfiyon@gmail.com
 > 
 > Language: [English](./README.md) | 语言：[中文](./README_zh.md)
