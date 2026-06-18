@@ -645,6 +645,34 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None):
         try:
             _analyzer_mod = __import__('analyzer')
             auto_analyze = getattr(_analyzer_mod, cfg['smart_analyze'])(context)
+            # ── 插件系统：执行插件 SQL + 分析 ──
+            try:
+                from plugin_core import run_plugin_inspections_for_db
+                # 构建 SQL 执行器（使用当前检查器的连接）
+                def _exec_plugin_sql(sql):
+                    cur = getattr(data, 'conn', None)
+                    if cur is None:
+                        try:
+                            cur = getattr(data, 'cursor', None)
+                        except Exception:
+                            pass
+                    if cur is None:
+                        return {"headers": [], "rows": [], "_error": "无可用数据库连接"}
+                    try:
+                        cur.execute(sql)
+                        cols = [d[0] for d in cur.description] if cur.description else []
+                        rows = [list(r) for r in cur.fetchall()]
+                        return {"headers": cols, "rows": rows}
+                    except Exception as e:
+                        return {"headers": [], "rows": [], "_error": str(e)}
+
+                plugin_issues = run_plugin_inspections_for_db(
+                    cfg['history_db_type'], context, execute_sql=_exec_plugin_sql)
+                if plugin_issues:
+                    auto_analyze = list(auto_analyze) + plugin_issues
+                    _emit('log', {'msg': f"[插件] {len(plugin_issues)} 个插件发现附加风险"})
+            except Exception as e:
+                _emit('log', {'msg': f"[插件] 执行跳过: {e}"})
             if task:
                 task['auto_analyze'] = auto_analyze
             _emit('log', {'msg': f"[智能分析] 完成，发现 {len(auto_analyze)} 个可优化项"})
@@ -7022,6 +7050,14 @@ def api_random_quote():
 
 if __name__ == '__main__':
     _setup_driver_paths()
+    # ── 初始化插件系统 ──
+    try:
+        from plugin_core import init_plugins
+        n = init_plugins()
+        if n:
+            print(f"[插件] 已加载 {n} 个插件")
+    except Exception as e:
+        print(f"[插件] 初始化跳过: {e}")
     port = 5003
     print(_t('webui.startup_msg').format(port=port))
     socketio.run(app, host='0.0.0.0', port=port, debug=False)

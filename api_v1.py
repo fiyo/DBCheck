@@ -626,3 +626,106 @@ def admin_get_token():
     if request.remote_addr not in ('127.0.0.1', 'localhost', '::1'):
         return jsonify({'ok': False, 'error': '仅限本地访问'}), 403
     return jsonify({'ok': True, 'token': _ADMIN_TOKEN})
+
+
+# ── 插件系统 API ─────────────────────────────────────────────
+
+@api_v1.route('/plugins', methods=['GET'])
+def api_list_plugins():
+    """列出所有已安装插件"""
+    try:
+        from plugin_core import PluginRegistry
+        plugins = PluginRegistry.list_all()
+        return jsonify({'ok': True, 'plugins': plugins, 'total': len(plugins)})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@api_v1.route('/plugins/<plugin_id>', methods=['DELETE'])
+def api_uninstall_plugin(plugin_id):
+    """卸载插件"""
+    try:
+        from plugin_core import PluginRegistry
+        PluginRegistry.unregister(plugin_id)
+        return jsonify({'ok': True, 'message': f'插件 {plugin_id} 已卸载'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@api_v1.route('/plugins/reload', methods=['POST'])
+def api_reload_plugins():
+    """重新加载所有插件"""
+    try:
+        from plugin_core import PluginRegistry, load_plugins
+        PluginRegistry.clear()
+        n = load_plugins()
+        return jsonify({'ok': True, 'loaded': n})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+# ── 插件市场 API ─────────────────────────────────────────────
+
+@api_v1.route('/market/registry', methods=['GET'])
+def api_market_registry():
+    """获取插件市场列表（支持 ?category=&keyword=）"""
+    try:
+        from plugin_market import get_market
+        m = get_market()
+        force = request.args.get('force', '0') == '1'
+        cat = request.args.get('category', None)
+        kw = request.args.get('keyword', None)
+        if force:
+            m.fetch_registry(force=True)
+        plugins = m.list_plugins(category=cat, keyword=kw)
+        installed_ids = m.get_installed_ids()
+        # 标注安装状态
+        for p in plugins:
+            p['installed'] = p.get('id') in installed_ids
+        return jsonify({'ok': True, 'plugins': plugins, 'total': len(plugins)})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@api_v1.route('/market/categories', methods=['GET'])
+def api_market_categories():
+    """获取分类列表"""
+    try:
+        from plugin_market import get_market
+        m = get_market()
+        cats = m.categories()
+        return jsonify({'ok': True, 'categories': cats})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@api_v1.route('/market/install', methods=['POST'])
+def api_market_install():
+    """安装插件 {plugin_id: str}"""
+    try:
+        data = request.get_json(force=True) or {}
+        plugin_id = data.get('plugin_id', '').strip()
+        if not plugin_id:
+            return jsonify({'ok': False, 'error': '缺少 plugin_id'}), 400
+        from plugin_market import get_market
+        m = get_market()
+        result = m.install(plugin_id)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@api_v1.route('/market/uninstall', methods=['POST'])
+def api_market_uninstall():
+    """卸载插件 {plugin_id: str}"""
+    try:
+        data = request.get_json(force=True) or {}
+        plugin_id = data.get('plugin_id', '').strip()
+        if not plugin_id:
+            return jsonify({'ok': False, 'error': '缺少 plugin_id'}), 400
+        from plugin_market import get_market
+        m = get_market()
+        result = m.uninstall(plugin_id)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500

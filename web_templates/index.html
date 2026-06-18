@@ -4043,6 +4043,9 @@ function formatBytes(bytes) {
     <div class="nav-item" onclick="showPage('rag')" id="nav-rag">
       <span class="icon">📚</span> <span data-i18n="webui.rag_nav">RAG 知识库</span>
     </div>
+    <div class="nav-item" onclick="showPage('plugin-market')" id="nav-plugin-market">
+      <span class="icon">🧩</span> <span>插件市场</span>
+    </div>
 
     <!-- ── 工具 ── -->
     <div class="nav-section" data-i18n="webui.nav_section_tools">工具</div>
@@ -5583,6 +5586,41 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
           <div id="rag-ollama-status" style="margin-top:10px;font-size:12px;padding:6px 10px;border-radius:6px;display:none"></div>
         </div>
       </div><!-- /page-rag -->
+      <!-- ══ Page: Plugin Market ══ -->
+      <div class="page" id="page-plugin-market" style="display:none;">
+        <div class="card" style="margin-bottom:12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+            <div>
+              <h2 style="margin:0;font-size:18px;">🧩 插件市场</h2>
+              <p style="margin:4px 0 0 0;font-size:12px;color:var(--text-muted);">
+                浏览社区插件，一键安装扩展你的 DBCheck
+                &nbsp;<a href="#" onclick="loadMarketPlugins(true)" style="font-size:11px;">🔄 刷新</a>
+              </p>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input id="market-search" placeholder="🔍 搜索插件..." style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;width:180px;background:var(--surface2);color:var(--text);" oninput="filterMarketPlugins()">
+              <select id="market-category" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface2);color:var(--text);" onchange="filterMarketPlugins()">
+                <option value="">全部</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- 已安装插件 -->
+        <div class="card" style="margin-bottom:12px;" id="market-installed-card">
+          <h3 style="margin:0 0 8px 0;font-size:14px;">📦 已安装 <a href="#" onclick="reloadPlugins();return false;" style="font-size:11px;font-weight:normal;margin-left:8px;" title="重扫 plugins/ 目录，加载新放入的插件（无需重启）">🔄 刷新</a></h3>
+          <div id="market-installed-list" style="display:flex;flex-wrap:wrap;gap:8px;">
+            <span style="color:var(--text-muted);font-size:12px;">加载中...</span>
+          </div>
+        </div>
+
+        <!-- 市场插件列表 -->
+        <div class="card">
+          <h3 style="margin:0 0 8px 0;font-size:14px;">🛒 市场</h3>
+          <div id="market-plugins-loading" style="text-align:center;padding:24px;color:var(--text-muted);">加载中...</div>
+          <div id="market-plugins-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;"></div>
+        </div>
+      </div><!-- /page-plugin-market -->
       <!-- ══ Page: Data Sources ══ -->
       <div class="page" id="page-datasources">
         <div class="card">
@@ -6566,6 +6604,7 @@ function showPage(name) {
   if (name === 'server-history') loadServerHistory();
   if (name === 'account') loadAccountPage();
   if (name === 'oracle-client') loadOracleClientConfig();
+  if (name === 'plugin-market') loadMarketPlugins();
     if (name === 'remote-shell') {
         initRemoteShellPage();
         switchRemoteTab('connection');
@@ -16192,6 +16231,134 @@ function mkdirRemote() {
         }
       }
     });
+  </script>
+  <!-- ══ Plugin Market JS ══ -->
+  <script>
+  async function loadMarketPlugins(force) {
+    const grid = document.getElementById('market-plugins-grid');
+    const loading = document.getElementById('market-plugins-loading');
+    if (grid) grid.innerHTML = '';
+    if (loading) loading.style.display = '';
+
+    try {
+      const url = '/api/v1/market/registry' + (force ? '?force=1' : '');
+      const r = await fetch(url);
+      const d = await r.json();
+      if (!d.ok) { if(loading) loading.textContent = '加载失败: ' + (d.error||'未知'); return; }
+      if (loading) loading.style.display = 'none';
+      renderMarketPlugins(d.plugins || []);
+      loadInstalledPlugins();
+      loadMarketCategories();
+    } catch(e) {
+      if (loading) loading.textContent = '加载失败: ' + e.message;
+    }
+  }
+
+  function renderMarketPlugins(plugins) {
+    const grid = document.getElementById('market-plugins-grid');
+    if (!grid) return;
+    if (!plugins.length) { grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:24px;color:var(--text-muted);">市场暂无插件，成为第一个发布者 🚀</div>'; return; }
+    grid.innerHTML = plugins.map(p => {
+      const stars = '⭐'.repeat(Math.min(5, Math.round(p.rating||0)));
+      const badge = p.verified ? '<span style="background:#e3f2fd;color:#1565c0;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;">✅ 已验证</span>' : '';
+      const btn = p.installed
+        ? '<button class="btn btn-sm" style="background:var(--surface2);padding:4px 12px;" onclick="uninstallPlugin(\''+p.id+'\')">已安装 · 卸载</button>'
+        : '<button class="btn btn-sm btn-primary" style="padding:4px 12px;" onclick="installPlugin(\''+p.id+'\')">安装</button>';
+      return '<div style="background:var(--surface2);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:6px;">'+
+        '<div style="font-size:14px;font-weight:600;">'+escHtml(p.name||p.id)+badge+'</div>'+
+        '<div style="font-size:11px;color:var(--text-muted);flex:1;">'+escHtml(p.description||'')+'</div>'+
+        '<div style="display:flex;align-items:center;justify-content:space-between;font-size:11px;">'+
+        '<span>'+stars+' <span style="color:var(--text-muted);">'+ (p.downloads||0) +'↓</span></span>'+
+        '<span style="color:var(--text-muted);">'+escHtml(p.author||'')+'</span>'+btn+'</div></div>';
+    }).join('');
+  }
+
+  async function loadInstalledPlugins() {
+    const el = document.getElementById('market-installed-list');
+    if (!el) return;
+    try {
+      const r = await fetch('/api/v1/plugins');
+      const d = await r.json();
+      if (!d.ok) { el.innerHTML = '<span style="color:var(--text-muted);font-size:12px;">加载失败</span>'; return; }
+      const p = d.plugins||[];
+      if (!p.length) { el.innerHTML = '<span style="color:var(--text-muted);font-size:12px;">暂无已安装插件</span>'; return; }
+      el.innerHTML = p.map(pp => 
+        '<span style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:4px 10px;font-size:12px;display:inline-flex;align-items:center;gap:6px;">'+
+        '🧩 '+escHtml(pp.name||pp.id)+' <span style="color:var(--text-muted);">v'+(pp.version||'?')+'</span>'+
+        '<a href="#" onclick="uninstallPlugin(\''+pp.id+'\')" style="color:#c62828;font-size:10px;text-decoration:none;" title="卸载">✕</a></span>'
+      ).join('');
+    } catch(e) { el.innerHTML = '<span style="color:var(--text-muted);font-size:12px;">错误</span>'; }
+  }
+
+  async function loadMarketCategories() {
+    try {
+      const r = await fetch('/api/v1/market/categories');
+      const d = await r.json();
+      if (!d.ok) return;
+      const sel = document.getElementById('market-category');
+      if (!sel) return;
+      const cur = sel.value;
+      sel.innerHTML = '<option value="">全部</option>';
+      (d.categories||[]).forEach(c => {
+        sel.innerHTML += '<option value="'+c.id+'">'+c.name+' ('+c.count+')</option>';
+      });
+      sel.value = cur;
+    } catch(e) {}
+  }
+
+  async function filterMarketPlugins() {
+    const kw = (document.getElementById('market-search')?.value||'').trim();
+    const cat = document.getElementById('market-category')?.value||'';
+    let url = '/api/v1/market/registry?';
+    if (cat) url += 'category='+encodeURIComponent(cat)+'&';
+    if (kw) url += 'keyword='+encodeURIComponent(kw);
+    const grid = document.getElementById('market-plugins-grid');
+    if (grid) grid.innerHTML = '';
+    try {
+      const r = await fetch(url);
+      const d = await r.json();
+      if (d.ok) renderMarketPlugins(d.plugins||[]);
+    } catch(e) {}
+  }
+
+  async function installPlugin(pluginId) {
+    const btn = event.target;
+    if (btn) { btn.disabled = true; btn.textContent = '安装中...'; }
+    try {
+      const r = await fetch('/api/v1/market/install', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({plugin_id:pluginId})
+      });
+      const d = await r.json();
+      if (d.ok) { toastSuccess(d.message||'安装成功'); loadMarketPlugins(); }
+      else { toastError(d.message||'安装失败'); if(btn){btn.disabled=false;btn.textContent='安装';} }
+    } catch(e) {
+      toastError('安装失败: '+e.message);
+      if(btn){btn.disabled=false;btn.textContent='安装';}
+    }
+  }
+
+  async function uninstallPlugin(pluginId) {
+    if(!confirm('确定卸载此插件？')) return;
+    try {
+      const r = await fetch('/api/v1/market/uninstall', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({plugin_id:pluginId})
+      });
+      const d = await r.json();
+      if (d.ok) { toastSuccess(d.message||'已卸载'); loadMarketPlugins(); }
+      else toastError(d.message||'卸载失败');
+    } catch(e) { toastError('卸载失败: '+e.message); }
+  }
+
+  async function reloadPlugins() {
+    try {
+      const r = await fetch('/api/v1/plugins/reload', { method: 'POST' });
+      const d = await r.json();
+      if (d.ok) { toastSuccess('已重载 ' + d.loaded + ' 个插件'); loadMarketPlugins(); }
+      else toastError(d.error || '重载失败');
+    } catch(e) { toastError('重载失败: ' + e.message); }
+  }
   </script>
 </body>
 </html>
