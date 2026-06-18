@@ -16260,7 +16260,11 @@ function mkdirRemote() {
     if (!plugins.length) { grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:24px;color:var(--text-muted);">市场暂无插件，成为第一个发布者 🚀</div>'; return; }
     grid.innerHTML = plugins.map(p => {
       const stars = '⭐'.repeat(Math.min(5, Math.round(p.rating||0)));
-      const badge = p.verified ? '<span style="background:#e3f2fd;color:#1565c0;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;">✅ 已验证</span>' : '';
+      const badge = p.author_type === 'official'
+        ? '<span style="background:#e8f5e9;color:#2e7d32;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;">✅ 官方</span>'
+        : (p.verified
+          ? '<span style="background:#e3f2fd;color:#1565c0;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;">✅ 已验证</span>'
+          : '<span style="background:#fff3e0;color:#e65100;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;">👤 社区</span>');
       const btn = p.installed
         ? '<button class="btn btn-sm" style="background:var(--surface2);padding:4px 12px;" onclick="uninstallPlugin(\''+p.id+'\')">已安装 · 卸载</button>'
         : '<button class="btn btn-sm btn-primary" style="padding:4px 12px;" onclick="installPlugin(\''+p.id+'\')">安装</button>';
