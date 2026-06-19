@@ -1431,7 +1431,7 @@
           <div class="stat-label">检查规则</div>
         </div>
         <div class="hero-stat">
-          <div class="stat-number" data-target="4">0</div>
+          <div class="stat-number" data-target="5">0</div>
           <div class="stat-label">使用方式</div>
         </div>
         <div class="hero-stat">
@@ -1993,7 +1993,7 @@
         <div class="section-tag">
           <i class="fas fa-bolt"></i> 快速上手
         </div>
-        <h2 class="section-title">安装即用，四种方式</h2>
+        <h2 class="section-title">安装即用，五种方式</h2>
         <p class="section-desc">
           选择最适合你的使用方式
         </p>
@@ -2005,6 +2005,7 @@
           <button class="quickstart-tab" onclick="switchTab('docker')">Docker</button>
           <button class="quickstart-tab" onclick="switchTab('skill')">OpenClaw Skill</button>
           <button class="quickstart-tab" onclick="switchTab('binary')">打包版</button>
+          <button class="quickstart-tab" onclick="switchTab('api')">REST API</button>
         </div>
         
         <!-- Git Clone -->
@@ -2098,11 +2099,34 @@ dbcheck.exe<br>
             </div>
           </div>
         </div>
+        <!-- REST API -->
+        <div class="quickstart-content" id="tab-api">
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">cURL / HTTP</span>
+              <button class="code-copy" onclick="copyCode(this)">复制</button>
+            </div>
+            <div class="code-body">
+<code><span class="code-comment"># 健康检查</span><br>
+curl http://localhost:5003/api/v1/health<br>
+<br>
+<span class="code-comment"># 触发巡检</span><br>
+curl -X POST http://localhost:5003/api/v1/inspect \<br>
+  -H "<span class="code-string">Content-Type: application/json</span>" \<br>
+  -d '<span class="code-string">{"db_type":"mysql","host":"192.168.1.100"}</span>'<br>
+<br>
+<span class="code-comment"># 查看历史报告列表</span><br>
+curl http://localhost:5003/api/v1/reports<br>
+<br>
+<span class="code-comment"># 完整 API 文档见 GitHub README</span></code>
+            </div>
+          </div>
+        </div>
       </div>
       
       <!-- Usage Modes -->
       <div class="section-header reveal" style="margin-top:5rem;">
-        <h2 class="section-title" style="font-size:2rem;">四种使用方式</h2>
+        <h2 class="section-title" style="font-size:2rem;">五种使用方式</h2>
         <p class="section-desc">灵活选择，总有一款适合你</p>
       </div>
       
@@ -2154,6 +2178,18 @@ dbcheck.exe<br>
             <li><i class="fas fa-check-circle"></i> 适合服务器部署</li>
           </ul>
         </div>
+        
+        <div class="mode-card reveal">
+          <div class="mode-icon">🔌</div>
+          <h3>REST API</h3>
+          <p>程序化调用，集成到现有系统</p>
+          <ul>
+            <li><i class="fas fa-check-circle"></i> JSON 格式返回</li>
+            <li><i class="fas fa-check-circle"></i> 集成到监控系统</li>
+            <li><i class="fas fa-check-circle"></i> 灵活的触发方式</li>
+            <li><i class="fas fa-check-circle"></i> 支持 Token 认证</li>
+          </ul>
+        </div>
       </div>
     </div>
   </section>
@@ -2191,7 +2227,7 @@ dbcheck.exe<br>
           </div>
           <div class="faq-answer">
             <div class="faq-answer-inner">
-              不会。DBCheck 的 AI 诊断仅支持本地 Ollama，所有数据都在本地处理，绝不会发送到外部 API。代码层有硬性限制，即使配置文件被篡改也会自动降级为规则诊断。
+              DBCheck 的 AI 诊断支持本地 Ollama 模型，使用本地 Ollama，所有数据都在本地处理，绝不会发送到外部 API。如果想使用在线模型（如 OpenAI），请确保网络环境安全，并注意数据隐私。
             </div>
           </div>
         </div>
@@ -2227,7 +2263,7 @@ dbcheck.exe<br>
           </div>
           <div class="faq-answer">
             <div class="faq-answer-inner">
-              可以。DBCheck 的检查规则都是只读操作（SELECT、SHOW 等），不会对数据库进行任何写入或修改。建议先在测试环境验证，再用于生产环境。
+              可以。DBCheck 的检查规则都是只读操作（SELECT、SHOW 等），不会对数据库进行任何写入或修改。但是如果使用在线修复功能，则会对生产环境进行修改，在使用此功能前需自行评估安全性，建议先在测试环境验证，再用于生产环境。
             </div>
           </div>
         </div>
