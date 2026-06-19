@@ -1519,7 +1519,7 @@
         <div class="section-label">
           <i class="fas fa-bolt"></i> 快速上手
         </div>
-        <h2 class="section-title">安装即用，三种方式</h2>
+        <h2 class="section-title">安装即用，四种方式</h2>
         <p class="section-desc">
           选择最适合你的使用方式
         </p>
@@ -1528,6 +1528,7 @@
       <div class="quickstart reveal">
         <div class="quickstart-tabs">
           <button class="quickstart-tab active" onclick="switchTab('git')">Git Clone</button>
+          <button class="quickstart-tab" onclick="switchTab('docker')">Docker</button>
           <button class="quickstart-tab" onclick="switchTab('skill')">OpenClaw Skill</button>
         </div>
 
@@ -1568,6 +1569,29 @@ clawhub install dbcheck</br>
 
 <span class="code-comment"># 执行巡检</br></span>
 帮我巡检一下 MySQL 数据库</code>
+            </div>
+          </div>
+        </div>
+
+        <!-- Docker -->
+        <div class="quickstart-content" id="tab-docker">
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">Docker CLI</span>
+              <button class="code-copy" onclick="copyCode(this)">复制</button>
+            </div>
+            <div class="code-body">
+<code><span class="code-comment"># 拉取镜像（Docker Hub）</br></span>
+docker pull jackge12345/dbcheck:latest</br>
+<span class="code-comment"># 或使用 GHCR 镜像</br></span>
+docker pull ghcr.io/fiyo/dbcheck:latest</br>
+<span class="code-comment"># 启动容器</br></span>
+docker run -d --name dbcheck -p 5000:5000 \
+  -v $(pwd)/config:/app/config \
+  -v $(pwd)/data:/app/data \
+  jackge12345/dbcheck:latest</br>
+<span class="code-comment"># 访问 Web UI</br></span>
+<span class="code-keyword">open</span> http://localhost:5000</code>
             </div>
           </div>
         </div>
@@ -1616,6 +1640,18 @@ clawhub install dbcheck</br>
             <li><i class="fas fa-check"></i> 无需安装 Python</li>
             <li><i class="fas fa-check"></i> 跨平台支持</li>
             <li><i class="fas fa-check"></i> 自动更新</li>
+          </ul>
+        </div>
+
+        <div class="edition-card reveal">
+          <div class="edition-icon">🐳</div>
+          <h3 class="edition-title">Docker</h3>
+          <p class="edition-desc">一键容器化部署，零依赖</p>
+          <ul class="edition-features">
+            <li><i class="fas fa-check"></i> 一条命令启动</li>
+            <li><i class="fas fa-check"></i> 支持 amd64/arm64</li>
+            <li><i class="fas fa-check"></i> 数据持久化</li>
+            <li><i class="fas fa-check"></i> 适合服务器部署</li>
           </ul>
         </div>
 
