@@ -1994,7 +1994,7 @@ clawhub install dbcheck</br>
         const response = await fetch('./version.json');
         if (response.ok) {
           const data = await response.json();
-          document.getElementById('version-text').textContent = data.version + ' 现已发布';
+          document.getElementById('version-text').textContent = data.version;
         }
       } catch (e) {
         // Silently fail - use default version
