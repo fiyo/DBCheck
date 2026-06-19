@@ -4,12 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DBCheck - 智能数据库健康巡检工具</title>
-  <meta name="description" content="DBCheck - 开源跨平台数据库自动化健康巡检工具，支持 MySQL、PostgreSQL、Oracle、SQL Server、达梦 DM8 及 TiDB。">
-  <meta name="keywords" content="数据库巡检, MySQL, PostgreSQL, Oracle, SQL Server, DM8, TiDB, 数据库监控, DBA工具">
+  <meta name="description" content="DBCheck - 开源跨平台数据库自动化健康巡检工具，支持 MySQL、PostgreSQL、Oracle、SQL Server、达梦 DM8、TiDB、IvorySQL、YashanDB、KingbaseES、GBase 8s 等 10 种数据库，160+ 检查规则，插件系统，AI 智能诊断。">
+  <meta name="keywords" content="数据库巡检, MySQL, PostgreSQL, Oracle, SQL Server, DM8, TiDB, IvorySQL, YashanDB, KingbaseES, GBase, 数据库监控, DBA工具, 插件系统">
   
   <!-- Open Graph -->
   <meta property="og:title" content="DBCheck - 智能数据库健康巡检工具">
-  <meta property="og:description" content="开源跨平台数据库自动化健康巡检工具，130+ 检查规则，AI 智能诊断">
+  <meta property="og:description" content="开源跨平台数据库自动化健康巡检工具，10 种数据库，160+ 检查规则，插件系统，AI 智能诊断，AWR 报告解析">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://fiyo.github.io/DBCheck">
   
@@ -1183,8 +1183,10 @@
         <span class="nav-logo-text">DBCheck</span>
       </a>
     <div class="nav-links">
-      <a href="#features" class="nav-link">功能特性</a>
-      <a href="#databases" class="nav-link">支持的数据库</a>
+      <a href="#intro" class="nav-link">软件介绍</a>
+      <a href="#features" class="nav-link">核心功能</a>
+      <a href="#databases" class="nav-link">支持数据库</a>
+      <a href="#highlights" class="nav-link">亮点特性</a>
       <a href="#quickstart" class="nav-link">快速上手</a>
       <a href="#architecture" class="nav-link">工作原理</a>
       <a href="https://github.com/fiyo/DBCheck" target="_blank" class="nav-github">
@@ -1198,8 +1200,10 @@
 
   <!-- Mobile Menu -->
   <div class="mobile-menu" id="mobileMenu">
-    <a href="#features" onclick="toggleMobileMenu()">功能特性</a>
-    <a href="#databases" onclick="toggleMobileMenu()">支持的数据库</a>
+    <a href="#intro" onclick="toggleMobileMenu()">软件介绍</a>
+    <a href="#features" onclick="toggleMobileMenu()">核心功能</a>
+    <a href="#databases" onclick="toggleMobileMenu()">支持数据库</a>
+    <a href="#highlights" onclick="toggleMobileMenu()">亮点特性</a>
     <a href="#quickstart" onclick="toggleMobileMenu()">快速上手</a>
     <a href="#architecture" onclick="toggleMobileMenu()">工作原理</a>
     <a href="https://github.com/fiyo/DBCheck" target="_blank">GitHub</a>
@@ -1217,8 +1221,13 @@
         健康巡检工具
       </h1>
       <p class="hero-subtitle">
+<<<<<<< HEAD
+        开源跨平台自动化巡检，支持 10 种主流数据库，160+ 检查规则，AI 智能诊断，<br>
+        插件系统可扩展，自动生成 Word 报告，让 DBA 从重复巡检中解放出来
+=======
         开源跨平台自动化巡检，支持 7 种主流数据库，130+ 检查规则，AI 智能诊断，
         自动生成 Word 报告，让 DBA 从重复巡检中解放出来
+>>>>>>> 0094a6e4a6edcc5cf42dec8c2fbe72dd1bbc2653
       </p>
       <div class="hero-buttons">
         <a href="#quickstart" class="btn btn-primary">
@@ -1231,11 +1240,11 @@
       
       <div class="hero-stats">
         <div class="stat">
-          <div class="stat-value">6</div>
+          <div class="stat-value">10</div>
           <div class="stat-label">支持的数据库</div>
         </div>
         <div class="stat">
-          <div class="stat-value">130+</div>
+          <div class="stat-value">160+</div>
           <div class="stat-label">检查规则</div>
         </div>
         <div class="stat">
@@ -1243,8 +1252,8 @@
           <div class="stat-label">使用方式</div>
         </div>
         <div class="stat">
-          <div class="stat-value">MIT</div>
-          <div class="stat-label">开源协议</div>
+          <div class="stat-value">插件</div>
+          <div class="stat-label">可扩展系统</div>
         </div>
       </div>
 
@@ -1281,6 +1290,60 @@
               <span class="terminal-output terminal-success">[+] 巡检报告已生成: MySQL巡检报告_2026-05-02.docx</span>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Intro Section -->
+  <section id="intro">
+    <div class="container">
+      <div class="section-header reveal">
+        <div class="section-label">
+          <i class="fas fa-info-circle"></i> 软件介绍
+        </div>
+        <h2 class="section-title">什么是 DBCheck？</h2>
+      </div>
+      <div style="max-width: 900px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+        <div class="reveal" style="background: var(--bg-card); border: 1px solid var(--border-light); border-radius: 20px; padding: 2rem;">
+          <div style="font-size: 2rem; margin-bottom: 1rem;">🎯</div>
+          <h3 style="font-size: 1.2rem; font-weight: 700; margin-bottom: 0.75rem;">定位</h3>
+          <p style="color: var(--text-secondary); font-size: 0.95rem; line-height: 1.7;">
+            DBCheck 是一款<strong style="color: var(--text-primary);">开源跨平台数据库自动化健康巡检工具</strong>，
+            专为 DBA 和运维团队打造。通过丰富的检查规则、AI 智能诊断和插件扩展系统，
+            让数据库巡检从重复手工劳动转变为全自动化流程。
+          </p>
+        </div>
+        <div class="reveal" style="background: var(--bg-card); border: 1px solid var(--border-light); border-radius: 20px; padding: 2rem;">
+          <div style="font-size: 2rem; margin-bottom: 1rem;">🔒</div>
+          <h3 style="font-size: 1.2rem; font-weight: 700; margin-bottom: 0.75rem;">安全承诺</h3>
+          <p style="color: var(--text-secondary); font-size: 0.95rem; line-height: 1.7;">
+            AI 诊断仅支持<strong style="color: var(--success);">本地 Ollama</strong>，数据绝不外传。
+            报告导出支持<strong style="color: var(--success);">数据脱敏</strong>，自动掩码 IP、端口、用户名等敏感信息。
+            MIT 开源协议，代码完全透明，可自由审计。
+          </p>
+        </div>
+        <div class="reveal" style="background: var(--bg-card); border: 1px solid var(--border-light); border-radius: 20px; padding: 2rem;">
+          <div style="font-size: 2rem; margin-bottom: 1rem;">🚀</div>
+          <h3 style="font-size: 1.2rem; font-weight: 700; margin-bottom: 0.75rem;">适用场景</h3>
+          <ul style="color: var(--text-secondary); font-size: 0.95rem; line-height: 1.8; list-style: none; padding: 0;">
+            <li style="padding: 0.25rem 0;"><i class="fas fa-check" style="color: var(--success); margin-right: 0.5rem;"></i>DBA 日常健康巡检</li>
+            <li style="padding: 0.25rem 0;"><i class="fas fa-check" style="color: var(--success); margin-right: 0.5rem;"></i>数据库迁移前健康评估</li>
+            <li style="padding: 0.25rem 0;"><i class="fas fa-check" style="color: var(--success); margin-right: 0.5rem;"></i>性能瓶颈定位与优化建议</li>
+            <li style="padding: 0.25rem 0;"><i class="fas fa-check" style="color: var(--success); margin-right: 0.5rem;"></i>安全合规配置审计</li>
+            <li style="padding: 0.25rem 0;"><i class="fas fa-check" style="color: var(--success); margin-right: 0.5rem;"></i>Oracle AWR 报告智能解析</li>
+          </ul>
+        </div>
+        <div class="reveal" style="background: var(--bg-card); border: 1px solid var(--border-light); border-radius: 20px; padding: 2rem;">
+          <div style="font-size: 2rem; margin-bottom: 1rem;">🌍</div>
+          <h3 style="font-size: 1.2rem; font-weight: 700; margin-bottom: 0.75rem;">部署灵活</h3>
+          <ul style="color: var(--text-secondary); font-size: 0.95rem; line-height: 1.8; list-style: none; padding: 0;">
+            <li style="padding: 0.25rem 0;"><i class="fas fa-check" style="color: var(--success); margin-right: 0.5rem;"></i>命令行 — 服务器自动化</li>
+            <li style="padding: 0.25rem 0;"><i class="fas fa-check" style="color: var(--success); margin-right: 0.5rem;"></i>Web UI — 浏览器可视化</li>
+            <li style="padding: 0.25rem 0;"><i class="fas fa-check" style="color: var(--success); margin-right: 0.5rem;"></i>Docker — 一键容器化部署</li>
+            <li style="padding: 0.25rem 0;"><i class="fas fa-check" style="color: var(--success); margin-right: 0.5rem;"></i>OpenClaw Skill — AI 助手集成</li>
+            <li style="padding: 0.25rem 0;"><i class="fas fa-check" style="color: var(--success); margin-right: 0.5rem;"></i>打包版 — 零依赖分发</li>
+          </ul>
         </div>
       </div>
     </div>
@@ -1389,6 +1452,76 @@
             支持 Cron 表达式定时任务，巡检完成后自动发送邮件/Webhook 告警。
           </p>
         </div>
+
+        <div class="feature-card reveal">
+          <div class="feature-icon primary">
+            <i class="fas fa-puzzle-piece"></i>
+          </div>
+          <h3 class="feature-title">插件扩展系统</h3>
+          <p class="feature-desc">
+            v2.6.0 新增！支持社区贡献巡检规则、通知渠道、报告模板。热加载，无需重启。
+          </p>
+        </div>
+
+        <div class="feature-card reveal">
+          <div class="feature-icon secondary">
+            <i class="fas fa-file-waveform"></i>
+          </div>
+          <h3 class="feature-title">Oracle AWR 解析</h3>
+          <p class="feature-desc">
+            上传 AWR 报告（HTML/TEXT），自动解析并生成结构化 Word 分析报告，降低性能分析门槛。
+          </p>
+        </div>
+
+        <div class="feature-card reveal">
+          <div class="feature-icon success">
+            <i class="fas fa-sliders"></i>
+          </div>
+          <h3 class="feature-title">配置基线检查</h3>
+          <p class="feature-desc">
+            自动比对数据库参数与推荐基线值，支持根据内存和负载自动计算推荐值，识别配置偏差。
+          </p>
+        </div>
+
+        <div class="feature-card reveal">
+          <div class="feature-icon warning">
+            <i class="fas fa-sitemap"></i>
+          </div>
+          <h3 class="feature-title">索引健康分析</h3>
+          <p class="feature-desc">
+            检测缺失索引、冗余索引、未使用索引，给出优化建议，提升查询效率。
+          </p>
+        </div>
+
+        <div class="feature-card reveal">
+          <div class="feature-icon danger">
+            <i class="fas fa-mask-face"></i>
+          </div>
+          <h3 class="feature-title">数据脱敏导出</h3>
+          <p class="feature-desc">
+            导出 Word 报告时自动掩码 IP、端口、用户名等敏感信息，防止信息泄露。
+          </p>
+        </div>
+
+        <div class="feature-card reveal">
+          <div class="feature-icon primary">
+            <i class="fas fa-docker"></i>
+          </div>
+          <h3 class="feature-title">Docker 一键部署</h3>
+          <p class="feature-desc">
+            支持 Docker Hub 和 GHCR 镜像，一条命令启动，支持 amd64/arm64 双架构。
+          </p>
+        </div>
+
+        <div class="feature-card reveal">
+          <div class="feature-icon secondary">
+            <i class="fas fa-file-pdf"></i>
+          </div>
+          <h3 class="feature-title">PDF 报告导出</h3>
+          <p class="feature-desc">
+            支持将 DOCX 巡检报告转换为 PDF，方便分享和归档。
+          </p>
+        </div>
       </div>
     </div>
   </section>
@@ -1457,6 +1590,26 @@
           <div class="db-version">兼容 MySQL</div>
         </div>
         <div class="db-card reveal">
+<<<<<<< HEAD
+          <span class="db-icon">🐘</span>
+          <div class="db-name">IvorySQL</div>
+          <div class="db-version">PostgreSQL 兼容</div>
+        </div>
+        <div class="db-card reveal">
+          <span class="db-icon">🟦</span>
+          <div class="db-name">YashanDB</div>
+          <div class="db-version">崖山数据库</div>
+        </div>
+        <div class="db-card reveal">
+          <span class="db-icon">🟢</span>
+          <div class="db-name">KingbaseES</div>
+          <div class="db-version">人大金仓</div>
+        </div>
+        <div class="db-card reveal">
+          <span class="db-icon">🔵</span>
+          <div class="db-name">GBase 8s</div>
+          <div class="db-version">IBM Informix 兼容</div>
+=======
           <span class="db-icon"><img src="./ivorysql.png" alt="IvorySQL" style="height:36px;width:auto;"></span>
           <div class="db-name">IvorySQL</div>
           <div class="db-version">4.5.3+，基于 PostgreSQL兼容 Oracle</div>
@@ -1470,6 +1623,7 @@
           <span class="db-icon"><img src="./gbase.png" alt="GBase" style="height:36px;width:auto;"></span>
           <div class="db-name">GBase</div>
           <div class="db-version">8s+，基于 PostgreSQL兼容 Oracle</div>
+>>>>>>> 0094a6e4a6edcc5cf42dec8c2fbe72dd1bbc2653
         </div>
       </div>
     </div>
@@ -1634,6 +1788,65 @@ clawhub install dbcheck</br>
     </div>
   </section>
 
+  <!-- Highlights Section -->
+  <section id="highlights" style="background: linear-gradient(180deg, rgba(99,102,241,0.05), transparent);">
+    <div class="container">
+      <div class="section-header reveal">
+        <div class="section-label">
+          <i class="fas fa-star"></i> 亮点特性
+        </div>
+        <h2 class="section-title">为什么 DBCheck 与众不同？</h2>
+        <p class="section-desc">
+          v2.6.0 带来的核心突破
+        </p>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem;">
+        <div class="reveal" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 20px; padding: 2rem; position: relative; overflow: hidden;">
+          <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, var(--primary), var(--secondary));"></div>
+          <div style="font-size: 2.5rem; margin-bottom: 1rem;">🔌</div>
+          <h3 style="font-size: 1.3rem; font-weight: 700; margin-bottom: 0.75rem;">插件扩展系统</h3>
+          <p style="color: var(--text-secondary); font-size: 0.95rem; line-height: 1.7;">
+            热加载插件，无需重启。GitHub 驱动插件市场，官方与社区插件清晰标识。让 DBCheck 从"工具"进化为"平台"。
+          </p>
+          <div style="margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <span style="background: rgba(99,102,241,0.15); color: var(--primary-light); padding: 0.25rem 0.75rem; border-radius: 100px; font-size: 0.8rem;">巡检规则</span>
+            <span style="background: rgba(6,182,212,0.15); color: var(--secondary); padding: 0.25rem 0.75rem; border-radius: 100px; font-size: 0.8rem;">通知渠道</span>
+            <span style="background: rgba(244,114,182,0.15); color: var(--accent); padding: 0.25rem 0.75rem; border-radius: 100px; font-size: 0.8rem;">报告模板</span>
+          </div>
+        </div>
+
+        <div class="reveal" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 20px; padding: 2rem; position: relative; overflow: hidden;">
+          <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, var(--success), var(--secondary));"></div>
+          <div style="font-size: 2.5rem; margin-bottom: 1rem;">🤖</div>
+          <h3 style="font-size: 1.3rem; font-weight: 700; margin-bottom: 0.75rem;">AI 诊断（完全离线）</h3>
+          <p style="color: var(--text-secondary); font-size: 0.95rem; line-height: 1.7;">
+            仅支持本地 Ollama，数据绝不外传。代码层硬性限制，即使配置文件被篡改也会自动降级。适合金融、政务等数据安全要求高的场景。
+          </p>
+          <div style="margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <span style="background: rgba(16,185,129,0.15); color: var(--success); padding: 0.25rem 0.75rem; border-radius: 100px; font-size: 0.8rem;">本地 Ollama</span>
+            <span style="background: rgba(16,185,129,0.15); color: var(--success); padding: 0.25rem 0.75rem; border-radius: 100px; font-size: 0.8rem;">零数据外传</span>
+            <span style="background: rgba(16,185,129,0.15); color: var(--success); padding: 0.25rem 0.75rem; border-radius: 100px; font-size: 0.8rem;">内网可用</span>
+          </div>
+        </div>
+
+        <div class="reveal" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 20px; padding: 2rem; position: relative; overflow: hidden;">
+          <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, var(--accent), var(--warning));"></div>
+          <div style="font-size: 2.5rem; margin-bottom: 1rem;">📊</div>
+          <h3 style="font-size: 1.3rem; font-weight: 700; margin-bottom: 0.75rem;">Oracle AWR 智能解析</h3>
+          <p style="color: var(--text-secondary); font-size: 0.95rem; line-height: 1.7;">
+            上传 AWR 报告（HTML 或 TEXT 格式），自动解析并生成结构化 Word 分析报告，附带 AI 诊断建议。大幅降低 Oracle 性能分析的技术门槛。
+          </p>
+          <div style="margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <span style="background: rgba(244,114,182,0.15); color: var(--accent); padding: 0.25rem 0.75rem; border-radius: 100px; font-size: 0.8rem;">HTML/TEXT</span>
+            <span style="background: rgba(244,114,182,0.15); color: var(--accent); padding: 0.25rem 0.75rem; border-radius: 100px; font-size: 0.8rem;">Word 报告</span>
+            <span style="background: rgba(244,114,182,0.15); color: var(--accent); padding: 0.25rem 0.75rem; border-radius: 100px; font-size: 0.8rem;">AI 诊断</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- CTA Section -->
   <section id="cta" style="text-align: center; padding: 8rem 2rem;">
     <div class="container reveal">
@@ -1684,7 +1897,7 @@ clawhub install dbcheck</br>
         <h4>资源</h4>
         <ul class="footer-links">
           <li><a href="https://github.com/fiyo/DBCheck#readme" target="_blank">使用文档</a></li>
-          <li><a href="https://github.com/fiyo/DBCheck/blob/main/RELEASE_v2.5.0.md" target="_blank">更新日志</a></li>
+          <li><a href="https://github.com/fiyo/DBCheck/releases/tag/v2.6.0" target="_blank">更新日志</a></li>
           <li><a href="https://github.com/fiyo/DBCheck/discussions" target="_blank">讨论区</a></li>
           <li><a href="https://github.com/fiyo/DBCheck/wiki" target="_blank">Wiki</a></li>
         </ul>
@@ -1798,7 +2011,7 @@ clawhub install dbcheck</br>
     // Load version from version.json
     async function loadVersion() {
       try {
-        const response = await fetch('../version.json');
+        const response = await fetch('./version.json');
         if (response.ok) {
           const data = await response.json();
           document.getElementById('version-text').textContent = data.version + ' 现已发布';
