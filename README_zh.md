@@ -402,6 +402,7 @@ A：内置阈值基于通用最佳实践，请结合实际业务评估。
 | 2026-06-18 | \*lnet | No.000009 |
 | 2026-06-18 | \**威 | No.000010 |
 | 2026-06-19 | \**良 | No.000011 |
+| 2026-06-19 | \***予怀 | No.000012 |
 ---
 
 > 作者：[Jack Ge](https://github.com/fiyo) &nbsp;|&nbsp; 官网：[https://dbcheck.top](https://dbcheck.top) &nbsp;|&nbsp; 邮箱：sdfiyon@gmail.com
