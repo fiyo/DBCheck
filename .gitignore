@@ -19,3 +19,6 @@ docs/README.md
 20260409082251/
 dbcheck_article_v*.md
 pro_data/
+*.md
+drivers/
+.workbuddy/
