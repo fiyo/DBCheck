@@ -10,13 +10,13 @@ DBCheck is an open-source, cross-platform database health inspection tool suppor
 > 
 > Language: [English](./README.md) | 语言：[中文](./README_zh.md)
 
-[![Version](https://img.shields.io/badge/Version-v2.5.13-blue.svg)]()
+[![Version](https://img.shields.io/badge/Version-v2.6.0-blue.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-green.svg)]()
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)]()
-[![AI](https://img.shields.io/badge/AI-Ollama-orange.svg)]()
+[![AI](https://img.shields.io/badge/AI-Ollama+OpenAI-orange.svg)]()
 [![RAG](https://img.shields.io/badge/RAG-Knowledge_Base-red.svg)]()
 [![WebUI](https://img.shields.io/badge/WebUI-Flask-success.svg)]()
-[![WeChat](https://img.shields.io/badge/WeChat-Shandong_ORA_UG-brightgreen?logo=WeChat)]()
+[![WeChat](https://img.shields.io/badge/WeChat-sdougwx-brightgreen?logo=WeChat)]()
 [![WebSite](https://img.shields.io/badge/Website-www.dbcheck.top-green.svg)](https://dbcheck.top)
 [![Docker Pulls](https://img.shields.io/docker/pulls/jackge12345/dbcheck?style=flat-square&label=Docker%20Pulls&cacheSeconds=300)](https://hub.docker.com/r/jackge12345/dbcheck)
 [![GHCR Pulls](https://img.shields.io/badge/88-blue.svg?label=GHCR+Pulls)]()

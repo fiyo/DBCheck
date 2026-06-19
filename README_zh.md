@@ -10,11 +10,11 @@ DBCheck 是一款开源、跨平台的数据库自动化健康巡检工具，支
 > 
 > Language: [English](./README.md) | 语言：[中文](./README_zh.md)
 
-[![Version](https://img.shields.io/badge/版本-v2.5.13-blue.svg)]()
+[![Version](https://img.shields.io/badge/版本-v2.6.0-blue.svg)]()
 [![License](https://img.shields.io/badge/开源协议-MIT-green.svg)]()
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)]()
-[![AI](https://img.shields.io/badge/AI-Ollama-orange.svg)]()
-[![RAG](https://img.shields.io/badge/RAG-知识库增强-red.svg)]()
+[![AI](https://img.shields.io/badge/AI-Ollama+OpenAI-orange.svg)]()
+[![RAG](https://img.shields.io/badge/知识库增强-RAG-red.svg)]()
 [![WebUI](https://img.shields.io/badge/WebUI-Flask-success.svg)]()
 [![WeChat](https://img.shields.io/badge/公众号-山东Oracle用户组-brightgreen?logo=WeChat)]()
 [![WebSite](https://img.shields.io/badge/网址-www.dbcheck.top-green.svg)](https://dbcheck.top)
