@@ -3,19 +3,23 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DBCheck - 智能数据库健康巡检工具</title>
-  <meta name="description" content="DBCheck - 开源跨平台数据库自动化健康巡检工具，支持 MySQL、PostgreSQL、Oracle、SQL Server、DM8、TiDB、IvorySQL、Kingbase、GBase。">
-  <meta name="keywords" content="数据库巡检, MySQL, PostgreSQL, Oracle, SQL Server, DM8, TiDB, 数据库监控, DBA工具">
+  <title>DBCheck v2.6.0 - 开源智能数据库巡检平台</title>
+  <meta name="description" content="DBCheck v2.6.0 - 开源跨平台数据库自动化健康巡检工具，支持 10 种主流数据库，160+ 检查规则，插件扩展系统，AI 本地智能诊断，Oracle AWR 报告解析。">
+  <meta name="keywords" content="数据库巡检, MySQL, PostgreSQL, Oracle, SQL Server, DM8, TiDB, IvorySQL, YashanDB, KingbaseES, GBase 8s, 数据库监控, DBA工具, 插件系统, AWR解析">
+  <meta name="author" content="Jack Ge">
+  <meta name="robots" content="index, follow">
   
   <!-- Open Graph -->
-  <meta property="og:title" content="DBCheck - 智能数据库健康巡检工具">
-  <meta property="og:description" content="开源跨平台数据库自动化健康巡检工具，130+ 检查规则，AI 智能诊断">
+  <meta property="og:title" content="DBCheck v2.6.0 - 开源智能数据库巡检平台">
+  <meta property="og:description" content="10 种数据库，160+ 检查规则，插件系统，AI 智能诊断，AWR 报告解析。让 DBA 从重复巡检中解放出来。">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://fiyo.github.io/DBCheck">
+  <meta property="og:image" content="https://fiyo.github.io/DBCheck/dbcheck_logo_banner.png">
   
-  <!-- GitHub Pages: Add CNAME support -->
-  <!-- 如果需要自定义域名，取消下面这行注释并填写你的域名 -->
-  <!-- <link rel="canonical" href="https://你的域名.com"> -->
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="DBCheck v2.6.0 - 开源智能数据库巡检平台">
+  <meta name="twitter:description" content="10 种数据库，160+ 检查规则，插件系统，AI 智能诊断">
   
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -26,227 +30,219 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   
   <style>
+    /* ============================================================
+       DBCheck v2.6.0 - Professional Tech Website
+       ============================================================ */
+    
     :root {
       --primary: #6366f1;
       --primary-dark: #4f46e5;
       --primary-light: #818cf8;
+      --primary-glow: rgba(99, 102, 241, 0.4);
       --secondary: #06b6d4;
+      --secondary-glow: rgba(6, 182, 212, 0.4);
       --accent: #f472b6;
-      --bg-dark: #0a0a0f;
-      --bg-card: #12121a;
-      --bg-card-hover: #1a1a25;
-      --text-primary: #f1f5f9;
-      --text-secondary: #94a3b8;
-      --text-muted: #64748b;
-      --border: rgba(99, 102, 241, 0.2);
-      --border-light: rgba(255, 255, 255, 0.1);
-      --glow: rgba(99, 102, 241, 0.4);
+      --accent-glow: rgba(244, 114, 182, 0.4);
       --success: #10b981;
       --warning: #f59e0b;
       --danger: #ef4444;
-      --memorial: 0; /* 纪念日灰度模式：改为 1 即开启全站灰度 */
+      --info: #3b82f6;
+      
+      --bg-dark: #050510;
+      --bg-section: #0a0a15;
+      --bg-card: #12121f;
+      --bg-card-hover: #1a1a2e;
+      --bg-input: #0d0d14;
+      
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      
+      --border: rgba(99, 102, 241, 0.2);
+      --border-light: rgba(255, 255, 255, 0.08);
+      --border-glow: rgba(99, 102, 241, 0.5);
+      
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 20px;
+      --radius-xl: 24px;
+      
+      --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
+      --shadow-md: 0 8px 30px rgba(0,0,0,0.4);
+      --shadow-lg: 0 20px 60px rgba(0,0,0,0.5);
+      --shadow-glow: 0 0 30px rgba(99, 102, 241, 0.3);
+      
+      --transition-fast: 0.2s ease;
+      --transition-normal: 0.3s ease;
+      --transition-slow: 0.5s ease;
     }
-
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    html {
-      scroll-behavior: smooth;
-    }
-
+    
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    html { scroll-behavior: smooth; }
+    
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: var(--bg-dark);
       color: var(--text-primary);
       line-height: 1.6;
       overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
     }
-
-    /* ==================== Background Effects ==================== */
-    .bg-grid {
+    
+    /* ==================== Scrollbar ==================== */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg-dark); }
+    ::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--primary-light); }
+    
+    /* ==================== Canvas Background ==================== */
+    #particle-canvas {
       position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-image: 
-        linear-gradient(rgba(99, 102, 241, 0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px);
-      background-size: 60px 60px;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
       pointer-events: none;
       z-index: 0;
     }
-
-    .bg-gradient {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: 
-        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99, 102, 241, 0.15), transparent),
-        radial-gradient(ellipse 60% 40% at 80% 60%, rgba(6, 182, 212, 0.1), transparent),
-        radial-gradient(ellipse 50% 30% at 20% 80%, rgba(244, 114, 182, 0.08), transparent);
-      pointer-events: none;
-      z-index: 0;
-    }
-
-    .floating-orb {
+    
+    .bg-glow {
       position: fixed;
       border-radius: 50%;
-      filter: blur(80px);
-      opacity: 0.3;
-      animation: float 20s ease-in-out infinite;
+      filter: blur(120px);
       pointer-events: none;
       z-index: 0;
+      opacity: 0.4;
+      animation: glowFloat 20s ease-in-out infinite;
     }
-
-    .orb-1 {
-      width: 400px;
-      height: 400px;
-      background: var(--primary);
-      top: 10%;
-      left: 10%;
+    .bg-glow-1 {
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, var(--primary), transparent 70%);
+      top: -10%; left: -5%;
       animation-delay: 0s;
     }
-
-    .orb-2 {
-      width: 300px;
-      height: 300px;
-      background: var(--secondary);
-      top: 50%;
-      right: 10%;
+    .bg-glow-2 {
+      width: 500px; height: 500px;
+      background: radial-gradient(circle, var(--secondary), transparent 70%);
+      top: 40%; right: -10%;
       animation-delay: -7s;
     }
-
-    .orb-3 {
-      width: 250px;
-      height: 250px;
-      background: var(--accent);
-      bottom: 10%;
-      left: 30%;
+    .bg-glow-3 {
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, var(--accent), transparent 70%);
+      bottom: 10%; left: 20%;
       animation-delay: -14s;
     }
-
-    @keyframes float {
+    
+    @keyframes glowFloat {
       0%, 100% { transform: translate(0, 0) scale(1); }
-      25% { transform: translate(30px, -30px) scale(1.05); }
+      25% { transform: translate(40px, -30px) scale(1.1); }
       50% { transform: translate(-20px, 20px) scale(0.95); }
-      75% { transform: translate(20px, 30px) scale(1.02); }
+      75% { transform: translate(30px, 40px) scale(1.05); }
     }
-
+    
     /* ==================== Navigation ==================== */
     nav {
       position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      padding: 1rem 2rem;
+      top: 0; left: 0; right: 0;
+      padding: 0.75rem 2rem;
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      background: rgba(10, 10, 15, 0.8);
+      justify-content: space-between;
+      background: rgba(5, 5, 16, 0.85);
       backdrop-filter: blur(20px);
-      border-bottom: 1px solid var(--border-light);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid transparent;
       z-index: 1000;
-      transition: all 0.3s ease;
+      transition: all var(--transition-normal);
     }
-
     nav.scrolled {
-      background: rgba(10, 10, 15, 0.95);
+      background: rgba(5, 5, 16, 0.95);
+      border-bottom-color: var(--border-light);
+      padding: 0.5rem 2rem;
     }
-
+    
+    .nav-progress {
+      position: absolute;
+      bottom: 0; left: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--primary), var(--secondary), var(--accent));
+      width: 0%;
+      transition: width 0.1s linear;
+    }
+    
     .nav-logo {
       display: flex;
       align-items: center;
       gap: 0.75rem;
       text-decoration: none;
     }
-
-    .nav-logo-icon {
-      height: 40px;
-      width: auto;
+    .nav-logo img {
+      height: 36px; width: auto;
+      transition: transform var(--transition-normal);
     }
-
-    .nav-logo-icon::before {
-      display: none;
-    }
-
-    .nav-logo-text {
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: var(--text-primary);
+    .nav-logo:hover img { transform: scale(1.05); }
+    .nav-logo span {
+      font-size: 1.4rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--text-primary), var(--primary-light));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
       letter-spacing: -0.02em;
     }
-
+    
     .nav-links {
       display: flex;
-      gap: 2rem;
+      gap: 0.25rem;
       align-items: center;
     }
-
-    .nav-link {
+    .nav-links a {
       color: var(--text-secondary);
       text-decoration: none;
       font-weight: 500;
-      font-size: 0.9rem;
-      transition: all 0.3s ease;
+      font-size: 0.88rem;
+      padding: 0.5rem 0.85rem;
+      border-radius: var(--radius-sm);
+      transition: all var(--transition-fast);
       position: relative;
     }
-
-    .nav-link::after {
-      content: '';
-      position: absolute;
-      bottom: -4px;
-      left: 0;
-      width: 0;
-      height: 2px;
-      background: linear-gradient(90deg, var(--primary), var(--secondary));
-      transition: width 0.3s ease;
-    }
-
-    .nav-link:hover {
+    .nav-links a:hover {
       color: var(--text-primary);
+      background: rgba(99, 102, 241, 0.08);
     }
-
-    .nav-link:hover::after {
-      width: 100%;
+    .nav-links a.active {
+      color: var(--primary-light);
     }
-
+    
     .nav-github {
       display: flex;
       align-items: center;
       gap: 0.5rem;
       padding: 0.5rem 1rem;
-      background: var(--bg-card);
+      background: rgba(99, 102, 241, 0.1);
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: var(--radius-sm);
       color: var(--text-primary);
       text-decoration: none;
       font-weight: 500;
-      font-size: 0.9rem;
-      transition: all 0.3s ease;
+      font-size: 0.88rem;
+      transition: all var(--transition-normal);
     }
-
     .nav-github:hover {
-      background: var(--bg-card-hover);
+      background: rgba(99, 102, 241, 0.2);
       border-color: var(--primary);
       transform: translateY(-2px);
-      box-shadow: 0 4px 20px rgba(99, 102, 241, 0.3);
+      box-shadow: var(--shadow-glow);
     }
-
+    
     .mobile-menu-btn {
       display: none;
-      background: none;
-      border: none;
+      background: none; border: none;
       color: var(--text-primary);
-      font-size: 1.5rem;
-      cursor: pointer;
+      font-size: 1.5rem; cursor: pointer;
+      padding: 0.5rem;
     }
-
+    
     /* ==================== Hero Section ==================== */
     .hero {
       min-height: 100vh;
@@ -257,481 +253,741 @@
       padding: 8rem 2rem 4rem;
       overflow: hidden;
     }
-
+    
     .hero-content {
       text-align: center;
-      max-width: 900px;
+      max-width: 960px;
       position: relative;
       z-index: 1;
     }
-
+    
     .hero-badge {
       display: inline-flex;
       align-items: center;
-      gap: 0.5rem;
-      padding: 0.5rem 1rem;
-      background: rgba(99, 102, 241, 0.1);
+      gap: 0.6rem;
+      padding: 0.5rem 1.2rem;
+      background: rgba(99, 102, 241, 0.08);
       border: 1px solid var(--border);
       border-radius: 100px;
       font-size: 0.85rem;
       color: var(--primary-light);
-      margin-bottom: 1.5rem;
+      margin-bottom: 2rem;
       animation: fadeInUp 0.8s ease forwards;
+      cursor: pointer;
+      transition: all var(--transition-normal);
     }
-
-    .hero-badge i {
+    .hero-badge:hover {
+      background: rgba(99, 102, 241, 0.15);
+      border-color: var(--primary);
+      transform: translateY(-2px);
+    }
+    .hero-badge .pulse-dot {
+      width: 8px; height: 8px;
+      background: var(--success);
+      border-radius: 50%;
       animation: pulse 2s ease-in-out infinite;
     }
-
     @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
+      0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
+      50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
     }
-
+    
     .hero-title {
-      font-size: clamp(2.5rem, 8vw, 4.5rem);
+      font-size: clamp(2.8rem, 8vw, 5rem);
       font-weight: 900;
-      line-height: 1.1;
+      line-height: 1.05;
       margin-bottom: 1.5rem;
       letter-spacing: -0.03em;
-      animation: fadeInUp 0.8s ease 0.2s forwards;
+      animation: fadeInUp 0.8s ease 0.15s forwards;
       opacity: 0;
     }
-
     .hero-title .gradient-text {
-      background: linear-gradient(135deg, #fff 0%, var(--primary-light) 50%, var(--secondary) 100%);
+      background: linear-gradient(135deg, #fff 0%, var(--primary-light) 40%, var(--secondary) 70%, var(--accent) 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
+      background-size: 200% 200%;
+      animation: gradientShift 5s ease infinite;
     }
-
+    @keyframes gradientShift {
+      0%, 100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
+    
     .hero-subtitle {
       font-size: clamp(1rem, 2.5vw, 1.25rem);
       color: var(--text-secondary);
       margin-bottom: 2.5rem;
-      max-width: 700px;
-      margin-left: auto;
-      margin-right: auto;
-      animation: fadeInUp 0.8s ease 0.4s forwards;
+      max-width: 720px;
+      margin-left: auto; margin-right: auto;
+      animation: fadeInUp 0.8s ease 0.3s forwards;
       opacity: 0;
+      line-height: 1.8;
     }
-
+    .hero-subtitle .typing-cursor {
+      display: inline-block;
+      width: 2px; height: 1.2em;
+      background: var(--primary-light);
+      margin-left: 2px;
+      animation: cursorBlink 1s step-end infinite;
+      vertical-align: text-bottom;
+    }
+    @keyframes cursorBlink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+    
     .hero-buttons {
       display: flex;
       gap: 1rem;
       justify-content: center;
       flex-wrap: wrap;
-      animation: fadeInUp 0.8s ease 0.6s forwards;
+      animation: fadeInUp 0.8s ease 0.5s forwards;
       opacity: 0;
     }
-
+    
     .btn {
       display: inline-flex;
       align-items: center;
-      gap: 0.5rem;
-      padding: 0.875rem 1.75rem;
-      border-radius: 10px;
+      gap: 0.6rem;
+      padding: 0.9rem 1.8rem;
+      border-radius: var(--radius-md);
       font-weight: 600;
       font-size: 0.95rem;
       text-decoration: none;
-      transition: all 0.3s ease;
+      transition: all var(--transition-normal);
       cursor: pointer;
       border: none;
+      position: relative;
+      overflow: hidden;
     }
-
+    .btn::before {
+      content: '';
+      position: absolute;
+      top: 0; left: -100%;
+      width: 100%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+      transition: left 0.5s ease;
+    }
+    .btn:hover::before { left: 100%; }
+    
     .btn-primary {
       background: linear-gradient(135deg, var(--primary), var(--primary-dark));
       color: white;
       box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
     }
-
     .btn-primary:hover {
       transform: translateY(-3px);
       box-shadow: 0 8px 30px rgba(99, 102, 241, 0.5);
     }
-
+    
     .btn-secondary {
       background: var(--bg-card);
       color: var(--text-primary);
-      border: 1px solid var(--border);
+      border: 1px solid var(--border-light);
     }
-
     .btn-secondary:hover {
       background: var(--bg-card-hover);
       border-color: var(--primary);
       transform: translateY(-3px);
     }
-
+    
+    .btn-accent {
+      background: linear-gradient(135deg, var(--accent), #ec4899);
+      color: white;
+      box-shadow: 0 4px 20px rgba(244, 114, 182, 0.4);
+    }
+    .btn-accent:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 30px rgba(244, 114, 182, 0.5);
+    }
+    
+    /* Hero Stats */
     .hero-stats {
       display: flex;
       justify-content: center;
-      gap: 3rem;
+      gap: 3.5rem;
       margin-top: 4rem;
-      animation: fadeInUp 0.8s ease 0.8s forwards;
+      animation: fadeInUp 0.8s ease 0.7s forwards;
       opacity: 0;
     }
-
-    .stat {
+    .hero-stat {
       text-align: center;
+      position: relative;
     }
-
-    .stat-value {
-      font-size: 2.5rem;
-      font-weight: 800;
+    .hero-stat::after {
+      content: '';
+      position: absolute;
+      right: -1.75rem;
+      top: 50%; transform: translateY(-50%);
+      width: 1px; height: 40px;
+      background: var(--border-light);
+    }
+    .hero-stat:last-child::after { display: none; }
+    
+    .hero-stat .stat-number {
+      font-size: 2.8rem;
+      font-weight: 900;
+      line-height: 1;
+      margin-bottom: 0.25rem;
       background: linear-gradient(135deg, var(--primary-light), var(--secondary));
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
     }
-
-    .stat-label {
+    .hero-stat .stat-label {
       font-size: 0.85rem;
       color: var(--text-muted);
-      margin-top: 0.25rem;
     }
-
+    
     /* Terminal Preview */
     .hero-terminal {
       margin-top: 4rem;
-      max-width: 800px;
-      margin-left: auto;
-      margin-right: auto;
+      max-width: 820px;
+      margin-left: auto; margin-right: auto;
       animation: fadeInUp 1s ease 1s forwards;
       opacity: 0;
     }
-
     .terminal {
-      background: #1a1a2e;
-      border-radius: 12px;
+      background: #0d0d1a;
+      border-radius: var(--radius-lg);
       overflow: hidden;
-      box-shadow: 
-        0 20px 60px rgba(0, 0, 0, 0.5),
-        0 0 0 1px rgba(255, 255, 255, 0.1),
-        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(99, 102, 241, 0.15);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5), var(--shadow-glow);
+      transition: transform var(--transition-normal), box-shadow var(--transition-normal);
     }
-
+    .terminal:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 25px 70px rgba(0,0,0,0.6), 0 0 40px rgba(99, 102, 241, 0.2);
+    }
     .terminal-header {
       display: flex;
       align-items: center;
       gap: 8px;
       padding: 12px 16px;
-      background: rgba(0, 0, 0, 0.3);
+      background: rgba(0,0,0,0.3);
+      border-bottom: 1px solid rgba(255,255,255,0.05);
     }
-
-    .terminal-dot {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-    }
-
+    .terminal-dot { width: 12px; height: 12px; border-radius: 50%; }
     .terminal-dot.red { background: #ff5f56; }
     .terminal-dot.yellow { background: #ffbd2e; }
     .terminal-dot.green { background: #27ca40; }
-
     .terminal-title {
-      flex: 1;
-      text-align: center;
+      flex: 1; text-align: center;
       font-size: 0.8rem;
       color: var(--text-muted);
       font-family: 'JetBrains Mono', monospace;
     }
-
     .terminal-body {
       padding: 1.5rem;
       font-family: 'JetBrains Mono', monospace;
       font-size: 0.85rem;
-      line-height: 1.8;
+      line-height: 1.9;
+      max-height: 320px;
+      overflow-y: auto;
     }
-
-    .terminal-line {
-      display: flex;
-      align-items: flex-start;
-      gap: 0.5rem;
-      margin-bottom: 0.5rem;
+    .terminal-line { display: flex; gap: 0.5rem; margin-bottom: 0.3rem; }
+    .terminal-prompt { color: var(--success); }
+    .terminal-cmd { color: var(--text-primary); }
+    .terminal-out { color: var(--text-muted); padding-left: 1rem; }
+    .terminal-success { color: var(--success); }
+    .terminal-warn { color: var(--warning); }
+    .terminal-info { color: var(--secondary); }
+    .terminal-link { color: var(--primary-light); text-decoration: underline; }
+    .terminal-cursor {
+      display: inline-block;
+      width: 8px; height: 16px;
+      background: var(--success);
+      animation: cursorBlink 1s step-end infinite;
+      vertical-align: middle;
+      margin-left: 2px;
     }
-
-    .terminal-prompt {
-      color: var(--success);
-    }
-
-    .terminal-command {
-      color: var(--text-primary);
-    }
-
-    .terminal-output {
-      color: var(--text-muted);
-      padding-left: 1rem;
-    }
-
-    .terminal-success {
-      color: var(--success);
-    }
-
-    .terminal-warning {
-      color: var(--warning);
-    }
-
-    .terminal-error {
-      color: var(--danger);
-    }
-
-    .terminal-info {
-      color: var(--secondary);
-    }
-
-    .terminal-link {
-      color: var(--primary-light);
-      text-decoration: underline;
-    }
-
+    
     @keyframes fadeInUp {
-      from {
-        opacity: 0;
-        transform: translateY(30px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
     }
-
-    /* ==================== Sections ==================== */
+    
+    /* ==================== Sections Common ==================== */
     section {
-      padding: 6rem 2rem;
+      padding: 7rem 2rem;
       position: relative;
       z-index: 1;
     }
-
+    .container { max-width: 1200px; margin: 0 auto; }
+    
     .section-header {
       text-align: center;
-      margin-bottom: 4rem;
+      margin-bottom: 4.5rem;
     }
-
-    .section-label {
+    .section-tag {
       display: inline-flex;
       align-items: center;
       gap: 0.5rem;
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       font-weight: 600;
       color: var(--primary-light);
       text-transform: uppercase;
-      letter-spacing: 0.1em;
+      letter-spacing: 0.12em;
       margin-bottom: 1rem;
+      padding: 0.4rem 1rem;
+      background: rgba(99, 102, 241, 0.08);
+      border: 1px solid var(--border);
+      border-radius: 100px;
     }
-
     .section-title {
-      font-size: clamp(2rem, 5vw, 3rem);
+      font-size: clamp(2rem, 5vw, 3.2rem);
       font-weight: 800;
       letter-spacing: -0.02em;
       margin-bottom: 1rem;
     }
-
     .section-desc {
       font-size: 1.1rem;
       color: var(--text-secondary);
-      max-width: 600px;
+      max-width: 640px;
       margin: 0 auto;
+      line-height: 1.7;
     }
-
-    .container {
-      max-width: 1200px;
-      margin: 0 auto;
+    
+    /* Reveal Animation */
+    .reveal {
+      opacity: 0;
+      transform: translateY(40px);
+      transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
     }
-
-    /* ==================== Databases Section ==================== */
-    .databases-grid {
+    .reveal.active {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    
+    /* ==================== Intro Section ==================== */
+    #intro {
+      background: linear-gradient(180deg, var(--bg-dark), var(--bg-section), var(--bg-dark));
+    }
+    .intro-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      grid-template-columns: repeat(2, 1fr);
       gap: 1.5rem;
-      margin-top: 3rem;
+      max-width: 960px;
+      margin: 0 auto;
     }
-
-    .db-card {
+    .intro-card {
       background: var(--bg-card);
       border: 1px solid var(--border-light);
-      border-radius: 16px;
-      padding: 2rem 1.5rem;
-      text-align: center;
-      transition: all 0.4s ease;
+      border-radius: var(--radius-lg);
+      padding: 2rem;
+      transition: all var(--transition-normal);
       position: relative;
       overflow: hidden;
     }
-
-    .db-card::before {
+    .intro-card::before {
       content: '';
       position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
+      top: 0; left: 0; right: 0;
       height: 3px;
       background: linear-gradient(90deg, var(--primary), var(--secondary));
       transform: scaleX(0);
-      transition: transform 0.4s ease;
+      transition: transform var(--transition-slow);
     }
-
-    .db-card:hover {
-      transform: translateY(-8px);
+    .intro-card:hover::before { transform: scaleX(1); }
+    .intro-card:hover {
+      transform: translateY(-5px);
       border-color: var(--border);
-      background: var(--bg-card-hover);
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+      box-shadow: var(--shadow-md);
     }
-
-    .db-card:hover::before {
-      transform: scaleX(1);
-    }
-
-    .db-icon {
-      font-size: 2.5rem;
+    .intro-card .card-icon {
+      font-size: 2rem;
       margin-bottom: 1rem;
-      display: block;
     }
-
-    .db-name {
+    .intro-card h3 {
+      font-size: 1.15rem;
       font-weight: 700;
-      font-size: 1.1rem;
-      margin-bottom: 0.25rem;
+      margin-bottom: 0.75rem;
     }
-
-    .db-version {
-      font-size: 0.8rem;
-      color: var(--text-muted);
+    .intro-card p {
+      color: var(--text-secondary);
+      font-size: 0.93rem;
+      line-height: 1.7;
     }
-
+    .intro-card ul {
+      list-style: none;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      line-height: 2;
+    }
+    .intro-card ul li i { color: var(--success); margin-right: 0.5rem; }
+    
     /* ==================== Features Section ==================== */
+    #features {
+      background: var(--bg-section);
+    }
     .features-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
       gap: 1.5rem;
     }
-
     .feature-card {
       background: var(--bg-card);
       border: 1px solid var(--border-light);
-      border-radius: 20px;
+      border-radius: var(--radius-lg);
       padding: 2rem;
-      transition: all 0.4s ease;
+      transition: all var(--transition-normal);
       position: relative;
+      overflow: hidden;
     }
-
+    .feature-card.featured {
+      border-color: var(--primary);
+      background: linear-gradient(180deg, rgba(99, 102, 241, 0.06), var(--bg-card));
+    }
+    .feature-card.featured::after {
+      content: '⭐ 核心新功能';
+      position: absolute;
+      top: 1rem; right: 1rem;
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--primary-light);
+      background: rgba(99, 102, 241, 0.12);
+      padding: 0.25rem 0.6rem;
+      border-radius: 100px;
+    }
     .feature-card:hover {
       transform: translateY(-5px);
       border-color: var(--border);
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+      box-shadow: var(--shadow-md);
     }
-
     .feature-icon {
-      width: 56px;
-      height: 56px;
+      width: 52px; height: 52px;
       border-radius: 14px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 1.5rem;
+      font-size: 1.4rem;
       margin-bottom: 1.25rem;
+      transition: transform var(--transition-normal);
     }
-
-    .feature-icon.primary { background: rgba(99, 102, 241, 0.15); color: var(--primary-light); }
-    .feature-icon.secondary { background: rgba(6, 182, 212, 0.15); color: var(--secondary); }
-    .feature-icon.accent { background: rgba(244, 114, 182, 0.15); color: var(--accent); }
-    .feature-icon.success { background: rgba(16, 185, 129, 0.15); color: var(--success); }
-    .feature-icon.warning { background: rgba(245, 158, 11, 0.15); color: var(--warning); }
-    .feature-icon.danger { background: rgba(239, 68, 68, 0.15); color: var(--danger); }
-
-    .feature-title {
-      font-size: 1.2rem;
+    .feature-card:hover .feature-icon { transform: scale(1.1) rotate(-5deg); }
+    
+    .feature-icon.primary { background: rgba(99,102,241,0.12); color: var(--primary-light); }
+    .feature-icon.secondary { background: rgba(6,182,212,0.12); color: var(--secondary); }
+    .feature-icon.accent { background: rgba(244,114,182,0.12); color: var(--accent); }
+    .feature-icon.success { background: rgba(16,185,129,0.12); color: var(--success); }
+    .feature-icon.warning { background: rgba(245,158,11,0.12); color: var(--warning); }
+    .feature-icon.danger { background: rgba(239,68,68,0.12); color: var(--danger); }
+    .feature-icon.info { background: rgba(59,130,246,0.12); color: var(--info); }
+    
+    .feature-card h3 {
+      font-size: 1.15rem;
       font-weight: 700;
       margin-bottom: 0.75rem;
     }
-
-    .feature-desc {
+    .feature-card p {
       color: var(--text-secondary);
-      font-size: 0.95rem;
+      font-size: 0.93rem;
       line-height: 1.7;
     }
-
-    /* ==================== Architecture Section ==================== */
-    .architecture {
-      background: linear-gradient(180deg, transparent, rgba(99, 102, 241, 0.03), transparent);
+    .feature-tags {
+      display: flex;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+      margin-top: 1rem;
     }
-
-    .flow-container {
+    .feature-tag {
+      font-size: 0.75rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 100px;
+      font-weight: 500;
+    }
+    .tag-purple { background: rgba(99,102,241,0.12); color: var(--primary-light); }
+    .tag-cyan { background: rgba(6,182,212,0.12); color: var(--secondary); }
+    .tag-pink { background: rgba(244,114,182,0.12); color: var(--accent); }
+    .tag-green { background: rgba(16,185,129,0.12); color: var(--success); }
+    
+    /* ==================== Plugin Spotlight ==================== */
+    #plugin-spotlight {
+      background: linear-gradient(180deg, var(--bg-dark), rgba(99,102,241,0.04), var(--bg-dark));
+      overflow: hidden;
+    }
+    .plugin-showcase {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3rem;
+      align-items: center;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    .plugin-info h3 {
+      font-size: 1.8rem;
+      font-weight: 800;
+      margin-bottom: 1rem;
+      line-height: 1.3;
+    }
+    .plugin-info p {
+      color: var(--text-secondary);
+      font-size: 1rem;
+      line-height: 1.8;
+      margin-bottom: 1.5rem;
+    }
+    .plugin-features {
+      list-style: none;
+    }
+    .plugin-features li {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 0.6rem 0;
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+    }
+    .plugin-features li i {
+      color: var(--primary-light);
+      margin-top: 0.15rem;
+      flex-shrink: 0;
+    }
+    
+    .plugin-demo {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 2rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .plugin-demo::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--primary), var(--accent), var(--secondary));
+    }
+    .plugin-demo-title {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .plugin-item {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem;
+      background: rgba(99,102,241,0.04);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-md);
+      margin-bottom: 0.75rem;
+      transition: all var(--transition-fast);
+    }
+    .plugin-item:hover {
+      background: rgba(99,102,241,0.08);
+      border-color: var(--border);
+      transform: translateX(5px);
+    }
+    .plugin-item-icon {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+    .plugin-item-info { flex: 1; }
+    .plugin-item-name {
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-bottom: 0.15rem;
+    }
+    .plugin-item-desc {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    .plugin-item-badge {
+      font-size: 0.7rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 100px;
+      font-weight: 500;
+    }
+    .badge-official { background: rgba(99,102,241,0.12); color: var(--primary-light); }
+    .badge-community { background: rgba(6,182,212,0.12); color: var(--secondary); }
+    
+    /* ==================== Databases Section ==================== */
+    #databases {
+      background: var(--bg-section);
+    }
+    .db-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1.25rem;
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+    .db-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-md);
+      padding: 1.75rem 1rem;
+      text-align: center;
+      transition: all var(--transition-normal);
+      position: relative;
+      overflow: hidden;
+    }
+    .db-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--primary), var(--secondary));
+      transform: scaleX(0);
+      transition: transform var(--transition-slow);
+    }
+    .db-card:hover::before { transform: scaleX(1); }
+    .db-card:hover {
+      transform: translateY(-8px);
+      border-color: var(--border);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+    }
+    .db-card img, .db-card .db-emoji {
+      height: 40px;
+      width: auto;
+      margin-bottom: 0.75rem;
+      display: block;
+      margin-left: auto; margin-right: auto;
+      font-size: 2.2rem;
+    }
+    .db-card .db-name {
+      font-weight: 700;
+      font-size: 1rem;
+      margin-bottom: 0.2rem;
+    }
+    .db-card .db-version {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+    
+    /* ==================== Highlights Section ==================== */
+    #highlights {
+      background: linear-gradient(180deg, var(--bg-dark), rgba(99,102,241,0.03), var(--bg-dark));
+    }
+    .highlights-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.5rem;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    .highlight-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-lg);
+      padding: 2.5rem 2rem;
+      position: relative;
+      overflow: hidden;
+      transition: all var(--transition-normal);
+    }
+    .highlight-card:hover {
+      transform: translateY(-5px);
+      box-shadow: var(--shadow-md);
+    }
+    .highlight-card .hl-number {
+      position: absolute;
+      top: 1rem; right: 1.5rem;
+      font-size: 3.5rem;
+      font-weight: 900;
+      color: rgba(99,102,241,0.06);
+      line-height: 1;
+    }
+    .highlight-card .hl-icon {
+      font-size: 2.5rem;
+      margin-bottom: 1.25rem;
+    }
+    .highlight-card h3 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+    }
+    .highlight-card p {
+      color: var(--text-secondary);
+      font-size: 0.93rem;
+      line-height: 1.7;
+      margin-bottom: 1rem;
+    }
+    
+    /* ==================== Architecture Section ==================== */
+    #architecture {
+      background: var(--bg-section);
+    }
+    .arch-flow {
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 1rem;
       flex-wrap: wrap;
-      margin-top: 3rem;
+      margin-bottom: 3rem;
     }
-
-    .flow-step {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 1.5rem 2rem;
-      text-align: center;
-      min-width: 160px;
-      transition: all 0.3s ease;
-    }
-
-    .flow-step:hover {
-      transform: translateY(-5px);
-      box-shadow: 0 10px 30px rgba(99, 102, 241, 0.2);
-      border-color: var(--primary);
-    }
-
-    .flow-icon {
-      font-size: 2rem;
-      margin-bottom: 0.75rem;
-    }
-
-    .flow-label {
-      font-weight: 600;
-      font-size: 0.95rem;
-    }
-
-    .flow-arrow {
-      font-size: 1.5rem;
-      color: var(--primary);
-      animation: arrowPulse 1.5s ease-in-out infinite;
-    }
-
-    @keyframes arrowPulse {
-      0%, 100% { opacity: 0.3; transform: translateX(0); }
-      50% { opacity: 1; transform: translateX(5px); }
-    }
-
-    /* Architecture Image - Handle white background for dark theme */
-    .arch-container {
-      background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(6, 182, 212, 0.05));
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 2rem;
-      margin-top: 2rem;
-      text-align: center;
-    }
-    .arch-img {
-      max-width: 100%;
-      height: auto;
-      border-radius: 12px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
-      /* 让白色背景融入深色主题 */
-      filter: brightness(0.95) contrast(1.05);
-      transition: transform 0.3s ease, box-shadow 0.3s ease;
-    }
-    .arch-img:hover {
-      transform: scale(1.01);
-      box-shadow: 0 25px 70px rgba(0, 0, 0, 0.5);
-    }
-
-    /* ==================== Quick Start Section ==================== */
-    .quickstart {
+    .arch-step {
       background: var(--bg-card);
       border: 1px solid var(--border-light);
-      border-radius: 24px;
-      padding: 3rem;
-      margin-top: 3rem;
+      border-radius: var(--radius-md);
+      padding: 1.5rem 2rem;
+      text-align: center;
+      min-width: 150px;
+      transition: all var(--transition-normal);
+      position: relative;
     }
-
+    .arch-step:hover {
+      transform: translateY(-5px);
+      border-color: var(--primary);
+      box-shadow: 0 10px 30px rgba(99,102,241,0.15);
+    }
+    .arch-step .step-num {
+      position: absolute;
+      top: -12px; left: 50%; transform: translateX(-50%);
+      width: 24px; height: 24px;
+      background: var(--primary);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.75rem; font-weight: 700; color: white;
+    }
+    .arch-step .step-icon { font-size: 1.8rem; margin-bottom: 0.5rem; }
+    .arch-step .step-label { font-weight: 600; font-size: 0.9rem; }
+    .arch-arrow {
+      color: var(--primary);
+      font-size: 1.5rem;
+      animation: arrowBounce 1.5s ease-in-out infinite;
+    }
+    @keyframes arrowBounce {
+      0%, 100% { transform: translateX(0); opacity: 0.4; }
+      50% { transform: translateX(5px); opacity: 1; }
+    }
+    
+    .arch-image-container {
+      background: linear-gradient(135deg, rgba(99,102,241,0.06), rgba(6,182,212,0.04));
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 2rem;
+      text-align: center;
+    }
+    .arch-image-container img {
+      max-width: 100%;
+      height: auto;
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-lg);
+      transition: transform var(--transition-normal);
+    }
+    .arch-image-container img:hover {
+      transform: scale(1.01);
+    }
+    
+    /* ==================== Quick Start Section ==================== */
+    #quickstart { background: var(--bg-dark); }
+    
+    .quickstart-wrapper {
+      background: var(--bg-card);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-xl);
+      padding: 3rem;
+      max-width: 900px;
+      margin: 0 auto;
+    }
     .quickstart-tabs {
       display: flex;
       gap: 0.5rem;
@@ -739,164 +995,210 @@
       border-bottom: 1px solid var(--border-light);
       padding-bottom: 1rem;
     }
-
     .quickstart-tab {
-      padding: 0.75rem 1.5rem;
+      padding: 0.6rem 1.2rem;
       background: transparent;
-      border: none;
+      border: 1px solid transparent;
       color: var(--text-secondary);
       font-weight: 500;
       font-size: 0.9rem;
       cursor: pointer;
-      border-radius: 8px;
-      transition: all 0.3s ease;
+      border-radius: var(--radius-sm);
+      transition: all var(--transition-fast);
     }
-
     .quickstart-tab:hover {
       color: var(--text-primary);
-      background: var(--bg-card-hover);
+      background: rgba(99,102,241,0.06);
     }
-
     .quickstart-tab.active {
       color: var(--primary-light);
-      background: rgba(99, 102, 241, 0.1);
+      background: rgba(99,102,241,0.1);
+      border-color: var(--border);
     }
-
-    .quickstart-content {
-      display: none;
-    }
-
-    .quickstart-content.active {
-      display: block;
-    }
-
+    .quickstart-content { display: none; }
+    .quickstart-content.active { display: block; animation: fadeInUp 0.4s ease; }
+    
     .code-block {
-      background: #0d0d14;
-      border-radius: 12px;
+      background: #0a0a12;
+      border-radius: var(--radius-md);
       overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.05);
     }
-
     .code-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 0.75rem 1rem;
-      background: rgba(0, 0, 0, 0.3);
+      background: rgba(0,0,0,0.3);
+      border-bottom: 1px solid rgba(255,255,255,0.05);
     }
-
     .code-lang {
       font-size: 0.8rem;
       color: var(--text-muted);
       font-family: 'JetBrains Mono', monospace;
     }
-
     .code-copy {
       background: transparent;
-      border: 1px solid var(--border);
+      border: 1px solid var(--border-light);
       color: var(--text-secondary);
       padding: 0.25rem 0.75rem;
       border-radius: 6px;
       font-size: 0.8rem;
       cursor: pointer;
-      transition: all 0.3s ease;
+      transition: all var(--transition-fast);
     }
-
-    .code-copy:hover {
-      background: var(--bg-card-hover);
-      color: var(--text-primary);
-    }
-
+    .code-copy:hover { background: var(--bg-card-hover); color: var(--text-primary); }
     .code-body {
       padding: 1.5rem;
       font-family: 'JetBrains Mono', monospace;
-      font-size: 0.9rem;
-      line-height: 1.8;
+      font-size: 0.88rem;
+      line-height: 1.9;
       overflow-x: auto;
     }
-
-    .code-body code {
-      color: var(--text-primary);
-    }
-
     .code-comment { color: var(--text-muted); }
     .code-keyword { color: var(--accent); }
     .code-string { color: var(--success); }
     .code-function { color: var(--secondary); }
-    .code-variable { color: var(--warning); }
-
-    /* ==================== Pricing / Editions ==================== */
-    .editions-grid {
+    
+    /* Usage Modes */
+    .modes-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
       gap: 1.5rem;
-      margin-top: 3rem;
+      margin-top: 4rem;
+      max-width: 1100px;
+      margin-left: auto; margin-right: auto;
     }
-
-    .edition-card {
+    .mode-card {
       background: var(--bg-card);
       border: 1px solid var(--border-light);
-      border-radius: 20px;
-      padding: 2.5rem;
-      transition: all 0.4s ease;
+      border-radius: var(--radius-lg);
+      padding: 2.5rem 2rem;
+      transition: all var(--transition-normal);
       position: relative;
     }
-
-    .edition-card.featured {
+    .mode-card.featured {
       border-color: var(--primary);
-      background: linear-gradient(180deg, rgba(99, 102, 241, 0.08), var(--bg-card));
+      background: linear-gradient(180deg, rgba(99,102,241,0.06), var(--bg-card));
     }
-
-    .edition-card:hover {
-      transform: translateY(-8px);
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
-    }
-
-    .edition-badge {
+    .mode-card.featured::before {
+      content: '最推荐';
       position: absolute;
-      top: -12px;
-      left: 50%;
-      transform: translateX(-50%);
+      top: -12px; left: 50%; transform: translateX(-50%);
       background: linear-gradient(135deg, var(--primary), var(--secondary));
-      padding: 0.35rem 1rem;
+      padding: 0.3rem 1rem;
       border-radius: 100px;
       font-size: 0.75rem;
       font-weight: 600;
+      color: white;
     }
-
-    .edition-icon {
-      font-size: 2.5rem;
-      margin-bottom: 1rem;
+    .mode-card:hover {
+      transform: translateY(-8px);
+      box-shadow: var(--shadow-md);
     }
-
-    .edition-title {
-      font-size: 1.3rem;
+    .mode-icon { font-size: 2.5rem; margin-bottom: 1rem; }
+    .mode-card h3 {
+      font-size: 1.2rem;
       font-weight: 700;
       margin-bottom: 0.5rem;
     }
-
-    .edition-desc {
+    .mode-card p {
       color: var(--text-secondary);
       font-size: 0.9rem;
-      margin-bottom: 1.5rem;
+      margin-bottom: 1.25rem;
     }
-
-    .edition-features {
+    .mode-card ul {
       list-style: none;
     }
-
-    .edition-features li {
+    .mode-card ul li {
       display: flex;
       align-items: center;
       gap: 0.5rem;
-      padding: 0.5rem 0;
-      font-size: 0.9rem;
+      padding: 0.4rem 0;
+      font-size: 0.88rem;
       color: var(--text-secondary);
     }
-
-    .edition-features li i {
-      color: var(--success);
+    .mode-card ul li i { color: var(--success); }
+    
+    /* ==================== FAQ Section ==================== */
+    #faq {
+      background: linear-gradient(180deg, var(--bg-section), var(--bg-dark));
     }
-
+    .faq-list {
+      max-width: 800px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .faq-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      transition: all var(--transition-normal);
+    }
+    .faq-item:hover { border-color: var(--border); }
+    .faq-item.open {
+      border-color: var(--primary);
+      box-shadow: 0 0 20px rgba(99,102,241,0.1);
+    }
+    .faq-question {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1.25rem 1.5rem;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.95rem;
+      transition: all var(--transition-fast);
+    }
+    .faq-question:hover { color: var(--primary-light); }
+    .faq-question i {
+      color: var(--text-muted);
+      transition: transform var(--transition-normal);
+    }
+    .faq-item.open .faq-question i { transform: rotate(45deg); color: var(--primary); }
+    .faq-answer {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.4s ease, padding 0.4s ease;
+    }
+    .faq-item.open .faq-answer { max-height: 300px; }
+    .faq-answer-inner {
+      padding: 0 1.5rem 1.25rem;
+      color: var(--text-secondary);
+      font-size: 0.93rem;
+      line-height: 1.7;
+    }
+    
+    /* ==================== CTA Section ==================== */
+    .cta-section {
+      padding: 8rem 2rem;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .cta-section::before {
+      content: '';
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, rgba(99,102,241,0.12), transparent 70%);
+      pointer-events: none;
+    }
+    .cta-section .section-title { position: relative; }
+    .cta-section .section-desc { position: relative; }
+    .cta-buttons {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 2.5rem;
+      position: relative;
+    }
+    
     /* ==================== Footer ==================== */
     footer {
       background: var(--bg-card);
@@ -905,57 +1207,39 @@
       position: relative;
       z-index: 1;
     }
-
-    .footer-content {
+    .footer-grid {
       max-width: 1200px;
       margin: 0 auto;
       display: grid;
       grid-template-columns: 2fr repeat(3, 1fr);
       gap: 3rem;
+      margin-bottom: 3rem;
     }
-
-    .footer-brand {
-      max-width: 300px;
-    }
-
-    .footer-brand .nav-logo {
-      margin-bottom: 1rem;
-    }
-
     .footer-brand p {
       color: var(--text-secondary);
       font-size: 0.9rem;
       line-height: 1.7;
+      margin-top: 1rem;
+      max-width: 300px;
     }
-
     .footer-column h4 {
       font-weight: 600;
-      margin-bottom: 1rem;
-      color: var(--text-primary);
+      margin-bottom: 1.25rem;
+      font-size: 0.95rem;
     }
-
-    .footer-links {
-      list-style: none;
-    }
-
-    .footer-links li {
-      margin-bottom: 0.5rem;
-    }
-
-    .footer-links a {
+    .footer-column ul { list-style: none; }
+    .footer-column ul li { margin-bottom: 0.6rem; }
+    .footer-column ul li a {
       color: var(--text-secondary);
       text-decoration: none;
       font-size: 0.9rem;
-      transition: color 0.3s ease;
+      transition: color var(--transition-fast);
     }
-
-    .footer-links a:hover {
-      color: var(--primary-light);
-    }
-
+    .footer-column ul li a:hover { color: var(--primary-light); }
+    
     .footer-bottom {
       max-width: 1200px;
-      margin: 3rem auto 0;
+      margin: 0 auto;
       padding-top: 2rem;
       border-top: 1px solid var(--border-light);
       display: flex;
@@ -964,20 +1248,13 @@
       flex-wrap: wrap;
       gap: 1rem;
     }
-
-    .footer-bottom p {
-      color: var(--text-muted);
-      font-size: 0.85rem;
-    }
-
+    .footer-bottom p { color: var(--text-muted); font-size: 0.85rem; }
     .footer-social {
       display: flex;
-      gap: 1rem;
+      gap: 0.75rem;
     }
-
     .footer-social a {
-      width: 40px;
-      height: 40px;
+      width: 38px; height: 38px;
       border-radius: 10px;
       background: var(--bg-dark);
       border: 1px solid var(--border-light);
@@ -986,179 +1263,84 @@
       justify-content: center;
       color: var(--text-secondary);
       text-decoration: none;
-      transition: all 0.3s ease;
+      transition: all var(--transition-normal);
+      font-size: 0.9rem;
     }
-
     .footer-social a:hover {
       background: var(--primary);
       border-color: var(--primary);
       color: white;
       transform: translateY(-3px);
     }
-
-    /* ==================== Scroll Animations ==================== */
-    .reveal {
-      opacity: 0;
-      transform: translateY(40px);
-      transition: all 0.8s ease;
-    }
-
-    .reveal.active {
-      opacity: 1;
-      transform: translateY(0);
-    }
-
+    
     /* ==================== Responsive ==================== */
     @media (max-width: 768px) {
-      .nav-links {
-        display: none;
-      }
-
-      .mobile-menu-btn {
-        display: block;
-      }
-
-      .hero-stats {
-        gap: 1.5rem;
-      }
-
-      .stat-value {
-        font-size: 1.8rem;
-      }
-
-      .flow-container {
-        flex-direction: column;
-      }
-
-      .flow-arrow {
-        transform: rotate(90deg);
-      }
-
-      .footer-content {
-        grid-template-columns: 1fr;
-      }
-
-      .quickstart {
-        padding: 1.5rem;
-      }
-
-      .footer-bottom {
-        flex-direction: column;
-        text-align: center;
-      }
+      .nav-links { display: none; }
+      .nav-github { display: none; }
+      .mobile-menu-btn { display: block; }
+      
+      .hero-stats { gap: 1.5rem; flex-wrap: wrap; }
+      .hero-stat::after { display: none; }
+      .hero-stat { min-width: 80px; }
+      
+      .intro-grid { grid-template-columns: 1fr; }
+      .plugin-showcase { grid-template-columns: 1fr; }
+      .arch-flow { flex-direction: column; }
+      .arch-arrow { transform: rotate(90deg); }
+      .footer-grid { grid-template-columns: 1fr; }
+      
+      .quickstart-wrapper { padding: 1.5rem; }
+      .quickstart-tabs { flex-wrap: wrap; }
+      
+      .faq-question { font-size: 0.88rem; }
+      
+      .cta-buttons { flex-direction: column; align-items: center; }
     }
-
+    
+    @media (max-width: 480px) {
+      .hero-title { font-size: 2.2rem; }
+      .hero-stat .stat-number { font-size: 2rem; }
+      .section-title { font-size: 1.8rem; }
+    }
+    
     /* ==================== Mobile Menu ==================== */
     .mobile-menu {
       display: none;
       position: fixed;
-      top: 60px;
-      left: 0;
-      right: 0;
-      background: rgba(10, 10, 15, 0.98);
+      top: 60px; left: 0; right: 0;
+      background: rgba(5, 5, 16, 0.98);
       backdrop-filter: blur(20px);
       padding: 1rem;
       border-bottom: 1px solid var(--border-light);
       z-index: 999;
     }
-
-    .mobile-menu.active {
-      display: block;
+    .mobile-menu.active { display: block; animation: slideDown 0.3s ease; }
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
     }
-
     .mobile-menu a {
       display: block;
       padding: 0.75rem 1rem;
       color: var(--text-secondary);
       text-decoration: none;
       font-weight: 500;
-      transition: all 0.3s ease;
+      border-radius: var(--radius-sm);
+      transition: all var(--transition-fast);
     }
-
     .mobile-menu a:hover {
       color: var(--text-primary);
       background: var(--bg-card);
     }
-
-    /* ==================== Particles ==================== */
-    .particles {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-      z-index: 0;
-      overflow: hidden;
-    }
-
-    .particle {
-      position: absolute;
-      width: 4px;
-      height: 4px;
-      background: var(--primary);
-      border-radius: 50%;
-      opacity: 0.3;
-      animation: particleFloat 15s linear infinite;
-    }
-
-    @keyframes particleFloat {
-      0% {
-        transform: translateY(100vh) rotate(0deg);
-        opacity: 0;
-      }
-      10% {
-        opacity: 0.3;
-      }
-      90% {
-        opacity: 0.3;
-      }
-      100% {
-        transform: translateY(-100vh) rotate(720deg);
-        opacity: 0;
-      }
-    }
-
-    /* ==================== GitHub Star Button ==================== */
-    .github-star {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.5rem 1rem;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text-primary);
-      text-decoration: none;
-      font-weight: 500;
-      font-size: 0.9rem;
-      transition: all 0.3s ease;
-    }
-
-    .github-star:hover {
-      background: var(--bg-card-hover);
-      border-color: var(--primary);
-    }
-
-    /* ==================== Wave Divider ==================== */
-    .wave-divider {
-      position: relative;
-      height: 100px;
-      overflow: hidden;
-    }
-
-    .wave-divider svg {
-      position: absolute;
-      bottom: 0;
-      width: 100%;
-      height: 100%;
-    }
+    
+    /* ==================== Memoral Mode ==================== */
     html[data-memorial="1"] {
       filter: grayscale(100%) !important;
     }
   </style>
+  
   <script>
-    // 纪念日灰度模式：0 = 正常，1 = 灰度（设为 1 即全站变灰）
+    // Memorial mode
     const MEMORIAL_MODE = 0;
     if (MEMORIAL_MODE === 1) {
       document.documentElement.setAttribute('data-memorial', '1');
@@ -1166,60 +1348,67 @@
   </script>
 </head>
 <body>
-  <!-- Background Effects -->
-  <div class="bg-grid"></div>
-  <div class="bg-gradient"></div>
-  <div class="floating-orb orb-1"></div>
-  <div class="floating-orb orb-2"></div>
-  <div class="floating-orb orb-3"></div>
+  <!-- Canvas Particle Background -->
+  <canvas id="particle-canvas"></canvas>
   
-  <!-- Particles -->
-  <div class="particles" id="particles"></div>
-
+  <!-- Background Glow Orbs -->
+  <div class="bg-glow bg-glow-1"></div>
+  <div class="bg-glow bg-glow-2"></div>
+  <div class="bg-glow bg-glow-3"></div>
+  
   <!-- Navigation -->
   <nav id="navbar">
-      <a href="#" class="nav-logo">
-        <img src="./dbcheck_logo.png" alt="DBCheck" class="nav-logo-icon">
-        <span class="nav-logo-text">DBCheck</span>
-      </a>
+    <a href="#" class="nav-logo">
+      <img src="./dbcheck_logo.png" alt="DBCheck">
+      <span>DBCheck</span>
+    </a>
     <div class="nav-links">
-      <a href="#features" class="nav-link">功能特性</a>
-      <a href="#databases" class="nav-link">支持的数据库</a>
-      <a href="#quickstart" class="nav-link">快速上手</a>
-      <a href="#architecture" class="nav-link">工作原理</a>
-      <a href="https://github.com/fiyo/DBCheck" target="_blank" class="nav-github">
-        <i class="fab fa-github"></i> GitHub
-      </a>
+      <a href="#intro" class="nav-link">简介</a>
+      <a href="#features" class="nav-link">功能</a>
+      <a href="#plugin-spotlight" class="nav-link">插件</a>
+      <a href="#databases" class="nav-link">数据库</a>
+      <a href="#highlights" class="nav-link">亮点</a>
+      <a href="#quickstart" class="nav-link">快速开始</a>
+      <a href="#faq" class="nav-link">FAQ</a>
     </div>
+    <a href="https://github.com/fiyo/DBCheck" target="_blank" class="nav-github">
+      <i class="fab fa-github"></i> GitHub
+    </a>
     <button class="mobile-menu-btn" onclick="toggleMobileMenu()">
       <i class="fas fa-bars"></i>
     </button>
+    <div class="nav-progress" id="navProgress"></div>
   </nav>
-
+  
   <!-- Mobile Menu -->
   <div class="mobile-menu" id="mobileMenu">
-    <a href="#features" onclick="toggleMobileMenu()">功能特性</a>
-    <a href="#databases" onclick="toggleMobileMenu()">支持的数据库</a>
-    <a href="#quickstart" onclick="toggleMobileMenu()">快速上手</a>
-    <a href="#architecture" onclick="toggleMobileMenu()">工作原理</a>
+    <a href="#intro" onclick="toggleMobileMenu()">简介</a>
+    <a href="#features" onclick="toggleMobileMenu()">功能</a>
+    <a href="#plugin-spotlight" onclick="toggleMobileMenu()">插件</a>
+    <a href="#databases" onclick="toggleMobileMenu()">数据库</a>
+    <a href="#highlights" onclick="toggleMobileMenu()">亮点</a>
+    <a href="#quickstart" onclick="toggleMobileMenu()">快速开始</a>
+    <a href="#faq" onclick="toggleMobileMenu()">FAQ</a>
     <a href="https://github.com/fiyo/DBCheck" target="_blank">GitHub</a>
   </div>
-
-  <!-- Hero Section -->
+  
+  <!-- ==================== Hero Section ==================== -->
   <section class="hero">
     <div class="hero-content">
-      <div class="hero-badge" id="version-badge">
-        <i class="fas fa-circle"></i>
-        <span id="version-text">v2.4.0</span> 现已发布
+      <div class="hero-badge" id="versionBadge">
+        <span class="pulse-dot"></span>
+        <span id="versionText">v2.6.0</span> 现已发布
       </div>
+      
       <h1 class="hero-title">
         <span class="gradient-text">智能数据库</span><br>
-        健康巡检工具
+        健康巡检平台
       </h1>
-      <p class="hero-subtitle">
-        开源跨平台自动化巡检，支持 10 种主流数据库，130+ 检查规则，AI 智能诊断，
-        自动生成 Word 报告，让 DBA 从重复巡检中解放出来
+      
+      <p class="hero-subtitle" id="heroSubtitle">
+        <span id="typingText"></span><span class="typing-cursor" id="typingCursor"></span>
       </p>
+      
       <div class="hero-buttons">
         <a href="#quickstart" class="btn btn-primary">
           <i class="fas fa-rocket"></i> 快速开始
@@ -1227,27 +1416,30 @@
         <a href="https://github.com/fiyo/DBCheck" target="_blank" class="btn btn-secondary">
           <i class="fab fa-github"></i> 查看源码
         </a>
+        <a href="#plugin-spotlight" class="btn btn-accent">
+          <i class="fas fa-puzzle-piece"></i> 插件系统
+        </a>
       </div>
       
       <div class="hero-stats">
-        <div class="stat">
-          <div class="stat-value">6</div>
-          <div class="stat-label">支持的数据库</div>
+        <div class="hero-stat">
+          <div class="stat-number" data-target="10">0</div>
+          <div class="stat-label">数据库类型</div>
         </div>
-        <div class="stat">
-          <div class="stat-value">130+</div>
+        <div class="hero-stat">
+          <div class="stat-number" data-target="160">0</div>
           <div class="stat-label">检查规则</div>
         </div>
-        <div class="stat">
-          <div class="stat-value">4</div>
+        <div class="hero-stat">
+          <div class="stat-number" data-target="4">0</div>
           <div class="stat-label">使用方式</div>
         </div>
-        <div class="stat">
-          <div class="stat-value">MIT</div>
-          <div class="stat-label">开源协议</div>
+        <div class="hero-stat">
+          <div class="stat-number" style="font-size:1.8rem;">插件</div>
+          <div class="stat-label">可扩展系统</div>
         </div>
       </div>
-
+      
       <!-- Terminal Preview -->
       <div class="hero-terminal">
         <div class="terminal">
@@ -1255,231 +1447,505 @@
             <div class="terminal-dot red"></div>
             <div class="terminal-dot yellow"></div>
             <div class="terminal-dot green"></div>
-            <span class="terminal-title">DBCheck - 数据库巡检</span>
+            <span class="terminal-title">DBCheck — 数据库智能巡检</span>
           </div>
-          <div class="terminal-body">
+          <div class="terminal-body" id="terminalBody">
             <div class="terminal-line">
-              <span class="terminal-prompt">$</span>
-              <span class="terminal-command">python main.py</span>
+              <span class="terminal-prompt">$ </span>
+              <span class="terminal-cmd">python web_ui.py</span>
             </div>
             <div class="terminal-line">
-              <span class="terminal-output terminal-info">[*] 正在连接数据库...</span>
+              <span class="terminal-out terminal-info">[*] DBCheck v2.6.0 启动中...</span>
             </div>
             <div class="terminal-line">
-              <span class="terminal-output terminal-success">[+] 连接成功 (MySQL 8.0.35)</span>
+              <span class="terminal-out">[+] Web UI 已启动: http://localhost:5000</span>
             </div>
             <div class="terminal-line">
-              <span class="terminal-output">[*] 开始执行巡检项...</span>
+              <span class="terminal-out terminal-success">[+] 连接数据库成功 (MySQL 8.0.35)</span>
             </div>
             <div class="terminal-line">
-              <span class="terminal-output terminal-warning">[!] 发现 3 项风险 (1 高危, 1 中危, 1 低危)</span>
+              <span class="terminal-out">[*] 执行巡检: 160 项检查规则</span>
             </div>
             <div class="terminal-line">
-              <span class="terminal-output terminal-info">[*] AI 诊断完成，生成优化建议...</span>
+              <span class="terminal-out terminal-warn">[!] 发现 3 项风险 (1 高危, 1 中危, 1 低危)</span>
             </div>
             <div class="terminal-line">
-              <span class="terminal-output terminal-success">[+] 巡检报告已生成: MySQL巡检报告_2026-05-02.docx</span>
+              <span class="terminal-out terminal-info">[*] AI 本地诊断中 (Ollama qwen2.5)...</span>
+            </div>
+            <div class="terminal-line">
+              <span class="terminal-out terminal-success">[+] 巡检报告已生成: MySQL巡检报告_20260619.docx</span>
+            </div>
+            <div class="terminal-line" style="margin-top:0.5rem;">
+              <span class="terminal-prompt">$ </span>
+              <span class="terminal-cmd">_</span>
             </div>
           </div>
         </div>
       </div>
     </div>
   </section>
-
-  <!-- Features Section -->
+  
+  <!-- ==================== Intro Section ==================== -->
+  <section id="intro">
+    <div class="container">
+      <div class="section-header reveal">
+        <div class="section-tag">
+          <i class="fas fa-info-circle"></i> 软件介绍
+        </div>
+        <h2 class="section-title">什么是 DBCheck？</h2>
+        <p class="section-desc">
+          开源跨平台数据库自动化健康巡检工具，专为 DBA 和运维团队打造
+        </p>
+      </div>
+      
+      <div class="intro-grid">
+        <div class="intro-card reveal">
+          <div class="card-icon">🎯</div>
+          <h3>产品定位</h3>
+          <p>
+            DBCheck 是一款<strong style="color:var(--text-primary);">开源跨平台数据库自动化健康巡检工具</strong>，
+            通过丰富的检查规则、AI 智能诊断和插件扩展系统，让数据库巡检从重复手工劳动转变为全自动化流程。
+          </p>
+        </div>
+        
+        <div class="intro-card reveal">
+          <div class="card-icon">🔒</div>
+          <h3>安全承诺</h3>
+          <p>
+            AI 诊断仅支持<strong style="color:var(--success);">本地 Ollama</strong>，数据绝不外传。
+            报告导出支持<strong style="color:var(--success);">数据脱敏</strong>，自动掩码敏感信息。
+            MIT 开源协议，代码完全透明。
+          </p>
+        </div>
+        
+        <div class="intro-card reveal">
+          <div class="card-icon">🚀</div>
+          <h3>适用场景</h3>
+          <ul>
+            <li><i class="fas fa-check-circle"></i> DBA 日常健康巡检</li>
+            <li><i class="fas fa-check-circle"></i> 数据库迁移前健康评估</li>
+            <li><i class="fas fa-check-circle"></i> 性能瓶颈定位与优化</li>
+            <li><i class="fas fa-check-circle"></i> 安全合规配置审计</li>
+            <li><i class="fas fa-check-circle"></i> Oracle AWR 报告解析</li>
+          </ul>
+        </div>
+        
+        <div class="intro-card reveal">
+          <div class="card-icon">🌍</div>
+          <h3>部署灵活</h3>
+          <ul>
+            <li><i class="fas fa-check-circle"></i> 命令行 — 服务器自动化</li>
+            <li><i class="fas fa-check-circle"></i> Web UI — 浏览器可视化</li>
+            <li><i class="fas fa-check-circle"></i> Docker — 一条命令部署</li>
+            <li><i class="fas fa-check-circle"></i> OpenClaw Skill — AI 助手集成</li>
+            <li><i class="fas fa-check-circle"></i> 打包版 — 零依赖分发</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+  
+  <!-- ==================== Features Section ==================== -->
   <section id="features">
     <div class="container">
       <div class="section-header reveal">
-        <div class="section-label">
+        <div class="section-tag">
           <i class="fas fa-sparkles"></i> 核心功能
         </div>
-        <h2 class="section-title">为什么选择 DBCheck?</h2>
+        <h2 class="section-title">v2.6.0 功能全览</h2>
         <p class="section-desc">
           专为 DBA 打造的全方位数据库健康检查解决方案
         </p>
       </div>
-
+      
       <div class="features-grid">
-        <div class="feature-card reveal">
+        <!-- Plugin System - Featured -->
+        <div class="feature-card featured reveal">
           <div class="feature-icon primary">
-            <i class="fas fa-brain"></i>
+            <i class="fas fa-puzzle-piece"></i>
           </div>
-          <h3 class="feature-title">AI 智能诊断</h3>
-          <p class="feature-desc">
-            调用本地 Ollama，基于巡检数据自动生成结构化优化建议。完全离线，数据不出内网，安全可靠。
+          <h3>插件扩展系统</h3>
+          <p>
+            热加载插件，无需重启。GitHub 驱动插件市场，官方与社区插件清晰标识。让 DBCheck 从"工具"进化为"平台"。
           </p>
+          <div class="feature-tags">
+            <span class="feature-tag tag-purple">热加载</span>
+            <span class="feature-tag tag-cyan">插件市场</span>
+            <span class="feature-tag tag-pink">v2.6.0</span>
+          </div>
         </div>
-
+        
         <div class="feature-card reveal">
           <div class="feature-icon secondary">
-            <i class="fas fa-file-word"></i>
+            <i class="fas fa-brain"></i>
           </div>
-          <h3 class="feature-title">自动生成报告</h3>
-          <p class="feature-desc">
-            一键生成专业 Word 巡检报告，包含风险卡片、配置分析、趋势图表，直接可用于汇报。
+          <h3>AI 智能诊断（完全离线）</</h3>
+          <p>
+            仅支持本地 Ollama，数据绝不外传。代码层硬性限制，即使配置文件被篡改也会自动降级。适合金融、政务等高安全场景。
           </p>
+          <div class="feature-tags">
+            <span class="feature-tag tag-green">本地 Ollama</span>
+            <span class="feature-tag tag-green">零数据外传</span>
+          </div>
         </div>
-
+        
         <div class="feature-card reveal">
           <div class="feature-icon accent">
+            <i class="fas fa-file-waveform"></i>
+          </div>
+          <h3>Oracle AWR 报告解析</h3>
+          <p>
+            上传 AWR 报告（HTML 或 TEXT），自动解析并生成结构化 Word 分析报告，附带 AI 诊断建议。大幅降低 Oracle 性能分析门槛。
+          </p>
+          <div class="feature-tags">
+            <span class="feature-tag tag-pink">HTML/TEXT</span>
+            <span class="feature-tag tag-pink">Word 报告</span>
+          </div>
+        </div>
+        
+        <div class="feature-card reveal">
+          <div class="feature-icon success">
+            <i class="fas fa-file-word"></i>
+          </div>
+          <h3>自动生成 Word 报告</h3>
+          <p>
+            一键生成专业巡检报告，包含风险卡片、配置分析、趋势图表。支持数据脱敏，自动掩码 IP、端口、用户名等敏感信息。
+          </p>
+        </div>
+        
+        <div class="feature-card reveal">
+          <div class="feature-icon warning">
+            <i class="fas fa-sliders"></i>
+          </div>
+          <h3>配置基线检查</h3>
+          <p>
+            自动比对数据库参数与推荐基线值，支持根据内存和负载自动计算推荐值，识别配置偏差，防止性能隐患。
+          </p>
+        </div>
+        
+        <div class="feature-card reveal">
+          <div class="feature-icon info">
+            <i class="fas fa-sitemap"></i>
+          </div>
+          <h3>索引健康分析</h3>
+          <p>
+            检测缺失索引、冗余索引、未使用索引，给出优化建议，提升查询效率。让数据库跑得更快。
+          </p>
+        </div>
+        
+        <div class="feature-card reveal">
+          <div class="feature-icon danger">
+            <i class="fas fa-mask-face"></i>
+          </div>
+          <h3>数据脱敏导出</h3>
+          <p>
+            导出 Word 报告时自动掩码 IP、端口、用户名等敏感信息，防止信息泄露。适合对外交付场景。
+          </p>
+        </div>
+        
+        <div class="feature-card reveal">
+          <div class="feature-icon primary">
             <i class="fas fa-clock-rotate-left"></i>
           </div>
-          <h3 class="feature-title">历史趋势分析</h3>
-          <p class="feature-desc">
+          <h3>历史趋势分析</h3>
+          <p>
             多次巡检数据自动汇聚，生成指标趋势折线图，与上次对比一目了然，提前发现潜在风险。
           </p>
         </div>
-
-        <div class="feature-card reveal">
-          <div class="feature-icon success">
-            <i class="fas fa-gauge-high"></i>
-          </div>
-          <h3 class="feature-title">130+ 检查规则</h3>
-          <p class="feature-desc">
-            覆盖连接资源、缓存性能、查询效率、日志告警、安全审计、复制集群等全方位检查维度。
-          </p>
-        </div>
-
-        <div class="feature-card reveal">
-          <div class="feature-icon warning">
-            <i class="fas fa-database"></i>
-          </div>
-          <h3 class="feature-title">慢查询深度分析</h3>
-          <p class="feature-desc">
-            智能分析慢查询日志，识别性能瓶颈，生成索引优化建议，大幅提升查询效率。
-          </p>
-        </div>
-
-        <div class="feature-card reveal">
-          <div class="feature-icon danger">
-            <i class="fas fa-book-open"></i>
-          </div>
-          <h3 class="feature-title">RAG 知识库</h3>
-          <p class="feature-desc">
-            上传官方文档构建本地知识库，AI 诊断时自动检索相关最佳实践，让建议更精准。
-          </p>
-        </div>
-
-        <div class="feature-card reveal">
-          <div class="feature-icon primary">
-            <i class="fas fa-shield-halved"></i>
-          </div>
-          <h3 class="feature-title">安全合规检查</h3>
-          <p class="feature-desc">
-            内置安全基线检查，识别配置风险、权限问题、敏感数据暴露等安全隐患。
-          </p>
-        </div>
-
+        
         <div class="feature-card reveal">
           <div class="feature-icon secondary">
-            <i class="fas fa-language"></i>
-          </div>
-          <h3 class="feature-title">中英文双语</h3>
-          <p class="feature-desc">
-            支持中文和英文界面一键切换，Web UI 右上角点击即可，适合国际化团队使用。
-          </p>
-        </div>
-
-        <div class="feature-card reveal">
-          <div class="feature-icon accent">
             <i class="fas fa-bell"></i>
           </div>
-          <h3 class="feature-title">定时巡检 + 告警</h3>
-          <p class="feature-desc">
-            支持 Cron 表达式定时任务，巡检完成后自动发送邮件/Webhook 告警。
+          <h3>定时巡检 + 告警</h3>
+          <p>
+            支持 Cron 表达式定时任务，巡检完成后自动发送邮件/Webhook 告警。集成到现有运维体系，无人值守。
+          </p>
+        </div>
+        
+        <div class="feature-card reveal">
+          <div class="feature-icon accent">
+            <i class="fas fa-docker"></i>
+          </div>
+          <h3>Docker 一键部署</h3>
+          <p>
+            支持 Docker Hub 和 GHCR 镜像，一条命令启动，支持 amd64/arm64 双架构。适合服务器快速部署。
+          </p>
+          <div class="feature-tags">
+            <span class="feature-tag tag-cyan">多架构</span>
+            <span class="feature-tag tag-cyan">一键部署</span>
+          </div>
+        </div>
+        
+        <div class="feature-card reveal">
+          <div class="feature-icon success">
+            <i class="fas fa-file-pdf"></i>
+          </div>
+          <h3>PDF 报告导出</h3>
+          <p>
+            支持将 DOCX 巡检报告转换为 PDF，方便分享和归档。保持原有格式，适合正式汇报场景。
+          </p>
+        </div>
+        
+        <div class="feature-card reveal">
+          <div class="feature-icon warning">
+            <i class="fas fa-book-open"></i>
+          </div>
+          <h3>RAG 知识库</h3>
+          <p>
+            上传官方文档构建本地知识库，AI 诊断时自动检索相关最佳实践，让建议更精准、更有依据。
           </p>
         </div>
       </div>
     </div>
   </section>
-
-  <!-- Architecture Section -->
-  <section id="architecture">
+  
+  <!-- ==================== Plugin Spotlight ==================== -->
+  <section id="plugin-spotlight">
     <div class="container">
       <div class="section-header reveal">
-        <div class="section-label">
-          <i class="fas fa-diagram-project"></i> 系统架构
+        <div class="section-tag">
+          <i class="fas fa-puzzle-piece"></i> 插件系统
         </div>
-        <h2 class="section-title">简洁高效的模块化设计</h2>
+        <h2 class="section-title">v2.6.0 核心突破：插件扩展</h2>
         <p class="section-desc">
-          清晰的架构层次，轻松集成到现有运维体系
+          热加载、插件市场、官方与社区清晰标识，让 DBCheck 从"工具"进化为"平台"
         </p>
       </div>
-
-      <div class="arch-container reveal">
-        <img src="./architecture.png" alt="DBCheck 系统架构图" class="arch-img">
+      
+      <div class="plugin-showcase">
+        <div class="plugin-info reveal">
+          <h3>🔌 插件系统<br>让功能无限延伸</h3>
+          <p>
+            DBCheck v2.6.0 引入完整的插件扩展架构。
+            巡检规则、通知渠道、报告模板均可通过插件扩展，
+            无需修改核心代码，热加载即时生效。
+          </p>
+          <ul class="plugin-features">
+            <li><i class="fas fa-bolt"></i> <strong>热加载</strong> — 安装插件无需重启，即时生效</li>
+            <li><i class="fas fa-store"></i> <strong>插件市场</strong> — GitHub 驱动，一键浏览和安装</li>
+            <li><i class="fas fa-shield-halved"></i> <strong>来源标识</strong> — 官方与社区插件清晰区分</li>
+            <li><i class="fas fa-code"></i> <strong>开发友好</strong> — 标准 Python 插件接口，10 分钟上手</li>
+            <li><i class="fas fa-arrows-rotate"></i> <strong>自动更新</strong> — 插件可独立版本化管理</li>
+          </ul>
+        </div>
+        
+        <div class="plugin-demo reveal">
+          <div class="plugin-demo-title">// 插件市场预览</div>
+          
+          <div class="plugin-item">
+            <div class="plugin-item-icon" style="background:rgba(99,102,241,0.12);color:var(--primary-light);">
+              <i class="fas fa-database"></i>
+            </div>
+            <div class="plugin-item-info">
+              <div class="plugin-item-name">oracle-awr-parser</div>
+              <div class="plugin-item-desc">Oracle AWR 报告智能解析</div>
+            </div>
+            <div class="plugin-item-badge badge-official">官方</div>
+          </div>
+          
+          <div class="plugin-item">
+            <div class="plugin-item-icon" style="background:rgba(6,182,212,0.12);color:var(--secondary);">
+              <i class="fas fa-bell"></i>
+            </div>
+            <div class="plugin-item-info">
+              <div class="plugin-item-name">notify-feishu</div>
+              <div class="plugin-item-desc">巡检完成推送飞书通知</div>
+            </div>
+            <div class="plugin-item-badge badge-community">社区</div>
+          </div>
+          
+          <div class="plugin-item">
+            <div class="plugin-item-icon" style="background:rgba(244,114,182,0.12);color:var(--accent);">
+              <i class="fas fa-file-word"></i>
+            </div>
+            <div class="plugin-item-info">
+              <div class="plugin-item-name">report-executive</div>
+              <div class="plugin-item-desc">高管版巡检报告模板</div>
+            </div>
+            <div class="plugin-item-badge badge-community">社区</div>
+          </div>
+          
+          <div class="plugin-item">
+            <div class="plugin-item-icon" style="background:rgba(16,185,129,0.12);color:var(--success);">
+              <i class="fas fa-sliders"></i>
+            </div>
+            <div class="plugin-item-info">
+              <div class="plugin-item-name">baseline-checker</div>
+              <div class="plugin-item-desc">数据库配置基线检查</div>
+            </div>
+            <div class="plugin-item-badge badge-official">官方</div>
+          </div>
+          
+          <div style="text-align:center;margin-top:1rem;">
+            <a href="https://github.com/fiyo/dbcheck-plugins" target="_blank" style="color:var(--primary-light);font-size:0.85rem;text-decoration:none;">
+              查看完整插件市场 <i class="fas fa-arrow-right"></i>
+            </a>
+          </div>
+        </div>
       </div>
     </div>
   </section>
-
-  <!-- Databases Section -->
+  
+  <!-- ==================== Databases Section ==================== -->
   <section id="databases">
     <div class="container">
       <div class="section-header reveal">
-        <div class="section-label">
+        <div class="section-tag">
           <i class="fas fa-database"></i> 多数据库支持
         </div>
-        <h2 class="section-title">覆盖主流关系型数据库</h2>
+        <h2 class="section-title">覆盖 10 种主流数据库</h2>
         <p class="section-desc">
-          一个工具，满足所有数据库巡检需求
+          一个工具，满足几乎所有关系型数据库巡检需求
         </p>
       </div>
-
-      <div class="databases-grid">
+      
+      <div class="db-grid">
         <div class="db-card reveal">
-          <span class="db-icon">🐬</span>
+          <span class="db-emoji">🐬</span>
           <div class="db-name">MySQL</div>
           <div class="db-version">5.7 / 8.x</div>
         </div>
         <div class="db-card reveal">
-          <span class="db-icon"><img src="./postgresql.png" alt="PostgreSQL" style="height:36px;width:auto;"></span>
+          <img src="./postgresql.png" alt="PostgreSQL">
           <div class="db-name">PostgreSQL</div>
           <div class="db-version">10+</div>
         </div>
         <div class="db-card reveal">
-          <span class="db-icon"><img src="./oracle.png" alt="Oracle" style="height:36px;width:auto;"></span>
+          <img src="./oracle.png" alt="Oracle">
           <div class="db-name">Oracle</div>
           <div class="db-version">11g / 19c / 21c</div>
         </div>
         <div class="db-card reveal">
-          <span class="db-icon"><img src="./sqlserver.png" alt="SQL Server" style="height:36px;width:auto;"></span>
+          <img src="./sqlserver.png" alt="SQL Server">
           <div class="db-name">SQL Server</div>
           <div class="db-version">2012+</div>
         </div>
         <div class="db-card reveal">
-          <span class="db-icon"><img src="./dm.png" alt="达梦 DM" style="height:36px;width:auto;"></span>
+          <img src="./dm.png" alt="达梦 DM8">
           <div class="db-name">达梦 DM8</div>
           <div class="db-version">DM8 及以上</div>
         </div>
         <div class="db-card reveal">
-          <span class="db-icon"><img src="./tidb.png" alt="TiDB" style="height:36px;width:auto;"></span>
+          <img src="./tidb.png" alt="TiDB">
           <div class="db-name">TiDB</div>
           <div class="db-version">兼容 MySQL</div>
         </div>
         <div class="db-card reveal">
-          <span class="db-icon"><img src="./ivorysql.png" alt="IvorySQL" style="height:36px;width:auto;"></span>
+          <img src="./ivorysql.png" alt="IvorySQL">
           <div class="db-name">IvorySQL</div>
-          <div class="db-version">4.5.3+，基于 PostgreSQL兼容 Oracle</div>
+          <div class="db-version">PostgreSQL 兼容</div>
         </div>
         <div class="db-card reveal">
-          <span class="db-icon"><img src="./kingbase.png" alt="Kingbase" style="height:36px;width:auto;"></span>
-          <div class="db-name">Kingbase</div>
-          <div class="db-version">8.0+，基于 PostgreSQL兼容 Oracle</div>
+          <img src="./yashandb.png" alt="YashanDB">
+          <div class="db-name">YashanDB</div>
+          <div class="db-version">崖山数据库</div>
         </div>
         <div class="db-card reveal">
-          <span class="db-icon"><img src="./gbase.png" alt="GBase" style="height:36px;width:auto;"></span>
-          <div class="db-name">GBase</div>
-          <div class="db-version">8s+，基于 PostgreSQL兼容 Oracle</div>
+          <img src="./kingbase.png" alt="KingbaseES">
+          <div class="db-name">KingbaseES</div>
+          <div class="db-version">人大金仓</div>
+        </div>
+        <div class="db-card reveal">
+          <img src="./gbase.png" alt="GBase 8s">
+          <div class="db-name">GBase 8s</div>
+          <div class="db-version">IBM Informix 兼容</div>
         </div>
       </div>
     </div>
   </section>
-
-  <!-- Architecture Section -->
-  <section id="architecture" class="architecture">
+  
+  <!-- ==================== Highlights Section ==================== -->
+  <section id="highlights">
     <div class="container">
       <div class="section-header reveal">
-        <div class="section-label">
+        <div class="section-tag">
+          <i class="fas fa-star"></i> 亮点特性
+        </div>
+        <h2 class="section-title">为什么 DBCheck 与众不同？</h2>
+        <p class="section-desc">
+          v2.6.0 带来的核心突破
+        </p>
+      </div>
+      
+      <div class="highlights-grid">
+        <div class="highlight-card reveal">
+          <div class="hl-number">01</div>
+          <div class="hl-icon">🔌</div>
+          <h3>插件扩展系统</h3>
+          <p>热加载插件，无需重启。GitHub 驱动插件市场，官方与社区插件清晰标识。</p>
+          <div class="feature-tags">
+            <span class="feature-tag tag-purple">巡检规则</span>
+            <span class="feature-tag tag-cyan">通知渠道</span>
+            <span class="feature-tag tag-pink">报告模板</span>
+          </div>
+        </div>
+        
+        <div class="highlight-card reveal">
+          <div class="hl-number">02</div>
+          <div class="hl-icon">🤖</div>
+          <h3>AI 诊断（完全离线）</h3>
+          <p>仅支持本地 Ollama，数据绝不外传。代码层硬性限制，适合金融、政务等高安全场景。</p>
+          <div class="feature-tags">
+            <span class="feature-tag tag-green">本地 Ollama</span>
+            <span class="feature-tag tag-green">零数据外传</span>
+            <span class="feature-tag tag-green">内网可用</span>
+          </div>
+        </div>
+        
+        <div class="highlight-card reveal">
+          <div class="hl-number">03</div>
+          <div class="hl-icon">📊</div>
+          <h3>Oracle AWR 智能解析</h3>
+          <p>上传 AWR 报告（HTML 或 TEXT），自动解析并生成 Word 报告，附带 AI 诊断建议。</p>
+          <div class="feature-tags">
+            <span class="feature-tag tag-pink">HTML/TEXT</span>
+            <span class="feature-tag tag-pink">Word 报告</span>
+            <span class="feature-tag tag-pink">AI 诊断</span>
+          </div>
+        </div>
+        
+        <div class="highlight-card reveal">
+          <div class="hl-number">04</div>
+          <div class="hl-icon">🐳</div>
+          <h3>Docker 多架构支持</h3>
+          <p>支持 amd64 和 arm64 双架构镜像，Docker Hub 和 GHCR 双源分发，一条命令启动。</p>
+          <div class="feature-tags">
+            <span class="feature-tag tag-cyan">多架构</span>
+            <span class="feature-tag tag-cyan">双源分发</span>
+          </div>
+        </div>
+        
+        <div class="highlight-card reveal">
+          <div class="hl-number">05</div>
+          <div class="hl-icon">🔐</div>
+          <h3>数据脱敏导出</h3>
+          <p>导出报告时自动掩码 IP、端口、用户名等敏感信息。适合对外交付和合规审计场景。</p>
+          <div class="feature-tags">
+            <span class="feature-tag tag-green">自动脱敏</span>
+            <span class="feature-tag tag-green">合规友好</span>
+          </div>
+        </div>
+        
+        <div class="highlight-card reveal">
+          <div class="hl-number">06</div>
+          <div class="hl-icon">📈</div>
+          <h3>趋势分析与对比</h3>
+          <p>多次巡检数据自动汇聚，生成趋势折线图，与上次对比一目了然，提前发现潜在风险。</p>
+          <div class="feature-tags">
+            <span class="feature-tag tag-purple">趋势图</span>
+            <span class="feature-tag tag-purple">历史对比</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  
+  <!-- ==================== Architecture Section ==================== -->
+  <section id="architecture">
+    <div class="container">
+      <div class="section-header reveal">
+        <div class="section-tag">
           <i class="fas fa-diagram-project"></i> 工作原理
         </div>
         <h2 class="section-title">简单四步，完成数据库巡检</h2>
@@ -1487,36 +1953,44 @@
           从连接到报告，全自动化流程
         </p>
       </div>
-
-      <div class="flow-container reveal">
-        <div class="flow-step">
-          <div class="flow-icon">🔗</div>
-          <div class="flow-label">连接数据库</div>
+      
+      <div class="arch-flow reveal">
+        <div class="arch-step">
+          <div class="step-num">1</div>
+          <div class="step-icon">🔗</div>
+          <div class="step-label">连接数据库</div>
         </div>
-        <div class="flow-arrow">→</div>
-        <div class="flow-step">
-          <div class="flow-icon">🔍</div>
-          <div class="flow-label">执行检查项</div>
+        <div class="arch-arrow"><i class="fas fa-chevron-right"></i></div>
+        <div class="arch-step">
+          <div class="step-num">2</div>
+          <div class="step-icon">🔍</div>
+          <div class="step-label">执行检查项</div>
         </div>
-        <div class="flow-arrow">→</div>
-        <div class="flow-step">
-          <div class="flow-icon">🤖</div>
-          <div class="flow-label">AI 智能分析</div>
+        <div class="arch-arrow"><i class="fas fa-chevron-right"></i></div>
+        <div class="arch-step">
+          <div class="step-num">3</div>
+          <div class="step-icon">🤖</div>
+          <div class="step-label">AI 智能分析</div>
         </div>
-        <div class="flow-arrow">→</div>
-        <div class="flow-step">
-          <div class="flow-icon">📊</div>
-          <div class="flow-label">生成报告</div>
+        <div class="arch-arrow"><i class="fas fa-chevron-right"></i></div>
+        <div class="arch-step">
+          <div class="step-num">4</div>
+          <div class="step-icon">📄</div>
+          <div class="step-label">生成报告</div>
         </div>
+      </div>
+      
+      <div class="arch-image-container reveal">
+        <img src="./architecture.png" alt="DBCheck 系统架构图">
       </div>
     </div>
   </section>
-
-  <!-- Quick Start Section -->
+  
+  <!-- ==================== Quick Start Section ==================== -->
   <section id="quickstart">
     <div class="container">
       <div class="section-header reveal">
-        <div class="section-label">
+        <div class="section-tag">
           <i class="fas fa-bolt"></i> 快速上手
         </div>
         <h2 class="section-title">安装即用，四种方式</h2>
@@ -1524,14 +1998,14 @@
           选择最适合你的使用方式
         </p>
       </div>
-
-      <div class="quickstart reveal">
+      
+      <div class="quickstart-wrapper reveal">
         <div class="quickstart-tabs">
           <button class="quickstart-tab active" onclick="switchTab('git')">Git Clone</button>
           <button class="quickstart-tab" onclick="switchTab('docker')">Docker</button>
           <button class="quickstart-tab" onclick="switchTab('skill')">OpenClaw Skill</button>
+          <button class="quickstart-tab" onclick="switchTab('binary')">打包版</button>
         </div>
-
         
         <!-- Git Clone -->
         <div class="quickstart-content active" id="tab-git">
@@ -1541,38 +2015,24 @@
               <button class="code-copy" onclick="copyCode(this)">复制</button>
             </div>
             <div class="code-body">
-<code><span class="code-comment"># 克隆仓库</br></span>
-git clone git@github.com:fiyo/DBCheck.git</br>
+<code><span class="code-comment"># 克隆仓库</span><br>
+git clone https://github.com/fiyo/DBCheck.git<br>
 
-<span class="code-comment"># 进入目录</br></span>
-<span class="code-keyword">cd</span> DBCheck</br>
+<span class="code-comment"># 进入目录</span><br>
+<span class="code-keyword">cd</span> DBCheck<br>
 
-<span class="code-comment"># 安装依赖</br></span>
-pip install -r requirements.txt</br>
+<span class="code-comment"># 安装依赖</span><br>
+pip install -r requirements.txt<br>
 
-<span class="code-comment"># 启动 Web UI</br></span>
-<span class="code-keyword">python</span> web_ui.py</code>
+<span class="code-comment"># 启动 Web UI</span><br>
+<span class="code-keyword">python</span> web_ui.py<br>
+
+<span class="code-comment"># 访问浏览器</span><br>
+ http://localhost:5003</code>
             </div>
           </div>
         </div>
-
-        <!-- OpenClaw Skill -->
-        <div class="quickstart-content" id="tab-skill">
-          <div class="code-block">
-            <div class="code-header">
-              <span class="code-lang">OpenClaw CLI</span>
-              <button class="code-copy" onclick="copyCode(this)">复制</button>
-            </div>
-            <div class="code-body">
-<code><span class="code-comment"># 安装 DBCheck Skill</br></span>
-clawhub install dbcheck</br>
-
-<span class="code-comment"># 执行巡检</br></span>
-帮我巡检一下 MySQL 数据库</code>
-            </div>
-          </div>
-        </div>
-
+        
         <!-- Docker -->
         <div class="quickstart-content" id="tab-docker">
           <div class="code-block">
@@ -1581,209 +2041,505 @@ clawhub install dbcheck</br>
               <button class="code-copy" onclick="copyCode(this)">复制</button>
             </div>
             <div class="code-body">
-<code><span class="code-comment"># 拉取镜像（Docker Hub）</br></span>
-docker pull jackge12345/dbcheck:latest</br>
-<span class="code-comment"># 或使用 GHCR 镜像</br></span>
-docker pull ghcr.io/fiyo/dbcheck:latest</br>
-<span class="code-comment"># 启动容器</br></span>
-docker run -d --name dbcheck -p 5000:5000 \
-  -v $(pwd)/config:/app/config \
-  -v $(pwd)/data:/app/data \
-  jackge12345/dbcheck:latest</br>
-<span class="code-comment"># 访问 Web UI</br></span>
-<span class="code-keyword">open</span> http://localhost:5000</code>
+<code><span class="code-comment"># 拉取镜像 (Docker Hub)</span><br>
+docker pull jackge12345/dbcheck:latest<br>
+
+<span class="code-comment"># 或使用 GHCR 镜像</span><br>
+docker pull ghcr.io/fiyo/dbcheck:latest<br>
+
+<span class="code-comment"># 启动容器</span><br>
+docker run -d --name dbcheck -p 5003:5003 \<br>
+  -v $(pwd)/config:/app/config \<br>
+  -v $(pwd)/data:/app/data \<br>
+  jackge12345/dbcheck:latest
+<br>
+<span class="code-comment"># 访问 Web UI</span><br>
+http://localhost:5003</code>
+            </div>
+          </div>
+        </div>
+        
+        <!-- OpenClaw Skill -->
+        <div class="quickstart-content" id="tab-skill">
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">OpenClaw CLI</span>
+              <button class="code-copy" onclick="copyCode(this)">复制</button>
+            </div>
+            <div class="code-body">
+<code><span class="code-comment"># 安装 DBCheck Skill</span><br>
+clawhub install dbcheck<br>
+
+<span class="code-comment"># 执行巡检 (自然语言)</span><br>
+帮我巡检一下 MySQL 数据库 192.168.1.100<br>
+
+<span class="code-comment"># 查看历史报告</span><br>
+显示最近的巡检报告</code>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Binary -->
+        <div class="quickstart-content" id="tab-binary">
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">命令行</span>
+              <button class="code-copy" onclick="copyCode(this)">复制</button>
+            </div>
+            <div class="code-body">
+<code><span class="code-comment"># 下载打包版 (Windows)</span><br>
+<span class="code-function">wget</span> https://github.com/fiyo/DBCheck/releases/latest/download/DBCheck-win64.zip<br>
+
+<span class="code-comment"># 解压后直接运行</span><br>
+dbcheck.exe<br>
+
+<span class="code-comment"># 无需安装 Python / 无需安装依赖</span><br>
+<span class="code-comment"># 适合快速演示和内网分发</span></code>
             </div>
           </div>
         </div>
       </div>
-
+      
       <!-- Usage Modes -->
-      <div class="section-header reveal" style="margin-top: 4rem;">
-        <h2 class="section-title" style="font-size: 2rem;">四种使用方式</h2>
-        <p class="section-desc">
-          灵活选择，总有一款适合你
-        </p>
+      <div class="section-header reveal" style="margin-top:5rem;">
+        <h2 class="section-title" style="font-size:2rem;">四种使用方式</h2>
+        <p class="section-desc">灵活选择，总有一款适合你</p>
       </div>
-
-      <div class="editions-grid">
-        <div class="edition-card reveal">
-          <div class="edition-icon">⌨️</div>
-          <h3 class="edition-title">命令行</h3>
-          <p class="edition-desc">直接运行脚本，适合服务器自动化</p>
-          <ul class="edition-features">
-            <li><i class="fas fa-check"></i> 无需图形界面</li>
-            <li><i class="fas fa-check"></i> 易于集成 CI/CD</li>
-            <li><i class="fas fa-check"></i> 支持定时任务</li>
-            <li><i class="fas fa-check"></i> 批量巡检</li>
+      
+      <div class="modes-grid">
+        <div class="mode-card reveal">
+          <div class="mode-icon">⌨️</div>
+          <h3>命令行</h3>
+          <p>直接运行脚本，适合服务器自动化</p>
+          <ul>
+            <li><i class="fas fa-check-circle"></i> 无需图形界面</li>
+            <li><i class="fas fa-check-circle"></i> 易于集成 CI/CD</li>
+            <li><i class="fas fa-check-circle"></i> 支持定时任务</li>
+            <li><i class="fas fa-check-circle"></i> 批量巡检</li>
           </ul>
         </div>
-
-        <div class="edition-card featured reveal">
-          <span class="edition-badge">最推荐</span>
-          <div class="edition-icon">🌐</div>
-          <h3 class="edition-title">Web UI</h3>
-          <p class="edition-desc">可视化界面，操作更直观</p>
-          <ul class="edition-features">
-            <li><i class="fas fa-check"></i> 浏览器即可访问</li>
-            <li><i class="fas fa-check"></i> 实时查看进度</li>
-            <li><i class="fas fa-check"></i> 一键切换语言</li>
-            <li><i class="fas fa-check"></i> 管理定时任务</li>
+        
+        <div class="mode-card featured reveal">
+          <div class="mode-icon">🌐</div>
+          <h3>Web UI</h3>
+          <p>可视化界面，操作更直观</p>
+          <ul>
+            <li><i class="fas fa-check-circle"></i> 浏览器即可访问</li>
+            <li><i class="fas fa-check-circle"></i> 实时查看进度</li>
+            <li><i class="fas fa-check-circle"></i> 一键切换语言</li>
+            <li><i class="fas fa-check-circle"></i> 管理定时任务</li>
           </ul>
         </div>
-
-        <div class="edition-card reveal">
-          <div class="edition-icon">📦</div>
-          <h3 class="edition-title">OpenClaw Skill</h3>
-          <p class="edition-desc">集成到开发工具中</p>
-          <ul class="edition-features">
-            <li><i class="fas fa-check"></i> 命令行效率</li>
-            <li><i class="fas fa-check"></i> 无需安装 Python</li>
-            <li><i class="fas fa-check"></i> 跨平台支持</li>
-            <li><i class="fas fa-check"></i> 自动更新</li>
+        
+        <div class="mode-card reveal">
+          <div class="mode-icon">🐚</div>
+          <h3>OpenClaw Skill</h3>
+          <p>集成到 AI 助手中</p>
+          <ul>
+            <li><i class="fas fa-check-circle"></i> 自然语言操作</li>
+            <li><i class="fas fa-check-circle"></i> 无需安装 Python</li>
+            <li><i class="fas fa-check-circle"></i> 跨平台支持</li>
+            <li><i class="fas fa-check-circle"></i> 自动更新</li>
           </ul>
         </div>
-
-        <div class="edition-card reveal">
-          <div class="edition-icon">🐳</div>
-          <h3 class="edition-title">Docker</h3>
-          <p class="edition-desc">一键容器化部署，零依赖</p>
-          <ul class="edition-features">
-            <li><i class="fas fa-check"></i> 一条命令启动</li>
-            <li><i class="fas fa-check"></i> 支持 amd64/arm64</li>
-            <li><i class="fas fa-check"></i> 数据持久化</li>
-            <li><i class="fas fa-check"></i> 适合服务器部署</li>
+        
+        <div class="mode-card reveal">
+          <div class="mode-icon">🐳</div>
+          <h3>Docker</h3>
+          <p>一键容器化部署，零依赖</p>
+          <ul>
+            <li><i class="fas fa-check-circle"></i> 一条命令启动</li>
+            <li><i class="fas fa-check-circle"></i> 支持 amd64/arm64</li>
+            <li><i class="fas fa-check-circle"></i> 数据持久化</li>
+            <li><i class="fas fa-check-circle"></i> 适合服务器部署</li>
           </ul>
         </div>
-
-        <!-- <div class="edition-card reveal">
-          <div class="edition-icon">🔌</div>
-          <h3 class="edition-title">REST API</h3>
-          <p class="edition-desc">供其他系统调用</p>
-          <ul class="edition-features">
-            <li><i class="fas fa-check"></i> 程序化调用</li>
-            <li><i class="fas fa-check"></i> JSON 格式返回</li>
-            <li><i class="fas fa-check"></i> 集成到监控系统</li>
-            <li><i class="fas fa-check"></i> 灵活的触发方式</li>
-          </ul>
-        </div> -->
       </div>
     </div>
   </section>
-
-  <!-- CTA Section -->
-  <section id="cta" style="text-align: center; padding: 8rem 2rem;">
+  
+  <!-- ==================== FAQ Section ==================== -->
+  <section id="faq">
+    <div class="container">
+      <div class="section-header reveal">
+        <div class="section-tag">
+          <i class="fas fa-circle-question"></i> 常见问题
+        </div>
+        <h2 class="section-title">你可能想问的问题</h2>
+        <p class="section-desc">
+          关于 DBCheck 的常见疑问解答
+        </p>
+      </div>
+      
+      <div class="faq-list">
+        <div class="faq-item reveal" onclick="toggleFaq(this)">
+          <div class="faq-question">
+            <span>DBCheck 是免费的吗？</span>
+            <i class="fas fa-plus"></i>
+          </div>
+          <div class="faq-answer">
+            <div class="faq-answer-inner">
+              是的，DBCheck 基于 MIT 开源协议，完全免费。你可以自由使用、修改和分发，包括商业用途。
+            </div>
+          </div>
+        </div>
+        
+        <div class="faq-item reveal" onclick="toggleFaq(this)">
+          <div class="faq-question">
+            <span>AI 诊断会泄露数据吗？</span>
+            <i class="fas fa-plus"></i>
+          </div>
+          <div class="faq-answer">
+            <div class="faq-answer-inner">
+              不会。DBCheck 的 AI 诊断仅支持本地 Ollama，所有数据都在本地处理，绝不会发送到外部 API。代码层有硬性限制，即使配置文件被篡改也会自动降级为规则诊断。
+            </div>
+          </div>
+        </div>
+        
+        <div class="faq-item reveal" onclick="toggleFaq(this)">
+          <div class="faq-question">
+            <span>支持哪些数据库？</span>
+            <i class="fas fa-plus"></i>
+          </div>
+          <div class="faq-answer">
+            <div class="faq-answer-inner">
+              目前支持 10 种主流关系型数据库：MySQL、PostgreSQL、Oracle、SQL Server、达梦 DM8、TiDB、IvorySQL、YashanDB、KingbaseES、GBase 8s。更多数据库支持持续增加中。
+            </div>
+          </div>
+        </div>
+        
+        <div class="faq-item reveal" onclick="toggleFaq(this)">
+          <div class="faq-question">
+            <span>插件系统怎么用？</span>
+            <i class="fas fa-plus"></i>
+          </div>
+          <div class="faq-answer">
+            <div class="faq-answer-inner">
+              在 Web UI 中进入"插件市场"，浏览可用插件，点击安装即可。插件支持热加载，安装后无需重启。也可以手动将插件放入 plugins/ 目录，DBCheck 会自动加载。
+            </div>
+          </div>
+        </div>
+        
+        <div class="faq-item reveal" onclick="toggleFaq(this)">
+          <div class="faq-question">
+            <span>可以用于生产环境吗？</span>
+            <i class="fas fa-plus"></i>
+          </div>
+          <div class="faq-answer">
+            <div class="faq-answer-inner">
+              可以。DBCheck 的检查规则都是只读操作（SELECT、SHOW 等），不会对数据库进行任何写入或修改。建议先在测试环境验证，再用于生产环境。
+            </div>
+          </div>
+        </div>
+        
+        <div class="faq-item reveal" onclick="toggleFaq(this)">
+          <div class="faq-question">
+            <span>如何参与贡献？</span>
+            <i class="fas fa-plus"></i>
+          </div>
+          <div class="faq-answer">
+            <div class="faq-answer-inner">
+              欢迎提交 PR、Issue 或插件！请访问 <a href="https://github.com/fiyo/DBCheck" target="_blank" style="color:var(--primary-light);">GitHub 仓库</a> 了解贡献指南。插件开发文档详见 <a href="https://github.com/fiyo/dbcheck-plugins" target="_blank" style="color:var(--primary-light);">插件仓库</a>。
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  
+  <!-- ==================== CTA Section ==================== -->
+  <section class="cta-section">
     <div class="container reveal">
-      <h2 class="section-title" style="margin-bottom: 1rem;">准备好开始了吗?</h2>
-      <p class="section-desc" style="margin-bottom: 2rem;">
+      <h2 class="section-title">准备好开始了吗？</h2>
+      <p class="section-desc" style="margin-bottom:0;">
         开源免费，MIT 协议，欢迎 Star 和贡献
       </p>
-      <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
-        <a href="https://github.com/fiyo/DBCheck" target="_blank" class="btn btn-primary" style="font-size: 1.1rem; padding: 1rem 2rem;">
+      <div class="cta-buttons">
+        <a href="https://github.com/fiyo/DBCheck" target="_blank" class="btn btn-primary" style="font-size:1.1rem;padding:1rem 2.2rem;">
           <i class="fab fa-github"></i> 在 GitHub 上 Star
         </a>
-        <a href="https://github.com/fiyo/DBCheck/issues" target="_blank" class="btn btn-secondary" style="font-size: 1.1rem; padding: 1rem 2rem;">
+        <a href="https://github.com/fiyo/DBCheck/releases" target="_blank" class="btn btn-secondary" style="font-size:1.1rem;padding:1rem 2.2rem;">
+          <i class="fas fa-download"></i> 下载最新版
+        </a>
+        <a href="https://github.com/fiyo/DBCheck/issues" target="_blank" class="btn btn-accent" style="font-size:1.1rem;padding:1rem 2.2rem;">
           <i class="fas fa-bug"></i> 报告问题
         </a>
       </div>
-      <div style="margin-top: 2rem;">
-        <a href="https://github.com/fiyo/DBCheck/stargazers" target="_blank" class="github-star">
-          <i class="fas fa-star"></i> 成为赞助者
+      <div style="margin-top:2rem;">
+        <a href="https://github.com/fiyo/DBCheck/stargazers" target="_blank" style="display:inline-flex;align-items:center;gap:0.5rem;padding:0.5rem 1rem;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);text-decoration:none;font-weight:500;font-size:0.9rem;transition:all var(--transition-normal);">
+          <i class="fas fa-star" style="color:#f59e0b;"></i> 成为赞助者
         </a>
       </div>
     </div>
   </section>
-
-  <!-- Footer -->
+  
+  <!-- ==================== Footer ==================== -->
   <footer>
-    <div class="footer-content">
+    <div class="footer-grid">
       <div class="footer-brand">
-        <a href="#" class="nav-logo">
-          <img src="./dbcheck_logo.png" alt="DBCheck" class="nav-logo-icon">
-          <span class="nav-logo-text">DBCheck</span>
+        <a href="#" class="nav-logo" style="margin-bottom:1rem;">
+          <img src="./dbcheck_logo.png" alt="DBCheck">
+          <span>DBCheck</span>
         </a>
         <p>
           开源数据库健康巡检工具，帮助 DBA 自动化日常巡检工作，提升数据库运维效率。
         </p>
       </div>
-
+      
       <div class="footer-column">
         <h4>快速链接</h4>
-        <ul class="footer-links">
+        <ul>
           <li><a href="https://github.com/fiyo/DBCheck" target="_blank">GitHub 仓库</a></li>
           <li><a href="https://github.com/fiyo/DBCheck/releases" target="_blank">发布版本</a></li>
-          <li><a href="https://github.com/fiyo/DBCheck/issues" target="_blank">问题反馈</a></li>
+          <li><a href="https://github.com/fiyo/DBCheck/blob/main/RELEASE_v2.6.0.md" target="_blank">更新日志</a></li>
           <li><a href="https://github.com/fiyo/DBCheck/pulls" target="_blank">贡献代码</a></li>
         </ul>
       </div>
-
+      
       <div class="footer-column">
         <h4>资源</h4>
-        <ul class="footer-links">
+        <ul>
           <li><a href="https://github.com/fiyo/DBCheck#readme" target="_blank">使用文档</a></li>
-          <li><a href="https://github.com/fiyo/DBCheck/blob/main/RELEASE_v2.5.0.md" target="_blank">更新日志</a></li>
+          <li><a href="https://github.com/fiyo/dbcheck-plugins" target="_blank">插件市场</a></li>
           <li><a href="https://github.com/fiyo/DBCheck/discussions" target="_blank">讨论区</a></li>
           <li><a href="https://github.com/fiyo/DBCheck/wiki" target="_blank">Wiki</a></li>
         </ul>
       </div>
-
+      
       <div class="footer-column">
         <h4>支持</h4>
-        <ul class="footer-links">
+        <ul>
           <li><a href="https://github.com/fiyo/DBCheck/issues/new" target="_blank">提交 Bug</a></li>
           <li><a href="https://github.com/fiyo/DBCheck/discussions/new" target="_blank">提问</a></li>
           <li><a href="https://github.com/sponsors/fiyo" target="_blank">赞助项目</a></li>
         </ul>
       </div>
     </div>
-
+    
     <div class="footer-bottom">
       <p>© 2024-2026 DBCheck. 基于 MIT 协议开源。</p>
       <div class="footer-social">
-        <a href="https://github.com/fiyo/DBCheck" target="_blank" title="GitHub">
-          <i class="fab fa-github"></i>
-        </a>
-        <a href="https://github.com/fiyo/DBCheck/stargazers" target="_blank" title="Star">
-          <i class="fas fa-star"></i>
-        </a>
-        <a href="https://github.com/fiyo/DBCheck/network/members" target="_blank" title="Fork">
-          <i class="fas fa-code-branch"></i>
-        </a>
+        <a href="https://github.com/fiyo/DBCheck" target="_blank" title="GitHub"><i class="fab fa-github"></i></a>
+        <a href="https://github.com/fiyo/DBCheck/stargazers" target="_blank" title="Star"><i class="fas fa-star"></i></a>
+        <a href="https://github.com/fiyo/DBCheck/network/members" target="_blank" title="Fork"><i class="fas fa-code-branch"></i></a>
+        <a href="https://github.com/fiyo/DBCheck/issues" target="_blank" title="Issues"><i class="fas fa-circle-exclamation"></i></a>
       </div>
     </div>
   </footer>
-
+  
+  <!-- ==================== Scripts ==================== -->
   <script>
-    // Scroll animations
-    function revealOnScroll() {
-      const reveals = document.querySelectorAll('.reveal');
-      reveals.forEach(element => {
-        const windowHeight = window.innerHeight;
-        const elementTop = element.getBoundingClientRect().top;
-        const elementVisible = 150;
-        
-        if (elementTop < windowHeight - elementVisible) {
-          element.classList.add('active');
-        }
-      });
-    }
-
-    // Navbar scroll effect
-    function handleNavScroll() {
-      const nav = document.getElementById('navbar');
-      if (window.scrollY > 50) {
-        nav.classList.add('scrolled');
-      } else {
-        nav.classList.remove('scrolled');
+    // ==================== Canvas Particles ====================
+    function initParticles() {
+      const canvas = document.getElementById('particle-canvas');
+      const ctx = canvas.getContext('2d');
+      let particles = [];
+      let animationId;
+      
+      function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
       }
+      resize();
+      window.addEventListener('resize', resize);
+      
+      class Particle {
+        constructor() {
+          this.reset();
+        }
+        reset() {
+          this.x = Math.random() * canvas.width;
+          this.y = Math.random() * canvas.height;
+          this.size = Math.random() * 2 + 0.5;
+          this.speedX = (Math.random() - 0.5) * 0.5;
+          this.speedY = (Math.random() - 0.5) * 0.5;
+          this.opacity = Math.random() * 0.5 + 0.1;
+          this.color = ['99,102,241', '6,182,212', '244,114,182'][Math.floor(Math.random() * 3)];
+        }
+        update() {
+          this.x += this.speedX;
+          this.y += this.speedY;
+          if (this.x < 0 || this.x > canvas.width || this.y < 0 || this.y > canvas.height) {
+            this.reset();
+          }
+        }
+        draw() {
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(${this.color}, ${this.opacity})`;
+          ctx.fill();
+        }
+      }
+      
+      // Create particles
+      const count = Math.min(80, Math.floor(window.innerWidth / 20));
+      for (let i = 0; i < count; i++) {
+        particles.push(new Particle());
+      }
+      
+      function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        particles.forEach(p => { p.update(); p.draw(); });
+        
+        // Draw connections
+        particles.forEach((a, i) => {
+          particles.slice(i + 1).forEach(b => {
+            const dist = Math.hypot(a.x - b.x, a.y - b.y);
+            if (dist < 150) {
+              ctx.beginPath();
+              ctx.moveTo(a.x, a.y);
+              ctx.lineTo(b.x, b.y);
+              ctx.strokeStyle = `rgba(99,102,241, ${0.08 * (1 - dist / 150)})`;
+              ctx.lineWidth = 0.5;
+              ctx.stroke();
+            }
+          });
+        });
+        
+        animationId = requestAnimationFrame(animate);
+      }
+      animate();
     }
-
-    // Mobile menu
+    
+    // ==================== Typing Animation ====================
+    function initTyping() {
+      const texts = [
+        '让数据库巡检从手工劳动变为全自动化',
+        '支持 10 种数据库，160+ 检查规则',
+        '插件扩展 + AI 诊断，让 DBA 更轻松',
+        '开源免费，MIT 协议，立即开始'
+      ];
+      const el = document.getElementById('typingText');
+      const cursor = document.getElementById('typingCursor');
+      let textIndex = 0;
+      let charIndex = 0;
+      let isDeleting = false;
+      
+      function type() {
+        const currentText = texts[textIndex];
+        
+        if (!isDeleting) {
+          el.textContent = currentText.substring(0, charIndex + 1);
+          charIndex++;
+          
+          if (charIndex === currentText.length) {
+            isDeleting = true;
+            setTimeout(type, 2000);
+            return;
+          }
+          setTimeout(type, 60);
+        } else {
+          el.textContent = currentText.substring(0, charIndex - 1);
+          charIndex--;
+          
+          if (charIndex === 0) {
+            isDeleting = false;
+            textIndex = (textIndex + 1) % texts.length;
+            setTimeout(type, 500);
+            return;
+          }
+          setTimeout(type, 30);
+        }
+      }
+      setTimeout(type, 1000);
+    }
+    
+    // ==================== Counter Animation ====================
+    function initCounters() {
+      const counters = document.querySelectorAll('.stat-number[data-target]');
+      
+      function animateCounter(el) {
+        const target = parseInt(el.dataset.target);
+        const duration = 2000;
+        const start = performance.now();
+        
+        function update(now) {
+          const progress = Math.min((now - start) / duration, 1);
+          const eased = 1 - Math.pow(1 - progress, 3); // easeOutCubic
+          el.textContent = Math.floor(eased * target) + (target >= 100 ? '+' : '');
+          if (progress < 1) requestAnimationFrame(update);
+        }
+        requestAnimationFrame(update);
+      }
+      
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            animateCounter(entry.target);
+            observer.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.5 });
+      
+      counters.forEach(c => observer.observe(c));
+    }
+    
+    // ==================== Scroll Reveal ====================
+    function initReveal() {
+      const reveals = document.querySelectorAll('.reveal');
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('active');
+          }
+        });
+      }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+      
+      reveals.forEach(el => observer.observe(el));
+    }
+    
+    // ==================== Navbar Scroll ====================
+    function initNavScroll() {
+      const nav = document.getElementById('navbar');
+      const progress = document.getElementById('navProgress');
+      
+      function update() {
+        const scrollTop = window.scrollY;
+        const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+        const progressWidth = (scrollTop / docHeight) * 100;
+        
+        progress.style.width = progressWidth + '%';
+        
+        if (scrollTop > 50) {
+          nav.classList.add('scrolled');
+        } else {
+          nav.classList.remove('scrolled');
+        }
+      }
+      window.addEventListener('scroll', update);
+    }
+    
+    // ==================== Active Nav Link ====================
+    function initActiveNav() {
+      const sections = document.querySelectorAll('section[id]');
+      const navLinks = document.querySelectorAll('.nav-link');
+      
+      function update() {
+        let current = '';
+        sections.forEach(section => {
+          const sectionTop = section.offsetTop - 100;
+          if (window.scrollY >= sectionTop) {
+            current = section.getAttribute('id');
+          }
+        });
+        
+        navLinks.forEach(link => {
+          link.classList.remove('active');
+          if (link.getAttribute('href') === '#' + current) {
+            link.classList.add('active');
+          }
+        });
+      }
+      window.addEventListener('scroll', update);
+    }
+    
+    // ==================== Mobile Menu ====================
     function toggleMobileMenu() {
       const menu = document.getElementById('mobileMenu');
       menu.classList.toggle('active');
     }
-
-    // Tab switching
+    
+    // ==================== Tab Switching ====================
     function switchTab(tabName) {
       // Update tab buttons
       document.querySelectorAll('.quickstart-tab').forEach(tab => {
@@ -1797,8 +2553,8 @@ docker run -d --name dbcheck -p 5000:5000 \
       });
       document.getElementById('tab-' + tabName).classList.add('active');
     }
-
-    // Copy code
+    
+    // ==================== Copy Code ====================
     function copyCode(button) {
       const codeBlock = button.closest('.code-block');
       const code = codeBlock.querySelector('code').textContent;
@@ -1812,47 +2568,39 @@ docker run -d --name dbcheck -p 5000:5000 \
         }, 2000);
       });
     }
-
-    // Create particles
-    function createParticles() {
-      const container = document.getElementById('particles');
-      for (let i = 0; i < 30; i++) {
-        const particle = document.createElement('div');
-        particle.className = 'particle';
-        particle.style.left = Math.random() * 100 + '%';
-        particle.style.animationDelay = Math.random() * 15 + 's';
-        particle.style.animationDuration = (Math.random() * 10 + 10) + 's';
-        
-        // Random colors
-        const colors = ['#6366f1', '#06b6d4', '#f472b6', '#10b981'];
-        particle.style.background = colors[Math.floor(Math.random() * colors.length)];
-        
-        container.appendChild(particle);
+    
+    // ==================== FAQ Toggle ====================
+    function toggleFaq(item) {
+      const isOpen = item.classList.contains('open');
+      // Close all
+      document.querySelectorAll('.faq-item').forEach(f => f.classList.remove('open'));
+      // Open clicked if not already open
+      if (!isOpen) {
+        item.classList.add('open');
       }
     }
-
-    // Load version from version.json
+    
+    // ==================== Load Version ====================
     async function loadVersion() {
       try {
-        const response = await fetch('../version.json');
+        const response = await fetch('./version.json');
         if (response.ok) {
           const data = await response.json();
-          document.getElementById('version-text').textContent = data.version + ' 现已发布';
+          document.getElementById('versionText').textContent = data.version;
         }
       } catch (e) {
         // Silently fail - use default version
       }
     }
-
-    // Initialize
-    window.addEventListener('scroll', () => {
-      revealOnScroll();
-      handleNavScroll();
-    });
-
+    
+    // ==================== Initialize ====================
     document.addEventListener('DOMContentLoaded', () => {
-      createParticles();
-      revealOnScroll();
+      initParticles();
+      initTyping();
+      initCounters();
+      initReveal();
+      initNavScroll();
+      initActiveNav();
       loadVersion();
     });
   </script>
