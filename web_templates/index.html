@@ -14440,6 +14440,7 @@ async function deleteBackupHistory(recordId) {
 
       // 轮询检查下载状态（每 800ms 一次）
       let pollCount = 0;
+      let hasRealProgress = false; // 是否已经收到真实进度
       const maxPolls = 600; // 最多轮询 10 分钟 (600 * 800ms)
 
       _oracleDownloadPollTimer = setInterval(async () => {
@@ -14451,11 +14452,12 @@ async function deleteBackupHistory(recordId) {
           const dlStatus = statusData.download_status || '';
           const dlMsg = statusData.download_message || '';
           const dlError = statusData.download_error || null;
+          const dlProgress = statusData.download_progress || 0;
 
           // 根据状态更新 UI
           if (statusData.installed || dlStatus === 'done') {
             clearInterval(_oracleDownloadPollTimer);
-            clearInterval(_oracleAnimTimer);
+            clearInterval(animTimer);
             _oracleDownloadPollTimer = null;
             barEl.classList.remove('progress-bar-animated');
             barEl.style.width = '100%';
@@ -14469,7 +14471,7 @@ async function deleteBackupHistory(recordId) {
 
           if (dlError || dlStatus === 'error') {
             clearInterval(_oracleDownloadPollTimer);
-            clearInterval(_oracleAnimTimer);
+            clearInterval(animTimer);
             _oracleDownloadPollTimer = null;
             barEl.classList.remove('progress-bar-animated');
             barEl.style.width = '0%';
@@ -14480,14 +14482,26 @@ async function deleteBackupHistory(recordId) {
             return;
           }
 
-          // 下载中：显示消息，保持动画进度条来回跑
+          // 下载中：如果有真实进度，显示真实进度条；否则保持动画
           if (dlMsg) {
             msgEl.textContent = dlMsg;
           }
 
+          // 关键修复：如果后端返回了真实进度（>0），停止使用动画，显示真实进度
+          if (dlProgress > 0 && dlProgress < 100) {
+            if (!hasRealProgress) {
+              hasRealProgress = true;
+              clearInterval(animTimer); // 停止不确定动画
+              barEl.classList.remove('progress-bar-animated');
+            }
+            barEl.style.transition = 'width 0.3s ease';
+            barEl.style.width = dlProgress + '%';
+            barEl.style.background = 'var(--primary)';
+          }
+
           if (pollCount >= maxPolls) {
             clearInterval(_oracleDownloadPollTimer);
-            clearInterval(_oracleAnimTimer);
+            clearInterval(animTimer);
             _oracleDownloadPollTimer = null;
             barEl.classList.remove('progress-bar-animated');
             barEl.style.background = 'linear-gradient(90deg, #ff9800, #ffa726)';
