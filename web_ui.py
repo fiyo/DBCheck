@@ -1544,6 +1544,9 @@ def _get_oracle_platform_key():
 # Oracle Instant Client 下载进度（全局，供 download 和 status 接口共享）
 _oracle_client_download_progress = {'progress': 0, 'status': 'idle', 'message': '', 'error': None}
 
+# 所有驱动下载进度（全局）
+_all_drivers_download_progress = {'progress': 0, 'status': 'idle', 'message': '', 'error': None}
+
 
 def _check_oracle_client_installed(platform_key=None):
     """检查 Oracle Instant Client 是否已安装，返回 dict"""
@@ -1699,6 +1702,103 @@ def api_oracle_client_download_status():
         'installed': status['installed'],
         'version': status['version'],
         'platform': status['platform'],
+        'download_progress': progress['progress'],
+        'download_status': progress['status'],
+        'download_message': progress['message'],
+        'download_error': progress['error'],
+    })
+
+
+@app.route('/api/download_all_drivers', methods=['POST'])
+def api_download_all_drivers():
+    """
+    一键下载所有驱动：
+    1. 下载 drivers.zip（通用驱动）
+    2. 下载对应平台的 Oracle Instant Client
+    """
+    import threading
+
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+
+    # 重置全局下载状态
+    global _all_drivers_download_progress
+    _all_drivers_download_progress = {
+        'progress': 0,
+        'status': 'downloading',
+        'message': '正在准备下载...',
+        'error': None
+    }
+
+    def _do_download_all():
+        try:
+            import importlib
+            import download_drivers
+            import download_oracle_client
+
+            # 强制重新加载模块
+            importlib.reload(download_drivers)
+            importlib.reload(download_oracle_client)
+
+            # 步骤1：下载 drivers.zip
+            _all_drivers_download_progress['message'] = '正在下载通用驱动包（drivers.zip）...'
+            _all_drivers_download_progress['progress'] = 10
+
+            def on_drivers_progress(status_str, progress, total, msg):
+                _all_drivers_download_progress['message'] = f'通用驱动：{msg}'
+                _all_drivers_download_progress['progress'] = int(progress * 0.5)  # 前 50%
+
+            result_drivers = download_drivers.download_drivers(
+                target_dir=base_dir,
+                progress_callback=on_drivers_progress
+            )
+
+            if not result_drivers['success']:
+                _all_drivers_download_progress['status'] = 'error'
+                _all_drivers_download_progress['error'] = result_drivers.get('error', '下载通用驱动失败')
+                _all_drivers_download_progress['message'] = f"通用驱动下载失败：{result_drivers.get('error')}"
+                return
+
+            _all_drivers_download_progress['progress'] = 50
+            _all_drivers_download_progress['message'] = '通用驱动下载完成，正在下载 Oracle Instant Client...'
+
+            # 步骤2：下载 Oracle Instant Client
+            def on_oracle_progress(status_str, progress, total, msg):
+                _all_drivers_download_progress['message'] = f'Oracle Client：{msg}'
+                _all_drivers_download_progress['progress'] = 50 + int(progress * 0.5)  # 后 50%
+
+            result_oracle = download_oracle_client.download_instant_client(
+                target_dir=base_dir,
+                progress_callback=on_oracle_progress
+            )
+
+            if not result_oracle['success'] and not result_oracle.get('error', '').startswith('已安装'):
+                _all_drivers_download_progress['status'] = 'error'
+                _all_drivers_download_progress['error'] = result_oracle.get('error', '下载 Oracle Client 失败')
+                _all_drivers_download_progress['message'] = f"Oracle Client 下载失败：{result_oracle.get('error')}"
+                return
+
+            # 完成
+            _all_drivers_download_progress['status'] = 'done'
+            _all_drivers_download_progress['progress'] = 100
+            _all_drivers_download_progress['message'] = '✅ 所有驱动下载并安装成功！'
+
+        except Exception as e:
+            _all_drivers_download_progress['status'] = 'error'
+            _all_drivers_download_progress['error'] = str(e)
+            _all_drivers_download_progress['message'] = f'下载异常：{e}'
+
+    # 在后台线程中下载
+    t = threading.Thread(target=_do_download_all, daemon=True)
+    t.start()
+
+    return jsonify({'ok': True, 'message': '开始下载所有驱动...'})
+
+
+@app.route('/api/download_all_drivers_status', methods=['GET'])
+def api_download_all_drivers_status():
+    """获取所有驱动下载进度"""
+    progress = _all_drivers_download_progress.copy()
+    return jsonify({
         'download_progress': progress['progress'],
         'download_status': progress['status'],
         'download_message': progress['message'],

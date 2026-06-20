@@ -5244,9 +5244,20 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
               </div>
               <div id="oracle-download-msg" style="font-size:12px;color:var(--text-muted);"></div>
             </div>
-            <div style="display:flex;gap:10px;">
+
+            <!-- 所有驱动下载进度 -->
+            <div id="all-drivers-download-progress" style="display:none;margin-bottom:12px;">
+              <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;height:8px;overflow:hidden;margin-bottom:6px;">
+                <div id="all-drivers-download-bar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--success),#66bb6a);border-radius:6px;transition:width 0.3s;"></div>
+              </div>
+              <div id="all-drivers-download-msg" style="font-size:12px;color:var(--text-muted);"></div>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
               <button class="btn btn-primary" id="oracle-download-btn" onclick="downloadOracleClient()" style="padding:8px 20px;" data-i18n="webui.oracle_client_download_btn">
-                ⬇️ 一键下载并安装
+                ⬇️ 一键下载 Oracle Client
+              </button>
+              <button class="btn btn-success" id="al-drivers-download-btn" onclick="downloadAllDrivers()" style="padding:8px 20px;" data-i18n="webui.all_drivers_download_btn">
+                📦 一键下载所有驱动
               </button>
               <button class="btn btn-ghost" onclick="checkOracleClientStatus()" style="padding:8px 16px;" data-i18n="webui.oracle_client_check_btn">
                 🔍 检查安装状态
@@ -14520,6 +14531,152 @@ async function deleteBackupHistory(recordId) {
       if (_oracleDownloadPollTimer) {
         clearInterval(_oracleDownloadPollTimer);
         _oracleDownloadPollTimer = null;
+      }
+    }
+  }
+
+  // 一键下载所有驱动（drivers.zip + Oracle Instant Client）
+  let _allDriversDownloadPollTimer = null;
+
+  async function downloadAllDrivers() {
+    const btn = document.getElementById('all-drivers-download-btn');
+    const progressEl = document.getElementById('all-drivers-download-progress');
+    const barEl = document.getElementById('all-drivers-download-bar');
+    const msgEl = document.getElementById('all-drivers-download-msg');
+    const restoreBtn = () => { btn.disabled = false; btn.style.opacity = '1'; btn.innerHTML = '📦 一键下载所有驱动'; };
+
+    // 禁用按钮防止重复点击，并显示 loading 状态
+    btn.disabled = true;
+    btn.style.opacity = '0.6';
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> 下载中...';
+    progressEl.style.display = 'block';
+    barEl.style.transition = 'none';
+    barEl.style.background = 'var(--success)';
+    msgEl.textContent = '正在启动下载...';
+    msgEl.style.color = 'var(--text-muted)';
+
+    // 不确定进度动画
+    let animPhase = 0;
+    let animTimer = null;
+    function startIndeterminateAnim() {
+      clearInterval(animTimer);
+      barEl.style.transition = 'width 0.3s linear';
+      animPhase = 0;
+      animTimer = setInterval(() => {
+        const phases = [0, 30, 60, 95, 60, 30];
+        barEl.style.width = phases[animPhase % phases.length] + '%';
+        animPhase++;
+      }, 400);
+    }
+    startIndeterminateAnim();
+
+    // 清除之前的轮询
+    if (_allDriversDownloadPollTimer) {
+      clearInterval(_allDriversDownloadPollTimer);
+    }
+
+    try {
+      const res = await fetch('/api/download_all_drivers', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+
+      if (!data.ok) {
+        barEl.style.width = '0%';
+        barEl.style.background = 'linear-gradient(90deg, #f44336, #ef5350)';
+        msgEl.textContent = '❌ ' + (data.message || '启动下载失败');
+        msgEl.style.color = '#f44336';
+        restoreBtn();
+        return;
+      }
+
+      msgEl.textContent = '下载已在后台启动，正在等待完成...';
+      barEl.style.width = '5%';
+
+      // 轮询检查下载状态（每 800ms 一次）
+      let pollCount = 0;
+      let hasRealProgress = false;
+      const maxPolls = 600; // 最多轮询 10 分钟
+
+      _allDriversDownloadPollTimer = setInterval(async () => {
+        pollCount++;
+        try {
+          const statusRes = await fetch('/api/download_all_drivers_status');
+          const statusData = await statusRes.json();
+
+          const dlStatus = statusData.download_status || '';
+          const dlMsg = statusData.download_message || '';
+          const dlError = statusData.download_error || null;
+          const dlProgress = statusData.download_progress || 0;
+
+          // 根据状态更新 UI
+          if (dlStatus === 'done') {
+            clearInterval(_allDriversDownloadPollTimer);
+            clearInterval(animTimer);
+            _allDriversDownloadPollTimer = null;
+            barEl.classList.remove('progress-bar-animated');
+            barEl.style.width = '100%';
+            barEl.style.background = 'linear-gradient(90deg, #4caf50, #66bb6a)';
+            msgEl.textContent = dlMsg || '✅ 所有驱动下载并安装成功！';
+            msgEl.style.color = '#4caf50';
+            restoreBtn();
+            checkOracleClientStatus();
+            return;
+          }
+
+          if (dlError || dlStatus === 'error') {
+            clearInterval(_allDriversDownloadPollTimer);
+            clearInterval(animTimer);
+            _allDriversDownloadPollTimer = null;
+            barEl.classList.remove('progress-bar-animated');
+            barEl.style.width = '0%';
+            barEl.style.background = 'linear-gradient(90deg, #f44336, #ef5350)';
+            msgEl.textContent = '❌ ' + (dlMsg || dlError || '下载失败');
+            msgEl.style.color = '#f44336';
+            restoreBtn();
+            return;
+          }
+
+          // 下载中：如果有真实进度，显示真实进度条；否则保持动画
+          if (dlMsg) {
+            msgEl.textContent = dlMsg;
+          }
+
+          // 如果后端返回了真实进度（>0），停止使用动画，显示真实进度
+          if (dlProgress > 0 && dlProgress < 100) {
+            if (!hasRealProgress) {
+              hasRealProgress = true;
+              clearInterval(animTimer);
+              barEl.classList.remove('progress-bar-animated');
+            }
+            barEl.style.transition = 'width 0.3s ease';
+            barEl.style.width = dlProgress + '%';
+            barEl.style.background = 'var(--success)';
+          }
+
+          if (pollCount >= maxPolls) {
+            clearInterval(_allDriversDownloadPollTimer);
+            clearInterval(animTimer);
+            _allDriversDownloadPollTimer = null;
+            barEl.classList.remove('progress-bar-animated');
+            barEl.style.background = 'linear-gradient(90deg, #ff9800, #ffa726)';
+            msgEl.textContent = '⏳ 下载时间较长，请等待完成后手动点击"检查安装状态"确认。';
+            restoreBtn();
+          }
+        } catch(e) {
+          // 忽略轮询中的网络错误
+        }
+      }, 800);
+
+    } catch(e) {
+      msgEl.textContent = '❌ 启动下载失败: ' + e.message;
+      msgEl.style.color = '#f44336';
+      restoreBtn();
+      if (_allDriversDownloadPollTimer) {
+        clearInterval(_allDriversDownloadPollTimer);
+        _allDriversDownloadPollTimer = null;
       }
     }
   }
