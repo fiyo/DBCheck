@@ -381,7 +381,7 @@ A：内置阈值基于通用最佳实践，请结合实际业务评估。
 
 如果这个工具对你有帮助，欢迎支持项目的持续开发：
 
-<img src="snapshot/pay-en.png" alt="赞助二维码" width="400" />
+<!-- <img src="snapshot/pay-en.png" alt="赞助二维码" width="400" /> -->
 
 <img src="snapshot/dbcheck-badge.png" alt="DBCheck 支持者徽章" width="120" />
 

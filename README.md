@@ -380,7 +380,7 @@ This project references the following works:
 
 If this tool has been helpful, please consider supporting ongoing development:
 
-<img src="snapshot/pay-en.png" alt="QR Code" width="400" />
+<!-- <img src="snapshot/pay-en.png" alt="QR Code" width="400" /> -->
 
 <img src="snapshot/dbcheck-badge.png" alt="DBCheck Supporter Badge" width="120" />
 
