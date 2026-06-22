@@ -22,13 +22,139 @@
 import sqlite3
 import json
 import os
+import sys
 from datetime import datetime
 from typing import List, Dict, Optional, Any
 from config_baseline import _get_default_baselines
 
 
 # 数据库文件路径
-DEFAULT_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'inspection.db')
+# PyInstaller 打包后 __file__ 指向 _internal 目录，需用 sys.executable 定位
+if getattr(sys, 'frozen', False):
+    _BASE_DIR = os.path.dirname(sys.executable)
+else:
+    _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_DB_PATH = os.path.join(_BASE_DIR, 'data', 'inspection.db')
+
+# 数据库初始化标记（避免每次连接都检查）
+_db_initialized = False
+
+
+def _ensure_tables(conn):
+    """
+    检查并创建所有必要的表（如果不存在）。
+    直接在已有连接上操作，避免递归调用。
+    在建表后检查是否需要初始化预设数据（仅首次）。
+    """
+    cursor = conn.cursor()
+    
+    # 创建巡检模板表
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS inspection_template (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            db_type VARCHAR(50) NOT NULL,
+            template_name_zh VARCHAR(200) NOT NULL,
+            template_name_en VARCHAR(200),
+            version VARCHAR(50) DEFAULT 'v1',
+            description TEXT,
+            is_default INTEGER DEFAULT 0,
+            is_preset INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(db_type, template_name_zh)
+        )
+    """)
+    
+    # 检查是否需要初始化预设数据（仅当模板表为空时）
+    cursor.execute("SELECT COUNT(*) FROM inspection_template")
+    count = cursor.fetchone()[0]
+    
+    # 创建章节表（如果不存在）
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS inspection_chapter (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            template_id INTEGER NOT NULL,
+            chapter_number INTEGER NOT NULL,
+            chapter_title_zh VARCHAR(200) NOT NULL,
+            chapter_title_en VARCHAR(200),
+            description TEXT,
+            enabled INTEGER DEFAULT 1,
+            sort_order INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (template_id) REFERENCES inspection_template(id) ON DELETE CASCADE,
+            UNIQUE(template_id, chapter_number)
+        )
+    """)
+    
+    # 创建 SQL 查询表（如果不存在）
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS inspection_query (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            chapter_id INTEGER NOT NULL,
+            query_key VARCHAR(100) NOT NULL,
+            query_sql TEXT NOT NULL,
+            query_description_zh TEXT,
+            query_description_en TEXT,
+            enabled INTEGER DEFAULT 1,
+            sort_order INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (chapter_id) REFERENCES inspection_chapter(id) ON DELETE CASCADE,
+            UNIQUE(chapter_id, query_key)
+        )
+    """)
+    
+    # 创建修改历史表（如果不存在）
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS inspection_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            table_name VARCHAR(50) NOT NULL,
+            record_id INTEGER NOT NULL,
+            action VARCHAR(20) NOT NULL,
+            old_value TEXT,
+            new_value TEXT,
+            modified_by VARCHAR(100),
+            modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # 创建基线配置表
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS inspection_baseline (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            db_type VARCHAR(50) NOT NULL,
+            param_name VARCHAR(100) NOT NULL,
+            query_sql TEXT NOT NULL,
+            operator VARCHAR(20),
+            expected_value TEXT,
+            expected_value_min REAL,
+            expected_value_max REAL,
+            risk_level VARCHAR(20),
+            description_zh TEXT,
+            description_en TEXT,
+            enabled INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(db_type, param_name)
+        )
+    """)
+    
+    # 检查是否需要初始化预设数据（仅当基线表为空时）
+    cursor.execute("SELECT COUNT(*) FROM inspection_baseline")
+    baseline_count = cursor.fetchone()[0]
+    if baseline_count == 0:
+        conn.commit()  # 先提交建表操作
+        # 延迟导入，避免循环依赖
+        try:
+            from inspection_init_db import init_default_templates, init_server_thresholds
+            init_default_templates(db_path=DEFAULT_DB_PATH)
+            init_server_thresholds(db_path=DEFAULT_DB_PATH)
+            # 初始化默认基线配置（同文件内的函数，可直接调用）
+            init_default_baselines(db_path=DEFAULT_DB_PATH)
+            print("[巡检] 预设模板、阈值和基线初始化完成")
+        except Exception as e:
+            print(f"[巡检] 预设数据初始化失败: {e}")
 
 
 def get_db_connection(db_path: str = None) -> sqlite3.Connection:
@@ -44,6 +170,14 @@ def get_db_connection(db_path: str = None) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row  # 使结果可以通过列名访问
     conn.execute("PRAGMA foreign_keys = ON")  # 启用外键约束
+    
+    # 自动初始化数据库表（仅首次）
+    global _db_initialized
+    if not _db_initialized:
+        _ensure_tables(conn)
+        conn.commit()
+        _db_initialized = True
+    
     return conn
 
 
@@ -54,157 +188,16 @@ def init_database(db_path: str = None):
     :param db_path: 数据库文件路径，如果为 None，则使用默认路径
     """
     conn = get_db_connection(db_path)
-    cursor = conn.cursor()
-    
     try:
-        # 创建巡检模板表
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS inspection_template (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                db_type VARCHAR(50) NOT NULL,
-                template_name_zh VARCHAR(200) NOT NULL,
-                template_name_en VARCHAR(200),
-                version VARCHAR(50) DEFAULT 'v1',
-                description TEXT,
-                is_default INTEGER DEFAULT 0,
-                is_preset INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(db_type, template_name_zh)
-            )
-        """)
-        
-        # 创建章节表
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS inspection_chapter (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                template_id INTEGER NOT NULL,
-                chapter_number INTEGER NOT NULL,
-                chapter_title_zh VARCHAR(200) NOT NULL,
-                chapter_title_en VARCHAR(200),
-                description TEXT,
-                enabled INTEGER DEFAULT 1,
-                sort_order INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (template_id) REFERENCES inspection_template(id) ON DELETE CASCADE,
-                UNIQUE(template_id, chapter_number)
-            )
-        """)
-        
-        # 创建 SQL 查询表
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS inspection_query (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                chapter_id INTEGER NOT NULL,
-                query_key VARCHAR(100) NOT NULL,
-                query_sql TEXT NOT NULL,
-                query_description_zh TEXT,
-                query_description_en TEXT,
-                enabled INTEGER DEFAULT 1,
-                sort_order INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (chapter_id) REFERENCES inspection_chapter(id) ON DELETE CASCADE,
-                UNIQUE(chapter_id, query_key)
-            )
-        """)
-        
-        # 创建修改历史表
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS inspection_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                table_name VARCHAR(50) NOT NULL,
-                record_id INTEGER NOT NULL,
-                action VARCHAR(20) NOT NULL,
-                old_value TEXT,
-                new_value TEXT,
-                modified_by VARCHAR(100),
-                modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        
-        # 创建基线配置表
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS inspection_baseline (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                db_type VARCHAR(50) NOT NULL,
-                param_name VARCHAR(100) NOT NULL,
-                query_sql TEXT NOT NULL,
-                operator VARCHAR(10) NOT NULL DEFAULT '=',
-                expected_value VARCHAR(500),
-                expected_value_min VARCHAR(500),
-                expected_value_max VARCHAR(500),
-                risk_level VARCHAR(20) DEFAULT 'MEDIUM',
-                description_zh TEXT,
-                description_en TEXT,
-                enabled INTEGER DEFAULT 1,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        
-        # 创建索引以提高查询性能
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_template_db_type ON inspection_template(db_type)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_chapter_template_id ON inspection_chapter(template_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_query_chapter_id ON inspection_query(chapter_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_history_table_record ON inspection_history(table_name, record_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_baseline_db_type ON inspection_baseline(db_type)")
-
-        # 迁移：为已有数据库添加 version 字段（如果不存在）
-        cursor.execute("PRAGMA table_info(inspection_template)")
-        columns = [row[1] for row in cursor.fetchall()]
-        if 'version' not in columns:
-            cursor.execute("ALTER TABLE inspection_template ADD COLUMN version VARCHAR(50) DEFAULT 'v1'")
-            print("🔄 已为 inspection_template 表添加 version 字段")
-        if 'is_preset' not in columns:
-            cursor.execute("ALTER TABLE inspection_template ADD COLUMN is_preset INTEGER DEFAULT 0")
-            print("🔄 已为 inspection_template 表添加 is_preset 字段")
-        # is_preset 由 create_template 时显式指定，不应根据 is_default 自动设置
-        # is_default（巡检默认选中）和 is_preset（系统预置不可删除）是两个独立概念
-        # Oracle 11g 模板也是预置模板（is_default=0 但同样不可删除）
-        cursor.execute("UPDATE inspection_template SET is_preset = 1 WHERE db_type = 'oracle' AND version = '11g'")
+        _ensure_tables(conn)
         conn.commit()
-
-        # 迁移：为 inspection_query 表补充缺失的列（旧版数据库可能没有）
-        cursor.execute("PRAGMA table_info(inspection_query)")
-        query_columns = [row[1] for row in cursor.fetchall()]
-        if query_columns:
-            if 'query_sql' not in query_columns:
-                cursor.execute("ALTER TABLE inspection_query ADD COLUMN query_sql TEXT NOT NULL DEFAULT ''")
-                print("🔄 已为 inspection_query 表添加 query_sql 字段")
-            if 'query_description_zh' not in query_columns:
-                cursor.execute("ALTER TABLE inspection_query ADD COLUMN query_description_zh TEXT")
-                print("🔄 已为 inspection_query 表添加 query_description_zh 字段")
-            if 'query_description_en' not in query_columns:
-                cursor.execute("ALTER TABLE inspection_query ADD COLUMN query_description_en TEXT")
-                print("🔄 已为 inspection_query 表添加 query_description_en 字段")
-            if 'enabled' not in query_columns:
-                cursor.execute("ALTER TABLE inspection_query ADD COLUMN enabled INTEGER DEFAULT 1")
-                print("🔄 已为 inspection_query 表添加 enabled 字段")
-            if 'sort_order' not in query_columns:
-                cursor.execute("ALTER TABLE inspection_query ADD COLUMN sort_order INTEGER DEFAULT 0")
-                print("🔄 已为 inspection_query 表添加 sort_order 字段")
-            if 'created_at' not in query_columns:
-                cursor.execute("ALTER TABLE inspection_query ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
-                print("🔄 已为 inspection_query 表添加 created_at 字段")
-            if 'updated_at' not in query_columns:
-                cursor.execute("ALTER TABLE inspection_query ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
-                print("🔄 已为 inspection_query 表添加 updated_at 字段")
-            conn.commit()
-
-        conn.commit()
-        print("[OK] 数据库初始化成功")
-        
+        global _db_initialized
+        _db_initialized = True
     except Exception as e:
         conn.rollback()
-        print(f"[FAIL] 数据库初始化失败: {e}")
-        raise
+        raise e
     finally:
         conn.close()
-
-
-# ==================== 巡检模板操作 ====================
 
 def create_template(db_type: str, template_name: str, description: str = None,
                    template_name_en: str = None, version: str = 'v1', is_default: int = 0, is_preset: int = 0, db_path: str = None) -> int:

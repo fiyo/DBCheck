@@ -2352,7 +2352,7 @@ def api_get_server_thresholds():
     """获取服务器巡检阈值配置"""
     try:
         import sqlite3, os
-        db_path = os.path.join(os.path.dirname(__file__), 'data', 'inspection.db')
+        db_path = os.path.join(BASE_DIR, 'data', 'inspection.db')
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
@@ -2378,7 +2378,7 @@ def api_save_server_thresholds():
     """保存服务器巡检阈值配置（批量更新）"""
     try:
         import sqlite3, os, datetime
-        db_path = os.path.join(os.path.dirname(__file__), 'data', 'inspection.db')
+        db_path = os.path.join(BASE_DIR, 'data', 'inspection.db')
         items = request.get_json(force=True)
         if not isinstance(items, list):
             return jsonify({'success': False, 'message': '请求数据必须是数组'}), 400
@@ -4433,7 +4433,7 @@ def api_pro_datasources_test_conn():
                     if not _thick_ok:
                         try:
                             import json
-                            with open('dbc_config.json') as f:
+                            with open(os.path.join(BASE_DIR, 'dbc_config.json')) as f:
                                 _cfg = json.load(f)
                             _lib_dir = _cfg.get('oracle_client_lib_dir', '')
                             if _lib_dir and os.path.isdir(_lib_dir):
