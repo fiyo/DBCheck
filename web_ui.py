@@ -1148,11 +1148,33 @@ def _get_sqlserver_driver():
 
 
 def _build_sqlserver_conn_str(host, port, user, password, database=None, timeout=10):
-    """构建 SQL Server ODBC 连接字符串（动态检测驱动）"""
+    """
+    构建 SQL Server ODBC 连接字符串（动态检测驱动）
+    密码为 None/空串时省略 PWD（Windows 认证）；
+    密码中含分号时用单引号包裹，避免断串。
+    """
     driver = _get_sqlserver_driver()
-    conn_str = "DRIVER={" + driver + "};SERVER=" + str(host) + "," + str(port) + ";UID=" + str(user) + ";PWD=" + str(password) + ";TrustServerCertificate=yes;Connection Timeout=" + str(timeout)
+    # 详细调试
+    print(f"[SQL Server] password 类型: {type(password)}, 值长度: {len(str(password)) if password else 0}, repr: {repr(password)}")
+    # 拼 UID（用户名）
+    uid_part = ";UID=" + str(user) if user else ""
+    # 拼 PWD（密码为 None 或空字符串时完全省略，触发 Windows 认证）
+    pwd_part = ""
+    if password and str(password):
+        _pwd = str(password)
+        if ';' in _pwd:
+            pwd_part = ";PWD='" + _pwd + "'"
+        else:
+            pwd_part = ";PWD=" + _pwd
+    conn_str = ("DRIVER={" + driver + "};"
+                "SERVER=" + str(host) + "," + str(port) +
+                uid_part + pwd_part +
+                ";TrustServerCertificate=yes;Connection Timeout=" + str(timeout))
     if database:
         conn_str += ";DATABASE=" + str(database)
+    # 调试输出（密码打码）
+    _debug_pwd = "***" if password else "(empty/None)"
+    print(f"[SQL Server] 连接字符串调试: DRIVER={{{driver}}};SERVER={host},{port};UID={user};PWD={_debug_pwd};DB={database}")
     return conn_str
 
 
@@ -4652,13 +4674,19 @@ def api_ds_databases(ds_id):
         elif db_type == 'gbase':
             # GBase 8s 使用 JDBC 连接（jaydebeapi）
             import jaydebeapi, os
-            _jdbc_driver = os.path.join(BASE_DIR, 'drivers', 'gbase', 'gbase-jdbc.jar')
+            _jdbc_driver = _get_gbase_driver()
+            print(f"[GBase] _get_gbase_driver() 返回: {_jdbc_driver}")
+            if not _jdbc_driver:
+                raise Exception('GBase 8s JDBC 驱动未找到，请将驱动 jar 文件放到 drivers/gbase/ 目录下')
             _db = inst.get('database', 'gbase01') or 'gbase01'
             _server = inst.get('gbase_server_name', 'gbase01') or 'gbase01'
             _jdbc_url  = f"jdbc:gbasedbt-sqli://{host}:{int(port)}/{_db}:GBASEDBTSERVER={_server};"
-            conn = jaydebeapi.connect('com.gbasedbt.jdbc.IfxDriver', _jdbc_url, [user, pwd], _jdbc_driver)
+            print(f"[GBase] JDBC URL: {_jdbc_url}")
+            print(f"[GBase] jars 参数: {_jdbc_driver}")
+            conn = jaydebeapi.connect('com.gbasedbt.jdbc.Driver', _jdbc_url, [user, pwd], _jdbc_driver)
             cur = conn.cursor()
-            cur.execute("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA ORDER BY SCHEMA_NAME")
+            # GBase 8s 用 sysmaster:sysdatabases 跨库查询所有数据库
+            cur.execute("SELECT name FROM sysmaster:sysdatabases ORDER BY name")
             databases = [r[0] for r in cur.fetchall()]
             conn.close()
         elif db_type == 'sqlserver':
@@ -4790,21 +4818,26 @@ def api_ds_objects(ds_id):
         elif db_type == 'gbase':
             # GBase 8s 使用 JDBC 连接（jaydebeapi）
             import jaydebeapi, os
-            _jdbc_driver = os.path.join(BASE_DIR, 'drivers', 'gbase', 'gbase-jdbc.jar')
+            _jdbc_driver = _get_gbase_driver()
+            print(f"[GBase] _get_gbase_driver() 返回: {_jdbc_driver}")
+            if not _jdbc_driver:
+                raise Exception('GBase 8s JDBC 驱动未找到，请将驱动 jar 文件放到 drivers/gbase/ 目录下')
             _db = database or 'gbase01'
             _server = inst.get('gbase_server_name', 'gbase01') or 'gbase01'
             _jdbc_url  = f"jdbc:gbasedbt-sqli://{host}:{int(port)}/{_db}:GBASEDBTSERVER={_server};"
-            conn = jaydebeapi.connect('com.gbasedbt.jdbc.IfxDriver', _jdbc_url, [user, pwd], _jdbc_driver)
+            print(f"[GBase] JDBC URL: {_jdbc_url}")
+            print(f"[GBase] jars 参数: {_jdbc_driver}")
+            conn = jaydebeapi.connect('com.gbasedbt.jdbc.Driver', _jdbc_url, [user, pwd], _jdbc_driver)
             cur = conn.cursor()
+            # GBase 8s 用 systables 系统表获取表/视图列表
             cur.execute(
-                "SELECT TABLE_NAME, TABLE_TYPE FROM INFORMATION_SCHEMA.TABLES "
-                "WHERE TABLE_SCHEMA=? ORDER BY TABLE_NAME",
-                (database,)
+                "SELECT tabname, tabtype FROM systables "
+                "WHERE tabtype IN ('T','V') ORDER BY tabname"
             )
             for row in cur.fetchall():
-                if row[1] == 'BASE TABLE':
+                if row[1] == 'T':
                     tables.append(row[0])
-                elif row[1] == 'VIEW':
+                elif row[1] == 'V':
                     views.append(row[0])
             conn.close()
         elif db_type == 'sqlserver':
@@ -7068,6 +7101,26 @@ def _setup_driver_paths():
                             print(f'[DBCheck] YashanDB: failed to copy {lib_file.name}: {e}')
         # 同时加入 PATH（部分依赖 DLL 不在 yacli.py 目录，靠 PATH 兜底）
         _add_path(yashandb_lib)
+
+
+def _get_gbase_driver():
+    """
+    自动查找 GBase 8s JDBC 驱动 jar 文件。
+    查找 drivers/gbase/ 目录下的所有 .jar 文件，
+    返回路径列表（jaydebeapi 推荐用列表）。
+    """
+    import os, glob
+    driver_dir = os.path.join(BASE_DIR, 'drivers', 'gbase')
+    if not os.path.isdir(driver_dir):
+        print(f"[GBase] 驱动目录不存在: {driver_dir}")
+        return None
+    pattern = os.path.join(driver_dir, '*.jar')
+    jars = glob.glob(pattern)
+    if not jars:
+        print(f"[GBase] 驱动目录中没有找到 .jar 文件: {driver_dir}")
+        return None
+    print(f"[GBase] 找到驱动文件: {jars}")
+    return jars  # 返回列表，不是字符串
 
 
 # ── 数据管理 API ───────────────────────────────────────────

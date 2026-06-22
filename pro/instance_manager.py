@@ -26,7 +26,15 @@ except ImportError:
 def _get_fernet():
     if not _FERNET_AVAILABLE:
         return None
-    key_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, '.db_key')
+    import sys
+    # 统一用 BASE_DIR 逻辑（和 web_ui.py 一致），避免 __file__ 在打包后指向 _internal
+    if getattr(sys, "frozen", False):
+        _base = os.path.dirname(sys.executable)
+    else:
+        _base = os.path.dirname(os.path.abspath(__file__))
+        # instance_manager.py 在 pro/ 子目录，需要再往上一级
+        _base = os.path.dirname(_base)
+    key_file = os.path.join(_base, '.db_key')
     if not os.path.exists(key_file):
         key = Fernet.generate_key()
         with open(key_file, 'wb') as f:
