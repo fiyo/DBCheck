@@ -26,12 +26,18 @@ warnings.filterwarnings("ignore")
 from inspection_engine import BaseInspectionEngine
 
 # ── JDBC 驱动路径 ────────────────────────────────────────────────────────
-DEFAULT_JDBC_DRIVER = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)),
-    'drivers', 'gbase', 'jdbc-3.5.1.jar'
-)
-JDBC_DRIVER_PATH = os.environ.get('GBase_JDBC_DRIVER', DEFAULT_JDBC_DRIVER)
-
+# ── JDBC 驱动路径 ──────────────────────────────────────────────
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+# main_gbase.py 可能在 scripts/ 子目录（skill 包），也可能在项目根目录
+# 自动探测 drivers/gbase/ 的实际位置
+_drivers_gbase_dir = os.path.join(_script_dir, "..", "drivers", "gbase")
+if not os.path.isdir(_drivers_gbase_dir):
+    _drivers_gbase_dir = os.path.join(_script_dir, "drivers", "gbase")
+# 自动查找 jar 文件（不硬编码文件名）
+import glob as _glob
+_jar_files = _glob.glob(os.path.join(_drivers_gbase_dir, "*.jar"))
+DEFAULT_JDBC_DRIVER = _jar_files[0] if _jar_files else os.path.join(_drivers_gbase_dir, "jdbc-3.5.1.jar")
+JDBC_DRIVER_PATH = os.environ.get("GBASE_JDBC_DRIVER", DEFAULT_JDBC_DRIVER)
 # ── 自动探测 JAVA_HOME ───────────────────────────────────────────────────
 def _detect_java_home():
     """自动探测 JAVA_HOME（按常见安装路径）"""

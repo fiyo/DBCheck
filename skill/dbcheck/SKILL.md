@@ -44,11 +44,13 @@ metadata:
 | 🟡 DM8 | dmpython | 5236 | 表空间、缓冲池、备份 |
 | 🐬 TiDB | pymysql | 4000 | Placement Rules、TiCDC/PD 心跳 |
 | 🐘 IvorySQL | psycopg2 | 5432 | PG 兼容巡检项、复制状态 |
-| 🟢 GBase 8s | jaydebeapi (JDBC) | 5258 | 需要 GBase 8s JDBC 驱动 jar（放在 `drivers/gbase/` 目录） |
-| 🟣 YashanDB | ? | 5432 | 崖山数据库巡检 |
+| 🟢 GBase 8s | jaydebeapi (JDBC) | 5258 | JDBC 驱动已内置（`drivers/gbase/`） |
+| 🟣 YashanDB | yzplotlib / psycopg2 | 5432 | 需要 YashanDB 客户端（见下方说明） |
 | 🔵 KingbaseES | psycopg2 | 54321 | 金仓数据库巡检 |
 
-> **GBase 8s 说明**：需要手动下载 GBase 8s JDBC 驱动 jar 文件，放到 `drivers/gbase/` 目录下。
+> **驱动说明**：
+> - ✅ GBase 8s JDBC 驱动已内置在 `drivers/gbase/` 目录，无需额外下载
+> - ⚠️ Oracle / YashanDB 需要用户在机器上自行安装客户端，详见下方「驱动配置」说明
 
 ## 触发条件
 
@@ -88,6 +90,60 @@ metadata:
 - **DM8**：无需填写 `database` 参数，连接用户即 Schema
 - **GBase 8s**：需要 `drivers/gbase/*.jar` 驱动文件，工具会自动查找
 - **KingbaseES**：默认端口 54321（不是 PostgreSQL 的 5432）
+
+## 驱动配置
+
+部分数据库需要本地安装客户端才能正常巡检，请按以下说明配置。
+
+### GBase 8s
+
+✅ **驱动已内置**，无需额外操作。`drivers/gbase/jdbc-3.5.1.jar` 已随 skill 打包。
+
+### Oracle
+
+需要安装 **Oracle Instant Client** 或完整 Oracle Client。
+
+**方式一：Oracle Instant Client（推荐，体积小）**
+
+1. 下载对应版本的 Instant Client：
+   - Oracle 11g R2：https://www.oracle.com/database/technologies/instant-client/winx64-64-downloads.html
+   - Oracle 19c / 21c：同上页面选择对应版本
+2. 解压到任意目录，如 `C:\oracle\instantclient_21_12\`
+3. 将目录添加到系统 `PATH` 环境变量：
+   ```powershell
+   # Windows（管理员权限运行）
+   [Environment]::SetEnvironmentVariable("PATH", [Environment]::GetEnvironmentVariable("PATH", "Machine") + ";C:\oracle\instantclient_21_12", "Machine")
+   ```
+4. 重启终端使 PATH 生效
+
+**方式二：使用项目内置客户端**
+
+如果本机已安装 DBCheck 完整版，可直接使用 `drivers/oracle_client/` 目录：
+```powershell
+# 将 DBCheck\drivers\oracle_client 加到 PATH
+[Environment]::SetEnvironmentVariable("PATH", [Environment]::GetEnvironmentVariable("PATH", "Machine") + ";D:\DBCheck\drivers\oracle_client", "Machine")
+```
+
+### YashanDB（崖山数据库）
+
+需要安装 YashanDB 客户端。
+
+1. 从崖山官网或管理员获取 YashanDB 客户端安装包
+2. 安装后，将客户端的 `bin` 目录（包含 `ysql` 等工具）添加到 `PATH`
+3. 确认 `yzplotlib` Python 包已安装：
+   ```bash
+   pip install yzplotlib
+   ```
+
+> **说明**：YashanDB 客户端较大（约 200M），未随 skill 打包。请从 YashanDB 官方渠道获取安装包。
+
+### SQL Server
+
+需要安装 **ODBC Driver 17 for SQL Server** 或 **ODBC Driver 18 for SQL Server**。
+
+下载地址：https://learn.microsoft.com/zh-cn/sql/connect/odbc/download-odbc-driver-for-sql-server
+
+安装后 `pyodbc` 可自动检测到驱动。
 
 ## 执行巡检
 
