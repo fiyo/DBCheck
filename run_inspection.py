@@ -589,6 +589,55 @@ def run_gbase(db_info, inspector_name, ssh_info=None):
     _record_inspection('gbase', db_info, ret, output_file)
     return output_file, file_name
 
+
+
+def run_kingbase(db_info, inspector_name, ssh_info=None):
+    """执行 KingbaseES 巡检"""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("main_kingbase", os.path.join(SCRIPT_DIR, "main_kingbase.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    reports_dir = os.path.join(SCRIPT_DIR, "reports")
+    os.makedirs(reports_dir, exist_ok=True)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    file_name = f"KingbaseES巡检报告_{db_info['label']}_{timestamp}.docx"
+    ofile = os.path.join(reports_dir, file_name)
+
+    data = mod.getData(
+        db_info['host'], db_info['port'],
+        db_info['user'], db_info['password'],
+        db_info.get('database', 'kingbase'),
+        ssh_info or {}
+    )
+    if data is None:
+        raise RuntimeError("无法建立数据库连接，请检查连接参数")
+
+    ret = data.checkdb('builtin')
+    if not ret:
+        raise RuntimeError("巡检执行失败（checkdb 返回空）")
+
+    ret.update({"co_name": [{'CO_NAME': db_info['label']}]})
+    ret.update({"port": [{'PORT': db_info['port']}]})
+    ret.update({"ip": [{'IP': db_info['host']}]})
+
+    savedoc = mod.saveDoc(
+        context=ret,
+        ofile=ofile,
+        inspector_name=inspector_name,
+        label=db_info['label']
+    )
+    success = savedoc.contextsave() if hasattr(savedoc, 'contextsave') else savedoc.save()
+
+    if not success:
+        raise RuntimeError("Word 报告渲染失败")
+
+    _record_inspection('kingbase', db_info, ret, ofile)
+
+    return ofile, file_name
+
+
 def run_config_baseline(db_info, db_type, output_format='txt'):
     """
     执行配置基线检查。
@@ -781,8 +830,8 @@ def main():
                         help='配置基线/索引分析输出格式（默认 txt）')
     
     # 数据库连接参数（完整巡检模式需要）
-    parser.add_argument('--type', required=False, choices=['mysql', 'pg', 'oracle', 'sqlserver', 'dm', 'tidb', 'ivorysql', 'gbase'],
-                        help='数据库类型: mysql / pg / oracle / sqlserver / dm / tidb / ivorysql / gbase（完整巡检必需）')
+    parser.add_argument('--type', required=False, choices=['mysql', 'pg', 'oracle', 'sqlserver', 'dm', 'tidb', 'ivorysql', 'gbase', 'yashandb', 'kingbase'],
+                        help='数据库类型: mysql / pg / oracle / sqlserver / dm / tidb / ivorysql / gbase / yashandb / kingbase（完整巡检必需）')
     parser.add_argument('--host', help='数据库主机 IP 或域名')
     parser.add_argument('--port', type=int, default=None,
                         help='数据库端口（默认: MySQL/TiDB 3306/4000, PG 5432, Oracle 1521, SQL Server 1433, DM8 5236）')
@@ -935,6 +984,11 @@ def main():
             ofile, fname = run_ivorysql(db_info, args.inspector, ssh_info)
         elif args.type == 'gbase':
             ofile, fname = run_gbase(db_info, args.inspector, ssh_info)
+        elif args.type == 'yashandb':
+            ofile, fname = run_yashandb(db_info, args.inspector, ssh_info)
+        elif args.type == 'kingbase':
+            ofile, fname = run_kingbase(db_info, args.inspector, ssh_info)
+
 
         print("-" * 50)
         print(f"✅ 巡检完成！")
