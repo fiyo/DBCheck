@@ -4,6 +4,57 @@ All notable changes to DBCheck will be documented in this file.
 
 ---
 
+## [v2.6.1] - 2026-06-23
+
+### 🐛 Bug Fixes
+
+- **PyInstaller 打包后路径错误** (#19)
+  - `version.json` 和 `dbc_config.json` 报 PermissionError（路径指向 `_internal` 目录）
+  - 根因：`__file__` 在 PyInstaller 打包后指向 `_internal`，不再反映真实文件路径
+  - 修复：统一定义 `BASE_DIR` 全局变量（`sys.frozen` 时用 `sys.executable` 目录，开发模式用 `__file__` 目录），全文 44 处 `os.path.dirname(os.path.abspath(__file__))` 替换为 `BASE_DIR`
+  - 影响文件：`web_ui.py`、`inspection_dal.py`
+
+- **巡检模板/基线配置表不存在** (#19)
+  - 报错：`no such table: inspection_template`、`no such table: inspection_baseline`
+  - 根因：`inspection_dal.py` 的 `DEFAULT_DB_PATH` 也用了 `__file__`，打包后路径错误导致每次启动都创建新的空数据库
+  - 修复：`DEFAULT_DB_PATH` 改用 `sys.executable` 逻辑；`_ensure_tables()` 新增 `inspection_baseline` 表的 CREATE TABLE；预设数据初始化改为仅当基线表为空时才执行（避免每次启动都重置）
+
+- **GBase 8s 连接失败** (#19)
+  - 报错：`Class com.gbasedbt.jdbc.IfxDriver is not found`
+  - 根因：驱动类名沿用了 Informix 的类名 `IfxDriver`，GBase 8s JDBC 驱动实际类名是 `com.gbasedbt.jdbc.Driver`
+  - 修复：驱动类名改为 `com.gbasedbt.jdbc.Driver`；新增 `_get_gbase_driver()` 辅助函数自动查找 `drivers/gbase/*.jar`（不再硬编码文件名）
+
+- **GBase 8s SQL 语法错误** (#19)
+  - 报错：`The specified table (information_schema.schemata) is not in the database`
+  - 根因：GBase 8s（基于 Informix）没有 MySQL 的 `INFORMATION_SCHEMA` 系统视图
+  - 修复：获取数据库列表改用 `sysmaster:sysdatabases`；获取表列表改用 `systables` 系统表
+
+- **SQL Server 连接失败** (#19)
+  - 报错：`[08001] 为连接字符串属性 'PWD' 指定的值无效 (0)`
+  - 根因：密码为 `None` 时 `str(None)` 变成字符串 `"None"` 传进连接字符串；密码为空字符串时 `PWD=` 后面跟空值，ODBC Driver 18 认为无效
+  - 修复：`_build_sqlserver_conn_str()` 重构——密码为 `None`/空串时完全省略 `PWD=` 参数（触发 Windows 集成认证）；密码含分号时用单引号包裹避免截断
+
+- **所有数据源密码失效** (#19)
+  - 现象：所有已保存的数据源连接都报密码错误，重新输入密码保存后才恢复
+  - 根因：`pro/instance_manager.py` 的 `_get_fernet()` 函数里 `.db_key` 路径计算错误（`__file__` 在打包后指向 `_internal/pro/`），导致每次启动都生成新的 key 文件，旧密码无法解密
+  - 修复：`_get_fernet()` 改用 `sys.executable` 逻辑（和 `web_ui.py` 的 `BASE_DIR` 保持一致），确保 `.db_key` 路径在任何运行模式下都正确
+
+### 📝 Documentation
+
+- **Skill 更新**（OpenClaw 精简版）
+  - 重写 `skill/dbcheck/SKILL.md`：移除插件系统、PDF 导出、AI 诊断详情、报告结构详解等 OpenClaw 场景下无关的内容
+  - 新增 GBase 8s、YashanDB、KingbaseES 三个数据库的支持说明
+  - 新增「驱动配置」章节：GBase JDBC 驱动已内置；Oracle/YashanDB 需用户自行安装客户端（含下载地址和 PATH 配置命令）
+  - 版本号更新：`_meta.json` 和 `_skillhub_meta.json` 升级到 `2.6.0`
+
+- **`run_inspection.py` 修复**（skill 目录独立副本）
+  - `choices` 参数更新：加入 `gbase`、`yashandb`、`kingbase`
+  - 新增 `run_gbase()`、`run_yashandb()`、`run_kingbase()` 三个函数
+  - `main()` 里加了三个新数据库的调用分支
+  - 同步缺失文件到 skill 目录：`main_gbase.py`、`main_yashandb.py`、`main_kingbase.py`
+
+---
+
 ## [v2.5.8] - 2026-06-11
 
 ### 🐛 Bug Fixes
