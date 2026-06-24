@@ -45,7 +45,7 @@ if ($LASTEXITCODE -ne 0) {
     git stash --include-untracked 2>&1 | Out-Null
     $stashed = $true
 }
-git pull --rebase 2>&1 | Out-Null
+git pull --rebase --quiet 2>$null | Out-Null
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: git pull failed" -ForegroundColor Red
     if ($stashed) { git stash pop 2>&1 | Out-Null }
