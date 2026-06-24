@@ -63,9 +63,16 @@ Write-Host "[3/4] Updating version files..." -ForegroundColor Yellow
 # Update version.py
 $VersionPy = Join-Path $ProjectRoot "version.py"
 if (Test-Path $VersionPy) {
-    $content = Get-Content $VersionPy -Raw -Encoding UTF8
-    $content = $content -replace '(__version__\s*=\s*[''"']).*([''"'])', "`$1$VersionWithV`$2"
-    Set-Content $VersionPy -Value $content -Encoding UTF8 -NoNewline
+    $lines = Get-Content $VersionPy -Encoding UTF8
+    $newLines = @()
+    foreach ($line in $lines) {
+        if ($line -match '__version__\s*=') {
+            $newLines += "__version__ = '$VersionWithV'"
+        } else {
+            $newLines += $line
+        }
+    }
+    Set-Content $VersionPy -Value $newLines -Encoding UTF8
     Write-Host "  OK: version.py updated to $VersionWithV" -ForegroundColor Green
 } else {
     Write-Host "  WARN: version.py not found, skipped" -ForegroundColor Yellow
@@ -74,9 +81,16 @@ if (Test-Path $VersionPy) {
 # Update Dockerfile
 $Dockerfile = Join-Path $ProjectRoot "Dockerfile"
 if (Test-Path $Dockerfile) {
-    $content = Get-Content $Dockerfile -Raw -Encoding UTF8
-    $content = $content -replace "RUN echo .+ > /app/VERSION\.txt", "RUN echo $Version > /app/VERSION.txt"
-    Set-Content $Dockerfile -Value $content -Encoding UTF8 -NoNewline
+    $lines = Get-Content $Dockerfile -Encoding UTF8
+    $newLines = @()
+    foreach ($line in $lines) {
+        if ($line -match 'RUN echo .* > /app/VERSION\.txt') {
+            $newLines += "RUN echo $Version > /app/VERSION.txt"
+        } else {
+            $newLines += $line
+        }
+    }
+    Set-Content $Dockerfile -Value $newLines -Encoding UTF8
     Write-Host "  OK: Dockerfile updated to $Version" -ForegroundColor Green
 } else {
     Write-Host "  WARN: Dockerfile not found, skipped" -ForegroundColor Yellow
