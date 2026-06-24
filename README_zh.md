@@ -389,7 +389,7 @@ A：内置阈值基于通用最佳实践，请结合实际业务评估。
 
 <img src="snapshot/pay.png" alt="赞助二维码" width="800" />
 
-<img src="snapshot/dbcheck-badge.png" alt="DBCheck 支持者徽章" width="120" />
+<img src="snapshot/dbcheck-badge.png" alt="DBCheck 支持者徽章" width="400" />
 
 > 赞助时请备注姓名或昵称 ❤️
 

@@ -1,300 +1,70 @@
-# CHANGELOG
+# Changelog
 
-All notable changes to DBCheck will be documented in this file.
+## v2.6.2 (2026-06-23)
 
----
+### ✨ 新增功能
 
-## [v2.6.1] - 2026-06-23
+- **AI 聊天界面改版**：从可折叠侧边栏改为固定右侧面板（420px），使用 `position: fixed` 布局，始终可见，提升使用频率
+- **上下文感知**：AI 聊天自动获取当前页面信息（当前页面、选中的数据源、SQL 编辑器内容、巡检模板），并注入 AI prompt，回答更贴合用户当前场景
+- **getChatContext()**：前端新增上下文获取函数，通过检查 `.page` 元素可见性 + hook `showPage()` 双重保障，支持数据源管理、SQL 编辑器、巡检配置等页面的上下文提取
+- **中文页面名**：上下文中的页面 ID（如 `dashboard`、`datasource`）自动映射为中文标题（如 `仪表盘`、`数据源管理`），AI 回复更友好
 
-### 🐛 Bug Fixes
+### 🔧 优化改进
 
-- **PyInstaller 打包后路径错误** (#19)
-  - `version.json` 和 `dbc_config.json` 报 PermissionError（路径指向 `_internal` 目录）
-  - 根因：`__file__` 在 PyInstaller 打包后指向 `_internal`，不再反映真实文件路径
-  - 修复：统一定义 `BASE_DIR` 全局变量（`sys.frozen` 时用 `sys.executable` 目录，开发模式用 `__file__` 目录），全文 44 处 `os.path.dirname(os.path.abspath(__file__))` 替换为 `BASE_DIR`
-  - 影响文件：`web_ui.py`、`inspection_dal.py`
+- AI 问答 prompt 支持上下文注入（`system_prompt` 新增"当前上下文"段落），回答更精准
+- AI 意图分类默认改为 `qa`（原来默认 `inspect`，导致模糊问题报错），巡检需要明确意图才会触发
+- AI 意图分类关键词扩展：新增`当前`、`页面`、`哪个`、`在哪里`等上下文类问题关键词，避免误判为巡检
+- 响应式设计：大屏幕（>1100px）固定显示；小屏幕（≤1100px）默认隐藏，右下角显示浮动按钮 💬，点击滑出，面板内显示关闭按钮
 
-- **巡检模板/基线配置表不存在** (#19)
-  - 报错：`no such table: inspection_template`、`no such table: inspection_baseline`
-  - 根因：`inspection_dal.py` 的 `DEFAULT_DB_PATH` 也用了 `__file__`，打包后路径错误导致每次启动都创建新的空数据库
-  - 修复：`DEFAULT_DB_PATH` 改用 `sys.executable` 逻辑；`_ensure_tables()` 新增 `inspection_baseline` 表的 CREATE TABLE；预设数据初始化改为仅当基线表为空时才执行（避免每次启动都重置）
+### 🐛 修复问题
 
-- **GBase 8s 连接失败** (#19)
-  - 报错：`Class com.gbasedbt.jdbc.IfxDriver is not found`
-  - 根因：驱动类名沿用了 Informix 的类名 `IfxDriver`，GBase 8s JDBC 驱动实际类名是 `com.gbasedbt.jdbc.Driver`
-  - 修复：驱动类名改为 `com.gbasedbt.jdbc.Driver`；新增 `_get_gbase_driver()` 辅助函数自动查找 `drivers/gbase/*.jar`（不再硬编码文件名）
+- 修复 AI 面板不显示问题（HTML 结构错误：`.main-content` 只包住背景动画；旧 CSS `#ai-chat-sidebar { position: fixed; right: -420px }` 未清除）
+- 修复 AI 面板显示不全问题（`height: 100vh` 改为 `top: 0; bottom: 0` 双向定位）
+- 修复上下文感知始终返回 `dashboard` 问题（`hash` 匹配逻辑错误，改为检查 `.page` 元素可见性）
+- 修复"当前是哪个页面"被误判为巡检意图问题（`_classify_chat_intent()` 默认意图和关键词优化）
 
-- **GBase 8s SQL 语法错误** (#19)
-  - 报错：`The specified table (information_schema.schemata) is not in the database`
-  - 根因：GBase 8s（基于 Informix）没有 MySQL 的 `INFORMATION_SCHEMA` 系统视图
-  - 修复：获取数据库列表改用 `sysmaster:sysdatabases`；获取表列表改用 `systables` 系统表
+### 📦 其他
 
-- **SQL Server 连接失败** (#19)
-  - 报错：`[08001] 为连接字符串属性 'PWD' 指定的值无效 (0)`
-  - 根因：密码为 `None` 时 `str(None)` 变成字符串 `"None"` 传进连接字符串；密码为空字符串时 `PWD=` 后面跟空值，ODBC Driver 18 认为无效
-  - 修复：`_build_sqlserver_conn_str()` 重构——密码为 `None`/空串时完全省略 `PWD=` 参数（触发 Windows 集成认证）；密码含分号时用单引号包裹避免截断
-
-- **所有数据源密码失效** (#19)
-  - 现象：所有已保存的数据源连接都报密码错误，重新输入密码保存后才恢复
-  - 根因：`pro/instance_manager.py` 的 `_get_fernet()` 函数里 `.db_key` 路径计算错误（`__file__` 在打包后指向 `_internal/pro/`），导致每次启动都生成新的 key 文件，旧密码无法解密
-  - 修复：`_get_fernet()` 改用 `sys.executable` 逻辑（和 `web_ui.py` 的 `BASE_DIR` 保持一致），确保 `.db_key` 路径在任何运行模式下都正确
-
-### 📝 Documentation
-
-- **Skill 更新**（OpenClaw 精简版）
-  - 重写 `skill/dbcheck/SKILL.md`：移除插件系统、PDF 导出、AI 诊断详情、报告结构详解等 OpenClaw 场景下无关的内容
-  - 新增 GBase 8s、YashanDB、KingbaseES 三个数据库的支持说明
-  - 新增「驱动配置」章节：GBase JDBC 驱动已内置；Oracle/YashanDB 需用户自行安装客户端（含下载地址和 PATH 配置命令）
-  - 版本号更新：`_meta.json` 和 `_skillhub_meta.json` 升级到 `2.6.0`
-
-- **`run_inspection.py` 修复**（skill 目录独立副本）
-  - `choices` 参数更新：加入 `gbase`、`yashandb`、`kingbase`
-  - 新增 `run_gbase()`、`run_yashandb()`、`run_kingbase()` 三个函数
-  - `main()` 里加了三个新数据库的调用分支
-  - 同步缺失文件到 skill 目录：`main_gbase.py`、`main_yashandb.py`、`main_kingbase.py`
+- 更新版本号：v2.6.1 → v2.6.2
+- 移除 `toggleAiChat()` JS 函数（不再需要折叠/展开逻辑）
 
 ---
 
-## [v2.5.8] - 2026-06-11
+## v2.6.1 (2026-06-20) — Bug Fix Release
 
-### 🐛 Bug Fixes
+### 🐛 修复问题
 
-- **服务器巡检 - Windows 磁盘信息采集为空**
-  - `psutil.disk_usage()` 在 psutil 5.9.0 + Windows 上有 bug，会抛 `SystemError`
-  - 改用 `shutil.disk_usage()` 替代，它是标准库，跨平台且稳定
-  - 修复后 Windows 本机巡检能正常采集 C:\ 和 D:\ 的磁盘信息
+- 修复 GBase 8s 驱动类名错误
+- 修复 GBase 8s SQL 语法错误
+- 修复 SQL Server 连接字符串 PWD 参数错误
+- 修复 `.db_key` 被覆盖导致所有密码失效
+- 更新 `skill/dbcheck/` 目录（OpenClaw skill）
 
----
+### 📦 其他
 
-## [v2.5.7] - 2026-06-09
-
-### 🐛 Bug Fixes
-
-- **巡检配置管理 - 新建模板添加章节时无法添加查询** (#12)
-  - 新章节表单中缺少查询列表容器和「添加查询」按钮
-  - 修复后新建章节时可以直接添加查询语句
-
-- **数据库文件整理**
-  - 将 `inspection.db` 和 `inspection_config.db` 从项目根目录移动到 `data/` 目录
-  - 更新所有代码中的数据库路径引用
-
-- **巡检配置管理 - 预置模板只读查看** (#13)
-  - 预置模板改为只读模式，只能查看不能修改
-  - 非预置模板保持完全可编辑
-  - 切换模板时重置右侧面板状态，避免显示旧模板的内容
-  - 修复查询列表查看按钮的样式问题
-
-- **服务器阈值配置生效**
-  - 修复 `load_server_thresholds()` 默认路径指向旧的 `inspection.db`（项目根目录）
-  - 改为使用绝对路径指向 `data/inspection.db`
-  - 修复后 Web UI 配置的阈值能正确应用到服务器巡检评分
-
-### 📝 Documentation
-
-- 服务器巡检报告增加「阈值配置参考」章节（Word 报告和 HTML 分享报告）
-- 展示当前使用的阈值配置（CPU/内存/磁盘/Swap/僵尸进程/Docker 的警告阈值、危险阈值、扣分值）
+- 更新版本号：v2.6.0 → v2.6.1
 
 ---
 
-## [v2.5.3] - 2026-06-07
+## v2.6.0 (2026-06-15)
 
-### 📊 New: Oracle AWR Report Analysis
+### ✨ 新增功能
 
-A brand-new **AWR 报告分析** feature added under the Inspection section in the Web UI sidebar:
+- 插件系统正式发布
+- 插件市场（在线安装、卸载、更新）
+- 插件 SDK（开发模板、调试工具）
+- 内置插件：慢查询分析、空间预测、AI 诊断增强
 
-#### AWR Report Parsing
+### 🔧 优化改进
 
-- Upload Oracle AWR HTML reports (generated by awrrpt.sql) via drag-and-drop or file selection
-- Automatic metadata extraction: database name, instance name, version, RAC status, snap range
-- Parses all AWR chapters: Load Profile, Instance Efficiency, Wait Events, SQL Statistics, Tablespace I/O, Shared Pool, Latch Stats, Buffer Pool Advisor
-- Generates structured Word analysis reports with cover page and chapter data tables
+- 重构插件加载机制
+- 优化插件配置界面
 
-#### AI Diagnosis for AWR
+### 📦 其他
 
-- When AI is enabled (Ollama/OpenAI), automatically extracts key AWR metrics to build a diagnostic summary
-- Injects load profile, efficiency ratios, cache hit rates, and I/O statistics into the AI prompt
-- Generates targeted optimization recommendations in a dedicated "AI 诊断建议" chapter
-- Markdown output automatically rendered to Word format (bold, code blocks, lists, numbered headings)
-
-#### UX Improvements
-
-- Step-by-step progress indicator during report generation (Parse AWR → AI Diagnosis → Generate Report)
-- Parsing results preview with metadata grid and chapter summary before report generation
-- AWR menu repositioned under "定时巡检" in the sidebar for better discoverability
-
-### 📝 Documentation
-
-- Added **Oracle AWR 报告分析** section to both Chinese and English README
-- Updated version badge to v2.5.3
+- 更新版本号：v2.5.2 → v2.6.0
+- 更新文档：插件系统使用指南
 
 ---
 
-## [v2.5.1] - 2026-06-02
-
-### 📡 New: Real-Time Monitoring Dashboard
-
-Two new monitoring pages added under the **实时监控** section in the Web UI sidebar:
-
-#### 实时慢查询监控 (Real-Time Slow Query Monitoring)
-
-- Cross-datasource slow query aggregation with unified table view
-- Automatic database type detection with color-coded tags (MySQL, PostgreSQL, TiDB, Oracle, DM8, SQL Server)
-- Smart execution time formatting (ms / s / m based on magnitude)
-- Severity indicators with visual dots (🔴 High >60s / 🟡 Medium >10s / 🟢 Low)
-- Sorting by average time, max time, total time, or execution count
-- Filtering by datasource, time range (5/15/30/60 min), and SQL keyword search
-- One-click CSV export with UTF-8 BOM encoding
-- Configurable auto-refresh with live countdown indicator (5-60 second intervals)
-
-#### 活跃连接监控 (Active Connection Monitoring)
-
-- Per-datasource connection usage bars with color-coded fill (green <50% / yellow 50-80% / red >80%)
-- 12-hour connection heatmap aggregated by hour with 5-level color scale
-- Active session TOP 10 table with user, state, duration, and SQL preview
-- Blocking session detection with affected datasource details
-- Idle connection tracking with duration in minutes
-- Two-column responsive layout (connections + heatmap | active sessions)
-- Shared polling engine with slow query monitor
-
-### 🎨 UI Enhancements
-
-- Redesigned monitoring dashboard with professional card-based overview (gradient icons, contextual sub-labels)
-- Start/Stop monitoring buttons with SVG icons, gradient styling, and hover effects — positioned in page header for discoverability
-- Filter bar with datasource dropdown, time range, sorting, keyword search, and action buttons
-- Connection bar labels widened to 140-240px for better datasource name readability
-- Responsive two-column layout for connection monitoring page
-
-### 📝 Documentation
-
-- Added **实时监控 (Real-Time Monitoring)** section to both English and Chinese README
-- Updated core capabilities from 6→7 (English) and 7→8 (Chinese)
-- Updated version badge to v2.5.1
-
----
-
-## [v2.5.0] - 2026-05-14
-
-### Major Release
-
-- Real-time monitoring framework backend implementation
-- Monitoring API endpoints (`/api/monitor/config`, `/api/monitor/data`)
-- Initial polling engine with configurable intervals
-- Monitoring sidebar navigation structure
-
----
-
-## [v2.4.7] - 2026-05-21
-
-### New Features
-
-- IvorySQL support (PostgreSQL-compatible engine)
-- PostgreSQL enhanced health check (5 new high-priority risk rules)
-- Word report Chapter 9 for PG enhanced health check
-
----
-
-## [v2.4.6] - 2026-05-15
-
-### Improvements
-
-- smart_analyze and config_baseline dual-track separation
-- Removed duplicate configuration checks from smart_analyze
-
----
-
-## [v2.4.5] - 2026-05-10
-
-### New Features
-
-- Oracle dynamic chapter rendering
-- Template-driven chapter structure for Oracle inspections
-
----
-
-## [v2.4.4] - 2026-05-01
-
-### New Features
-
-- P0 Lock Diagnostics across all 6 database engines
-- Lock blocking chain visualization
-- Deadlock statistics and trace analysis
-- Long transaction detection
-
----
-
-## [v2.4.3] - 2026-04-25
-
-### New Features
-
-- REST API with API Key authentication
-- Share link feature for inspection reports
-
----
-
-## [v2.4.2] - 2026-04-20
-
-### New Features
-
-- RAG Knowledge Base for AI-enhanced diagnostics
-- Document upload and vectorization (PDF, Word, Markdown, TXT, HTML)
-
----
-
-## [v2.4.1] - 2026-04-15
-
-### New Features
-
-- Scheduled inspection with cron expressions
-- Email and Webhook notification support
-- AI Chat inspection via natural language
-
----
-
-## [v2.4.0] - 2026-04-10
-
-### New Features
-
-- Index Health Analysis (missing, redundant, unused indexes)
-- Slow Query Deep Analysis with AI enhancement
-- One-Click Fix for risk remediation SQL
-
----
-
-## [v2.3.0] - 2026-04-01
-
-### New Features
-
-- Server Inspection with comprehensive hardware and system resource checks
-- Configuration Baseline Checks for all supported databases
-
----
-
-## [v2.2.0] - 2026-03-20
-
-### New Features
-
-- Datasource Management with grouping and CSV import/export
-- Inspection Config Management with visual chapter toggle
-- Baseline Config Management with Web UI editor
-
----
-
-## [v2.1.0] - 2026-03-10
-
-### New Features
-
-- Historical Trend Analysis with SQLite persistence
-- SQL Editor with syntax highlighting
-- Remote Terminal (SSH)
-- Multi-language support (Chinese/English)
-
----
-
-## [v2.0.0] - 2026-03-01
-
-### Major Release
-
-- Web UI with Flask + Jinja2
-- AI-Powered Intelligent Diagnosis (Ollama)
-- 150+ enhanced risk detection rules
-- 7 database support (MySQL, PostgreSQL, Oracle, SQL Server, DM8, TiDB, IvorySQL)
+*完整历史版本见 Git 仓库提交记录。*

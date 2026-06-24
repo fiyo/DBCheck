@@ -5942,25 +5942,33 @@ def _load_ai_config():
     }
 
 
-def _call_llm(prompt: str, system: str = '') -> str:
-    """调用 LLM API 生成文本（支持 Ollama 和 OpenAI 协议兼容的远程模型）"""
+def _call_llm(prompt: str, system: str = '', stream_callback=None) -> str:
+    """调用 LLM API 生成文本（支持 Ollama 和 OpenAI 协议兼容的远程模型）
+    
+    Args:
+        stream_callback: 流式回调函数，接收 chunk 字符串。如果提供，则流式输出
+    """
     cfg = _load_ai_config()
     backend = cfg.get('backend', 'ollama')
     timeout = int(cfg.get('timeout', 600))
 
     if backend == 'ollama':
-        return _call_llm_ollama(cfg, prompt, system, timeout)
+        return _call_llm_ollama(cfg, prompt, system, timeout, stream_callback)
     elif backend == 'openai':
         online_enabled = cfg.get('online_enabled', False)
         if not online_enabled:
             return '[在线模型未启用，请在 AI 设置中开启"启用在线模型"]'
-        return _call_llm_openai(cfg, prompt, system, timeout)
+        return _call_llm_openai(cfg, prompt, system, timeout, stream_callback)
     else:
         return '[AI 后端未启用]'
 
 
-def _call_llm_ollama(cfg: dict, prompt: str, system: str, timeout: int) -> str:
-    """调用 Ollama API 生成文本"""
+def _call_llm_ollama(cfg: dict, prompt: str, system: str, timeout: int, stream_callback=None) -> str:
+    """调用 Ollama API 生成文本（支持流式）
+
+    Args:
+        stream_callback: 流式回调函数，接收 chunk 字符串。如果提供，则返回完整响应；否则逐块调用 callback
+    """
     api_url = cfg.get('api_url', 'http://localhost:11434').rstrip('/')
     model = cfg.get('model', 'qwen3:8b')
 
@@ -5968,24 +5976,69 @@ def _call_llm_ollama(cfg: dict, prompt: str, system: str, timeout: int) -> str:
     payload = {
         'model': model,
         'prompt': prompt,
-        'stream': False,
+        'stream': True,  # 改为 True 支持流式
     }
     if system:
         payload['system'] = system
 
     try:
         import urllib.request
-        req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'),
-                                    headers={'Content-Type': 'application/json'})
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            result = json.loads(resp.read().decode('utf-8'))
-            return result.get('response', '').strip()
+        import http.client
+
+        if stream_callback:
+            parsed_url = urllib.parse.urlparse(url)
+            conn = http.client.HTTPConnection(parsed_url.hostname, parsed_url.port or 80, timeout=timeout)
+            body = json.dumps(payload).encode('utf-8')
+            conn.request('POST', parsed_url.path, body=body, headers={'Content-Type': 'application/json'})
+            resp = conn.getresponse()
+
+            full_response = ''
+            # 使用缓冲读取替代逐字节读取（更可靠）
+            buf = b''
+            while True:
+                data = resp.read(4096)
+                if not data:
+                    break
+                buf += data
+                # 按行切分处理
+                while b'\n' in buf:
+                    line_bytes, buf = buf.split(b'\n', 1)
+                    line = line_bytes.decode('utf-8', errors='ignore').strip()
+                    if not line:
+                        continue
+                    try:
+                        jdata = json.loads(line)
+                        if 'response' in jdata:
+                            ct = jdata['response']
+                            if ct:
+                                full_response += ct
+                                stream_callback(ct)
+                        if jdata.get('done', False):
+                            conn.close()
+                            return full_response.strip()
+                    except json.JSONDecodeError:
+                        pass
+            conn.close()
+            # 如果流式读取提前结束但有内容，返回已有内容
+            return full_response.strip() if full_response.strip() else ''
+        else:
+            # 非流式模式（兼容旧代码）
+            payload['stream'] = False
+            req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'),
+                                        headers={'Content-Type': 'application/json'})
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                result = json.loads(resp.read().decode('utf-8'))
+                return result.get('response', '').strip()
     except Exception as e:
         return f'[Ollama 调用失败: {e}]'
 
 
-def _call_llm_openai(cfg: dict, prompt: str, system: str, timeout: int) -> str:
-    """调用 OpenAI 协议兼容的远程 API 生成文本"""
+def _call_llm_openai(cfg: dict, prompt: str, system: str, timeout: int, stream_callback=None) -> str:
+    """调用 OpenAI 协议兼容的远程 API 生成文本（支持流式）
+    
+    Args:
+        stream_callback: 流式回调函数，接收 chunk 字符串
+    """
     api_url = cfg.get('online_api_url', 'https://api.openai.com/v1').rstrip('/')
     model = cfg.get('online_model', 'gpt-4o-mini')
     api_key = cfg.get('api_key', '')
@@ -6006,21 +6059,56 @@ def _call_llm_openai(cfg: dict, prompt: str, system: str, timeout: int) -> str:
         'model': model,
         'messages': messages,
         'temperature': 0.3,
+        'stream': stream_callback is not None,  # 流式模式
     }
 
     try:
-        import urllib.request
-        headers = {'Content-Type': 'application/json'}
-        if api_key:
-            headers['Authorization'] = f'Bearer {api_key}'
-        req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'),
-                                    headers=headers)
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            result = json.loads(resp.read().decode('utf-8'))
-            choices = result.get('choices', [])
-            if choices:
-                return choices[0].get('message', {}).get('content', '').strip()
-            return ''
+        if stream_callback:
+            # 流式模式：使用 requests 库（需要安装）
+            try:
+                import requests
+            except ImportError:
+                return '[流式模式需要安装 requests 库：pip install requests]'
+            
+            headers = {'Content-Type': 'application/json'}
+            if api_key:
+                headers['Authorization'] = f'Bearer {api_key}'
+            
+            full_response = ''
+            with requests.post(url, json=payload, headers=headers, stream=True, timeout=timeout) as r:
+                for line in r.iter_lines():
+                    if line:
+                        line = line.decode('utf-8')
+                        if line.startswith('data: '):
+                            data_str = line[6:]
+                            if data_str == '[DONE]':
+                                break
+                            try:
+                                data = json.loads(data_str)
+                                choices = data.get('choices', [])
+                                if choices:
+                                    delta = choices[0].get('delta', {})
+                                    chunk = delta.get('content', '')
+                                    if chunk:
+                                        full_response += chunk
+                                        stream_callback(chunk)
+                            except json.JSONDecodeError:
+                                pass
+            return full_response.strip()
+        else:
+            # 非流式模式（兼容旧代码）
+            import urllib.request
+            headers = {'Content-Type': 'application/json'}
+            if api_key:
+                headers['Authorization'] = f'Bearer {api_key}'
+            req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'),
+                                        headers=headers)
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                result = json.loads(resp.read().decode('utf-8'))
+                choices = result.get('choices', [])
+                if choices:
+                    return choices[0].get('message', {}).get('content', '').strip()
+                return ''
     except Exception as e:
         return f'[OpenAI API 调用失败: {e}]'
 
@@ -6083,14 +6171,18 @@ def _classify_chat_intent(user_message: str) -> str:
         if kw in msg:
             return 'inspect'
 
-    # 问答关键词（数据库知识类）
+    # 问答关键词（数据库知识类 + 上下文查询）
     qa_keywords = [
+        # 数据库知识
         '怎么', '如何', '为什么', '是什么', '有哪些', '推荐', '最佳实践',
         '如何优化', '怎么办', '什么原因', '怎么解决',
         'how to', 'what is', 'why', 'best practice', 'recommend',
         '慢查询', '索引', '事务', '锁', '备份', '恢复',
         'innodb', 'buffer pool', 'wal', 'redo', 'undo',
         'vacuum', 'autovacuum', '归档',
+        # v2.6.2: 上下文感知类问题
+        '当前', '页面', '哪个', '什么页', '在哪里', '选中', '正在',
+        '你好', 'hi', 'hello', '帮助', 'help',
     ]
     for kw in qa_keywords:
         if kw in msg:
@@ -6107,17 +6199,17 @@ def _classify_chat_intent(user_message: str) -> str:
             response = _call_llm(user_message, system_prompt)
             if 'qa' in response.lower():
                 return 'qa'
-        return 'inspect'  # LLM 调用失败时默认巡检
+        return 'qa'  # v2.6.2: 默认走问答模式，巡检需要明确意图
     except Exception:
-        return 'inspect'
+        return 'qa'  # v2.6.2: 异常时默认问答，避免误判为巡检报错
 
 
-def _answer_chat_qa(session_id: str, user_message: str, db_type: str = None) -> dict:
+def _answer_chat_qa(session_id: str, user_message: str, db_type: str = None, context: dict = None) -> dict:
     """
-    基于 RAG 知识库回答数据库运维问题
+    基于 RAG 知识库回答数据库运维问题（v2.6.2 支持上下文感知）
 
-    Returns:
-        {'ok': True, 'answer': str, 'rag_used': bool, 'rag_disabled': bool}
+    Args:
+        context: 前端上下文，包含 page, datasource_id, datasource_name, db_type, sql_content, template_id
     """
     cfg = _load_ai_config()
     backend = cfg.get('backend', 'ollama')
@@ -6169,7 +6261,7 @@ def _answer_chat_qa(session_id: str, user_message: str, db_type: str = None) -> 
     except Exception:
         pass  # RAG 失败不影响回答
 
-    # 构建 Prompt
+    # 构建 Prompt（v2.6.2：注入上下文）
     system_prompt = """你是 DBCheck 数据库运维智能助手，专门帮助用户解答数据库运维、性能优化、故障排查等方面的问题。
 
 回答规则：
@@ -6179,6 +6271,34 @@ def _answer_chat_qa(session_id: str, user_message: str, db_type: str = None) -> 
 4. 涉及 SQL 时注明适用的数据库类型
 5. 使用 Markdown 格式排版
 6. 如果问题与数据库运维无关，礼貌地说明能力范围"""
+
+    # v2.6.2：将上下文注入 system_prompt
+    if context:
+        ctx_parts = []
+        # 优先用中文页面名，fallback 到英文 ID
+        page_title = context.get('page_title', '')
+        page = context.get('page', '')
+        if page_title and page_title != page:
+            ctx_parts.append(f'当前页面：{page_title}')
+        elif page:
+            ctx_parts.append(f'当前页面：{page}')
+        ds_name = context.get('datasource_name', '')
+        if ds_name:
+            ctx_parts.append(f'当前数据源：{ds_name}')
+        ctx_db_type = context.get('db_type', '')
+        if ctx_db_type:
+            ctx_parts.append(f'数据库类型：{ctx_db_type}')
+        sql_content = context.get('sql_content', '')
+        if sql_content and len(sql_content.strip()) > 0:
+            sql_preview = sql_content[:500] + ('...' if len(sql_content) > 500 else '')
+            ctx_parts.append(f'当前 SQL 编辑器内容：\n```sql\n{sql_preview}\n```')
+        template_id = context.get('template_id', None)
+        if template_id:
+            ctx_parts.append(f'当前巡检模板 ID：{template_id}')
+
+        if ctx_parts:
+            system_prompt += '\n\n## 当前上下文（用户当前正在操作的界面信息）\n' + '\n'.join(ctx_parts) + \
+                '\n请根据上下文，给出更贴合用户当前场景的回答。'
 
     conversation = _format_conversation_history(session_id)
     if conversation:
@@ -6547,13 +6667,213 @@ def execute_simple_query(db_info: dict, db_type: str, scope: str) -> str:
     return '\n'.join(results)
 
 
-@app.route('/api/chat', methods=['POST'])
-def api_chat():
-    """处理自然语言请求：支持知识问答和巡检执行两种模式"""
+@app.route('/api/chat/stream', methods=['POST'])
+def api_chat_stream():
+    """SSE 流式返回 AI 回复（v2.6.3）"""
     try:
         data = request.get_json() or {}
         message = data.get('message', '')
         session_id = data.get('session_id', 'default')
+        
+        # 提取上下文
+        chat_context = {
+            'page': data.get('page', 'unknown'),
+            'page_title': data.get('page_title', ''),
+            'datasource_id': data.get('datasource_id', ''),
+            'datasource_name': data.get('datasource_name', ''),
+            'db_type': data.get('db_type', ''),
+            'sql_content': data.get('sql_content', ''),
+            'template_id': data.get('template_id', None),
+        }
+        
+        if not message:
+            return jsonify({'error': '消息不能为空'}), 400
+        
+        # 构建 prompt（复用 _answer_chat_qa 的逻辑）
+        cfg = _load_ai_config()
+        backend = cfg.get('backend', 'ollama')
+        rag_cfg = cfg.get('rag', {})
+        rag_enabled = rag_cfg.get('enabled', True) if isinstance(rag_cfg, dict) else True
+        
+        # 检查 AI 后端是否可用
+        ai_available = backend in ('ollama', 'openai')
+        if backend == 'openai' and not cfg.get('online_enabled', False):
+            ai_available = False
+        
+        if not ai_available:
+            def gen_error():
+                yield f"data: {json.dumps({'type': 'error', 'message': 'AI 后端未启用'})}\n\n"
+            return Response(gen_error(), mimetype='text/event-stream')
+        
+        # 构建 system_prompt（含上下文）
+        system_prompt = """你是 DBCheck 数据库运维智能助手，专门帮助用户解答数据库运维、性能优化、故障排查等方面的问题。
+
+回答规则：
+1. 如果知识库中有相关文档，优先参考知识库内容回答
+2. 如果没有知识库参考，基于自身知识回答
+3. 回答要简洁实用，多给具体建议和命令示例
+4. 涉及 SQL 时注明适用的数据库类型
+5. 使用 Markdown 格式排版（支持代码块、表格、加粗等）
+6. 如果问题与数据库运维无关，礼貌地说明能力范围"""
+        
+        # 注入上下文
+        if chat_context.get('page'):
+            ctx_parts = []
+            page_title = chat_context.get('page_title', '')
+            if page_title:
+                ctx_parts.append(f'当前页面：{page_title}')
+            else:
+                ctx_parts.append(f'当前页面：{chat_context["page"]}')
+            ds_name = chat_context.get('datasource_name', '')
+            if ds_name:
+                ctx_parts.append(f'当前数据源：{ds_name}')
+            db_type = chat_context.get('db_type', '')
+            if db_type:
+                ctx_parts.append(f'数据库类型：{db_type}')
+            sql_content = chat_context.get('sql_content', '')
+            if sql_content and len(sql_content.strip()) > 0:
+                sql_preview = sql_content[:500] + ('...' if len(sql_content) > 500 else '')
+                ctx_parts.append(f'当前 SQL 编辑器内容：\n```sql\n{sql_preview}\n```')
+            template_id = chat_context.get('template_id', None)
+            if template_id:
+                ctx_parts.append(f'当前巡检模板 ID：{template_id}')
+            
+            if ctx_parts:
+                system_prompt += '\n\n## 当前上下文（用户当前正在操作的界面信息）\n' + '\n'.join(ctx_parts) + \
+                    '\n请根据上下文，给出更贴合用户当前场景的回答。'
+        
+        # 构建完整 prompt
+        conversation = _format_conversation_history(session_id)
+        if conversation:
+            prompt = f"## 历史对话\n{conversation}\n\n## 当前问题\n{message}"
+        else:
+            prompt = message
+        
+        # RAG 检索
+        rag_context = ''
+        try:
+            from rag import RAGRetriever, VectorStore, OllamaEmbedding, OpenAIEmbedding
+            vs = VectorStore()
+            stats = vs.get_collection_stats()
+            if stats.get('total_chunks', 0) > 0 and rag_enabled:
+                if backend == 'ollama':
+                    emb = OllamaEmbedding()
+                else:
+                    emb = OpenAIEmbedding(
+                        api_url=cfg.get('online_api_url', 'https://api.openai.com/v1'),
+                        model=cfg.get('online_model', 'text-embedding-3-small'),
+                        api_key=cfg.get('api_key', ''),
+                    )
+                retriever = RAGRetriever(vs, emb)
+                rag_context = retriever.retrieve_for_chat(message, db_type=chat_context.get('db_type'), top_k=5)
+        except Exception:
+            pass
+        
+        if rag_context:
+            prompt = f"{prompt}\n\n{rag_context}\n\n请结合上述知识库内容回答用户的问题。"
+        else:
+            prompt = f"{prompt}\n\n（本次未检索到相关知识库文档，请基于自身知识回答）"
+        
+        # SSE 生成器（使用 queue + thread 实现真正的流式输出）
+        import threading
+        from queue import Queue
+
+        def generate():
+            q = Queue()
+            full_chunks = []
+            import sys
+
+            print(f'[AI Stream] 后端启动, backend={backend}, model={cfg.get("model", cfg.get("online_model", "unknown"))}', flush=True)
+            print(f'[AI Stream] prompt长度={len(prompt)}, system_prompt长度={len(system_prompt)}', flush=True)
+
+            def stream_callback(chunk):
+                """LLM 流式回调：将 chunk 放入队列"""
+                full_chunks.append(chunk)
+                q.put(('chunk', chunk))
+                print(f'[AI Stream] chunk: {chunk!r}', flush=True)
+
+            def run_llm():
+                """在子线程中调用 LLM"""
+                try:
+                    print(f'[AI Stream] 开始调用 _call_llm...', flush=True)
+                    result = _call_llm(prompt, system_prompt, stream_callback=stream_callback)
+                    print(f'[AI Stream] _call_llm 返回: result={result!r}, len(full_chunks)={len(full_chunks)}', flush=True)
+                    q.put(('done', result))
+                except Exception as e:
+                    print(f'[AI Stream] _call_llm 异常: {e}', file=sys.stderr, flush=True)
+                    import traceback
+                    traceback.print_exc()
+                    q.put(('error', str(e)))
+
+            # 启动 LLM 调用线程
+            t = threading.Thread(target=run_llm, daemon=True)
+            t.start()
+
+            # 发送开始标记
+            yield f"data: {json.dumps({'type': 'start'})}\n\n"
+
+            # 从队列读取 chunk 并流式发送
+            while True:
+                msg_type, data = q.get()
+                if msg_type == 'chunk':
+                    chunk_data = json.dumps({'type': 'chunk', 'content': data}, ensure_ascii=False)
+                    yield f"data: {chunk_data}\n\n"
+                elif msg_type == 'done':
+                    # 保存会话历史
+                    full_text = ''.join(full_chunks) if full_chunks else (data or '')
+
+                    # Fallback：如果流式返回空内容，尝试非流式调用
+                    if not full_text.strip() and not str(data or '').startswith('['):
+                        print(f'[AI Stream] 流式返回空内容, 执行 fallback 非流式调用...', flush=True)
+                        try:
+                            fallback_result = _call_llm(prompt, system_prompt, stream_callback=None)
+                            print(f'[AI Stream] fallback 返回: {fallback_result!r}', flush=True)
+                            if fallback_result and not fallback_result.startswith('['):
+                                # 将完整结果作为单个 chunk 发送
+                                fb_chunk = json.dumps({'type': 'chunk', 'content': fallback_result}, ensure_ascii=False)
+                                yield f"data: {fb_chunk}\n\n"
+                                full_text = fallback_result
+                        except Exception as fb_err:
+                            print(f'[AI Stream] fallback 失败: {fb_err}', file=sys.stderr, flush=True)
+                            if not full_text:
+                                full_text = f'[AI 生成失败，请检查 Ollama 服务是否正常运行]'
+
+                    print(f'[AI Stream] 完成, full_text长度={len(full_text)}, 内容预览: {full_text[:200]!r}', flush=True)
+                    _add_to_history(session_id, 'user', message)
+                    _add_to_history(session_id, 'ai', full_text)
+                    # 发送完成标记
+                    yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                    break
+                elif msg_type == 'error':
+                    error_data = json.dumps({'type': 'error', 'message': data}, ensure_ascii=False)
+                    yield f"data: {error_data}\n\n"
+                    break
+
+            t.join(timeout=5)
+        
+        return Response(generate(), mimetype='text/event-stream')
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/chat', methods=['POST'])
+def api_chat():
+    """处理自然语言请求：支持知识问答和巡检执行两种模式（v2.6.2 支持上下文感知）"""
+    try:
+        data = request.get_json() or {}
+        message = data.get('message', '')
+        session_id = data.get('session_id', 'default')
+
+        # v2.6.2：提取前端上下文
+        chat_context = {
+            'page': data.get('page', 'unknown'),
+            'datasource_id': data.get('datasource_id', ''),
+            'datasource_name': data.get('datasource_name', ''),
+            'db_type': data.get('db_type', ''),
+            'sql_content': data.get('sql_content', ''),
+            'template_id': data.get('template_id', None),
+        }
 
         if not message:
             return jsonify({'ok': False, 'type': 'error', 'message': '请输入您的问题'})
@@ -6580,7 +6900,7 @@ def api_chat():
             if qa_db_type == 'unknown':
                 qa_db_type = None
 
-            result = _answer_chat_qa(session_id, message, db_type=qa_db_type)
+            result = _answer_chat_qa(session_id, message, db_type=qa_db_type, context=chat_context)
             resp = {
                 'ok': True,
                 'type': 'qa',

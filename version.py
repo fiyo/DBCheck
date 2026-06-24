@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
 #
@@ -7,8 +7,8 @@
 # See LICENSE for full license text.
 #
 """
-DBCheck 版本信息 (供静态网站读取)
-这个文件会被转换为 version.json 供 docs/index.html 使用
+DBCheck 鐗堟湰淇℃伅 (渚涢潤鎬佺綉绔欒鍙?
+杩欎釜鏂囦欢浼氳杞崲涓?version.json 渚?docs/index.html 浣跨敤
 """
 
-__version__ = "v2.6.1"
+__version__ = "v2.6.2"

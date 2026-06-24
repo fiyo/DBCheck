@@ -1888,24 +1888,71 @@ async function executeFixSql(taskId, sql) {
 //  i18n 初始化
 // ══════════════════════════════════════════════════════════════
 
-/* ─── AI Chat Sidebar ─── */
-#ai-chat-sidebar {
-  position: fixed !important;
-  right: -420px !important;
-  top: 0 !important;
-  width: 400px !important;
-  height: 100vh !important;
-  background: var(--surface) !important;
-  border-left: 1px solid var(--border) !important;
-  z-index: 99999 !important;
-  display: flex !important;
-  flex-direction: column !important;
-  transition: right 0.3s ease !important;
-  box-shadow: -4px 0 20px rgba(0,0,0,0.3) !important;
+/* ─── App Layout (v2.6.2: 固定右侧 AI 面板) ─── */
+.app-layout {
+  /* 容器，不改变原有布局 */
 }
-#ai-chat-sidebar.open { right: 0 !important; }
 
-/* 聊天头部 */
+.main-content {
+  min-width: 0;
+  padding-bottom: 32px;
+  /* 右侧留出 AI 面板空间 */
+  margin-right: 420px;
+}
+
+.ai-chat-panel {
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 420px;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 9999;
+}
+
+/* 小屏幕：AI 面板可滑出 */
+@media (max-width: 1100px) {
+  .main-content { margin-right: 0; }
+  .ai-chat-panel {
+    right: -420px;
+    transition: right 0.3s ease;
+    box-shadow: -4px 0 20px rgba(0,0,0,0.3);
+  }
+  .ai-chat-panel.open { right: 0; }
+}
+
+/* 小屏幕浮动按钮 */
+#ai-chat-fab {
+  display: none;
+}
+@media (max-width: 1100px) {
+  #ai-chat-fab {
+    display: flex;
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #4caf50, #2196f3);
+    border: none;
+    color: #fff;
+    font-size: 24px;
+    cursor: pointer;
+    z-index: 9998;
+    box-shadow: 0 4px 16px rgba(46,160,67,0.4);
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+  }
+  #ai-chat-fab:hover { transform: scale(1.1); }
+}
+
+/* ─── 聊天头部 */
 .chat-header {
   padding: 16px 20px;
   border-bottom: 1px solid var(--border);
@@ -2061,34 +2108,6 @@ async function executeFixSql(taskId, sql) {
   transform: none;
 }
 
-/* 悬浮按钮 */
-#ai-chat-fab {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent), var(--accent2));
-  border: none;
-  color: #fff;
-  font-size: 24px;
-  cursor: pointer;
-  z-index: 99998;
-  box-shadow: 0 4px 16px rgba(46,160,67,0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.3s ease;
-}
-#ai-chat-fab:hover {
-  transform: scale(1.1);
-  box-shadow: 0 6px 24px rgba(46,160,67,0.5);
-}
-#ai-chat-fab.open {
-  transform: scale(0.9) rotate(10deg);
-}
-
 /* 聊天加载动画 */
 .chat-typing {
   display: flex;
@@ -2177,17 +2196,6 @@ async function executeFixSql(taskId, sql) {
 // ══════════════════════════════════════════════════════════════
 //  i18n 初始化
 // ══════════════════════════════════════════════════════════════
-
-/* 移动端适配 */
-@media (max-width: 500px) {
-  #ai-chat-sidebar {
-    width: 100%;
-    right: -100%;
-  }
-  #ai-chat-sidebar.open {
-    right: 0;
-  }
-}
 
 // ─── 一键修复建议功能 ───────────────────────────────────────
 
@@ -2564,6 +2572,7 @@ async function executeFixSql(taskId, sql) {
   <link rel="stylesheet" href="/static/css/login.css">
   <link rel="stylesheet" href="/static/css/quotes.css">
   <script src="/static/js/xterm.js"></script>
+  <script>const PRO_AVAILABLE = {{ pro_available | tojson }};</script>
   <script src="/static/js/xterm-addon-fit.js"></script>
   <script src="/static/js/xterm-addon-attach.js"></script>
   <script src="/static/js/socket.io.min.js"></script>
@@ -2646,6 +2655,9 @@ async function executeFixSql(taskId, sql) {
 
 </head>
 <body>
+<div class="app-layout">
+<!-- 左侧：主内容区（侧边栏 + 页面内容） -->
+<div class="main-content">
 <!-- 背景层 -->
 <div class="bg-anim">
   <svg viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
@@ -3929,7 +3941,7 @@ function formatBytes(bytes) {
       }
 
       // ─── Rules Page ─────────────────────────────
-      {% if pro_available %}
+      
       async function loadRules() {
         try {
           const dbType = document.getElementById('rules-db-type')?.value || '';
@@ -3973,7 +3985,7 @@ function formatBytes(bytes) {
           else { toastError(i18n('webui.ds_operation_fail').replace('{}', data.error || '')); }
         } catch(e) { toastError(e.message); }
       }
-      {% endif %}
+      
 
 </script>
 <div class="app-shell">
@@ -6326,9 +6338,11 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
   </div><!-- /main -->
 </div><!-- /app-shell -->
 
+</div><!-- .main-content -->
+
 <script>
 // ─── API Key 管理令牌（服务器注入）─────────────────────────
-const _ADMIN_TOKEN = '{{ admin_token or "" }}';
+const _ADMIN_TOKEN = {{ admin_token | tojson }};
 if (_ADMIN_TOKEN) sessionStorage.setItem('dbcheck_admin', _ADMIN_TOKEN);
 
 // ─── State ───
@@ -6544,6 +6558,8 @@ async function executeFixSql(taskId, sql) {
 
 // ─── Page Navigation ───
 function showPage(name) {
+  // v2.6.2：更新全局页面变量（供 AI 上下文感知使用）
+  _currentPage = name;
   // 强制隐藏所有 .page 元素（不依赖 CSS 类）
   document.querySelectorAll('.page').forEach(function(p) {
     p.classList.remove('active');
@@ -6599,9 +6615,9 @@ function showPage(name) {
   if (name === 'trend') loadTrendInstances();
   if (name === 'scheduler') loadSchedulerJobs();
   if (name === 'datasources') loadDataSources();
-  {% if pro_available %}
-  if (name === 'rules') loadRules();
-  {% endif %}
+  
+  if (PRO_AVAILABLE && name === 'rules') loadRules();
+  
   if (name === 'notifier') loadNotifierConfig();
   if (name === 'ai') loadAIConfig();
   if (name === 'rag') showRagPage();
@@ -7795,8 +7811,8 @@ async function executeFixSql(taskId, sql) {
 function escapeHtml(str) {
   if (!str) return '';
   return str.replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
+            .replace(new RegExp('<', 'g'), '&lt;')
+            .replace(new RegExp('>', 'g'), '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#039;');
 }
@@ -9171,7 +9187,7 @@ async function executeFixSql(taskId, sql) {
 
 // ─── Utils ───
 function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s).replace(/&/g,'&amp;').replace(new RegExp('<', 'g'),'&lt;').replace(new RegExp('>', 'g'),'&gt;').replace(/"/g,'&quot;');
 }
 
 // ─── Ollama 连接测试 ───────────────────────────────────
@@ -12212,11 +12228,127 @@ let chatSpinnerTexts = ['正在巡检', '正在巡检 .', '正在巡检 ..', '�
 let chatSpinnerIdx = 0;
 let chatSessionId = 'default_' + Math.random().toString(36).slice(2, 8);
 
-function toggleAiChat() {
-  const sidebar = document.getElementById('ai-chat-sidebar');
+// ─── Markdown 渲染器 (v2.6.3) ──────────────────────
+function renderMarkdown(text) {
+  if (!text) return '';
+  
+  // 1. 代码块：```language\ncode```
+  text = text.replace(/```(\w+)?\n([\s\S]*?)```/g, function(match, lang, code) {
+    return '<pre style="background:#1e1e1e; color:#d4d4d4; padding:12px 16px; border-radius:8px; overflow-x:auto; margin:8px 0; font-size:13px"><code>' + code.trim() + '</code></pre>';
+  });
+  
+  // 2. 行内代码：`code`
+  text = text.replace(/`([^`]+)`/g, '<code style="background:rgba(76,175,80,0.1); color:#4caf50; padding:2px 6px; border-radius:4px; font-size:13px">$1</code>');
+  
+  // 3. 标题：### text
+  text = text.replace(/^### (.*?)$/gm, '<h4 style="color:var(--accent); margin:12px 0 8px 0">$1</h4>');
+  text = text.replace(/^## (.*?)$/gm, '<h3 style="color:var(--accent); margin:16px 0 10px 0">$1</h3>');
+  text = text.replace(/^# (.*?)$/gm, '<h2 style="color:var(--accent); margin:18px 0 12px 0">$1</h2>');
+  
+  // 4. 加粗：**text**
+  text = text.replace(/\*\*(.*?)\*\*/g, '<strong style="color:var(--text-primary)">$1</strong>');
+  
+  // 5. 斜体：*text*
+  text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
+  
+  // 6. 无序列表：- item
+  text = text.replace(/^- (.*?)$/gm, '<div style="padding-left:16px; margin:4px 0">• $1</div>');
+  
+  // 7. 有序列表：1. item
+  text = text.replace(/^(\d+)\. (.*?)$/gm, '<div style="padding-left:16px; margin:4px 0"><span style="color:var(--accent)">$1.</span> $2</div>');
+  
+  // 8. 链接：[text](url)
+  text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" style="color:var(--accent); text-decoration:none">$1 ↗</a>');
+  
+  // 9. 段落（空行分隔）
+  text = text.replace(/\n\n/g, '<br><br>');
+  text = text.replace(/\n/g, '<br>');
+  
+  return text;
+}
+
+// ─── 上下文感知 (v2.6.2) ──────────────────────
+// 全局变量：由 showPage() 更新
+let _currentPage = 'dashboard';
+
+// 小屏幕：切换 AI 面板显示/隐藏
+function toggleAiChatPanel() {
+  const panel = document.getElementById('ai-chat-sidebar');
   const fab = document.getElementById('ai-chat-fab');
-  sidebar.classList.toggle('open');
-  fab.classList.toggle('open');
+  const isOpen = panel.classList.contains('open');
+  panel.classList.toggle('open');
+  if (fab) fab.style.display = isOpen ? 'flex' : 'none';
+  // 小屏幕时显示/隐藏面板内的关闭按钮
+  const closeBtn = panel.querySelector('.chat-panel-close');
+  if (closeBtn) closeBtn.style.display = isOpen ? 'none' : 'inline-block';
+}
+
+function getChatContext() {
+  // 方式1：检查哪个 .page 元素当前可见（最可靠）
+  let page = 'unknown';
+  const pages = document.querySelectorAll('.page');
+  for (const p of pages) {
+    if (p.style.display && p.style.display !== 'none') {
+      page = p.id.replace('page-', '');
+      break;
+    }
+  }
+  //  fallback：用全局变量
+  if (page === 'unknown') page = _currentPage;
+
+  const ctx = { page: page };
+
+  // 数据源页面：获取当前选中的数据源
+  if (page === 'datasource') {
+    const active = document.querySelector('.instance-item.active') || document.querySelector('.instance-item.selected');
+    if (active) {
+      ctx.datasource_id = active.dataset.id || active.id || '';
+      const nameEl = active.querySelector('.instance-name') || active.querySelector('.ds-name');
+      ctx.datasource_name = nameEl?.textContent || '';
+      ctx.db_type = active.dataset.type || active.dataset.dbType || '';
+    }
+  }
+
+  // SQL 编辑器页面：获取当前数据源和 SQL 内容
+  if (page === 'sql-editor') {
+    const dsSelect = document.getElementById('sql-datasource') || document.getElementById('db-select');
+    if (dsSelect && dsSelect.value) {
+      ctx.datasource_id = dsSelect.value;
+      ctx.datasource_name = dsSelect.options[dsSelect.selectedIndex]?.text || '';
+    }
+    const editor = document.getElementById('sql-editor') || document.querySelector('.sql-editor') || document.querySelector('[contenteditable="true"]');
+    if (editor) {
+      ctx.sql_content = editor.value || editor.textContent || editor.innerText || '';
+    }
+  }
+
+  // 巡检配置页面：获取当前选择的数据源和模板
+  if (page === 'inspection-config') {
+    const dsSelect = document.getElementById('icfg-datasource') || document.getElementById('inspect-datasource');
+    if (dsSelect && dsSelect.value) {
+      ctx.datasource_id = dsSelect.value;
+      ctx.datasource_name = dsSelect.options[dsSelect.selectedIndex]?.text || '';
+    }
+    const tplSelect = document.getElementById('icfg-template') || document.getElementById('inspect-template');
+    if (tplSelect && tplSelect.value) {
+      ctx.template_id = tplSelect.value;
+    }
+  }
+
+  // v2.6.2：page ID → 中文标题（让 AI 回复中文页面名）
+  const pageNameMap = {
+    'dashboard': '仪表盘',
+    'datasource': '数据源管理',
+    'sql-editor': 'SQL 编辑器',
+    'inspection-config': '巡检配置',
+    'inspection-history': '巡检历史',
+    'plugin-market': '插件市场',
+    'settings': '系统设置',
+    'wizard': '快速开始',
+  };
+  ctx.page_title = pageNameMap[page] || page;
+
+  return ctx;
 }
 
 function addChatMessage(text, type, isHtml) {
@@ -12287,8 +12419,10 @@ function setChatMode(mode) {
 function _markdownToHtml(text) {
   if (!text) return '';
   var html = text
-    // 转义 HTML 特殊字符
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    // 转义 HTML 特殊字符（用 new RegExp 避免 < > 被 HTML 解析器误判）
+    .replace(/&/g, '&amp;')
+    .replace(new RegExp('<', 'g'), '&lt;')
+    .replace(new RegExp('>', 'g'), '&gt;')
     // 代码块 ``` ... ```
     .replace(/```([\s\S]*?)```/g, '<pre style="background:var(--surface2);padding:10px;border-radius:8px;overflow-x:auto;font-size:12px;margin:6px 0"><code>$1</code></pre>')
     // 行内代码 `...`
@@ -12423,97 +12557,135 @@ async function sendChatMessage() {
   addChatMessage(message, 'user', false);
   showTypingIndicator();
 
+  // 自动获取当前页面上下文
+  const context = getChatContext();
+
+  // v2.6.3：使用 SSE 流式接收
   try {
-    const res = await fetch('/api/chat', {
+    console.log('[AI Chat] 发送 SSE 请求...', { message: message.substring(0, 50), session_id: chatSessionId });
+    const res = await fetch('/api/chat/stream', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({message: message, session_id: chatSessionId})
+      body: JSON.stringify(Object.assign({
+        message: message,
+        session_id: chatSessionId
+      }, context))
     });
-    const data = await res.json();
 
-    hideTypingIndicator();
-
-    // 清空对话
-    if (data.cleared) {
-      const container = document.getElementById('chat-messages');
-      container.innerHTML = '';
-      addChatMessage(
-        '✅ 对话已清空。<br><br>' +
-        '<strong>🔍 巡检执行</strong><br>' +
-        '• 巡检 MySQL-01 的连接数<br><br>' +
-        '<strong>💡 知识问答</strong><br>' +
-        '• MySQL 慢查询怎么优化？',
-        'ai', true
-      );
-      chatSessionId = 'default_' + Math.random().toString(36).slice(2, 8);
-      hideChatStatus();
-      setChatMode('');
-    } else if (data.type === 'text') {
-      addChatMessage(data.message, 'ai', false);
-    } else if (data.type === 'qa') {
-      // 知识库问答响应
-      setChatMode('qa');
-      addChatMessage(_markdownToHtml(data.message), 'ai', true);
-      if (data.rag_disabled) {
-        showChatStatus('⚠️ AI 诊断未启用 — 点击此处前往设置');
-        document.getElementById('chat-status-bar').onclick = function() {
-          showPage('inspection-config', 'webui.nav_inspection_config');
-        };
-        document.getElementById('chat-status-bar').style.cursor = 'pointer';
-      } else if (data.rag_used) {
-        showChatStatus('📚 已参考知识库文档');
-      } else {
-        showChatStatus('💡 基于 AI 自身知识回答');
-      }
-    } else if (data.type === 'ask') {
-      addChatMessage(data.message, 'ai', false);
-      if (data.candidates && data.candidates.length > 0) {
-        const container = document.getElementById('chat-messages');
-        const wrapper = document.createElement('div');
-        wrapper.className = 'chat-msg ai';
-        wrapper.style.padding = '8px 16px';
-        data.candidates.forEach(function(name) {
-          const btn = document.createElement('button');
-          btn.className = 'btn btn-outline-primary btn-sm me-2 mb-2';
-          btn.style.borderRadius = '16px';
-          btn.style.fontSize = '13px';
-          btn.textContent = name;
-          btn.onclick = (function(n, dbType) {
-            return function() {
-              sendChatMessageWithContext('巡检 ' + n, {db_type: dbType, db_name: n});
-            };
-          })(name, data.db_type);
-          wrapper.appendChild(btn);
-        });
-        container.appendChild(wrapper);
-        container.scrollTop = container.scrollHeight;
-      }
-    } else if (data.type === 'report') {
-      setChatMode('inspect');
-      addChatMessage(data.message, 'ai', false);
-      if (data.matched_datasource) {
-        var ds = data.matched_datasource;
-        addChatMessage('[已选择数据源] ' + (ds.name || ds.host) + ' (' + ds.host + ':' + ds.port + ')', 'system', false);
-      }
-      currentChatTaskId = data.task_id;
-      showChatSpinner();
-      pollChatTaskStatus(data.task_id);
-    } else if (data.type === 'error') {
-      addChatMessage(i18n('webui.chat_error_prefix') + data.message, 'ai', false);
-      if (data.message && data.message.includes('未找到')) {
-        setTimeout(() => {
-          addChatMessage(i18n('webui.chat_hint_datasource'), 'ai', false);
-        }, 500);
-      }
-    } else if (!data.ok) {
-      addChatMessage(i18n('webui.chat_error_prefix') + i18n('webui.chat_request_failed') + (data.message || i18n('webui.chat_unknown_error')), 'ai', false);
+    console.log('[AI Chat] SSE 响应状态:', res.status, res.ok);
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error('[AI Chat] SSE 错误响应:', errText);
+      throw new Error(`HTTP ${res.status}: ${errText}`);
     }
-  } catch(e) {
-    hideTypingIndicator();
-    addChatMessage(i18n('webui.chat_error_prefix') + i18n('webui.chat_network_error') + e.message, 'ai', false);
-  }
 
-  setInputEnabled(true);
+    hideTypingIndicator();
+
+    // 创建 AI 消息占位符
+    const aiMsgEl = addChatMessage('', 'ai', true);
+    let fullContent = '';
+    let receivedFirstChunk = false;
+
+    // 读取 SSE 流
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, {stream: true});
+      const lines = buffer.split('\n');
+      buffer = lines.pop();  // 保留最后一个不完整的行
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const dataStr = line.slice(6);
+          if (dataStr === '[DONE]') continue;
+
+          try {
+            const data = JSON.parse(dataStr);
+            if (data.type === 'start') {
+              // 开始接收
+            } else if (data.type === 'chunk') {
+              if (!receivedFirstChunk) {
+                receivedFirstChunk = true;
+                aiMsgEl.innerHTML = '';  // 清空"正在输入"动画
+              }
+              fullContent += data.content;
+              // Markdown 渲染
+              aiMsgEl.innerHTML = renderMarkdown(fullContent);
+              // 滚动到底部
+              const chatMessages = document.getElementById('chat-messages');
+              chatMessages.scrollTop = chatMessages.scrollHeight;
+            } else if (data.type === 'done') {
+              // 完成
+            } else if (data.type === 'error') {
+              aiMsgEl.innerHTML = `❌ ${data.message}`;
+            }
+          } catch (e) {
+            console.error('SSE parse error:', e, line);
+          }
+        }
+      }
+    }
+
+    setInputEnabled(true);
+    hideChatStatus();
+
+  } catch (error) {
+    console.error('[AI Chat] SSE 请求失败:', error);
+    hideTypingIndicator();
+    // fallback：使用旧的非流式接口
+    console.log('[AI Chat] 尝试 fallback 到 /api/chat ...');
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(Object.assign({
+          message: message,
+          session_id: chatSessionId
+        }, context))
+      });
+      const data = await res.json();
+      hideTypingIndicator();
+      // 处理非流式响应（完整逻辑）
+      if (data.type === 'qa') {
+        setChatMode('qa');
+        addChatMessage(_markdownToHtml(data.message), 'ai', true);
+      } else if (data.type === 'text') {
+        addChatMessage(data.message, 'ai', false);
+      } else if (data.type === 'ask') {
+        addChatMessage(data.message, 'ai', false);
+      } else if (data.type === 'report') {
+        setChatMode('inspect');
+        addChatMessage(data.message, 'ai', false);
+        if (data.matched_datasource) {
+          var ds = data.matched_datasource;
+          addChatMessage('[已选择数据源] ' + (ds.name || ds.host) + ' (' + ds.host + ':' + ds.port + ')', 'system', false);
+        }
+        currentChatTaskId = data.task_id;
+        showChatSpinner();
+        pollChatTaskStatus(data.task_id);
+      } else if (data.type === 'error') {
+        addChatMessage(i18n('webui.chat_error_prefix') + data.message, 'ai', false);
+        if (data.message && data.message.includes('未找到')) {
+          setTimeout(() => {
+            addChatMessage(i18n('webui.chat_hint_datasource'), 'ai', false);
+          }, 500);
+        }
+      } else if (!data.ok) {
+        addChatMessage(i18n('webui.chat_error_prefix') + i18n('webui.chat_request_failed') + (data.message || i18n('webui.chat_unknown_error')), 'ai', false);
+      }
+      setInputEnabled(true);
+    } catch (fallbackError) {
+      console.error('[AI Chat] Fallback 也失败:', fallbackError);
+      hideTypingIndicator();
+      addChatMessage(`❌ 请求失败：${fallbackError.message}`, 'ai', false);
+      setInputEnabled(true);
+    }
+  }
 }
 
 async function pollChatTaskStatus(taskId) {
@@ -12627,7 +12799,7 @@ async function executeFixSql(taskId, sql) {
       body: JSON.stringify({
         datasource_id: data.datasource_id,
         sql: sql,
-        confirm: isDangerous
+        confirm: isDangerous,
       })
     });
 
@@ -12672,7 +12844,7 @@ function hideChatSpinner() {
 }
 
 function escapeHtml(str) {
-  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return str.replace(/&/g,'&amp;').replace(new RegExp('<', 'g'),'&lt;').replace(new RegExp('>', 'g'),'&gt;');
 }
 
 /* ─── 巡检进度动画 ───────────────────────────── */
@@ -13083,16 +13255,16 @@ async function deleteBackupHistory(recordId) {
 
 </script>
 
-<!-- AI Chat Sidebar -->
-<button id="ai-chat-fab" onclick="toggleAiChat()" title="AI 巡检助手" style="position:fixed;bottom:24px;right:24px;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#4caf50,#2196f3);border:none;color:#fff;font-size:24px;cursor:pointer;z-index:99998;box-shadow:0 4px 16px rgba(46,160,67,0.4);display:flex;align-items:center;justify-content:center;transition:all 0.3s ease">💬</button>
-
-<div id="ai-chat-sidebar" style="position:fixed;right:-420px;top:0;width:420px;height:100vh;background:var(--surface);border-left:1px solid var(--border);z-index:99999;display:flex;flex-direction:column;transition:right 0.3s ease;box-shadow:-4px 0 20px rgba(0,0,0,0.3)">
+<!-- AI Chat Panel (v2.6.2: 固定右侧) -->
+<aside class="ai-chat-panel" id="ai-chat-sidebar">
   <div class="chat-header" style="position:relative">
     <span style="font-size:20px">🤖</span>
     <span class="chat-title" data-i18n="webui.chat_title">AI 巡检助手</span>
     <span id="chat-mode-badge" class="chat-mode-badge" style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(76,175,80,0.15);color:#4caf50;margin-left:8px;display:none">问答模式</span>
     <button class="chat-close" onclick="clearChatSession()" title="清空对话" style="font-size:16px;color:var(--text-secondary);background:none;border:none;cursor:pointer;padding:4px 8px;margin-right:4px">🗑</button>
-    <button class="chat-close" onclick="toggleAiChat()">✕</button>
+    <!-- 小屏幕关闭按钮 -->
+    <button class="chat-close chat-panel-close" onclick="toggleAiChatPanel()" title="关闭" style="font-size:18px;display:none">✕</button>
+  </div>
   </div>
   <div class="chat-messages" id="chat-messages">
     <div class="chat-msg ai" id="chat-welcome">
@@ -13120,7 +13292,10 @@ async function deleteBackupHistory(recordId) {
       <button class="chat-send-btn" id="chat-send-btn" onclick="sendChatMessage()" title="发送">➤</button>
     </div>
   </div>
-</div>
+</aside>
+
+<!-- 小屏幕 AI 面板浮动按钮 -->
+<button id="ai-chat-fab" onclick="toggleAiChatPanel()">💬</button>
 
   <!-- Server Inspection -->
   <script>
@@ -16814,6 +16989,7 @@ function mkdirRemote() {
     } catch(e) { toastError('重载失败: ' + e.message); }
   }
   </script>
+</div><!-- .app-layout -->
 </body>
 </html>
 
