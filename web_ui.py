@@ -1086,6 +1086,71 @@ def test_ivorysql_connection(host, port, user, password, database='postgres'):
     except Exception as e:
         return False, str(e)
 
+def _find_oracle_client_lib_dir(platform_key=None):
+    """查找 Oracle Client 的 lib 目录，支持根目录和 lib/ 子目录
+
+    搜索顺序：
+    1. drivers/oracle_client/<platform>/ 根目录
+    2. drivers/oracle_client/<platform>/lib/ 子目录
+    3. drivers/oracle_client/<platform>/ 下递归搜索标记文件
+
+    Returns:
+        str or None: 找到的 lib 目录路径，如果没找到返回 None
+    """
+    import platform as _pl
+    if platform_key is None:
+        sys_name = _pl.system().lower()
+        arch = _pl.machine().lower()
+        if sys_name == 'windows':
+            platform_key = 'windows_x64'
+        elif sys_name == 'linux':
+            platform_key = 'linux_x64'
+        elif sys_name == 'darwin':
+            platform_key = 'darwin_arm64' if arch in ('arm64', 'aarch64') else 'darwin_x64'
+        else:
+            return None
+
+    # 确定标记文件
+    if 'windows' in platform_key:
+        marker = 'oci.dll'
+    elif 'linux' in platform_key:
+        marker = 'libclntsh.so'
+    else:
+        marker = 'libclntsh.dylib'
+
+    # 基础目录
+    import sys
+    if getattr(sys, 'frozen', False):
+        base_dir = os.path.dirname(sys.executable)
+    else:
+        base_dir = BASE_DIR
+
+    client_dir = os.path.join(base_dir, 'drivers', 'oracle_client', platform_key)
+
+    if not os.path.isdir(client_dir):
+        return None
+
+    # 1. 先检查根目录
+    if os.path.isfile(os.path.join(client_dir, marker)):
+        return client_dir
+
+    # 2. 再检查 lib/ 子目录（Oracle 完整客户端常见结构）
+    lib_dir = os.path.join(client_dir, 'lib')
+    if os.path.isdir(lib_dir) and (
+        os.path.isfile(os.path.join(lib_dir, marker)) or
+        os.path.isfile(os.path.join(lib_dir, marker + '.11.1')) or
+        any(f.startswith(marker) for f in os.listdir(lib_dir) if marker in f)
+    ):
+        return lib_dir
+
+    # 3. 自动发现子目录（递归搜索，处理 instantclient_xx_x 子目录）
+    for root, dirs, files in os.walk(client_dir):
+        if marker in files:
+            return root
+
+    return None
+
+
 def test_oracle_connection(host, port, user, password, service_name='ORCL', sysdba=False):
     try:
         import oracledb
@@ -1109,26 +1174,16 @@ def test_oracle_connection(host, port, user, password, service_name='ORCL', sysd
                 except Exception:
                     pass
                 if not _ok:
-                    _sys = platform.system().lower()
-                    if _sys == 'windows':
-                        _sub, _mk = 'windows_x64', 'oci.dll'
-                    elif _sys == 'linux':
-                        _sub, _mk = 'linux_x64', 'libclntsh.so'
-                    elif _sys == 'darwin':
-                        _sub, _mk = 'darwin_x64', 'libclntsh.dylib'
-                    else:
-                        _sub, _mk = None, None
-                    if _sub:
-                        _base = BASE_DIR
-                        _bd = os.path.join(_base, 'drivers', 'oracle_client', _sub)
-                        if os.path.isdir(_bd) and os.path.isfile(os.path.join(_bd, _mk)):
-                            try:
-                                oracledb.init_oracle_client(lib_dir=_bd)
-                                _ok = True
-                            except Exception:
-                                pass
+                    # 使用辅助函数查找 Oracle Client 目录（支持 lib/ 子目录）
+                    _lib_dir = _find_oracle_client_lib_dir()
+                    if _lib_dir:
+                        try:
+                            oracledb.init_oracle_client(lib_dir=_lib_dir)
+                            _ok = True
+                        except Exception:
+                            pass
                 if not _ok:
-                    return False, 'Oracle 11g 需要 Instant Client，请将包解压到 drivers/oracle_client/windows_x64 目录'
+                    return False, 'Oracle 11g 需要 Instant Client，请将包解压到 drivers/oracle_client/ 对应平台目录（支持根目录或 lib/ 子目录）'
                 conn = oracledb.connect(**kw)
             else:
                 raise
@@ -4488,29 +4543,14 @@ def api_pro_datasources_test_conn():
                         pass
                     # 2. 自动检测失败，尝试 DBCheck 内置的 Instant Client
                     if not _thick_ok:
-                        _sys_name = platform.system().lower()
-                        if _sys_name == 'windows':
-                            _subdir, _marker, _core_marker = 'windows_x64', 'oci.dll', 'oraociei.dll'
-                        elif _sys_name == 'linux':
-                            _subdir, _marker, _core_marker = 'linux_x64', 'libclntsh.so', 'libociei.so'
-                        elif _sys_name == 'darwin':
-                            _subdir, _marker, _core_marker = 'darwin_x64', 'libclntsh.dylib', 'libociei.dylib'
-                        else:
-                            _subdir, _marker, _core_marker = None, None, None
-
-                        if _subdir:
-                            import sys
-                            if getattr(sys, 'frozen', False):
-                                _base_dir = os.path.dirname(sys.executable)
-                            else:
-                                _base_dir = BASE_DIR
-                            _bundled = os.path.join(_base_dir, 'drivers', 'oracle_client', _subdir)
-                            if os.path.isdir(_bundled) and os.path.isfile(os.path.join(_bundled, _marker)):
-                                try:
-                                    oracledb.init_oracle_client(lib_dir=_bundled)
-                                    _thick_ok = True
-                                except Exception:
-                                    pass
+                        # 使用辅助函数查找 Oracle Client 目录（支持 lib/ 子目录）
+                        _lib_dir = _find_oracle_client_lib_dir()
+                        if _lib_dir:
+                            try:
+                                oracledb.init_oracle_client(lib_dir=_lib_dir)
+                                _thick_ok = True
+                            except Exception:
+                                pass
                     # 3. 内置 Client 失败，尝试读用户配置的路径
                     if not _thick_ok:
                         try:
@@ -4642,29 +4682,16 @@ def _connect_oracle_thick_fallback(user, password, dsn, sysdba=False):
             _thick_ok = True
         except Exception:
             pass
+        # 使用辅助函数查找 Oracle Client 目录（支持 lib/ 子目录）
         if not _thick_ok:
-            _sys_name = platform.system().lower()
-            if _sys_name == 'windows':
-                _subdir, _marker = 'windows_x64', 'oci.dll'
-            elif _sys_name == 'linux':
-                _subdir, _marker = 'linux_x64', 'libclntsh.so'
-            elif _sys_name == 'darwin':
-                _subdir, _marker = 'darwin_x64', 'libclntsh.dylib'
-            else:
-                _subdir, _marker = None, None
-            if _subdir:
-                import sys
-                if getattr(sys, 'frozen', False):
-                    _base_dir = os.path.dirname(sys.executable)
-                else:
-                    _base_dir = BASE_DIR
-                _bundled = os.path.join(_base_dir, 'drivers', 'oracle_client', _subdir)
-                if os.path.isdir(_bundled) and os.path.isfile(os.path.join(_bundled, _marker)):
-                    try:
-                        oracledb.init_oracle_client(lib_dir=_bundled)
-                        _thick_ok = True
-                    except Exception:
-                        pass
+            _lib_dir = _find_oracle_client_lib_dir()
+            if _lib_dir:
+                try:
+                    oracledb.init_oracle_client(lib_dir=_lib_dir)
+                    _thick_ok = True
+                except Exception:
+                    pass
+        # 尝试用户配置的路径
         if not _thick_ok:
             try:
                 import json
