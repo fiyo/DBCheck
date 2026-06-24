@@ -231,6 +231,51 @@ from auth import init_default_user, register_auth_routes
 init_default_user()
 register_auth_routes(app)
 
+# ── RBAC 用户管理模块注册 ──────────────────────────────────
+try:
+    from user_management.routes.auth_routes import auth_bp as um_auth_bp
+    from user_management.routes.user_routes import user_bp as um_user_bp
+    from user_management.routes.role_routes import role_bp as um_role_bp
+    from user_management.routes.menu_routes import menu_bp as um_menu_bp
+
+    app.register_blueprint(um_auth_bp)
+    app.register_blueprint(um_user_bp)
+    app.register_blueprint(um_role_bp)
+    app.register_blueprint(um_menu_bp)
+
+    # RBAC 登录页面
+    @app.route('/um/login')
+    def um_login_page():
+        from flask import render_template
+        return render_template('user_management/login.html')
+
+    # RBAC 系统管理页面
+    @app.route('/um/admin')
+    def um_admin_page():
+        from flask import render_template
+        return render_template('user_management/admin.html')
+
+    # 初始化 RBAC 种子数据（仅首次）
+    def _init_rbac_seed():
+        import os
+        seed_flag = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            'pro_data', '.rbac_seeded'
+        )
+        if not os.path.exists(seed_flag):
+            try:
+                from user_management.seed import init_seed_data
+                init_seed_data()
+                with open(seed_flag, 'w') as f:
+                    f.write('1')
+            except Exception as e:
+                print(f"  ⚠️ RBAC 种子数据初始化失败: {e}")
+
+    _init_rbac_seed()
+    print("  ✅ RBAC 用户管理模块已加载")
+except ImportError as e:
+    print(f"  ⚠️ RBAC 用户管理模块加载失败: {e}")
+
 # ── 工具函数 ───────────────────────────────────────────────
 def _ts():
     return datetime.datetime.now().strftime('%H:%M:%S')

@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DBCheck - 系统管理</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f6fa;
+            color: #333;
+        }
+        .admin-header {
+            background: linear-gradient(135deg, #1a1a2e, #0f3460);
+            color: white;
+            padding: 16px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .admin-header h1 {
+            font-size: 20px;
+        }
+        .admin-header .user-info {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .admin-header a {
+            color: #ff6b6b;
+            text-decoration: none;
+            margin-left: 16px;
+            font-size: 14px;
+        }
+        .tab-nav {
+            display: flex;
+            background: white;
+            border-bottom: 2px solid #e0e0e0;
+            padding: 0 32px;
+        }
+        .tab-nav button {
+            padding: 14px 24px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 15px;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.2s;
+        }
+        .tab-nav button.active {
+            color: #0f3460;
+            border-bottom-color: #0f3460;
+            font-weight: 600;
+        }
+        .tab-nav button:hover {
+            color: #0f3460;
+        }
+        .content {
+            padding: 24px 32px;
+        }
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .toolbar h2 {
+            font-size: 18px;
+            color: #1a1a2e;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: #0f3460;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #1a1a2e;
+        }
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 13px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        th, td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+            font-size: 13px;
+            color: #666;
+            text-transform: uppercase;
+        }
+        tr:hover {
+            background: #f8f9ff;
+        }
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .badge-success { background: #d4edda; color: #155724; }
+        .badge-danger { background: #f8d7da; color: #721c24; }
+        .badge-info { background: #d1ecf1; color: #0c5460; }
+        .badge-warning { background: #fff3cd; color: #856404; }
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: white;
+            border-radius: 12px;
+            padding: 28px;
+            width: 500px;
+            max-width: 90vw;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+        }
+        .modal h3 {
+            margin-bottom: 20px;
+            color: #1a1a2e;
+        }
+        .modal .form-group {
+            margin-bottom: 16px;
+        }
+        .modal .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+            font-size: 14px;
+            color: #555;
+        }
+        .modal .form-group input,
+        .modal .form-group select,
+        .modal .form-group textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            outline: none;
+        }
+        .modal .form-group input:focus,
+        .modal .form-group select:focus {
+            border-color: #0f3460;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 24px;
+        }
+        .msg-toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 24px;
+            border-radius: 8px;
+            color: white;
+            font-size: 14px;
+            z-index: 2000;
+            animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        .msg-success { background: #27ae60; }
+        .msg-error { background: #e74c3c; }
+        .perm-checkboxes {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 8px;
+            border: 1px solid #eee;
+            border-radius: 6px;
+        }
+        .perm-checkboxes label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .perm-checkboxes select {
+            padding: 4px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-header">
+        <h1>🔍 DBCheck 系统管理</h1>
+        <div class="user-info">
+            <span id="currentUser">...</span>
+            <a href="/">返回主页</a>
+            <a href="#" onclick="logout()">退出登录</a>
+        </div>
+    </div>
+
+    <div class="tab-nav">
+        <button class="active" onclick="switchTab('users')">用户管理</button>
+        <button onclick="switchTab('roles')">角色管理</button>
+        <button onclick="switchTab('menus')">菜单权限</button>
+    </div>
+
+    <div class="content" id="contentArea">
+        <!-- 动态渲染 -->
+    </div>
+
+    <!-- 通用模态框 -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal" id="modalContent"></div>
+    </div>
+
+    <div id="toastContainer"></div>
+
+    <script>
+        // ========== 工具函数 ==========
+        const API = (url, options = {}) => {
+            const token = localStorage.getItem('token');
+            const headers = {
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': 'Bearer ' + token } : {}),
+                ...options.headers
+            };
+            return fetch(url, { ...options, headers }).then(r => {
+                if (r.status === 401) {
+                    localStorage.clear();
+                    window.location.href = '/um/login';
+                }
+                return r.json();
+            });
+        };
+
+        function showToast(msg, type = 'success') {
+            const el = document.createElement('div');
+            el.className = `msg-toast msg-${type}`;
+            el.textContent = msg;
+            document.getElementById('toastContainer').appendChild(el);
+            setTimeout(() => el.remove(), 3000);
+        }
+
+        function openModal(title, bodyHtml, onSave) {
+            const overlay = document.getElementById('modalOverlay');
+            const content = document.getElementById('modalContent');
+            content.innerHTML = `
+                <h3>${title}</h3>
+                ${bodyHtml}
+                <div class="modal-actions">
+                    <button class="btn btn-sm" onclick="closeModal()">取消</button>
+                    <button class="btn btn-primary btn-sm" id="modalSaveBtn">保存</button>
+                </div>
+            `;
+            overlay.classList.add('active');
+            document.getElementById('modalSaveBtn').onclick = () => {
+                if (onSave) onSave();
+            };
+        }
+
+        function closeModal() {
+            document.getElementById('modalOverlay').classList.remove('active');
+        }
+
+        function logout() {
+            localStorage.clear();
+            window.location.href = '/um/login';
+        }
+
+        // ========== 页面初始化 ==========
+        async function init() {
+            try {
+                const res = await API('/api/um/auth/status');
+                if (res.code === 0 && res.data.user) {
+                    document.getElementById('currentUser').textContent =
+                        `${res.data.user.nickname || res.data.user.username} (${res.data.user.roles.join(', ')})`;
+                }
+            } catch (e) {
+                window.location.href = '/um/login';
+            }
+            loadUsers();
+        }
+
+        // ========== Tab 切换 ==========
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-nav button').forEach((btn, i) => {
+                btn.classList.toggle('active',
+                    ['users','roles','menus'][i] === tab);
+            });
+            if (tab === 'users') loadUsers();
+            else if (tab === 'roles') loadRoles();
+            else if (tab === 'menus') loadMenus();
+        }
+
+        // ========== 用户管理 ==========
+        async function loadUsers() {
+            const res = await API('/api/um/user/list?page=1&size=50');
+            const users = res.code === 0 ? res.data.items : [];
+            const html = `
+                <div class="toolbar">
+                    <h2>用户列表 (${res.data ? res.data.total : 0})</h2>
+                    <button class="btn btn-primary" onclick="showCreateUser()">+ 新建用户</button>
+                </div>
+                ${users.length === 0 ? '<div class="empty-state">暂无用户</div>' : `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th><th>用户名</th><th>昵称</th><th>邮箱</th>
+                            <th>状态</th><th>创建时间</th><th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${users.map(u => `
+                            <tr>
+                                <td>${u.id}</td>
+                                <td><strong>${u.username}</strong></td>
+                                <td>${u.nickname || '-'}</td>
+                                <td>${u.email || '-'}</td>
+                                <td><span class="badge ${u.status === 1 ? 'badge-success' : 'badge-danger'}">${u.status === 1 ? '启用' : '禁用'}</span></td>
+                                <td>${u.created_at || '-'}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary" onclick="showEditUser(${u.id})">编辑</button>
+                                    <button class="btn btn-sm" onclick="showAssignRoles(${u.id}, '${u.username}')">角色</button>
+                                    <button class="btn btn-sm btn-danger" onclick="deleteUser(${u.id})">删除</button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>`}
+            `;
+            document.getElementById('contentArea').innerHTML = html;
+        }
+
+        function showCreateUser() {
+            const body = `
+                <div class="form-group"><label>用户名 *</label><input id="f_username" required></div>
+                <div class="form-group"><label>密码 *</label><input id="f_password" type="password" required></div>
+                <div class="form-group"><label>昵称</label><input id="f_nickname"></div>
+                <div class="form-group"><label>邮箱</label><input id="f_email" type="email"></div>
+            `;
+            openModal('新建用户', body, async () => {
+                const data = {
+                    username: document.getElementById('f_username').value.trim(),
+                    password: document.getElementById('f_password').value,
+                    nickname: document.getElementById('f_nickname').value.trim(),
+                    email: document.getElementById('f_email').value.trim()
+                };
+                if (!data.username || !data.password) {
+                    showToast('用户名和密码不能为空', 'error');
+                    return;
+                }
+                const res = await API('/api/um/user', { method: 'POST', body: JSON.stringify(data) });
+                if (res.code === 0) {
+                    showToast('用户创建成功');
+                    closeModal();
+                    loadUsers();
+                } else {
+                    showToast(res.msg || '创建失败', 'error');
+                }
+            });
+        }
+
+        function showEditUser(uid) {
+            API(`/api/um/user/${uid}`).then(userRes => {
+                if (userRes.code !== 0) return showToast('获取用户信息失败', 'error');
+                const u = userRes.data;
+                const body = `
+                    <div class="form-group"><label>用户名</label><input value="${u.username}" disabled></div>
+                    <div class="form-group"><label>昵称</label><input id="f_nickname" value="${u.nickname || ''}"></div>
+                    <div class="form-group"><label>邮箱</label><input id="f_email" value="${u.email || ''}" type="email"></div>
+                    <div class="form-group"><label>新密码 (留空不修改)</label><input id="f_password" type="password"></div>
+                    <div class="form-group"><label>状态</label>
+                        <select id="f_status">
+                            <option value="1" ${u.status === 1 ? 'selected' : ''}>启用</option>
+                            <option value="0" ${u.status === 0 ? 'selected' : ''}>禁用</option>
+                        </select>
+                    </div>
+                `;
+                openModal(`编辑用户: ${u.username}`, body, async () => {
+                    const updates = {
+                        nickname: document.getElementById('f_nickname').value.trim(),
+                        email: document.getElementById('f_email').value.trim(),
+                        status: parseInt(document.getElementById('f_status').value)
+                    };
+                    const pw = document.getElementById('f_password').value;
+                    if (pw) updates.password = pw;
+                    const res = await API(`/api/um/user/${uid}`, { method: 'PUT', body: JSON.stringify(updates) });
+                    if (res.code === 0) {
+                        showToast('用户更新成功');
+                        closeModal();
+                        loadUsers();
+                    } else {
+                        showToast(res.msg || '更新失败', 'error');
+                    }
+                });
+            });
+        }
+
+        async function showAssignRoles(uid, username) {
+            const [userRolesRes, allRolesRes] = await Promise.all([
+                API(`/api/um/user/${uid}/roles`),
+                API('/api/um/role/list')
+            ]);
+            const userRoleIds = (userRolesRes.data || []).map(r => r.id);
+            const allRoles = allRolesRes.data || [];
+            const body = `
+                <p style="margin-bottom:12px;color:#666;">为用户 <strong>${username}</strong> 分配角色</p>
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                    ${allRoles.map(r => `
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                            <input type="checkbox" value="${r.id}" ${userRoleIds.includes(r.id) ? 'checked' : ''}>
+                            <span><strong>${r.role_code}</strong> - ${r.role_name}</span>
+                        </label>
+                    `).join('')}
+                </div>
+            `;
+            openModal('分配角色', body, async () => {
+                const checks = document.querySelectorAll('#modalContent input[type="checkbox"]:checked');
+                const roleIds = Array.from(checks).map(c => parseInt(c.value));
+                const res = await API(`/api/um/user/${uid}/roles`, { method: 'PUT', body: JSON.stringify({ role_ids: roleIds }) });
+                if (res.code === 0) {
+                    showToast('角色分配成功');
+                    closeModal();
+                } else {
+                    showToast(res.msg || '分配失败', 'error');
+                }
+            });
+        }
+
+        async function deleteUser(uid) {
+            if (!confirm('确定删除此用户？此操作不可撤销。')) return;
+            const res = await API(`/api/um/user/${uid}`, { method: 'DELETE' });
+            if (res.code === 0) {
+                showToast('用户已删除');
+                loadUsers();
+            } else {
+                showToast(res.msg || '删除失败', 'error');
+            }
+        }
+
+        // ========== 角色管理 ==========
+        async function loadRoles() {
+            const res = await API('/api/um/role/list');
+            const roles = res.data || [];
+            const html = `
+                <div class="toolbar">
+                    <h2>角色列表 (${roles.length})</h2>
+                    <button class="btn btn-primary" onclick="showCreateRole()">+ 新建角色</button>
+                </div>
+                ${roles.length === 0 ? '<div class="empty-state">暂无角色</div>' : `
+                <table>
+                    <thead>
+                        <tr><th>ID</th><th>角色代码</th><th>角色名称</th><th>描述</th><th>操作</th></tr>
+                    </thead>
+                    <tbody>
+                        ${roles.map(r => `
+                            <tr>
+                                <td>${r.id}</td>
+                                <td><span class="badge badge-info">${r.role_code}</span></td>
+                                <td>${r.role_name}</td>
+                                <td>${r.description || '-'}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary" onclick="showRolePerms(${r.id}, '${r.role_code}')">权限配置</button>
+                                    <button class="btn btn-sm btn-danger" onclick="deleteRole(${r.id})">删除</button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>`}
+            `;
+            document.getElementById('contentArea').innerHTML = html;
+        }
+
+        function showCreateRole() {
+            const body = `
+                <div class="form-group"><label>角色代码 *</label><input id="f_role_code" placeholder="如: auditor"></div>
+                <div class="form-group"><label>角色名称 *</label><input id="f_role_name" placeholder="如: 审计员"></div>
+                <div class="form-group"><label>描述</label><textarea id="f_description" rows="2"></textarea></div>
+            `;
+            openModal('新建角色', body, async () => {
+                const data = {
+                    role_code: document.getElementById('f_role_code').value.trim(),
+                    role_name: document.getElementById('f_role_name').value.trim(),
+                    description: document.getElementById('f_description').value.trim()
+                };
+                if (!data.role_code || !data.role_name) {
+                    showToast('角色代码和名称不能为空', 'error');
+                    return;
+                }
+                const res = await API('/api/um/role', { method: 'POST', body: JSON.stringify(data) });
+                if (res.code === 0) {
+                    showToast('角色创建成功');
+                    closeModal();
+                    loadRoles();
+                } else {
+                    showToast(res.msg || '创建失败', 'error');
+                }
+            });
+        }
+
+        async function showRolePerms(rid, roleCode) {
+            const [rolePermsRes, menusRes, permsRes] = await Promise.all([
+                API(`/api/um/role/${rid}/menu-perm`),
+                API('/api/um/menu/list'),
+                API('/api/um/menu/permissions')
+            ]);
+            const rolePerms = rolePermsRes.data || [];
+            const menus = menusRes.data || [];
+            const perms = permsRes.data || [];
+            const permMap = {};
+            rolePerms.forEach(rp => { permMap[rp.menu_id] = rp.perm_id; });
+            const body = `
+                <p style="margin-bottom:12px;color:#666;">为角色 <strong>${roleCode}</strong> 配置各菜单权限级别</p>
+                <div class="perm-checkboxes">
+                    ${menus.map(m => `
+                        <label>
+                            <span style="flex:1;">${m.menu_name}</span>
+                            <select class="perm-select" data-menu="${m.id}">
+                                <option value="0">无权限</option>
+                                ${perms.map(p => `
+                                    <option value="${p.id}" ${permMap[m.id] === p.id ? 'selected' : ''}>${p.perm_name}</option>
+                                `).join('')}
+                            </select>
+                        </label>
+                    `).join('')}
+                </div>
+            `;
+            openModal(`配置权限: ${roleCode}`, body, async () => {
+                const selects = document.querySelectorAll('.perm-select');
+                const menuPerms = [];
+                selects.forEach(s => {
+                    const menuId = parseInt(s.dataset.menu);
+                    const permId = parseInt(s.value);
+                    if (permId > 0) menuPerms.push({ menu_id: menuId, perm_id: permId });
+                });
+                const res = await API(`/api/um/role/${rid}/menu-perm`, { method: 'PUT', body: JSON.stringify({ menu_perms: menuPerms }) });
+                if (res.code === 0) {
+                    showToast('权限配置成功');
+                    closeModal();
+                } else {
+                    showToast(res.msg || '配置失败', 'error');
+                }
+            });
+        }
+
+        async function deleteRole(rid) {
+            if (!confirm('确定删除此角色？')) return;
+            const res = await API(`/api/um/role/${rid}`, { method: 'DELETE' });
+            if (res.code === 0) {
+                showToast('角色已删除');
+                loadRoles();
+            } else {
+                showToast(res.msg || '删除失败', 'error');
+            }
+        }
+
+        // ========== 菜单管理 ==========
+        async function loadMenus() {
+            const [menusRes, permsRes] = await Promise.all([
+                API('/api/um/menu/list'),
+                API('/api/um/menu/permissions')
+            ]);
+            const menus = menusRes.data || [];
+            const perms = permsRes.data || [];
+            const html = `
+                <div class="toolbar">
+                    <h2>菜单与权限定义</h2>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+                    <div>
+                        <h3 style="margin-bottom:12px;color:#1a1a2e;">菜单列表</h3>
+                        <table>
+                            <thead><tr><th>代码</th><th>名称</th><th>排序</th></tr></thead>
+                            <tbody>
+                                ${menus.map(m => `
+                                    <tr>
+                                        <td><span class="badge badge-info">${m.menu_code}</span></td>
+                                        <td>${m.menu_name}</td>
+                                        <td>${m.sort_order}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div>
+                        <h3 style="margin-bottom:12px;color:#1a1a2e;">权限级别</h3>
+                        <table>
+                            <thead><tr><th>代码</th><th>名称</th><th>级别</th></tr></thead>
+                            <tbody>
+                                ${perms.map(p => `
+                                    <tr>
+                                        <td><span class="badge badge-warning">${p.perm_code}</span></td>
+                                        <td>${p.perm_name}</td>
+                                        <td>${p.perm_level}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+            document.getElementById('contentArea').innerHTML = html;
+        }
+
+        // 点击模态框外部关闭
+        document.addEventListener('click', (e) => {
+            if (e.target === document.getElementById('modalOverlay')) closeModal();
+        });
+
+        // 启动
+        init();
+    </script>
+</body>
+</html>
