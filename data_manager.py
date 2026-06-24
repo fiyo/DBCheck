@@ -32,6 +32,7 @@ CRITICAL_FILES = [
     {'path': 'data/server_history.db', 'name': '服务器巡检历史', 'category': 'data', 'required': True},
     {'path': 'data/inspection.db', 'name': '巡检配置数据库', 'category': 'config', 'required': True},
     {'path': '.db_key', 'name': '密码加密密钥', 'category': 'security', 'required': True},
+    {'path': 'user_management/db/um_rbac.db', 'name': 'RBAC权限管理数据库', 'category': 'security', 'required': True},
 ]
 
 CRITICAL_DIRS = [
