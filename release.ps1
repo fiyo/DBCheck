@@ -63,8 +63,9 @@ Write-Host "[3/4] Updating version files..." -ForegroundColor Yellow
 # Update version.py
 $VersionPy = Join-Path $ProjectRoot "version.py"
 if (Test-Path $VersionPy) {
-    $escapedVersion = $VersionWithV -replace "'", "''"
-    python -c "import re; p=r'$VersionPy'; t=open(p,'r',encoding='utf-8').read(); t=re.sub(r\"__version__\s*=\s*.+\", \"__version__ = '$escapedVersion'\" , t); open(p,'w',encoding='utf-8').write(t)"
+    $content = Get-Content $VersionPy -Raw -Encoding UTF8
+    $content = $content -replace '(__version__\s*=\s*[''"']).*([''"'])', "`$1$VersionWithV`$2"
+    Set-Content $VersionPy -Value $content -Encoding UTF8 -NoNewline
     Write-Host "  OK: version.py updated to $VersionWithV" -ForegroundColor Green
 } else {
     Write-Host "  WARN: version.py not found, skipped" -ForegroundColor Yellow
@@ -73,7 +74,9 @@ if (Test-Path $VersionPy) {
 # Update Dockerfile
 $Dockerfile = Join-Path $ProjectRoot "Dockerfile"
 if (Test-Path $Dockerfile) {
-    python -c "import re; p=r'$Dockerfile'; t=open(p,'r',encoding='utf-8').read(); t=re.sub(r'RUN echo [^>]+\s+>\s+/app/VERSION\.txt', 'RUN echo $Version > /app/VERSION.txt', t); open(p,'w',encoding='utf-8').write(t)"
+    $content = Get-Content $Dockerfile -Raw -Encoding UTF8
+    $content = $content -replace "RUN echo .+ > /app/VERSION\.txt", "RUN echo $Version > /app/VERSION.txt"
+    Set-Content $Dockerfile -Value $content -Encoding UTF8 -NoNewline
     Write-Host "  OK: Dockerfile updated to $Version" -ForegroundColor Green
 } else {
     Write-Host "  WARN: Dockerfile not found, skipped" -ForegroundColor Yellow
