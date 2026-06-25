@@ -22,3 +22,5 @@ pro_data/
 *.md
 drivers/
 .workbuddy/
+.db_key
+data/
