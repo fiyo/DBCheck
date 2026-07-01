@@ -4479,6 +4479,20 @@ def api_db_types():
         'gbase': '适用于 GBase 8s V8+ 实例，通过 JDBC 连接',
     }
     
+    # 定义内置数据库类型配置
+    task_configs = {
+        'oracle': {'label': 'Oracle', 'port': 1521, 'user': 'system'},
+        'mysql': {'label': 'MySQL', 'port': 3306, 'user': 'root'},
+        'pg': {'label': 'PostgreSQL', 'port': 5432, 'user': 'postgres'},
+        'dm': {'label': 'DM8', 'port': 5236, 'user': 'SYSDBA'},
+        'sqlserver': {'label': 'SQL Server', 'port': 1433, 'user': 'sa'},
+        'tidb': {'label': 'TiDB', 'port': 4000, 'user': 'root'},
+        'ivorysql': {'label': 'IvorySQL', 'port': 5432, 'user': 'postgres'},
+        'yashandb': {'label': 'YashanDB', 'port': 1688, 'user': 'sys'},
+        'kingbase': {'label': 'KingbaseES', 'port': 54321, 'user': 'system'},
+        'gbase': {'label': 'GBase 8s', 'port': 9088, 'user': 'gbasedbt'},
+    }
+    
     for db_type, cfg in task_configs.items():
         result.append({
             'value': db_type,
