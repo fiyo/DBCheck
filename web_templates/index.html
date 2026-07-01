@@ -17308,14 +17308,14 @@ function mkdirRemote() {
     filterBar.innerHTML = '';
     if (allBtn) filterBar.appendChild(allBtn);
     
-    // 添加动态按钮
+    // 添加动态按钮（使用 emoji 图标）
     dbTypes.forEach(t => {
       const btn = document.createElement('button');
       btn.className = 'filter-btn';
       btn.setAttribute('data-type', t.label);
       btn.onclick = function() { filterReports(t.label); };
       btn.style = 'padding:5px 14px;font-size:12px;border-radius:20px;cursor:pointer';
-      btn.textContent = `${t.icon || '📊'} ${t.label}`;
+      btn.textContent = `${t.emoji || '📊'} ${t.label}`;
       filterBar.appendChild(btn);
     });
   }

@@ -4479,6 +4479,20 @@ def api_db_types():
         'gbase': '适用于 GBase 8s V8+ 实例，通过 JDBC 连接',
     }
     
+    # Emoji 图标映射（用于文本场景：过滤按钮、下拉框等）
+    built_in_emojis = {
+        'oracle': '🔴',
+        'mysql': '🐬',
+        'pg': '🐘',
+        'dm': '🟡',
+        'sqlserver': '🟠',
+        'tidb': '🟢',
+        'ivorysql': '🐘',
+        'yashandb': '🏔️',
+        'kingbase': '🔵',
+        'gbase': '🟤',
+    }
+    
     # 定义内置数据库类型配置
     task_configs = {
         'oracle': {'label': 'Oracle', 'port': 1521, 'user': 'system'},
@@ -4499,6 +4513,7 @@ def api_db_types():
             'label': cfg.get('label', db_type),
             'description': built_in_descriptions.get(db_type, ''),
             'icon': built_in_icons.get(db_type, ''),
+            'emoji': built_in_emojis.get(db_type, '📊'),
             'is_plugin': False,
             'port': cfg.get('port', 3306),
             'user': cfg.get('user', 'root'),
@@ -4515,6 +4530,7 @@ def api_db_types():
                     'label': plugin.get('name', plugin.get('db_type')),
                     'description': plugin.get('description', ''),
                     'icon': '',  # 插件可以自己提供图标
+                    'emoji': plugin.get('emoji', '🧩'),  # 插件默认 emoji
                     'is_plugin': True,
                     'port': 27017,  # 默认端口，插件可以自定义
                     'user': '',  # 默认用户，插件可以自定义
