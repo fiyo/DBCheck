@@ -1,0 +1,86 @@
+"""
+{plugin_name} 数据库巡检插件
+继承 BaseInspectionEngine，实现 {db_type} 数据库巡检
+"""
+
+import sys
+from pathlib import Path
+
+# 添加项目根目录到路径，以便导入 BaseInspectionEngine
+_project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(_project_root))
+
+from inspection_engine import BaseInspectionEngine
+
+
+class MongodbInspector(BaseInspectionEngine):
+    """
+    {plugin_name} 巡检器
+    继承 BaseInspectionEngine，只需实现 connect() 和 get_template_id()
+    """
+    
+    def __init__(self, config):
+        super().__init__(config)
+        self.db_type = "mongodb"
+    
+    def connect(self):
+        """
+        连接 {plugin_name} 数据库
+        
+        Returns:
+            (ok: bool, version: str)
+        """
+        # TODO: 实现数据库连接逻辑
+        # 示例：
+        # import pymysql  # 根据实际驱动修改
+        # try:
+        #     self.conn = pymysql.connect(
+        #         host=self.config.get('host'),
+        #         port=self.config.get('port'),
+        #         user=self.config.get('user'),
+        #         password=self.config.get('password'),
+        #         database=self.config.get('database')
+        #     )
+        #     # 获取版本信息
+        #     cur = self.conn.cursor()
+        #     cur.execute("SELECT version()")
+        #     version = cur.fetchone()[0]
+        #     cur.close()
+        #     return True, version
+        # except Exception as e:
+        #     print(f"数据库连接失败: {e}")
+        #     return False, str(e)
+        
+        raise NotImplementedError("请实现 connect() 方法")
+    
+    def get_template_id(self):
+        """
+        返回 inspection_template 表的 template_id
+        
+        Returns:
+            template_id: int
+        """
+        # TODO: 返回对应的模板 ID
+        # 可以通过 inspection_dal.py 的接口查询
+        # 示例：
+        # from inspection_dal import get_template_by_db_type
+        # template = get_template_by_db_type("mongodb")
+        # return template['id'] if template else None
+        
+        raise NotImplementedError("请实现 get_template_id() 方法")
+    
+    def getData(self, *args, **kwargs):
+        """
+        兼容旧接口的 getData() 函数
+        供 web_ui.py 调用
+        """
+        return self.run_inspection(*args, **kwargs)
+
+
+def getData(*args, **kwargs):
+    """
+    兼容旧接口的全局函数
+    供 web_ui.py 动态导入调用
+    """
+    inspector = MongodbInspector(kwargs.get('config', {}))
+    return inspector.getData(*args, **kwargs)

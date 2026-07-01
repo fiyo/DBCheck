@@ -4409,87 +4409,7 @@ function formatBytes(bytes) {
             <span>🗄️</span> <span data-i18n="webui.step1_title">选择数据库类型</span>
             <span class="badge" data-i18n="webui.step_badge">第 1 步 / 共 5 步</span>
           </div>
-          <div class="type-grid">
-            <div class="type-card selected" id="tc-oracle" onclick="selectDbType('oracle')">
-              <div class="tc-header">
-                <div class="tc-logo"><img src="/oracle.png" alt="DBCheck" style="height:36px;width:auto;"></div>
-                <div class="tc-check" id="chk-oracle">✓</div>
-              </div>
-              <div class="tc-name" data-i18n="webui.db_oracle_name">Oracle</div>
-              <div class="tc-desc" data-i18n="webui.db_oracle_desc">基于 OS 层 + 数据库层，覆盖 80+ 检查项，适合 11g~21c+。</div>
-            </div>
-            <div class="type-card" id="tc-mysql" onclick="selectDbType('mysql')">
-              <div class="tc-header">
-                <div class="tc-logo">🐬</div>
-                <div class="tc-check" id="chk-mysql"></div>
-              </div>
-              <div class="tc-name" data-i18n="webui.db_mysql_name">MySQL</div>
-              <div class="tc-desc" data-i18n="webui.db_mysql_desc">适用于 MySQL 5.7 / 8.x 实例，采集连接、InnoDB、慢查询、Binlog 等核心指标。</div>
-            </div>
-            <div class="type-card" id="tc-pg" onclick="selectDbType('pg')">
-              <div class="tc-header">
-                <div class="tc-logo"><img src="/postgresql.png" alt="PostgreSQL" style="height:36px;width:auto;"></div>
-                <div class="tc-check" id="chk-pg"></div>
-              </div>
-              <div class="tc-name" data-i18n="webui.db_pg_name">PostgreSQL</div>
-              <div class="tc-desc" data-i18n="webui.db_pg_desc">适用于 PostgreSQL 10+ 实例，采集连接、缓存、Vacuum、索引、复制等核心指标。</div>
-            </div>
-            <div class="type-card" id="tc-sqlserver" onclick="selectDbType('sqlserver')">
-              <div class="tc-header">
-                <div class="tc-logo"><img src="/sqlserver.png" alt="DBCheck" style="height:36px;width:auto;"></div>
-                <div class="tc-check" id="chk-sqlserver"></div>
-              </div>
-              <div class="tc-name-row"><span data-i18n="webui.db_sqlserver_name">SQL Server</span></div>
-              <div class="tc-desc" data-i18n="webui.db_sqlserver_desc">适用于 SQL Server 2012+ 实例，采集连接、会话、等待统计、锁、备份等核心指标。</div>
-            </div>
-            <div class="type-card" id="tc-dm" onclick="selectDbType('dm')">
-              <div class="tc-header">
-                <div class="tc-logo"><img src="/dm.png" alt="DBCheck" style="height:36px;width:auto;"></div>
-                <div class="tc-check" id="chk-dm"></div>
-              </div>
-              <div class="tc-name" data-i18n="webui.db_dm_name">达梦 DM8</div>
-              <div class="tc-desc" data-i18n="webui.db_dm_desc">适用于达梦 DM8 及以上版本，采集表空间、内存、会话、事务、备份等核心指标。</div>
-            </div>
-            <div class="type-card" id="tc-tidb" onclick="selectDbType('tidb')">
-              <div class="tc-header">
-                <div class="tc-logo"><img src="/tidb.png" alt="DBCheck" style="height:36px;width:auto;"></div>
-                <div class="tc-check" id="chk-tidb"></div>
-              </div>
-              <div class="tc-name-row"><span data-i18n="webui.db_tidb_name">TiDB</span></div>
-              <div class="tc-desc" data-i18n="webui.db_tidb_desc">适用于 TiDB 6.5+ / MySQL 8.0 兼容集群，采集集群拓扑、存储、事务、SQL 统计等核心指标。</div>
-            </div>
-            <div class="type-card" id="tc-ivorysql" onclick="selectDbType('ivorysql')">
-              <div class="tc-header">
-                <div class="tc-logo"><img src="/ivorysql.png" alt="IvorySQL" style="height:36px;width:auto;"></div>
-                <div class="tc-check" id="chk-ivorysql"></div>
-              </div>
-              <div class="tc-name" data-i18n="webui.db_ivorysql_name">IvorySQL</div>
-              <div class="tc-desc" data-i18n="webui.db_ivorysql_desc">适用于瀚高 IvorySQL（PostgreSQL + Oracle 兼容），复用 PG 巡检模板并增加 Oracle 兼容模式检查。</div>
-            </div>
-            <div class="type-card" id="tc-yashandb" onclick="selectDbType('yashandb')">
-              <div class="tc-header">
-                <div class="tc-logo"><img src="/yashandb.png" alt="YashanDB" style="height:36px;width:auto;"></div>
-                <div class="tc-check" id="chk-yashandb"></div>
-              </div>
-              <div class="tc-name-row"><span data-i18n="webui.db_yashandb_name">YashanDB</span><span class="beta-tag">Beta</span></div>
-              <div class="tc-desc" data-i18n="webui.db_yashandb_desc">适用于崖山 YashanDB V23+ 实例，采集会话、锁、表空间、SQL 性能等核心指标。</div>
-            </div>
-            <div class="type-card" id="tc-kingbase" onclick="selectDbType('kingbase')">
-              <div class="tc-header">
-                <div class="tc-logo"><img src="/kingbase.png" alt="KingbaseES" style="height:36px;width:auto;"></div>
-                <div class="tc-check" id="chk-kingbase"></div>
-              </div>
-              <div class="tc-name" data-i18n="webui.db_kingbase_name">KingbaseES</div>
-              <div class="tc-desc" data-i18n="webui.db_kingbase_desc">适用于北京人大金仓 KingbaseES V8+ 实例，基于 PostgreSQL 兼容模式，复用 PG 巡检模板。</div>
-            </div>
-            <div class="type-card" id="tc-gbase" onclick="selectDbType('gbase')">
-              <div class="tc-header">
-                <div class="tc-logo"><img src="/gbase.png" alt="GBase" style="height:36px;width:auto;"></div>
-                <div class="tc-check" id="chk-gbase"></div>
-              </div>
-              <div class="tc-name" data-i18n="webui.db_gbase_name">GBase 8s</div>
-              <div class="tc-desc" data-i18n="webui.db_gbase_desc">适用于 GBase 8s V8+ 实例，通过 JDBC 连接，支持表空间、会话、锁等核心指标巡检。</div>
-            </div>
+          <div class="type-grid" id="type-card-container">
           </div>
           <div class="btn-row">
             <button class="btn btn-primary" onclick="gotoStep(2)">下一步 →</button>
@@ -4711,14 +4631,7 @@ function formatBytes(bytes) {
           <!-- 数据库类型过滤栏 -->
           <div id="report-filter-bar" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;padding:0 4px">
             <button class="filter-btn filter-active" data-type="" onclick="filterReports('')" style="padding:5px 14px;font-size:12px;border-radius:20px;cursor:pointer">全部</button>
-            <button class="filter-btn" data-type="MySQL" onclick="filterReports('MySQL')" style="padding:5px 14px;font-size:12px;border-radius:20px;cursor:pointer">🐬 MySQL</button>
-            <button class="filter-btn" data-type="PostgreSQL" onclick="filterReports('PostgreSQL')" style="padding:5px 14px;font-size:12px;border-radius:20px;cursor:pointer">🐘 PostgreSQL</button>
-            <button class="filter-btn" data-type="Oracle" onclick="filterReports('Oracle')" style="padding:5px 14px;font-size:12px;border-radius:20px;cursor:pointer">🔴 Oracle</button>
-            <button class="filter-btn" data-type="DM8" onclick="filterReports('DM8')" style="padding:5px 14px;font-size:12px;border-radius:20px;cursor:pointer">🟡 达梦 DM8</button>
-            <button class="filter-btn" data-type="SQLServer" onclick="filterReports('SQLServer')" style="padding:5px 14px;font-size:12px;border-radius:20px;cursor:pointer">🟠 SQL Server</button>
-            <button class="filter-btn" data-type="TiDB" onclick="filterReports('TiDB')" style="padding:5px 14px;font-size:12px;border-radius:20px;cursor:pointer">🟢 TiDB</button>
-            <button class="filter-btn" data-type="IvorySQL" onclick="filterReports('IvorySQL')" style="padding:5px 14px;font-size:12px;border-radius:20px;cursor:pointer">🐘 IvorySQL</button>
-            <button class="filter-btn" data-type="YashanDB" onclick="filterReports('YashanDB')" style="padding:5px 14px;font-size:12px;border-radius:20px;cursor:pointer">🏔️ YashanDB</button>
+            <!-- 动态数据库类型过滤按钮将由JS生成 -->
           </div>
           <!-- 批量操作栏（默认隐藏） -->
           <div id="batch-bar" style="display:none;align-items:center;gap:10px;margin-bottom:10px;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px">
@@ -5730,17 +5643,7 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
           <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
             <label style="font-size:12px;color:var(--text-muted)" data-i18n="webui.rules_filter_dbtype">数据库类型：</label>
             <select id="rules-db-type" onchange="loadRules()" style="padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px">
-              <option value="" data-i18n="webui.rules_filter_all">全部</option>
-              <option value="mysql">MySQL</option>
-              <option value="pg">PostgreSQL</option>
-              <option value="oracle">Oracle</option>
-              <option value="dm">达梦 DM8</option>
-              <option value="sqlserver">SQL Server</option>
-              <option value="tidb">TiDB</option>
-              <option value="ivorysql">IvorySQL</option>
-              <option value="yashandb">YashanDB</option>
-              <option value="kingbase">KingbaseES</option>
-              <option value="gbase">GBase 8s</option>
+              <option value="">全部</option>
             </select>
           </div>
           <div id="rules-list" style="margin-top:12px;">
@@ -5970,16 +5873,6 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
           <div style="display:flex;gap:8px;align-items:center">
             <select id="baseline-filter-db-type" class="form-input" style="width:auto;min-width:140px" onchange="filterBaselines()">
               <option value="">所有数据库类型</option>
-              <option value="oracle">Oracle</option>
-              <option value="dm8">DM</option>
-              <option value="mysql">MySQL</option>
-              <option value="postgresql">PostgreSQL</option>
-              <option value="ivorysql">IvorySQL</option>
-              <option value="yashandb">YashanDB</option>
-              <option value="kingbase">KingbaseES</option>
-              <option value="gbase">GBase 8s</option>
-              <option value="sqlserver">SQL Server</option>
-              <option value="tidb">TiDB</option>
             </select>
           </div>
           <div style="display:flex;gap:8px">
@@ -7229,33 +7122,17 @@ async function selectDbType(type, skipReload) {
   }
   // 加载对应数据库类型的巡检模板（await 确保模板加载完成后才返回）
   await loadInspectionTemplatesForSelect(type, 'f-template');
-  document.getElementById('tc-mysql').classList.toggle('selected', type === 'mysql');
-  document.getElementById('tc-pg').classList.toggle('selected', type === 'pg');
-  document.getElementById('tc-dm').classList.toggle('selected', type === 'dm');
-  document.getElementById('tc-oracle').classList.toggle('selected', type === 'oracle');
-  // SQL Server 卡片已屏蔽，待测试完成后恢复
-  document.getElementById('tc-sqlserver').classList.toggle('selected', type === 'sqlserver');
-  document.getElementById('tc-tidb').classList.toggle('selected', type === 'tidb');
-  document.getElementById('tc-ivorysql').classList.toggle('selected', type === 'ivorysql');
-  document.getElementById('tc-yashandb').classList.toggle('selected', type === 'yashandb');
-  document.getElementById('tc-kingbase').classList.toggle('selected', type === 'kingbase');
-  document.getElementById('tc-gbase').classList.toggle('selected', type === 'gbase');
-  document.getElementById('chk-mysql').textContent = type === 'mysql' ? '✓' : '';
-  document.getElementById('chk-pg').textContent   = type === 'pg'    ? '✓' : '';
-  document.getElementById('chk-dm').textContent = type === 'dm' ? '✓' : '';
-  document.getElementById('chk-oracle').textContent = type === 'oracle' ? '✓' : '';
-  // SQL Server 卡片已屏蔽，待测试完成后恢复
-  document.getElementById('chk-sqlserver').textContent = type === 'sqlserver' ? '✓' : '';
-  document.getElementById('chk-tidb').textContent = type === 'tidb' ? '✓' : '';
-  document.getElementById('chk-ivorysql').textContent = type === 'ivorysql' ? '✓' : '';
-  document.getElementById('chk-yashandb').textContent = type === 'yashandb' ? '✓' : '';
-  document.getElementById('chk-kingbase').textContent = type === 'kingbase' ? '✓' : '';
-  document.getElementById('chk-gbase').textContent = type === 'gbase' ? '✓' : '';
-  // 默认端口 & 用户名
-  const portMap = { mysql: 3306, pg: 5432, dm: 5236, oracle: 1521, sqlserver: 1433, tidb: 4000, ivorysql: 5432, yashandb: 1688, kingbase: 54321, gbase: 9088 };
-  const userMap = { mysql: 'root', pg: 'postgres', dm: 'SYSDBA', oracle: 'system', sqlserver: 'sa', tidb: 'root', ivorysql: 'postgres', yashandb: 'sys', kingbase: 'kingbase', gbase: 'gbasedbt' };
-  document.getElementById('f-port').value = portMap[type] || 3306;
-  document.getElementById('f-user').value = userMap[type] || 'root';
+  // 动态切换卡片状态（支持插件数据库类型）
+  document.querySelectorAll('.type-card').forEach(card => {
+    const isSelected = card.id === `tc-${type}`;
+    card.classList.toggle('selected', isSelected);
+    const chk = card.querySelector('.tc-check');
+    if (chk) chk.textContent = isSelected ? '✓' : '';
+  });
+  // 从 dbTypes 动态获取端口和用户名
+  const dbInfo = (window.dbTypes || []).find(t => t.value === type) || {};
+  document.getElementById('f-port').value = dbInfo.port || 3306;
+  document.getElementById('f-user').value = dbInfo.user || 'root';
   document.getElementById('f-database-wrap').style.display = (type === 'pg' || type === 'ivorysql' || type === 'kingbase' || type === 'gbase') ? '' : 'none';
   // Oracle全面巡检：显示服务名输入框
   var svcWrap = document.getElementById('f-service-wrap');
@@ -9717,6 +9594,7 @@ function showAddJobForm() {
       {value:'sqlserver', label:'SQL Server'},
       {value:'tidb', label:'TiDB'},
       {value:'yashandb', label:'YashanDB'},
+      {value:'mongodb', label:'MongoDB'},
     ];
     dbTypes.forEach(t => {
       const opt = document.createElement('option');
@@ -16691,16 +16569,6 @@ function mkdirRemote() {
               <label data-i18n="baseline.db_type">数据库类型 *</label>
               <select class="form-input" id="baseline-db-type" required>
                 <option value="">请选择</option>
-                <option value="oracle">Oracle</option>
-                <option value="dm8">DM</option>
-                <option value="mysql">MySQL</option>
-                <option value="postgresql">PostgreSQL</option>
-                <option value="ivorysql">IvorySQL</option>
-                <option value="yashandb">YashanDB</option>
-                <option value="kingbase">KingbaseES</option>
-                <option value="gbase">GBase 8s</option>
-                <option value="sqlserver">SQL Server</option>
-                <option value="tidb">TiDB</option>
               </select>
             </div>
             <div class="form-group">
@@ -17325,6 +17193,138 @@ function mkdirRemote() {
         <iframe id="userManagementIframe" style="flex:1;border:none;"></iframe>
       </div>
     </div>
+
+  <!-- 动态加载数据库类型（内置 + 插件） -->
+  <script>
+  // 全局数据库类型缓存
+  window.dbTypes = [];
+
+  // 加载数据库类型列表（内置 + 插件）
+  async function loadDbTypes() {
+    try {
+      const res = await fetch('/api/db_types');
+      window.dbTypes = await res.json();
+      generateDbTypeCards();
+      populateDbTypeDropdowns();
+      // 卡片生成后，默认选中 oracle
+      const oracleCard = document.getElementById('tc-oracle');
+      if (oracleCard && typeof selectDbType === 'function') {
+        // selectDbType 由 loadDbTypes() 动态调用
+      }
+    } catch (e) {
+      console.error('[DBCheck] 加载数据库类型失败:', e);
+    }
+  }
+
+  // 动态生成数据库类型卡片
+  function generateDbTypeCards() {
+    const container = document.getElementById('type-card-container');
+    if (!container) return;
+    container.innerHTML = '';
+    (window.dbTypes || []).forEach(dbType => {
+      const card = document.createElement('div');
+      card.className = 'type-card';
+      card.id = `tc-${dbType.value}`;
+      card.onclick = () => selectDbType(dbType.value);
+
+      const iconHtml = dbType.icon
+        ? `<img src="${dbType.icon}" alt="${dbType.label}" style="height:36px;width:auto;">`
+        : '🗄️';
+      const pluginBadge = dbType.is_plugin ? ' <span class="beta-tag">Plugin</span>' : '';
+
+      card.innerHTML = `
+        <div class="tc-header">
+          <div class="tc-logo">${iconHtml}</div>
+          <div class="tc-check" id="chk-${dbType.value}"></div>
+        </div>
+        <div class="tc-name">${dbType.label}${pluginBadge}</div>
+        <div class="tc-desc">${dbType.description || ''}</div>
+      `;
+      container.appendChild(card);
+    });
+  }
+
+  // 填充所有数据库类型下拉框
+  function populateDbTypeDropdowns() {
+    const dbTypes = window.dbTypes || [];
+    
+    // 1. 新增数据源弹窗中的数据库类型下拉框
+    const dsDbType = document.getElementById('f-ds-db-type');
+    if (dsDbType) {
+      dsDbType.innerHTML = '<option value="">请选择数据库类型</option>';
+      dbTypes.forEach(t => {
+        dsDbType.innerHTML += `<option value="${t.value}">${t.label}</option>`;
+      });
+    }
+    
+    // 2. 规则管理页面的数据库类型过滤
+    const rulesDbType = document.getElementById('rules-db-type');
+    if (rulesDbType) {
+      rulesDbType.innerHTML = '<option value="">全部</option>';
+      dbTypes.forEach(t => {
+        rulesDbType.innerHTML += `<option value="${t.value}">${t.label}</option>`;
+      });
+    }
+    
+    // 3. 基线配置管理页面的数据库类型过滤
+    const baselineFilterDbType = document.getElementById('baseline-filter-db-type');
+    if (baselineFilterDbType) {
+      baselineFilterDbType.innerHTML = '<option value="">所有数据库类型</option>';
+      dbTypes.forEach(t => {
+        baselineFilterDbType.innerHTML += `<option value="${t.value}">${t.label}</option>`;
+      });
+    }
+    
+    // 4. 基线配置管理页面中新增基线时的数据库类型选择
+    const baselineDbType = document.getElementById('baseline-db-type');
+    if (baselineDbType) {
+      baselineDbType.innerHTML = '<option value="">请选择</option>';
+      dbTypes.forEach(t => {
+        baselineDbType.innerHTML += `<option value="${t.value}">${t.label}</option>`;
+      });
+    }
+    
+    // 5. 定时巡检任务页面的数据库类型选择
+    const jobDbType = document.getElementById('job-db-type');
+    if (jobDbType) {
+      jobDbType.innerHTML = '';
+      dbTypes.forEach(t => {
+        jobDbType.innerHTML += `<option value="${t.value}">${t.label}</option>`;
+      });
+    }
+    
+    // 6. 动态生成reports页面的数据库类型过滤按钮
+    generateReportFilterButtons();
+  }
+  
+  // 动态生成reports页面的数据库类型过滤按钮
+  function generateReportFilterButtons() {
+    const dbTypes = window.dbTypes || [];
+    const filterBar = document.getElementById('report-filter-bar');
+    if (!filterBar) return;
+    
+    // 保留"全部"按钮，删除其他按钮
+    const allBtn = filterBar.querySelector('[data-type=""]');
+    filterBar.innerHTML = '';
+    if (allBtn) filterBar.appendChild(allBtn);
+    
+    // 添加动态按钮
+    dbTypes.forEach(t => {
+      const btn = document.createElement('button');
+      btn.className = 'filter-btn';
+      btn.setAttribute('data-type', t.label);
+      btn.onclick = function() { filterReports(t.label); };
+      btn.style = 'padding:5px 14px;font-size:12px;border-radius:20px;cursor:pointer';
+      btn.textContent = `${t.icon || '📊'} ${t.label}`;
+      filterBar.appendChild(btn);
+    });
+  }
+
+  // 页面加载时初始化
+  document.addEventListener('DOMContentLoaded', () => {
+    loadDbTypes();
+  });
+  </script>
 </body>
 </html>
 

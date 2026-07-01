@@ -165,7 +165,7 @@ def _sync_delete_trend_for_report(filename: str):
 
 # Werkzeug 3.x 移除了 threading 模式支持，改用 gevent。
 # gevent 已在 requirements.txt 中，打包时自动包含。
-socketio = SocketIO(cors_allowed_origins='*', async_mode='gevent')
+socketio = SocketIO(cors_allowed_origins='*', async_mode='threading')
 
 # ── 本地模块 ──────────────────────────────────────────────
 try:
@@ -600,8 +600,28 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None):
 
     cfg = task_configs.get(db_type)
     if not cfg:
-        socketio.emit('error', {'msg': '不支持的数据库类型: ' + db_type}, room=task_id)
-        return
+        # 尝试从插件系统加载配置
+        try:
+            from plugin_loader import get_plugin_task_config
+            cfg = get_plugin_task_config(db_type)
+            if cfg:
+                # 插件配置，需要动态导入模块
+                import importlib.util
+                plugin_path = cfg.get('plugin_path')
+                if plugin_path:
+                    main_file = cfg.get('main_file', 'main_plugin.py')
+                    main_path = os.path.join(plugin_path, main_file)
+                    spec = importlib.util.spec_from_file_location(f"plugin_{db_type}", main_path)
+                    if spec:
+                        mod = importlib.util.module_from_spec(spec)
+                        spec.loader.exec_module(mod)
+                        cfg['module'] = mod
+        except Exception as e:
+            print(f"[WebUI] 加载插件配置失败: {e}")
+        
+        if not cfg:
+            socketio.emit('error', {'msg': '不支持的数据库类型: ' + db_type}, room=task_id)
+            return
 
     emit = socketio.emit
     task = tasks.get(task_id)
@@ -615,7 +635,13 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None):
     _emit('inspection_step', {'step': 0, 'msg': _t('webui.log_connecting').format(ts=_ts(), host=db_info['ip'], port=db_info['port'])})
 
     try:
-        mod = __import__(cfg['module_name'])
+        # 插件类型：使用动态导入的模块
+        if cfg.get('module'):
+            mod = cfg['module']
+        else:
+            # 内置类型：常规导入
+            mod = __import__(cfg['module_name'])
+        
         _emit('log', {'msg': _t('webui.log_connecting').format(ts=_ts(), host=db_info['ip'], port=db_info['port'])})
 
         ok, ver = cfg['connect_test'](*cfg['connect_test_args'](db_info))
@@ -4421,7 +4447,71 @@ def api_pro_datasource_update(instance_id):
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
-@app.route('/api/pro/datasources/<instance_id>', methods=['DELETE'])
+@app.route('/api/db_types', methods=['GET'])
+def api_db_types():
+    """返回所有可用的数据库类型（内置 + 插件）"""
+    result = []
+    
+    # 1. 内置数据库类型（从 task_configs 提取）
+    built_in_icons = {
+        'oracle': '/oracle.png',
+        'mysql': '/mysql.png',
+        'pg': '/pg.png',
+        'dm': '/dm.png',
+        'sqlserver': '/sqlserver.png',
+        'tidb': '/tidb.png',
+        'ivorysql': '/ivorysql.png',
+        'yashandb': '/yashandb.png',
+        'kingbase': '/kingbase.png',
+        'gbase': '/gbase.png',
+    }
+    
+    built_in_descriptions = {
+        'oracle': '适用于 Oracle 11g/12c/19c/21c 实例，通过 oracledb 或 cx_Oracle 连接',
+        'mysql': '适用于 MySQL 5.7+/8.0+ 实例，通过 PyMySQL 连接',
+        'pg': '适用于 PostgreSQL 10+ 实例，通过 psycopg2 连接',
+        'dm': '适用于 DM8 实例，通过 dmPython 连接',
+        'sqlserver': '适用于 SQL Server 2012+ 实例，通过 pyodbc 连接',
+        'tidb': '适用于 TiDB 5.0+ 实例，通过 PyMySQL 连接',
+        'ivorysql': '适用于 IvorySQL 实例，通过 psycopg2 连接',
+        'yashandb': '适用于 YashanDB 实例，通过 yasdb 连接',
+        'kingbase': '适用于 KingbaseES V8+ 实例，通过 ksycopg2 连接',
+        'gbase': '适用于 GBase 8s V8+ 实例，通过 JDBC 连接',
+    }
+    
+    for db_type, cfg in task_configs.items():
+        result.append({
+            'value': db_type,
+            'label': cfg.get('label', db_type),
+            'description': built_in_descriptions.get(db_type, ''),
+            'icon': built_in_icons.get(db_type, ''),
+            'is_plugin': False,
+            'port': cfg.get('port', 3306),
+            'user': cfg.get('user', 'root'),
+        })
+    
+    # 2. 插件提供的数据库类型
+    try:
+        from plugin_loader import discover_plugins
+        plugins = discover_plugins()
+        for plugin in plugins:
+            if plugin.get('enabled'):
+                result.append({
+                    'value': plugin.get('db_type'),
+                    'label': plugin.get('name', plugin.get('db_type')),
+                    'description': plugin.get('description', ''),
+                    'icon': '',  # 插件可以自己提供图标
+                    'is_plugin': True,
+                    'port': 27017,  # 默认端口，插件可以自定义
+                    'user': '',  # 默认用户，插件可以自定义
+                })
+    except Exception as e:
+        print(f"[API] 加载插件数据库类型失败: {e}")
+    
+    return jsonify(result)
+
+
+
 def api_pro_datasource_delete(instance_id):
     """删除数据源，同时清理 history.db 趋势数据"""
     try:
@@ -7945,10 +8035,10 @@ if __name__ == '__main__':
     _setup_driver_paths()
     # ── 初始化插件系统 ──
     try:
-        from plugin_core import init_plugins
-        n = init_plugins()
-        if n:
-            print(f"[插件] 已加载 {n} 个插件")
+        from plugin_loader import load_enabled_plugins
+        plugins = load_enabled_plugins()
+        if plugins:
+            print(f"[插件] 已加载 {len(plugins)} 个插件: {list(plugins.keys())}")
     except Exception as e:
         print(f"[插件] 初始化跳过: {e}")
     port = 5003

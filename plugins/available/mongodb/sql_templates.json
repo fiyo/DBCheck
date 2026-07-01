@@ -1,0 +1,40 @@
+{
+  "chapters": [
+    {
+      "chapter_number": 1,
+      "chapter_title_zh": "数据库版本信息",
+      "chapter_title_en": "Database Version Information",
+      "queries": [
+        {
+          "key": "mongodb_version",
+          "desc_zh": "MongoDB 版本信息",
+          "desc_en": "MongoDB Version Information"
+        }
+      ]
+    },
+    {
+      "chapter_number": 2,
+      "chapter_title_zh": "服务器状态",
+      "chapter_title_en": "Server Status",
+      "queries": [
+        {
+          "key": "mongodb_server_status",
+          "desc_zh": "服务器运行状态",
+          "desc_en": "Server Running Status"
+        }
+      ]
+    },
+    {
+      "chapter_number": 3,
+      "chapter_title_zh": "数据库统计",
+      "chapter_title_en": "Database Statistics",
+      "queries": [
+        {
+          "key": "mongodb_db_stats",
+          "desc_zh": "数据库统计信息",
+          "desc_en": "Database Statistics"
+        }
+      ]
+    }
+  ]
+}
