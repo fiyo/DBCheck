@@ -3652,16 +3652,7 @@ function formatBytes(bytes) {
             '<div style="display:grid;gap:12px">' +
               '<div><label style="font-size:12px;color:var(--text-muted)">' + i18n('webui.pro_ds_db_type_req') + '</label>' +
                 '<select id="ds-db-type" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" onchange="onDsDbTypeChange()">' +
-                  '<option value="mysql">MySQL</option>' +
-                  '<option value="pg">PostgreSQL</option>' +
-                  '<option value="oracle">Oracle</option>' +
-                  '<option value="dm">达梦 DM8</option>' +
-                  '<option value="sqlserver">SQL Server</option>' +
-                  '<option value="tidb">TiDB</option>' +
-                  '<option value="ivorysql">IvorySQL</option>' +
-                  '<option value="yashandb">YashanDB</option>' +
-                  '<option value="kingbase">KingbaseES</option>' +
-                  '<option value="gbase">GBase 8s</option>' +
+                  '<option value="">请选择数据库类型</option>' +
                 '</select></div>' +
               '<div><label style="font-size:12px;color:var(--text-muted)">' + i18n('webui.pro_ds_label_req') + '</label>' +
                 '<input id="ds-label" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="' + i18n('webui.pro_ds_placeholder_name') + '"></div>' +
@@ -3722,6 +3713,14 @@ function formatBytes(bytes) {
             '</div>' +
           '</div></div>';
         document.documentElement.insertAdjacentHTML('beforeend', html);
+        // 动态填充数据库类型下拉框（支持插件）
+        const dsDbTypeSel = document.getElementById('ds-db-type');
+        if (dsDbTypeSel && window.dbTypes) {
+          dsDbTypeSel.innerHTML = '<option value="">请选择数据库类型</option>';
+          window.dbTypes.forEach(t => {
+            dsDbTypeSel.innerHTML += `<option value="${t.value}" data-port="${t.port||3306}" data-user="${t.user||''}">${t.emoji||''} ${t.label}</option>`;
+          });
+        }
         onDsDbTypeChange();
         // 填充分组 select
         fetch('/api/pro/groups').then(r=>r.json()).then(d=>{
@@ -3737,14 +3736,18 @@ function formatBytes(bytes) {
       let _editDsPort = 0;
       let _editSshPassword = '';
       function onDsDbTypeChange() {
-        const dbType = document.getElementById('ds-db-type').value;
+        const sel = document.getElementById('ds-db-type');
+        const dbType = sel.value;
+        const opt = sel.options[sel.selectedIndex];
+        // 优先从 data 属性读取（插件类型），其次用硬编码映射
+        const defaultPort = opt?.getAttribute('data-port') || '';
+        const defaultUser = opt?.getAttribute('data-user') || '';
         const portMap = {mysql:3306, pg:5432, dm:5236, oracle:1521, sqlserver:1433, tidb:4000, ivorysql:5432, yashandb:1688, kingbase:54321, gbase:9088};
         const userMap = {mysql:'root', pg:'postgres', dm:'SYSDBA', oracle:'system', sqlserver:'sa', tidb:'root', ivorysql:'postgres', yashandb:'sys', kingbase:'kingbase', gbase:'gbasedbt'};
-        document.getElementById('ds-port').value = portMap[dbType] || 3306;
+        document.getElementById('ds-port').value = (defaultPort && parseInt(defaultPort)) || portMap[dbType] || 3306;
         const userEl = document.getElementById('ds-user');
-        // 类型改变时强制更新用户名
         if (dbType !== _currentDbType || !userEl.value) {
-          userEl.value = userMap[dbType] || 'root';
+          userEl.value = defaultUser || userMap[dbType] || 'root';
         }
         _currentDbType = dbType;
         document.getElementById('ds-database-wrap').style.display = (dbType === 'pg' || dbType === 'ivorysql' || dbType === 'kingbase' || dbType === 'gbase') ? '' : 'none';
