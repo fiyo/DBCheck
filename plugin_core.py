@@ -76,12 +76,69 @@ class InspectionPlugin(ABC):
         return bool(self.id)
 
     def on_load(self):
-        """加载时回调"""
+        """加载时回调（插件启用时调用）"""
         pass
 
     def on_unload(self):
-        """卸载时回调"""
+        """卸载时回调（插件禁用时调用）"""
         pass
+
+    def on_install(self, db_path: str = None):
+        """
+        安装时回调（插件安装时调用，用于初始化数据）。
+        
+        参数：
+            db_path: 数据库文件路径，如果为 None，则使用默认路径
+        """
+        pass
+
+    def on_uninstall(self, db_path: str = None):
+        """
+        卸载时回调（插件卸载时调用，用于清理数据）。
+        
+        参数：
+            db_path: 数据库文件路径，如果为 None，则使用默认路径
+        """
+        pass
+
+    # ── 可选方法：连接测试相关 ─────────────────────────────
+
+    def parse_connection_result(self, ok: bool, msg: Any) -> Dict[str, Any]:
+        """
+        解析连接测试结果，返回额外信息（如版本号）。
+        插件可以重写此方法以提供特定的解析逻辑。
+        
+        参数：
+            ok: 连接是否成功
+            msg: 连接返回的消息（可能是字符串、异常对象等）
+        
+        返回：
+            字典，包含额外信息（如 {'oracle_major_version': 19}）
+        """
+        return {}
+
+    def get_version_from_connection(self, connection: Any) -> Optional[str]:
+        """
+        从数据库连接中提取版本号。
+        插件可以重写此方法以提供特定的版本提取逻辑。
+        
+        参数：
+            connection: 数据库连接对象（可能是 JDBC、cx_Oracle 等）
+        
+        返回：
+            版本字符串（如 "19.3.0.0.0"），如果无法提取则返回 None
+        """
+        return None
+
+    def get_connection_test_extra_config(self) -> Dict[str, Any]:
+        """
+        返回连接测试的额外配置。
+        插件可以重写此方法以提供特定的配置（如特殊的连接参数）。
+        
+        返回：
+            字典，包含额外配置（如 {'need_sysdba': True}）
+        """
+        return {}
 
 
 class NotifierPlugin(ABC):
@@ -165,6 +222,14 @@ class PluginRegistry:
         logger.info(f"插件注销: {plugin_id}")
 
     @classmethod
+    def get_plugin_instance(cls, plugin_id: str) -> Optional[InspectionPlugin]:
+        """
+        获取插件实例（用于调用插件方法）
+        返回 InspectionPlugin 对象，如果未找到则返回 None
+        """
+        return cls._inspections.get(plugin_id)
+
+    @classmethod
     def clear(cls):
         cls._inspections.clear()
         cls._notifiers.clear()
@@ -189,12 +254,17 @@ def register(plugin):
 # ───────────────────────────────────────────────────────────────
 
 def find_plugins(plugins_dir: str = None) -> List[str]:
-    """扫描插件目录，返回找到的 plugin.json 路径列表"""
+    """
+    扫描插件目录，返回找到的 plugin.json 路径列表。
+    扫描 plugins/ 直目录、plugins/available/ 和 plugins/enabled/ 两个子目录。
+    """
     if plugins_dir is None:
         plugins_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'plugins')
     if not os.path.isdir(plugins_dir):
         return []
     results = []
+
+    # 1. 扫描 plugins/ 直目录（向后兼容）
     for entry in os.listdir(plugins_dir):
         plugin_dir = os.path.join(plugins_dir, entry)
         if not os.path.isdir(plugin_dir):
@@ -202,6 +272,20 @@ def find_plugins(plugins_dir: str = None) -> List[str]:
         manifest_path = os.path.join(plugin_dir, 'plugin.json')
         if os.path.isfile(manifest_path):
             results.append(plugin_dir)
+
+    # 2. 扫描 plugins/available/ 和 plugins/enabled/ 子目录
+    for subdir in ('available', 'enabled'):
+        sub_path = os.path.join(plugins_dir, subdir)
+        if not os.path.isdir(sub_path):
+            continue
+        for entry in os.listdir(sub_path):
+            plugin_dir = os.path.join(sub_path, entry)
+            if not os.path.isdir(plugin_dir):
+                continue
+            manifest_path = os.path.join(plugin_dir, 'plugin.json')
+            if os.path.isfile(manifest_path):
+                results.append(plugin_dir)
+
     return results
 
 
@@ -238,16 +322,26 @@ def load_plugin(plugin_dir: str) -> Optional[Dict]:
             logger.warning(f"插件 {plugin_id} 依赖安装失败，继续加载")
 
     # 动态导入
+    # 支持两种插件结构：
+    # 1. 标准 Python 包：有 __init__.py
+    # 2. 简单模式：有 main_plugin.py（无 __init__.py）
     init_path = os.path.join(plugin_dir, '__init__.py')
-    if not os.path.isfile(init_path):
-        logger.warning(f"跳过 {plugin_id}: 缺少 __init__.py")
+    main_plugin_path = os.path.join(plugin_dir, 'main_plugin.py')
+    
+    entry_file = None
+    if os.path.isfile(init_path):
+        entry_file = init_path
+    elif os.path.isfile(main_plugin_path):
+        entry_file = main_plugin_path
+    else:
+        logger.warning(f"跳过 {plugin_id}: 缺少 __init__.py 或 main_plugin.py")
         return None
 
     try:
         import importlib.util
         spec = importlib.util.spec_from_file_location(
             f"dbcheck_plugin_{plugin_id.replace('-', '_')}",
-            init_path
+            entry_file
         )
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)

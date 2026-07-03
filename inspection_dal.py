@@ -1833,8 +1833,29 @@ def init_default_baselines(db_path: str = None):
             {'param_name': 'logLevel', 'query_sql': "db.runCommand({getParameter: 1, logLevel: 1})", 'operator': '<=', 'expected_value': '0', 'risk_level': 'LOW', 'description_zh': '日志级别应 <= 0', 'description_en': 'Log level should be <= 0'},
             {'param_name': 'slowOpThresholdMs', 'query_sql': "db.runCommand({getParameter: 1, slowOpThresholdMs: 1})", 'operator': '<=', 'expected_value': '100', 'risk_level': 'LOW', 'description_zh': '慢查询阈值应 <= 100ms', 'description_en': 'Slow operation threshold should be <= 100ms'},
         ],
+        # ═════════════════════════════════════════
+        # Oracle JDBC（复用 Oracle 基线配置）
+        # ═════════════════════════════════════════
+        'oracle_jdbc': [
+            # ── 安全 ──
+            {'param_name': 'FAILED_LOGIN_ATTEMPTS', 'query_sql': "SELECT NAME, VALUE FROM V$PARAMETER WHERE NAME='failed_login_attempts'", 'operator': '<=', 'expected_value': '5', 'risk_level': 'HIGH', 'description_zh': '登录失败尝试次数应 <=5，防止暴力破解', 'description_en': 'Failed login attempts should be <= 5 to prevent brute force'},
+            {'param_name': 'PASSWORD_LIFE_TIME', 'query_sql': "SELECT NAME, VALUE FROM V$PARAMETER WHERE NAME='password_life_time'", 'operator': '<=', 'expected_value': '180', 'risk_level': 'MEDIUM', 'description_zh': '密码有效期应 <= 180 天', 'description_en': 'Password lifetime should be <= 180 days'},
+            {'param_name': 'AUDIT_TRAIL', 'query_sql': "SELECT NAME, VALUE FROM V$PARAMETER WHERE NAME='audit_trail'", 'operator': '=', 'expected_value': 'DB', 'risk_level': 'HIGH', 'description_zh': '审计应开启（AUDIT_TRAIL=DB）', 'description_en': 'Audit trail should be enabled (AUDIT_TRAIL=DB)'},
+            {'param_name': 'REMOTE_LOGIN_PASSWORDFILE', 'query_sql': "SELECT NAME, VALUE FROM V$PARAMETER WHERE NAME='remote_login_passwordfile'", 'operator': '=', 'expected_value': 'EXCLUSIVE', 'risk_level': 'MEDIUM', 'description_zh': '远程登录密码文件应为 EXCLUSIVE', 'description_en': 'Remote login password file should be EXCLUSIVE'},
+            # ── 性能 ──
+            {'param_name': 'PROCESSES', 'query_sql': "SELECT NAME, VALUE FROM V$PARAMETER WHERE NAME='processes'", 'operator': '>=', 'expected_value': '500', 'risk_level': 'MEDIUM', 'description_zh': '进程数应 >= 500', 'description_en': 'Processes should be >= 500'},
+            {'param_name': 'SESSIONS', 'query_sql': "SELECT NAME, VALUE FROM V$PARAMETER WHERE NAME='sessions'", 'operator': '>=', 'expected_value': '555', 'risk_level': 'MEDIUM', 'description_zh': '会话数应 >= 555', 'description_en': 'Sessions should be >= 555'},
+            {'param_name': 'SGA_TARGET', 'query_sql': "SELECT NAME, VALUE FROM V$PARAMETER WHERE NAME='sga_target'", 'operator': '>=', 'expected_value': '1073741824', 'risk_level': 'MEDIUM', 'description_zh': 'SGA 目标大小应 >= 1GB', 'description_en': 'SGA target should be >= 1GB'},
+            {'param_name': 'PGA_AGGREGATE_TARGET', 'query_sql': "SELECT NAME, VALUE FROM V$PARAMETER WHERE NAME='pga_aggregate_target'", 'operator': '>=', 'expected_value': '536870912', 'risk_level': 'LOW', 'description_zh': 'PGA 聚合目标应 >= 512MB', 'description_en': 'PGA aggregate target should be >= 512MB'},
+            # ── 高可用 ──
+            {'param_name': 'ARCHIVELOG_MODE', 'query_sql': "SELECT LOG_MODE FROM V$DATABASE", 'operator': '=', 'expected_value': 'ARCHIVELOG', 'risk_level': 'HIGH', 'description_zh': '数据库应运行在归档模式', 'description_en': 'Database should be in ARCHIVELOG mode'},
+            {'param_name': 'FORCE_LOGGING', 'query_sql': "SELECT FORCE_LOGGING FROM V$DATABASE", 'operator': '=', 'expected_value': 'YES', 'risk_level': 'MEDIUM', 'description_zh': '应启用强制日志（FORCE_LOGGING=YES）', 'description_en': 'Force logging should be enabled (FORCE_LOGGING=YES)'},
+            # ── 运维 ──
+            {'param_name': 'OPEN_CURSORS_PER_SESSION', 'query_sql': "SELECT NAME, VALUE FROM V$PARAMETER WHERE NAME='open_cursors_per_session'", 'operator': '>=', 'expected_value': '300', 'risk_level': 'LOW', 'description_zh': '每会话打开游标数应 >= 300', 'description_en': 'Open cursors per session should be >= 300'},
+            {'param_name': 'UNDO_RETENTION', 'query_sql': "SELECT NAME, VALUE FROM V$PARAMETER WHERE NAME='undo_retention'", 'operator': '>=', 'expected_value': '900', 'risk_level': 'LOW', 'description_zh': 'UNDO 保留时间应 >= 900 秒', 'description_en': 'UNDO retention should be >= 900 seconds'},
+        ],
     }
-    
+
     conn = get_db_connection(db_path)
     cursor = conn.cursor()
     
@@ -1876,8 +1897,22 @@ def force_reset_baselines(db_type: str = None, db_path: str = None):
     注意：此操作不可逆，用户自定义的基线将被清除。"""
     default_baselines = _get_default_baselines()
     # _get_default_baselines() 返回扁平列表 [{db_type, param_name, ...}, ...]
-
-    valid_types = {bl['db_type'] for bl in default_baselines}
+    
+    # 动态获取有效的数据库类型列表（内置 + 插件）
+    valid_types = set()
+    for bl in default_baselines:
+        valid_types.add(bl['db_type'])
+    
+    # 添加插件数据库类型
+    try:
+        from plugin_loader import discover_plugins
+        plugins = discover_plugins()
+        for p in plugins:
+            if p.get('enabled') and p.get('db_type'):
+                valid_types.add(p.get('db_type'))
+    except Exception:
+        pass
+    
     if db_type and db_type not in valid_types:
         raise ValueError(f"不支持的数据库类型: {db_type}")
 

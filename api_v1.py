@@ -120,6 +120,27 @@ def _require_api_key():
     ok, err = _verify_api_key(req_key)
     return err if not ok else None
 
+def _get_valid_db_types():
+    """
+    动态获取所有有效的数据库类型（内置 + 插件）
+    用于 db_type 参数校验
+    """
+    # 内置数据库类型
+    built_in = ['mysql', 'pg', 'postgresql', 'oracle', 'dm', 'sqlserver', 'tidb', 'ivorysql', 'yashandb', 'kingbase', 'gbase']
+    valid = set(built_in)
+    
+    # 添加插件数据库类型
+    try:
+        from plugin_loader import discover_plugins
+        plugins = discover_plugins()
+        for p in plugins:
+            if p.get('enabled') and p.get('db_type'):
+                valid.add(p.get('db_type'))
+    except Exception:
+        pass  # 插件系统不可用时，仅返回内置类型
+    
+    return list(valid)
+
 
 # ── 健康检查 ──────────────────────────────────────────────────
 
@@ -236,7 +257,9 @@ def api_v1_inspect():
                 'error_code': 'MISSING_PARAMS',
             }), 400
 
-        valid_types = ['mysql', 'pg', 'postgresql', 'oracle', 'dm', 'sqlserver', 'tidb', 'ivorysql', 'yashandb', 'kingbase', 'gbase']
+        # 动态获取有效的数据库类型列表（内置 + 插件）
+        valid_types = _get_valid_db_types()
+        db_type = db_type.strip()
         # 标准化：postgresql → pg（内部统一用 pg 标识 PostgreSQL 协议类型）
         if db_type == 'postgresql':
             db_type = 'pg'
@@ -466,9 +489,48 @@ def _execute_inspect(db_type, host, port, user, password, inspector, body, ssh):
         'gbase':    ri.run_gbase,
     }
     runner = runner_map.get(db_type)
+    
+    # 插件数据库类型：尝试委托给插件
     if not runner:
-        raise ValueError(f'不支持的数据库类型: {db_type}')
-
+        try:
+            from plugin_loader import discover_plugins
+            plugins = discover_plugins()
+            plugin_meta = None
+            for p in plugins:
+                if p.get('enabled') and p.get('db_type') == db_type:
+                    plugin_meta = p
+                    break
+            
+            if plugin_meta:
+                # 加载插件并执行巡检
+                plugin_path = plugin_meta.get('path')
+                main_file = plugin_meta.get('main_file', 'main_plugin.py')
+                
+                import importlib.util
+                spec = importlib.util.spec_from_file_location(
+                    f"plugin_{db_type}",
+                    f"{plugin_path}/{main_file}"
+                )
+                if spec:
+                    module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(module)
+                    
+                    # 查找引擎类
+                    engine_class = None
+                    for attr_name in dir(module):
+                        attr = getattr(module, attr_name)
+                        if isinstance(attr, type) and 'Engine' in attr_name:
+                            engine_class = attr
+                            break
+                    
+                    if engine_class:
+                        # 创建引擎实例并执行巡检
+                        engine = engine_class()
+                        result = engine.run(db_info, inspector, ssh_info)
+                        return result
+        except Exception as e:
+            raise ValueError(f'不支持的数据库类型: {db_type}')
+    
     return runner(db_info, inspector, ssh_info)
 
 
@@ -674,32 +736,10 @@ def api_list_plugins():
                         except Exception as e:
                             logger.warning(f"读取插件 {item} 的 plugin.json 失败: {e}")
         
-        # 3. 扫描 available 目录（未启用但有目录的插件）
-        if os.path.isdir(available_dir):
-            for item in os.listdir(available_dir):
-                item_path = os.path.join(available_dir, item)
-                if os.path.isdir(item_path) and not item.startswith('__'):
-                    if item not in registered_ids:  # 避免重复
-                        plugin_json_path = os.path.join(item_path, 'plugin.json')
-                        if os.path.isfile(plugin_json_path):
-                            try:
-                                with open(plugin_json_path, 'r', encoding='utf-8') as f:
-                                    manifest = json.load(f)
-                                registered_plugins.append({
-                                    'id': item,
-                                    'name': manifest.get('name', item),
-                                    'version': manifest.get('version', 'unknown'),
-                                    'type': manifest.get('type', 'unknown'),
-                                    'category': manifest.get('category', 'db'),
-                                    'description': manifest.get('description', ''),
-                                    'author': manifest.get('author', ''),
-                                    'db_types': manifest.get('db_types', []),
-                                    'source': 'local',
-                                })
-                                registered_ids.add(item)
-                            except Exception as e:
-                                logger.warning(f"读取插件 {item} 的 plugin.json 失败: {e}")
-        
+        # 3. 不再扫描 available 目录
+        #    available/ 只存放插件原始文件（类似"安装包"），不应显示为"已安装"
+        #    只有 enabled/ 中的插件才是真正已安装/已启用的
+
         return jsonify({'ok': True, 'plugins': registered_plugins, 'total': len(registered_plugins)})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
@@ -707,11 +747,21 @@ def api_list_plugins():
 
 @api_v1.route('/plugins/<plugin_id>', methods=['DELETE'])
 def api_uninstall_plugin(plugin_id):
-    """卸载插件"""
+    """卸载插件（只禁用，保留 available/ 中的原始文件）"""
     try:
+        import os, shutil
         from plugin_core import PluginRegistry
         PluginRegistry.unregister(plugin_id)
-        return jsonify({'ok': True, 'message': f'插件 {plugin_id} 已卸载'})
+        base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'plugins')
+        
+        # 只删除 enabled/ 目录中的插件（禁用插件）
+        # 不删除 available/ 目录中的原始文件（保留插件源码）
+        target_dir = os.path.join(base_dir, 'enabled', plugin_id)
+        if os.path.isdir(target_dir):
+            shutil.rmtree(target_dir, ignore_errors=True)
+            return jsonify({'ok': True, 'message': f'插件 {plugin_id} 已禁用（原始文件已保留）'})
+        else:
+            return jsonify({'ok': True, 'message': f'插件 {plugin_id} 未启用，无需卸载'})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
@@ -732,8 +782,44 @@ def api_reload_plugins():
 
 @api_v1.route('/market/registry', methods=['GET'])
 def api_market_registry():
-    """获取插件市场列表（支持 ?category=&keyword=）"""
+    """
+    获取插件市场列表（支持 ?category=&keyword=）
+
+    来源判断规则：
+    - 🌐 线上：registry 中 download 为 https?:// 开头（真正发布到 GitHub/AtomGit 等线上仓库）
+    - 📁 本地：两类情况都标为本地
+      a) registry 中 download 为 file:// 开头（内置注册、未正式发布到线上）
+      b) 仅在本地 plugins/ 目录存在、registry 中无记录的插件
+
+    去重：本地扫描时通过 id 精确匹配 + 名称归一化模糊匹配，防止同一插件重复出现
+    """
+    import re
+
+    def _normalize_plugin_name(name: str) -> str:
+        """插件名称归一化：去连字符/下划线/空格，转小写，用于模糊去重"""
+        return re.sub(r'[-_\s]+', '', name).lower()
+
+    def _normalize_plugin_title(title: str) -> str:
+        """插件标题归一化（与 name 相同逻辑）"""
+        return _normalize_plugin_name(title)
+
+    def _is_chinese_subset(shorter: str, longer: str) -> bool:
+        """
+        检查中文字符串是否为另一个的子集（用于模糊去重）。
+        如 "字符集审计" 是 "字符集与排序规则审计" 的子集 → True
+        """
+        if not shorter or not longer:
+            return False
+        # 提取中文字符
+        short_cn = ''.join(c for c in shorter if '\u4e00' <= c <= '\u9fff')
+        long_cn = ''.join(c for c in longer if '\u4e00' <= c <= '\u9fff')
+        if not short_cn or not long_cn:
+            return False
+        # 短的中文字符串必须全部出现在长的中文字符串中
+        return short_cn in long_cn
+
     try:
+        import os
         from plugin_market import get_market
         m = get_market()
         force = request.args.get('force', '0') == '1'
@@ -741,12 +827,126 @@ def api_market_registry():
         kw = request.args.get('keyword', None)
         if force:
             m.fetch_registry(force=True)
-        plugins = m.list_plugins(category=cat, keyword=kw)
+
+        # 1. 获取市场插件（来自 registry.json — 包含线上 + 内置注册）
+        market_plugins = m.list_plugins(category=cat, keyword=kw)
         installed_ids = m.get_installed_ids()
-        # 标注安装状态
-        for p in plugins:
-            p['installed'] = p.get('id') in installed_ids
-        return jsonify({'ok': True, 'plugins': plugins, 'total': len(plugins)})
+
+        # 补充：扫描 enabled/ 本地目录，构建"文件系统级别"的已安装 ID 集合
+        # （有些插件在磁盘上存在但尚未被 PluginRegistry 加载到内存）
+        # 注意：只扫描 enabled/，不扫描 available/
+        # available/ 只存放插件原始文件（类似"安装包"），不应视为"已安装"
+        base_dir_fs = os.path.dirname(os.path.abspath(__file__))
+        plugins_base_fs = os.path.join(base_dir_fs, 'plugins')
+        local_installed_ids = set(installed_ids)  # 先复制内存中的
+        enabled_dir = os.path.join(plugins_base_fs, 'enabled')
+        if os.path.isdir(enabled_dir):
+            for item in os.listdir(enabled_dir):
+                if os.path.isdir(os.path.join(enabled_dir, item)):
+                    local_installed_ids.add(item)
+
+        # 构建去重用的索引
+        market_ids = set()       # 原始 id 集合
+        market_names_norm = set() # 归一化名称集合
+
+        for p in market_plugins:
+            pid = p.get('id', '')
+            market_ids.add(pid)
+
+            # 归一化名称用于后续模糊去重
+            pname = p.get('name', '')
+            if pname:
+                market_names_norm.add(_normalize_plugin_name(pname))
+
+            # ── 核心来源判断：根据 download 字段 ──
+            dl = p.get('download', '')
+            if dl and (dl.startswith('http://') or dl.startswith('https://')):
+                # https?:// → 真正的线上发布
+                p['source'] = 'online'
+            else:
+                # file:// / 空 / 其他 → 本地（内置兜底或测试用）
+                p['source'] = 'local'
+
+            p['installed'] = pid in local_installed_ids
+
+        # 2. 扫描本地 plugins 目录，找出不在市场 registry 中的插件
+        local_only_plugins = []
+        seen_local_ids = set()  # 避免 available/ 和 enabled/ 中同时存在时重复添加
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        plugins_base = os.path.join(base_dir, 'plugins')
+
+        for subdir in ('enabled', 'available'):
+            scan_dir = os.path.join(plugins_base, subdir)
+            if not os.path.isdir(scan_dir):
+                continue
+            for item in os.listdir(scan_dir):
+                item_path = os.path.join(scan_dir, item)
+                if not os.path.isdir(item_path) or item.startswith('__'):
+                    continue
+
+                # ── 去重判断（两层） ──
+                # a) ID 精确匹配
+                if item in market_ids:
+                    continue
+
+                plugin_json_path = os.path.join(item_path, 'plugin.json')
+                if not os.path.isfile(plugin_json_path):
+                    continue
+
+                try:
+                    with open(plugin_json_path, 'r', encoding='utf-8') as f:
+                        manifest = json.load(f)
+
+                    # b) 名称归一化模糊匹配（处理如 charset_audit vs 字符集审计 的情况）
+                    #    同时检查 name 和 title 字段
+                    local_name = manifest.get('name', item)
+                    local_title = manifest.get('title', '')
+
+                    if _normalize_plugin_name(local_name) in market_names_norm:
+                        continue
+                    if local_title and _normalize_plugin_title(local_title) in market_names_norm:
+                        continue
+
+                    # c) 中文包含关系匹配（如 "字符集与排序规则审计" 包含 "字符集审计"）
+                    is_dup = False
+                    for norm_market in market_names_norm:
+                        if _is_chinese_subset(local_name, norm_market) or \
+                           _is_chinese_subset(local_title, norm_market) or \
+                           _is_chinese_subset(norm_market, local_name) or \
+                           _is_chinese_subset(norm_market, local_title):
+                            is_dup = True
+                            break
+                    if is_dup:
+                        continue
+
+                    # c) 避免 available/ 和 enabled/ 中同时存在时重复添加
+                    if item in seen_local_ids:
+                        continue
+                    seen_local_ids.add(item)
+
+                    local_only_plugins.append({
+                        'id': item,
+                        'name': manifest.get('name', item),
+                        'version': manifest.get('version', 'unknown'),
+                        'description': manifest.get('description', ''),
+                        'author': manifest.get('author', ''),
+                        'category': manifest.get('category', 'db'),
+                        'type': manifest.get('type', 'unknown'),
+                        'db_types': manifest.get('db_types', []),
+                        'keywords': manifest.get('keywords', []),
+                        'rating': manifest.get('rating', 0),
+                        'downloads': 0,
+                        'source': 'local',
+                        'installed': True,
+                        'author_type': 'community',
+                    })
+                except Exception as e:
+                    logger.warning(f"读取本地插件 {item} 的 plugin.json 失败: {e}")
+
+        # 3. 合并
+        all_plugins = market_plugins + local_only_plugins
+
+        return jsonify({'ok': True, 'plugins': all_plugins, 'total': len(all_plugins)})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 

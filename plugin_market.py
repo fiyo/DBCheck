@@ -22,13 +22,12 @@ logger = logging.getLogger('plugin_market')
 # ── 默认市场配置 ──────────────────────────────────────────────
 
 # 多镜像地址，按优先级排列，fetch_registry 会自动 fallback
-# GitHub 主地址 + AtomGit 国内镜像，用户可在 Web UI 中添加更多
+# 注意：AtomGit (atomgit.com) 需要登录才能访问 raw 文件，暂不支持作为公开镜像
+# 用户可通过 Web UI 添加其他可访问的镜像地址
 DEFAULT_REGISTRY_URLS = [
     # GitHub 主地址（国外/科学上网用户）
     "https://raw.githubusercontent.com/fiyo/dbcheck-plugins/main/registry.json",
-    # AtomGit 国内镜像（国内用户，无需科学上网）
-    # API 格式: https://atomgit.com/api/v5/repos/{owner}/{repo}/raw/{path}?ref={branch}
-    "https://atomgit.com/api/v5/repos/wfgyj/dbcheck-plugins/raw/registry.json?ref=main",
+    # 可扩展：国内可访问的镜像（如 Gitee、GitCode 等，需要仓库设置为公开）
 ]
 
 # 内置 registry.json 的文件名（放在 DBCheck 项目根目录）
@@ -139,26 +138,44 @@ class PluginMarket:
                 last_error = e
                 continue  # 尝试下一个镜像
 
-        # 如果网络拉取成功，则合并内置数据（内置数据作为补充）
+        # 如果网络拉取成功，则合并内置数据
+        # 策略：内置数据作为补充；对于两边都有的插件，优先使用内置的 download 等字段
+        # （因为内置 registry 是本地维护的，更准确）
         if network_data:
             builtin = self._load_builtin_registry()
             if builtin:
                 network_plugins = network_data.get('plugins', [])
                 builtin_plugins = builtin.get('plugins', [])
-                
+
+                # 构建内置插件的索引（按 id）
+                builtin_by_id = {bp.get('id'): bp for bp in builtin_plugins}
+
+                # 对于网络数据中已存在的插件，用内置数据覆盖关键字段（如下载地址）
+                for np in network_plugins:
+                    nid = np.get('id', '')
+                    if nid in builtin_by_id:
+                        bp = builtin_by_id[nid]
+                        # 覆盖 download 字段（内置的更准确）
+                        if bp.get('download'):
+                            np['download'] = bp['download']
+                        # 覆盖其他关键字段
+                        for key in ('description', 'author', 'min_version', 'official', 'featured'):
+                            if bp.get(key) is not None:
+                                np[key] = bp[key]
+
                 # 合并插件（内置数据作为补充，避免重复）
                 existing_ids = {p.get('id') for p in network_plugins}
                 for bp in builtin_plugins:
                     if bp.get('id') not in existing_ids:
                         network_plugins.append(bp)
                         existing_ids.add(bp.get('id'))
-                
+
                 # 合并分类定义
                 if 'categories' not in network_data and 'categories' in builtin:
                     network_data['categories'] = builtin['categories']
-                
+
                 logger.info(f"合并内置数据后: {len(network_plugins)} 个插件")
-            
+
             self._cache = network_data
             self._cache_time = now
             return network_data
@@ -215,6 +232,15 @@ class PluginMarket:
         """列出市场插件，支持筛选"""
         data = self.fetch_registry()
         plugins = data.get('plugins', [])
+        
+        # 为每个插件设置 source 字段（根据 download 字段判断）
+        for p in plugins:
+            dl = p.get('download', '')
+            if dl and (dl.startswith('http://') or dl.startswith('https://')):
+                p['source'] = 'online'
+            else:
+                p['source'] = 'local'
+        
         if category:
             plugins = [p for p in plugins if p.get('category') == category]
         if keyword:
@@ -249,22 +275,22 @@ class PluginMarket:
             #   → 下载地址: https://github.com/fiyo/dbcheck-plugins/releases/download/...
             # AtomGit: https://atomgit.com/api/v5/repos/wfgyj/dbcheck-plugins/raw/registry.json?ref=main
             #   → 下载地址: https://atomgit.com/wfgyj/dbcheck-plugins/releases/download/...
-            if 'atomgit.com' in registry_url:
+            if 'atomgit.com' in registry_url and 'github.com' in original_url:
                 # AtomGit 镜像：把 github.com 替换成 atomgit.com
-                # 注意：需要先在 AtomGit 上创建 releases 并上传插件 zip
                 mirror_download = original_url.replace(
                     'https://github.com/', 'https://atomgit.com/'
                 )
                 if mirror_download != original_url:
                     urls.append(mirror_download)
-            # 可扩展其他镜像
+            # 如果原始 URL 就是 atomgit.com 的，直接尝试下载（不需要替换）
         return urls
 
     def install(self, plugin_id: str) -> Dict:
         """
-        安装插件：下载 zip → 解压到 plugins/ → 动态加载
-        支持多镜像下载地址 fallback。
-        如果是本地路径（file:// 或绝对路径），则直接复制。
+        安装插件：
+        1. 如果 enabled/<plugin_id>/ 存在 → 已安装，提示先卸载
+        2. 如果 available/<plugin_id>/ 存在但 enabled/ 不存在 → 直接启用（从 available/ 复制到 enabled/）
+        3. 否则 → 从市场下载安装
         返回 {'ok': bool, 'message': str}
         """
         plugin = self.get_plugin(plugin_id)
@@ -275,10 +301,51 @@ class PluginMarket:
         if not download_url:
             return {'ok': False, 'message': f'插件 {plugin_id} 没有下载地址'}
 
-        # 检查是否已安装
-        target_dir = os.path.join(self._plugins_dir, plugin_id)
-        if os.path.isdir(target_dir):
+        available_dir = os.path.join(self._plugins_dir, 'available', plugin_id)
+        enabled_dir = os.path.join(self._plugins_dir, 'enabled', plugin_id)
+
+        # 1. 检查是否已启用（enabled/ 存在 = 真正已安装）
+        if os.path.isdir(enabled_dir):
             return {'ok': False, 'message': f'插件 {plugin_id} 已安装，请先卸载'}
+
+        # 2. 如果 available/ 有但 enabled/ 没有 → 直接启用（从 available/ 复制到 enabled/）
+        if os.path.isdir(available_dir) and not os.path.isdir(enabled_dir):
+            try:
+                os.makedirs(enabled_dir, exist_ok=True)
+                for item in os.listdir(available_dir):
+                    s = os.path.join(available_dir, item)
+                    d = os.path.join(enabled_dir, item)
+                    if os.path.isdir(s):
+                        shutil.copytree(s, d, dirs_exist_ok=True)
+                    else:
+                        shutil.copy2(s, d)
+                # 动态加载
+                from plugin_core import load_plugin, PluginRegistry
+                manifest = load_plugin(enabled_dir)
+                if manifest:
+                    logger.info(f"插件已启用（从 available/ 复制）: {plugin_id}")
+                    
+                    # 调用插件的 on_install() 方法（初始化数据）
+                    try:
+                        plugin = PluginRegistry.get_plugin_instance(plugin_id)
+                        if plugin and hasattr(plugin, 'on_install'):
+                            # 获取数据库文件路径
+                            from inspection_dal import DEFAULT_DB_PATH
+                            plugin.on_install(db_path=DEFAULT_DB_PATH)
+                            logger.info(f"插件 {plugin_id} 的 on_install() 已调用")
+                    except Exception as e:
+                        logger.warning(f"调用插件 {plugin_id} 的 on_install() 失败: {e}")
+                    
+                    return {'ok': True, 'message': f'插件 {plugin_id} 安装成功'}
+                else:
+                    shutil.rmtree(enabled_dir, ignore_errors=True)
+                    return {'ok': False, 'message': '插件加载失败，已回滚'}
+            except Exception as e:
+                shutil.rmtree(enabled_dir, ignore_errors=True)
+                return {'ok': False, 'message': f'启用插件失败: {e}'}
+
+        # 安装目标目录：plugins/available/<plugin_id>
+        target_dir = available_dir
 
         # 支持本地路径（用于测试）
         if download_url.startswith('file://') or os.path.isfile(download_url):
@@ -308,6 +375,12 @@ class PluginMarket:
                 continue
 
         if not tmp_zip_path:
+            # 下载全部失败：尝试本地回退安装
+            # 场景：插件在 builtin_registry.json 中注册，download 为 https:// 但实际 zip 包还未上传
+            #       此时如果本地 plugins/ 目录已有该插件的源码目录，可以直接复制安装
+            local_fallback = self._try_local_fallback(plugin_id, target_dir)
+            if local_fallback['ok']:
+                return local_fallback
             return {'ok': False, 'message': f'所有镜像均下载失败: {last_error}'}
 
         # 解压并安装
@@ -337,12 +410,44 @@ class PluginMarket:
                 else:
                     shutil.copy2(s, d)
 
-            # 动态加载
-            from plugin_core import load_plugin
+            # 动态加载（先加载到 available/）
+            from plugin_core import load_plugin, PluginRegistry
             manifest = load_plugin(target_dir)
             if manifest:
-                logger.info(f"插件安装成功: {plugin_id}")
-                return {'ok': True, 'message': f'插件 {plugin.get("name", plugin_id)} 安装成功'}
+                logger.info(f"插件安装成功（available/）: {plugin_id}")
+                # 自动启用：复制到 enabled/
+                try:
+                    os.makedirs(enabled_dir, exist_ok=True)
+                    for item in os.listdir(target_dir):
+                        s = os.path.join(target_dir, item)
+                        d = os.path.join(enabled_dir, item)
+                        if os.path.isdir(s):
+                            shutil.copytree(s, d, dirs_exist_ok=True)
+                        else:
+                            shutil.copy2(s, d)
+                    # 加载 enabled/ 中的插件
+                    manifest2 = load_plugin(enabled_dir)
+                    if manifest2:
+                        logger.info(f"插件已启用: {plugin_id}")
+                        
+                        # 调用插件的 on_install() 方法（初始化数据）
+                        try:
+                            plugin = PluginRegistry.get_plugin_instance(plugin_id)
+                            if plugin and hasattr(plugin, 'on_install'):
+                                # 获取数据库文件路径
+                                from inspection_dal import DEFAULT_DB_PATH
+                                plugin.on_install(db_path=DEFAULT_DB_PATH)
+                                logger.info(f"插件 {plugin_id} 的 on_install() 已调用")
+                        except Exception as e:
+                            logger.warning(f"调用插件 {plugin_id} 的 on_install() 失败: {e}")
+                        
+                        return {'ok': True, 'message': f'插件 {plugin.get("name", plugin_id)} 安装成功'}
+                    else:
+                        shutil.rmtree(enabled_dir, ignore_errors=True)
+                        return {'ok': True, 'message': f'插件 {plugin.get("name", plugin_id)} 安装成功（已安装但未启用）'}
+                except Exception as e:
+                    logger.warning(f"插件启用失败: {e}")
+                    return {'ok': True, 'message': f'插件 {plugin.get("name", plugin_id)} 安装成功（启用失败：{e}）'}
             else:
                 # 回滚
                 shutil.rmtree(target_dir, ignore_errors=True)
@@ -407,12 +512,45 @@ class PluginMarket:
             else:
                 return {'ok': False, 'message': f'无效的本地路径: {source_path}'}
             
-            # 动态加载
-            from plugin_loader import load_plugin
+            # 动态加载（先加载到 available/）
+            from plugin_core import load_plugin
             manifest = load_plugin(target_dir)
             if manifest:
-                logger.info(f"插件安装成功: {plugin_id}")
-                return {'ok': True, 'message': f'插件 {plugin_id} 安装成功'}
+                logger.info(f"插件安装成功（available/）: {plugin_id}")
+                # 自动启用：复制到 enabled/
+                enabled_dir = os.path.join(self._plugins_dir, 'enabled', plugin_id)
+                try:
+                    os.makedirs(enabled_dir, exist_ok=True)
+                    for item in os.listdir(target_dir):
+                        s = os.path.join(target_dir, item)
+                        d = os.path.join(enabled_dir, item)
+                        if os.path.isdir(s):
+                            shutil.copytree(s, d, dirs_exist_ok=True)
+                        else:
+                            shutil.copy2(s, d)
+                    manifest2 = load_plugin(enabled_dir)
+                    if manifest2:
+                        logger.info(f"插件已启用: {plugin_id}")
+                        
+                        # 调用插件的 on_install() 方法（初始化数据）
+                        try:
+                            from plugin_core import PluginRegistry
+                            plugin = PluginRegistry.get_plugin_instance(plugin_id)
+                            if plugin and hasattr(plugin, 'on_install'):
+                                # 获取数据库文件路径
+                                from inspection_dal import DEFAULT_DB_PATH
+                                plugin.on_install(db_path=DEFAULT_DB_PATH)
+                                logger.info(f"插件 {plugin_id} 的 on_install() 已调用")
+                        except Exception as e:
+                            logger.warning(f"调用插件 {plugin_id} 的 on_install() 失败: {e}")
+                        
+                        return {'ok': True, 'message': f'插件 {plugin_id} 安装成功'}
+                    else:
+                        shutil.rmtree(enabled_dir, ignore_errors=True)
+                        return {'ok': True, 'message': f'插件 {plugin_id} 安装成功（已安装但未启用）'}
+                except Exception as e:
+                    logger.warning(f"插件启用失败: {e}")
+                    return {'ok': True, 'message': f'插件 {plugin_id} 安装成功（启用失败：{e}）'}
             else:
                 shutil.rmtree(target_dir, ignore_errors=True)
                 return {'ok': False, 'message': '插件加载失败，已回滚'}
@@ -421,13 +559,98 @@ class PluginMarket:
             return {'ok': False, 'message': f'本地安装失败: {e}'}
 
     def uninstall(self, plugin_id: str) -> Dict:
-        """卸载插件：删除目录 + 注销"""
+        """
+        卸载插件（禁用插件）：
+        - 读取 plugin.json 中的 cleanup 配置（清理数据）
+        - 调用插件的 on_uninstall() 方法（如果存在且可加载）
+        - 注销内存中的注册
+        - 删除 plugins/enabled/<plugin_id>/ 目录（禁用插件）
+        - 不删除 plugins/available/<plugin_id>/ 目录（保留原始文件）
+        """
         from plugin_core import PluginRegistry
+        
+        # 1. 清理数据（优先使用 plugin.json 中的 cleanup 配置）
+        try:
+            import json
+            from inspection_dal import DEFAULT_DB_PATH
+            
+            # 读取 plugin.json
+            available_dir = os.path.join(self._plugins_dir, 'available', plugin_id)
+            plugin_json_path = os.path.join(available_dir, 'plugin.json')
+            
+            if os.path.isfile(plugin_json_path):
+                with open(plugin_json_path, 'r', encoding='utf-8') as f:
+                    plugin_config = json.load(f)
+                
+                # 检查是否有 cleanup 配置
+                cleanup_config = plugin_config.get('cleanup', {})
+                
+                if cleanup_config:
+                    # 使用 cleanup 配置清理数据
+                    db_types = cleanup_config.get('db_types', [plugin_id])
+                    data_types = cleanup_config.get('data_types', ['template', 'baseline'])
+                    
+                    logger.info(f"插件 {plugin_id} 开始清理数据: db_types={db_types}, data_types={data_types}")
+                    
+                    from inspection_dal import (
+                        get_templates_by_db_type,
+                        get_baselines_by_db_type,
+                        delete_template,
+                        delete_baseline
+                    )
+                    
+                    # 清理模板数据
+                    if 'template' in data_types:
+                        for db_type in db_types:
+                            templates = get_templates_by_db_type(db_type, db_path=DEFAULT_DB_PATH)
+                            if templates:
+                                logger.info(f"清理 {db_type} 的 {len(templates)} 个模板...")
+                                for t in templates:
+                                    try:
+                                        # 强制删除（包括预置模板）
+                                        delete_template(t['id'], db_path=DEFAULT_DB_PATH, force=True)
+                                        logger.info(f"删除模板: {t.get('template_name', t['id'])} (ID: {t['id']})")
+                                    except Exception as e:
+                                        logger.warning(f"删除模板 {t['id']} 失败: {e}")
+                    
+                    # 清理基线数据
+                    if 'baseline' in data_types:
+                        for db_type in db_types:
+                            baselines = get_baselines_by_db_type(db_type, db_path=DEFAULT_DB_PATH)
+                            if baselines:
+                                logger.info(f"清理 {db_type} 的 {len(baselines)} 条基线...")
+                                for b in baselines:
+                                    try:
+                                        delete_baseline(b['id'], db_path=DEFAULT_DB_PATH)
+                                        logger.info(f"删除基线: {b.get('param_name', b['id'])} (ID: {b['id']})")
+                                    except Exception as e:
+                                        logger.warning(f"删除基线 {b['id']} 失败: {e}")
+                    
+                    logger.info(f"插件 {plugin_id} 的数据清理完成")
+                else:
+                    # 没有 cleanup 配置，尝试调用插件的 on_uninstall() 方法
+                    plugin = PluginRegistry.get_plugin_instance(plugin_id)
+                    if plugin and hasattr(plugin, 'on_uninstall'):
+                        plugin.on_uninstall(db_path=DEFAULT_DB_PATH)
+                        logger.info(f"插件 {plugin_id} 的 on_uninstall() 已调用")
+            else:
+                logger.warning(f"插件 {plugin_id} 的 plugin.json 不存在，跳过数据清理")
+        except Exception as e:
+            logger.warning(f"清理插件 {plugin_id} 的数据失败: {e}")
+            import traceback
+            logger.warning(traceback.format_exc())
+        
+        # 2. 注销内存中的注册
         PluginRegistry.unregister(plugin_id)
-        target_dir = os.path.join(self._plugins_dir, plugin_id)
+
+        # 3. 删除 enabled/ 目录中的插件（禁用插件）
+        target_dir = os.path.join(self._plugins_dir, 'enabled', plugin_id)
         if os.path.isdir(target_dir):
             shutil.rmtree(target_dir, ignore_errors=True)
-        return {'ok': True, 'message': f'插件 {plugin_id} 已卸载'}
+            logger.info(f"插件已禁用，文件已保留: {target_dir}")
+            return {'ok': True, 'message': f'插件 {plugin_id} 已禁用（原始文件已保留）'}
+        else:
+            return {'ok': True, 'message': f'插件 {plugin_id} 未启用，无需卸载'}
 
     def reload(self) -> Dict:
         """重新加载所有插件"""
@@ -435,6 +658,75 @@ class PluginMarket:
         PluginRegistry.clear()
         n = load_plugins(self._plugins_dir)
         return {'ok': True, 'message': f'已重新加载 {n} 个插件'}
+
+    def _try_local_fallback(self, plugin_id: str, target_dir: str) -> Dict:
+        """
+        下载全部失败时，尝试本地回退安装。
+        在以下位置查找同名插件目录并直接复制：
+          1. plugins/available/<plugin_id>/
+          2. plugins/enabled/<plugin_id>/
+          3. 内置 registry 中 download 字段为 file:// 开头的本地路径
+        返回 {'ok': bool, 'message': str}
+        """
+        import shutil
+
+        # 1. 在本地 plugins 目录中查找同名目录
+        #    优先使用 enabled/（已启用的），其次 available/（未启用但已下载的）
+        for subdir in ('enabled', 'available'):
+            local_src = os.path.join(self._plugins_dir, subdir, plugin_id)
+            if os.path.isdir(local_src) and os.path.isfile(os.path.join(local_src, 'plugin.json')):
+                logger.info(f"下载失败，回退到本地目录安装: {local_src}")
+                try:
+                    os.makedirs(target_dir, exist_ok=True)
+                    for item in os.listdir(local_src):
+                        s = os.path.join(local_src, item)
+                        d = os.path.join(target_dir, item)
+                        if os.path.isdir(s):
+                            shutil.copytree(s, d, dirs_exist_ok=True)
+                        else:
+                            shutil.copy2(s, d)
+
+                    # 如果是从 available/ 复制的，还需要启用（复制到 enabled/）
+                    if subdir == 'available':
+                        enabled_dir = os.path.join(self._plugins_dir, 'enabled', plugin_id)
+                        os.makedirs(enabled_dir, exist_ok=True)
+                        for item in os.listdir(target_dir):
+                            s = os.path.join(target_dir, item)
+                            d = os.path.join(enabled_dir, item)
+                            if os.path.isdir(s):
+                                shutil.copytree(s, d, dirs_exist_ok=True)
+                            else:
+                                shutil.copy2(s, d)
+
+                    # 动态加载
+                    from plugin_core import load_plugin
+                    manifest = load_plugin(target_dir)
+                    if manifest:
+                        return {'ok': True, 'message': f'插件 {plugin_id} 安装成功（本地回退）'}
+                    else:
+                        shutil.rmtree(target_dir, ignore_errors=True)
+                        enabled_dir = os.path.join(self._plugins_dir, 'enabled', plugin_id)
+                        shutil.rmtree(enabled_dir, ignore_errors=True)
+                        return {'ok': False, 'message': '本地回退安装失败：插件加载失败'}
+                except Exception as e:
+                    shutil.rmtree(target_dir, ignore_errors=True)
+                    enabled_dir = os.path.join(self._plugins_dir, 'enabled', plugin_id)
+                    shutil.rmtree(enabled_dir, ignore_errors=True)
+                    return {'ok': False, 'message': f'本地回退安装失败: {e}'}
+
+        # 2. 检查内置 registry 中是否有 file:// 的本地路径
+        plugin = self.get_plugin(plugin_id)
+        if plugin:
+            dl = plugin.get('download', '')
+            if dl.startswith('file://'):
+                local_path = dl[7:]
+                if os.path.isdir(local_path) or (os.path.isfile(local_path) and local_path.endswith('.zip')):
+                    result = self._install_from_local(plugin_id, local_path, target_dir)
+                    if result['ok']:
+                        result['message'] += '（本地回退）'
+                    return result
+
+        return {'ok': False, 'message': '本地回退失败：未找到本地插件目录'}
 
     def categories(self) -> List[Dict]:
         """

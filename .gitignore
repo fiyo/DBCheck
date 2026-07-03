@@ -1,6 +1,10 @@
 dist/
 __pycache__/
 *.pyc
+*.log
+*.bak
+*.tmp
+*.orig
 copyright_registration/
 *.docx
 *.pdf
@@ -15,8 +19,6 @@ notifier_config.json
 scheduler_jobs.json
 scheduler.log
 snapshot/
-docs/README.md
-docs/
 memory/
 20260409082251/
 scheduler.log
@@ -54,3 +56,7 @@ plugins/enabled/*
 data/inspection.db
 
 um_rbac.db
+test_*.py
+check_*.py
+fix_*.py
+export_*.py

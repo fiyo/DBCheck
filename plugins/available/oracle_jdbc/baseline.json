@@ -1,0 +1,38 @@
+[
+  {
+    "param_name": "version",
+    "query_sql": "SELECT version FROM v$instance",
+    "operator": ">=",
+    "expected_value": "11.2.0.4",
+    "risk_level": "LOW",
+    "description_zh": "Oracle 版本应不低于 11.2.0.4",
+    "description_en": "Oracle version should not be lower than 11.2.0.4"
+  },
+  {
+    "param_name": "tablespace_usage",
+    "query_sql": "SELECT a.tablespace_name, ROUND((a.bytes-b.bytes)/a.bytes*100) AS used_pct FROM (SELECT tablespace_name, SUM(bytes) AS bytes FROM dba_data_files GROUP BY tablespace_name) a, (SELECT tablespace_name, SUM(bytes) AS bytes FROM dba_free_space GROUP BY tablespace_name) b WHERE a.tablespace_name = b.tablespace_name",
+    "operator": "<=",
+    "expected_value": "85",
+    "risk_level": "HIGH",
+    "description_zh": "表空间使用率不应超过 85%",
+    "description_en": "Tablespace usage should not exceed 85%"
+  },
+  {
+    "param_name": "invalid_objects",
+    "query_sql": "SELECT COUNT(*) AS cnt FROM dba_objects WHERE status != 'VALID'",
+    "operator": "<=",
+    "expected_value": "10",
+    "risk_level": "MEDIUM",
+    "description_zh": "无效对象数量不应超过 10 个",
+    "description_en": "Invalid objects should not exceed 10"
+  },
+  {
+    "param_name": "archive_log_mode",
+    "query_sql": "SELECT log_mode FROM v$database",
+    "operator": "==",
+    "expected_value": "ARCHIVELOG",
+    "risk_level": "MEDIUM",
+    "description_zh": "生产环境应开启归档模式",
+    "description_en": "Production environment should enable archive log mode"
+  }
+]

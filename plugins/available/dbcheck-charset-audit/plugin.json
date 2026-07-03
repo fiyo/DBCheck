@@ -1,0 +1,23 @@
+{
+  "name": "dbcheck-charset-audit",
+  "version": "1.0.0",
+  "title": "字符集与排序规则审计",
+  "description": "官方插件：全面检测各数据库非标准字符集和排序规则，支持 MySQL/TiDB/PostgreSQL/Oracle/DM8/SQL Server/YashanDB/Kingbase/IvorySQL/GBase 8s 共 10 种数据库，评估跨平台兼容性和多语言支持风险",
+  "author": {
+    "name": "DBCheck Team",
+    "email": "sdfiyon@gmail.com",
+    "url": "https://github.com/fiyo"
+  },
+  "homepage": "https://github.com/fiyo/dbcheck-plugins/tree/main/plugins/dbcheck-charset-audit",
+  "license": "MIT",
+  "keywords": ["charset", "encoding", "collation", "utf8", "compatibility", "official"],
+  "categories": ["inspection"],
+  "dbcheck": {
+    "minVersion": "2.5.0"
+  },
+  "capabilities": {
+    "inspections": ["charset_audit"]
+  },
+  "permissions": ["database:*:read"],
+  "entry": "__init__.py"
+}

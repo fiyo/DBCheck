@@ -3742,8 +3742,8 @@ function formatBytes(bytes) {
         // 优先从 data 属性读取（插件类型），其次用硬编码映射
         const defaultPort = opt?.getAttribute('data-port') || '';
         const defaultUser = opt?.getAttribute('data-user') || '';
-        const portMap = {mysql:3306, pg:5432, dm:5236, oracle:1521, sqlserver:1433, tidb:4000, ivorysql:5432, yashandb:1688, kingbase:54321, gbase:9088};
-        const userMap = {mysql:'root', pg:'postgres', dm:'SYSDBA', oracle:'system', sqlserver:'sa', tidb:'root', ivorysql:'postgres', yashandb:'sys', kingbase:'kingbase', gbase:'gbasedbt'};
+        const portMap = {mysql:3306, pg:5432, dm:5236, oracle:1521, oracle_jdbc:1521, sqlserver:1433, tidb:4000, ivorysql:5432, yashandb:1688, kingbase:54321, gbase:9088};
+        const userMap = {mysql:'root', pg:'postgres', dm:'SYSDBA', oracle:'system', oracle_jdbc:'system', sqlserver:'sa', tidb:'root', ivorysql:'postgres', yashandb:'sys', kingbase:'kingbase', gbase:'gbasedbt'};
         document.getElementById('ds-port').value = (defaultPort && parseInt(defaultPort)) || portMap[dbType] || 3306;
         const userEl = document.getElementById('ds-user');
         if (dbType !== _currentDbType || !userEl.value) {
@@ -3751,8 +3751,8 @@ function formatBytes(bytes) {
         }
         _currentDbType = dbType;
         document.getElementById('ds-database-wrap').style.display = (dbType === 'pg' || dbType === 'ivorysql' || dbType === 'kingbase' || dbType === 'gbase') ? '' : 'none';
-        document.getElementById('ds-service-wrap').style.display = dbType === 'oracle' ? '' : 'none';
-        document.getElementById('ds-sysdba-wrap').style.display = dbType === 'oracle' ? '' : 'none';
+        document.getElementById('ds-service-wrap').style.display = (dbType === 'oracle' || dbType === 'oracle_jdbc') ? '' : 'none';
+        document.getElementById('ds-sysdba-wrap').style.display = (dbType === 'oracle' || dbType === 'oracle_jdbc') ? '' : 'none';
         var gbaseWrap = document.getElementById('ds-gbase-server-wrap');
         if (gbaseWrap) gbaseWrap.style.display = dbType === 'gbase' ? '' : 'none';
         // 根据数据库类型更新 database 输入框的 placeholder
@@ -3840,7 +3840,7 @@ function formatBytes(bytes) {
         payload.ssh_password = sshOn ? (document.getElementById('ds-ssh-password').value || undefined) : '';
         payload.ssh_key_file = sshOn ? document.getElementById('ds-ssh-key').value.trim() : '';
         if (payload.db_type === 'pg' || payload.db_type === 'ivorysql' || payload.db_type === 'kingbase') payload.database = document.getElementById('ds-database').value.trim();
-        if (payload.db_type === 'oracle') {
+        if (payload.db_type === 'oracle' || payload.db_type === 'oracle_jdbc') {
           payload.service_name = document.getElementById('ds-service-name').value.trim();
           payload.sysdba = document.getElementById('ds-sysdba').checked;
         }
@@ -3915,7 +3915,7 @@ function formatBytes(bytes) {
                 document.getElementById('ds-database').value = ds.database || 'sysmaster';
                 document.getElementById('ds-gbase-server').value = ds.gbase_server_name || 'gbase01';
               }
-              if (ds.db_type === 'oracle') {
+              if (ds.db_type === 'oracle' || ds.db_type === 'oracle_jdbc') {
                 document.getElementById('ds-service-name').value = ds.service_name || '';
                 document.getElementById('ds-sysdba').checked = ds.sysdba === true;
               }
@@ -7036,8 +7036,14 @@ async function onDatasourceChange() {
       document.getElementById('f-host').value = ds.host || '';
       document.getElementById('f-port').value = ds.port || '';
       document.getElementById('f-user').value = ds.user || '';
-      document.getElementById('f-password').value = ds.password || '';
-      document.getElementById('f-password').placeholder = '数据库密码';
+      // 密码处理：如果解密成功则填充，否则清空并提示用户重新输入
+      if (data.password_decrypted) {
+        document.getElementById('f-password').value = ds.password || '';
+        document.getElementById('f-password').placeholder = '数据库密码';
+      } else {
+        document.getElementById('f-password').value = '';
+        document.getElementById('f-password').placeholder = '（需要重新输入密码）';
+      }
       if (ds.db_type === 'pg' || ds.db_type === 'ivorysql') {
         document.getElementById('f-database').value = ds.database || 'postgres';
       }
@@ -7047,7 +7053,7 @@ async function onDatasourceChange() {
       if (ds.db_type === 'gbase') {
         document.getElementById('f-database').value = ds.database || 'sysmaster';
       }
-      if (ds.db_type === 'oracle') {
+      if (ds.db_type === 'oracle' || ds.db_type === 'oracle_jdbc') {
         console.log('[Oracle模板] onDatasourceChange: oracle branch entered, ds:', ds);
         document.getElementById('f-service-name').value = ds.service_name || '';
         document.getElementById('f-sysdba').checked = !!ds.sysdba;
@@ -7058,7 +7064,7 @@ async function onDatasourceChange() {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
-              db_type: 'oracle',
+              db_type: ds.db_type,
               host: ds.host, port: ds.port, user: ds.user, password: ds.password,
               service_name: ds.service_name || null,
               sysdba: !!ds.sysdba,
@@ -7073,7 +7079,7 @@ async function onDatasourceChange() {
           }
         } catch(e) { console.warn('[Oracle模板] Version detection error:', e); }
       } else {
-        console.log('[Oracle模板] onDatasourceChange: db_type is', ds.db_type, ', not oracle');
+        console.log('[Oracle模板] onDatasourceChange: db_type is', ds.db_type, ', not oracle/oracle_jdbc');
       }
       // 自动填充 SSH 配置
       if (ds.ssh_enabled || ds.ssh_host) {
@@ -7139,10 +7145,10 @@ async function selectDbType(type, skipReload) {
   document.getElementById('f-database-wrap').style.display = (type === 'pg' || type === 'ivorysql' || type === 'kingbase' || type === 'gbase') ? '' : 'none';
   // Oracle全面巡检：显示服务名输入框
   var svcWrap = document.getElementById('f-service-wrap');
-  if (svcWrap) svcWrap.style.display = type === 'oracle' ? '' : 'none';
+  if (svcWrap) svcWrap.style.display = (type === 'oracle' || type === 'oracle_jdbc') ? '' : 'none';
   // Oracle全面巡检：显示 SYSDBA 复选框
   var sysdbaWrap = document.getElementById('f-sysdba-wrap');
-  if (sysdbaWrap) sysdbaWrap.style.display = type === 'oracle' ? '' : 'none';
+  if (sysdbaWrap) sysdbaWrap.style.display = (type === 'oracle' || type === 'oracle_jdbc') ? '' : 'none';
   // 更新数据库名称输入框的 placeholder 并自动填写默认值
   const defaultDbMap = { pg: 'postgres', ivorysql: 'postgres', kingbase: 'kingbase', gbase: 'sysmaster' };
   var fDbEl = document.getElementById('f-database');
@@ -7233,7 +7239,7 @@ async function testDb() {
     if (data.ok) {
       let extraHtml = '';
       // Oracle 版本检测：自动推荐对应模板
-      if (dbType === 'oracle' && data.oracle_major_version) {
+      if ((dbType === 'oracle' || dbType === 'oracle_jdbc') && data.oracle_major_version) {
         const ver = data.oracle_major_version;
         const verSuffix = (ver === 10 || ver === 11) ? 'g' : 'c';
         extraHtml = `<div style="margin-top:8px;padding:8px 12px;background:rgba(76,175,80,0.1);border:1px solid rgba(76,175,80,0.3);border-radius:6px;font-size:12px;color:#4caf50">
@@ -7342,7 +7348,7 @@ async function testJobDb() {
     if (data.ok) {
       let extraHtml = '';
       // Oracle 版本检测：自动推荐对应模板
-      if (dbType === 'oracle' && data.oracle_major_version) {
+      if ((dbType === 'oracle' || dbType === 'oracle_jdbc') && data.oracle_major_version) {
         const ver = data.oracle_major_version;
         const verSuffix = (ver === 10 || ver === 11) ? 'g' : 'c';
         extraHtml = `<div style="margin-top:8px;padding:8px 12px;background:rgba(76,175,80,0.1);border:1px solid rgba(76,175,80,0.3);border-radius:6px;font-size:12px;color:#4caf50">
@@ -9407,9 +9413,9 @@ async function onJobDbTypeChange() {
   dbWrap.style.display = (dbType === 'pg' || dbType === 'ivorysql' || dbType === 'sqlserver' || dbType === 'kingbase') ? 'block' : 'none';
   // Oracle: show service name and SYSDBA fields
   var jobSvcWrap = document.getElementById('job-service-wrap');
-  if (jobSvcWrap) jobSvcWrap.style.display = dbType === 'oracle' ? 'block' : 'none';
+  if (jobSvcWrap) jobSvcWrap.style.display = (dbType === 'oracle' || dbType === 'oracle_jdbc') ? 'block' : 'none';
   var jobSysdbaWrap = document.getElementById('job-sysdba-wrap');
-  if (jobSysdbaWrap) jobSysdbaWrap.style.display = dbType === 'oracle' ? 'block' : 'none';
+  if (jobSysdbaWrap) jobSysdbaWrap.style.display = (dbType === 'oracle' || dbType === 'oracle_jdbc') ? 'block' : 'none';
 
   // 更新数据源下拉框（仅显示匹配类型的数据源）
   loadJobDatasources(dbType);
@@ -9528,22 +9534,22 @@ async function onJobDatasourceChange() {
       // Oracle: show service/SYSDBA fields and fill values
       var jobSvcWrap = document.getElementById('job-service-wrap');
       var jobSysdbaWrap = document.getElementById('job-sysdba-wrap');
-      if (jobSvcWrap) jobSvcWrap.style.display = ds.db_type === 'oracle' ? 'block' : 'none';
-      if (jobSysdbaWrap) jobSysdbaWrap.style.display = ds.db_type === 'oracle' ? 'block' : 'none';
-      if (ds.db_type === 'oracle') {
+      if (jobSvcWrap) jobSvcWrap.style.display = (ds.db_type === 'oracle' || ds.db_type === 'oracle_jdbc') ? 'block' : 'none';
+      if (jobSysdbaWrap) jobSysdbaWrap.style.display = (ds.db_type === 'oracle' || ds.db_type === 'oracle_jdbc') ? 'block' : 'none';
+      if (ds.db_type === 'oracle' || ds.db_type === 'oracle_jdbc') {
         document.getElementById('job-service-name').value = ds.service_name || '';
         document.getElementById('job-sysdba').checked = !!ds.sysdba;
       }
       // 根据数据源的数据库类型加载巡检模板（等待完成）
       await loadInspectionTemplatesForSelect(ds.db_type || 'mysql', 'job-template');
       // Oracle: 静默检测版本，自动选择对应模板（在模板加载完成后执行）
-      if (ds.db_type === 'oracle') {
+      if (ds.db_type === 'oracle' || ds.db_type === 'oracle_jdbc') {
         try {
           const tRes = await fetch('/api/test_db', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
-              db_type: 'oracle',
+              db_type: ds.db_type,
               host: ds.host, port: ds.port, user: ds.user, password: ds.password,
               service_name: ds.service_name || null,
               sysdba: !!ds.sysdba,
@@ -17034,10 +17040,12 @@ function mkdirRemote() {
         ? '<span style="background:#fce4ec;color:#c62828;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;">🔥 精选</span>'
         : '';
       
-      // 来源标签
+      // 来源标签（市场列表需要区分线上/本地）
       const sourceTag = p.source === 'local'
         ? '<span style="background:#f3e5f5;color:#7b1fa2;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;">📁 本地</span>'
-        : '';
+        : (p.installed
+          ? ''
+          : '<span style="background:#e8f5e9;color:#2e7d32;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;">🌐 线上</span>');
         
       const btn = p.installed
         ? '<button class="btn btn-sm" style="background:var(--surface2);padding:4px 12px;" onclick="uninstallPlugin(\''+p.id+'\')">已安装 · 卸载</button>'
@@ -17061,20 +17069,15 @@ function mkdirRemote() {
       const p = d.plugins||[];
       if (!p.length) { el.innerHTML = '<span style="color:var(--text-muted);font-size:12px;">暂无已安装插件</span>'; return; }
       
-      // 来源标签
-      const sourceTag = (source) => source === 'local'
-        ? '<span style="background:#f3e5f5;color:#7b1fa2;font-size:9px;padding:0 4px;border-radius:3px;">📁 本地</span>'
-        : '<span style="background:#e8f5e9;color:#2e7d32;font-size:9px;padding:0 4px;border-radius:3px;">🌐 市场</span>';
-      
-      // 分类标签
+      // 分类标签（已安装不区分本地/线上，都在本地了）
       const categoryTag = (cat) => cat === 'db'
         ? '<span style="background:#e3f2fd;color:#1565c0;font-size:9px;padding:0 4px;border-radius:3px;margin-left:4px;">📊 数据库</span>'
         : (cat === 'rule' ? '<span style="background:#fff3e0;color:#e65100;font-size:9px;padding:0 4px;border-radius:3px;margin-left:4px;">📋 规则</span>' : '');
-        
-      el.innerHTML = p.map(pp => 
+
+      el.innerHTML = p.map(pp =>
         '<span style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:4px 10px;font-size:12px;display:inline-flex;align-items:center;gap:6px;">'+
         '🧩 '+escHtml(pp.name||pp.id)+' <span style="color:var(--text-muted);">v'+(pp.version||'?')+'</span> '+
-        sourceTag(pp.source||'local')+' '+categoryTag(pp.category||'')+
+        categoryTag(pp.category||'')+
         '<a href="#" onclick="uninstallPlugin(\''+pp.id+'\')" style="color:#c62828;font-size:10px;text-decoration:none;" title="卸载">✕</a></span>'
       ).join('');
     } catch(e) { el.innerHTML = '<span style="color:var(--text-muted);font-size:12px;">错误</span>'; }
@@ -17129,14 +17132,15 @@ function mkdirRemote() {
   }
 
   async function uninstallPlugin(pluginId) {
-    if(!confirm('确定卸载此插件？')) return;
+    const confirmed = await showConfirmDialog('卸载插件', `确定卸载插件「${pluginId}」？\n（仅禁用，原始文件将保留）`);
+    if (!confirmed) return;
     try {
       const r = await fetch('/api/v1/market/uninstall', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({plugin_id:pluginId})
       });
       const d = await r.json();
-      if (d.ok) { toastSuccess(d.message||'已卸载'); loadMarketPlugins(); }
+      if (d.ok) { toastSuccess(d.message||'已卸载'); loadMarketPlugins(); loadInstalledPlugins(); }
       else toastError(d.message||'卸载失败');
     } catch(e) { toastError('卸载失败: '+e.message); }
   }

@@ -1,0 +1,44 @@
+[
+  {
+    "key": "version",
+    "sql": "SELECT version FROM v$instance",
+    "desc_zh": "获取 Oracle 版本",
+    "desc_en": "Get Oracle version"
+  },
+  {
+    "key": "instance_name",
+    "sql": "SELECT instance_name, host_name, status, database_status FROM v$instance",
+    "desc_zh": "获取实例名称",
+    "desc_en": "Get instance name"
+  },
+  {
+    "key": "database_info",
+    "sql": "SELECT name, dbid, created, log_mode, open_mode, force_logging, flashback_on FROM v$database",
+    "desc_zh": "获取数据库信息",
+    "desc_en": "Get database info"
+  },
+  {
+    "key": "tablespace_usage",
+    "sql": "SELECT a.tablespace_name, ROUND(a.bytes/1024/1024) AS total_mb, ROUND(b.bytes/1024/1024) AS free_mb, ROUND((a.bytes-b.bytes)/a.bytes*100) AS used_pct FROM (SELECT tablespace_name, SUM(bytes) AS bytes FROM dba_data_files GROUP BY tablespace_name) a, (SELECT tablespace_name, SUM(bytes) AS bytes FROM dba_free_space GROUP BY tablespace_name) b WHERE a.tablespace_name = b.tablespace_name(+)",
+    "desc_zh": "表空间使用率",
+    "desc_en": "Tablespace usage"
+  },
+  {
+    "key": "invalid_objects",
+    "sql": "SELECT owner, object_type, COUNT(*) AS cnt FROM dba_objects WHERE status != 'VALID' GROUP BY owner, object_type",
+    "desc_zh": "无效对象统计",
+    "desc_en": "Invalid objects count"
+  },
+  {
+    "key": "lock_wait",
+    "sql": "SELECT sid, serial#, username, osuser, program, machine, sql_id, blocking_session FROM v$session WHERE blocking_session IS NOT NULL",
+    "desc_zh": "锁等待会话",
+    "desc_en": "Lock wait sessions"
+  },
+  {
+    "key": "archive_log",
+    "sql": "SELECT sequence#, first_time, next_time, archived, applied FROM v$archived_log WHERE first_time > SYSDATE - 1 ORDER BY sequence# DESC",
+    "desc_zh": "归档日志状态",
+    "desc_en": "Archive log status"
+  }
+]

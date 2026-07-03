@@ -16,6 +16,8 @@ DBCheck Web UI - Flask 应用
 # gevent.monkey.patch_all()
 
 import os, sys, platform, threading, datetime, json, uuid, time, re, random, sqlite3
+import signal
+import traceback
 from pathlib import Path
 
 # 全局基础目录（开发模式用 __file__，PyInstaller 打包后用 exe 目录）
@@ -720,6 +722,8 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None):
         if not ofile_result:
             raise RuntimeError(_t('webui.err_report_generate'))
         _emit('log', {'msg': _t('webui.log_report_ok').format(fname=file_name)})
+        print(f"[REPORT] 报告已生成: {ofile_result}")
+        print(f"[REPORT] 文件是否存在: {os.path.exists(ofile_result)}")
 
         # 智能分析
         try:
@@ -1318,6 +1322,103 @@ def test_sqlserver_connection(host, port, user, password, database='master'):
             return False, ver
     except Exception as e:
         return False, str(e)
+
+
+def test_plugin_connection(db_type, host, port, user, password, **kwargs):
+    """
+    测试插件数据库类型的连接
+    
+    参数:
+        db_type: 数据库类型（插件定义的db_type）
+        host: 主机地址
+        port: 端口
+        user: 用户名
+        password: 密码
+        **kwargs: 其他参数（如service_name, sysdba等）
+    
+    返回:
+        (ok, msg) - ok为True表示连接成功
+    """
+    try:
+        from plugin_loader import discover_plugins
+        plugins = discover_plugins()
+        
+        # 查找匹配的插件
+        plugin_info = None
+        for p in plugins:
+            if p.get('enabled') and p.get('db_type') == db_type:
+                plugin_info = p
+                break
+        
+        if not plugin_info:
+            return False, f'插件 {db_type} 未启用或不存在'
+        
+        # 动态导入插件模块
+        import importlib.util
+        plugin_dir = plugin_info.get('path')
+        if not plugin_dir or not os.path.exists(plugin_dir):
+            return False, f'插件目录不存在: {plugin_dir}'
+        
+        # 插件主文件应该是 main_plugin.py
+        plugin_path = os.path.join(plugin_dir, 'main_plugin.py')
+        if not os.path.exists(plugin_path):
+            return False, f'插件主文件不存在: {plugin_path}'
+        
+        # 导入插件模块
+        spec = importlib.util.spec_from_file_location("plugin_module", plugin_path)
+        if spec is None:
+            return False, f'无法加载插件模块: {plugin_path}'
+        
+        plugin_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(plugin_module)
+        
+        # 从插件信息中获取主类名（优先使用 plugin.json 中的 main_class 字段）
+        main_class_name = plugin_info.get('main_class')
+        
+        # 检查插件是否提供测试连接函数
+        if hasattr(plugin_module, 'test_connection'):
+            # 调用插件的测试连接函数
+            return plugin_module.test_connection(host, port, user, password, **kwargs)
+        else:
+            # 插件没有提供测试连接函数，尝试创建插件类的实例并连接
+            # 优先使用 plugin.json 中的 main_class 字段
+            plugin_class = None
+            if main_class_name:
+                if hasattr(plugin_module, main_class_name):
+                    plugin_class = getattr(plugin_module, main_class_name)
+            
+            # 如果 plugin.json 中没有 main_class 字段，则使用查找逻辑
+            if plugin_class is None:
+                for attr_name in dir(plugin_module):
+                    attr = getattr(plugin_module, attr_name)
+                    if isinstance(attr, type) and hasattr(attr, '__init__'):
+                        # 检查是否是插件主类，排除基类
+                        if attr_name == 'BaseInspectionEngine':
+                            continue
+                        if 'Inspector' in attr_name or 'Plugin' in attr_name or 'Inspection' in attr_name:
+                            plugin_class = attr
+                            break
+            
+            if plugin_class is None:
+                return False, f'插件 {db_type} 没有提供测试连接函数，也没有找到插件主类'
+            
+            # 创建插件实例并测试连接
+            # 这里假设插件类的构造函数接受(host, port, user, password, database)参数
+            service_name = kwargs.get('service_name', '')
+            try:
+                instance = plugin_class(host, port, user, password, service_name)
+                if hasattr(instance, 'connect'):
+                    ok, msg = instance.connect()
+                    return ok, msg
+                else:
+                    return False, f'插件 {db_type} 的主类没有 connect 方法'
+            except Exception as e:
+                return False, f'插件 {db_type} 连接测试失败: {e}'
+    
+    except ImportError as e:
+        return False, f'插件加载失败: {e}'
+    except Exception as e:
+        return False, f'插件连接测试失败: {e}'
 
 
 def test_ssh_connection(host, port=22, username='root', password=None, key_file=None):
@@ -2213,7 +2314,30 @@ def api_test_db():
         ok, msg = test_gbase_connection(data['host'], data['port'], data['user'], data['password'], data.get('database', 'gbase01'))
         result = {'ok': ok, 'msg': msg}
     else:
-        return jsonify({'ok': False, 'msg': _t('webui.err_unknown_db_type')})
+        # 尝试使用插件测试连接
+        ok, msg = test_plugin_connection(
+            db_type, 
+            data['host'], 
+            data['port'], 
+            data['user'], 
+            data['password'],
+            service_name=data.get('service_name', ''),
+            sysdba=bool(data.get('sysdba', False))
+        )
+        if ok is not None:
+            result = {'ok': ok, 'msg': msg}
+            # 动态调用插件的 parse_connection_result() 方法（无侵入式架构）
+            try:
+                from plugin_loader import get_plugin_instance
+                plugin = get_plugin_instance(db_type)
+                if plugin and hasattr(plugin, 'parse_connection_result'):
+                    extra = plugin.parse_connection_result(ok, msg)
+                    if extra and isinstance(extra, dict):
+                        result.update(extra)
+            except Exception as e:
+                logger.warning(f"调用插件 {db_type} 的 parse_connection_result() 失败: {e}")
+        else:
+            return jsonify({'ok': False, 'msg': _t('webui.err_unknown_db_type')})
 
     return jsonify(result)
 
@@ -2323,6 +2447,7 @@ def api_start_inspection():
                 'password':  instance.get('password', ''),
                 'database':  instance.get('database') or ('master' if db_type == 'sqlserver' else ('DAMENG' if db_type == 'dm' else ('testdb' if db_type == 'gbase' else ('' if db_type == 'tidb' else 'postgres')))),
                 'service_name': instance.get('service_name', None),
+                'sysdba':    bool(instance.get('sysdba', False)),  # ← 新增（确保是布尔值）
                 'name':      instance.get('name', ''),
                 'desensitize': bool(data.get('desensitize', False)),
             }
@@ -2335,6 +2460,7 @@ def api_start_inspection():
                 'password':  data.get('password', ''),
                 'database':  data.get('database') or ('master' if db_type == 'sqlserver' else ('DAMENG' if db_type == 'dm' else ('testdb' if db_type == 'gbase' else ('' if db_type == 'tidb' else 'postgres')))),
                 'service_name': data.get('service_name', None),
+                'sysdba':    bool(data.get('sysdba', False)),  # ← 新增（确保是布尔值）
                 'sid':       data.get('sid', None),
                 'output_dir': data.get('output_dir', None),
                 'zip':       data.get('zip', False),
@@ -4467,7 +4593,7 @@ def api_db_types():
     }
     
     built_in_descriptions = {
-        'oracle': '适用于 Oracle 11g/12c/19c/21c 实例，通过 oracledb 或 cx_Oracle 连接',
+        'oracle': '适用于 Oracle 12c/19c/21c 实例，通过 oracledb 或 cx_Oracle 连接',
         'mysql': '适用于 MySQL 5.7+/8.0+ 实例，通过 PyMySQL 连接',
         'pg': '适用于 PostgreSQL 10+ 实例，通过 psycopg2 连接',
         'dm': '适用于 DM8 实例，通过 dmPython 连接',
@@ -4525,6 +4651,7 @@ def api_db_types():
         plugins = discover_plugins()
         for plugin in plugins:
             if plugin.get('enabled'):
+                # 从插件 manifest 读取自定义端口和用户名
                 result.append({
                     'value': plugin.get('db_type'),
                     'label': plugin.get('name', plugin.get('db_type')),
@@ -4532,8 +4659,8 @@ def api_db_types():
                     'icon': '',  # 插件可以自己提供图标
                     'emoji': plugin.get('emoji', '🧩'),  # 插件默认 emoji
                     'is_plugin': True,
-                    'port': 27017,  # 默认端口，插件可以自定义
-                    'user': '',  # 默认用户，插件可以自定义
+                    'port': plugin.get('default_port', 3306),   # 插件可自定义端口
+                    'user': plugin.get('default_user', 'root'), # 插件可自定义用户名
                 })
     except Exception as e:
         print(f"[API] 加载插件数据库类型失败: {e}")
@@ -4728,7 +4855,23 @@ def api_pro_datasources_test_conn():
             if not result[0]:
                 return jsonify({'ok': False, 'error': result[1]})
         else:
-            return jsonify({'ok': False, 'error': f'不支持的数据库类型: {db_type}'})
+            # 尝试使用插件测试连接
+            ok, msg = test_plugin_connection(
+                db_type,
+                host,
+                port,
+                user,
+                password,
+                service_name=service_name,
+                sysdba=data.get('sysdba', False)
+            )
+            if ok:
+                return jsonify({'ok': True, 'message': msg})
+            else:
+                if msg:  # msg不为None，说明是插件返回的错误
+                    return jsonify({'ok': False, 'error': msg})
+                else:  # msg为None，说明不是插件数据库类型
+                    return jsonify({'ok': False, 'error': f'不支持的数据库类型: {db_type}'})
 
         return jsonify({'ok': True, 'message': '连接成功'})
     except ImportError as e:
@@ -8062,6 +8205,27 @@ def api_random_quote():
 
 
 if __name__ == '__main__':
+    # ── 信号处理：确保 Ctrl+C 能正确退出 ──
+    def signal_handler(sig, frame):
+        """处理 Ctrl+C 信号"""
+        print("\n\n[主程序] 收到退出信号，正在关闭...")
+        # 清理资源（如果有）
+        try:
+            from plugin_loader import unload_all_plugins
+            unload_all_plugins()
+        except:
+            pass
+        print("[主程序] 已退出")
+        os._exit(0)  # 使用 os._exit(0) 强制退出
+    
+    # 注册信号处理
+    signal.signal(signal.SIGINT, signal_handler)  # Ctrl+C
+    signal.signal(signal.SIGTERM, signal_handler)  # kill 命令
+    
+    if platform.system().lower() == 'windows':
+        # Windows 需要额外处理
+        signal.signal(signal.SIGBREAK, signal_handler)  # Ctrl+Break
+    
     _setup_driver_paths()
     # ── 初始化插件系统 ──
     try:
@@ -8073,4 +8237,10 @@ if __name__ == '__main__':
         print(f"[插件] 初始化跳过: {e}")
     port = 5003
     print(_t('webui.startup_msg').format(port=port))
-    socketio.run(app, host='0.0.0.0', port=port, debug=False)
+    print("[提示] 按 Ctrl+C 停止服务\n")
+    
+    try:
+        socketio.run(app, host='0.0.0.0', port=port, debug=False, allow_unsafe_werkzeug=True)
+    except KeyboardInterrupt:
+        print("\n[主程序] 收到 KeyboardInterrupt，正在退出...")
+        os._exit(0)

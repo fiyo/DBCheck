@@ -1,1 +1,0 @@
-{"name": "mongodb", "db_type": "mongodb", "version": "1.0.0", "description": "MongoDB 数据库巡检插件", "author": "DBCheck Team", "main_file": "main_plugin.py", "requirements": ["pymongo>=4.0"], "sql_templates": "sql_templates.json", "emoji": "🍃"}

@@ -279,6 +279,7 @@ EN = {
     "webui.log_pg_start": "[{ts}] [PostgreSQL] Starting inspection...",
     "webui.log_kingbase_start": "[{ts}] [KingbaseES] Starting inspection...",
     "webui.log_oracle_start": "[{ts}] [Oracle Full Inspection] Starting...",
+    "webui.log_oracle_jdbc_start": "[{ts}] [Oracle JDBC Inspection] Starting...",
     "webui.log_dm_start": "[{ts}] [DM8] Starting inspection...",
     "webui.log_gbase_start": "[{ts}] [GBase 8s] Starting inspection...",
     "webui.log_connecting": "[{ts}] Connecting {host}:{port}...",
@@ -296,6 +297,7 @@ EN = {
     "webui.err_pg_module": "PostgreSQL module not installed",
     "webui.err_kingbase_module": "KingbaseES module not installed",
     "webui.err_oracle_module": "Oracle full inspection module not installed",
+    "webui.err_oracle_jdbc_module": "Oracle JDBC inspection module not installed",
     "webui.err_dm_module": "DM8 module not installed",
     "webui.err_gbase_module": "GBase 8s module not installed",
     "webui.err_sqlserver_module": "SQL Server module not installed",
@@ -1744,6 +1746,7 @@ EN = {
     "webui.tidb_report_filename": "TiDBInspection_{ip}_{name}_{ts}",
     "webui.ivorysql_report_filename": "IvorySQLInspection_{ip}_{name}_{ts}",
     "webui.yashandb_report_filename": "YashanDBInspection_{ip}_{name}_{ts}",
+    "webui.oracle_jdbc_report_filename": "Oracle_JDBC_Inspection_{ip}_{name}_{ts}",
 
     # SQL Server CLI i18n
     "sqlserver.report_title": "SQL Server Database Health Inspection Report",

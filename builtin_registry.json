@@ -22,17 +22,18 @@
       "featured": true
     },
     {
-      "id": "dbcheck-charset-audit",
-      "name": "字符集审计",
-      "description": "审计数据库字符集配置，检测潜在乱码风险（Oracle / MySQL / PostgreSQL）",
+      "id": "oracle_jdbc",
+      "name": "Oracle (JDBC)",
+      "description": "使用 JDBC 连接 Oracle 数据库（支持 11g/12c/19c/21c+），无需安装 Oracle 客户端，数据驱动运行模式",
       "version": "1.0.0",
-      "category": "rule",
-      "tags": ["字符集", "审计", "oracle", "mysql", "postgresql"],
-      "author": "fiyo",
+      "category": "db",
+      "tags": ["oracle", "jdbc", "11g", "12c", "数据库", "巡检"],
+      "author": "DBCheck Team",
       "official": true,
-      "download": "https://github.com/fiyo/dbcheck-plugins/releases/download/v1.0.0/dbcheck-charset-audit-1.0.0.zip",
+      "download": "file://D:/DBCheck/plugins/available/oracle_jdbc",
       "sha256": "",
-      "min_version": "2.6.0"
+      "min_version": "2.7.0",
+      "featured": false
     }
   ]
 }

@@ -1,1 +1,0 @@
-# 在此列出插件依赖的 Python 包\n# 例如：\n# pymongo\n

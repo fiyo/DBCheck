@@ -1,0 +1,493 @@
+{
+  "template": {
+    "db_type": "oracle_jdbc",
+    "template_name_zh": "Oracle JDBC 巡检模板",
+    "template_name_en": "Oracle JDBC Inspection Template",
+    "version": "11g",
+    "description": "ORACLE 数据库巡检模板（预置常用巡检 SQL，共 21 章）",
+    "is_default": 1,
+    "is_preset": 1
+  },
+  "chapters": [
+    {
+      "chapter_number": 1,
+      "chapter_title_zh": "健康状态概览",
+      "chapter_title_en": "Health Overview",
+      "description": "数据库整体健康状态概览",
+      "queries": [
+        {
+          "query_key": "oracle_version",
+          "query_sql": "SELECT * FROM v$version;",
+          "query_description_zh": "获取 Oracle 版本",
+          "query_description_en": "Get Oracle version"
+        },
+        {
+          "query_key": "instance_status",
+          "query_sql": "SELECT INSTANCE_NUMBER, INSTANCE_NAME, HOST_NAME, VERSION, STARTUP_TIME, STATUS, PARALLEL FROM v$instance;",
+          "query_description_zh": "实例状态",
+          "query_description_en": "Instance status"
+        },
+        {
+          "query_key": "database_info",
+          "query_sql": "SELECT name, dbid, created, log_mode, open_mode, force_logging, flashback_on FROM v$database;",
+          "query_description_zh": "数据库概要信息",
+          "query_description_en": "Database summary info"
+        }
+      ]
+    },
+    {
+      "chapter_number": 2,
+      "chapter_title_zh": "数据库空间使用",
+      "chapter_title_en": "Tablespace Usage",
+      "description": "表空间使用率检查",
+      "queries": [
+        {
+          "query_key": "tablespace_usage",
+          "query_sql": "\n                SELECT a.tablespace_name,\n                       ROUND(a.total_space_mb, 2) AS total_mb,\n                       ROUND(a.max_space_mb, 2) AS max_mb,\n                       ROUND(NVL(b.used_space_mb, 0), 2) AS used_mb,\n                       ROUND(GREATEST(a.total_space_mb, a.max_space_mb) - NVL(b.used_space_mb, 0), 2) AS free_mb,\n                       ROUND(NVL(b.used_space_mb, 0) * 100.0 / GREATEST(a.total_space_mb, a.max_space_mb), 2) AS used_percent\n                FROM (SELECT tablespace_name,\n                             SUM(bytes) / 1024 / 1024 AS total_space_mb,\n                             SUM(CASE WHEN autoextensible = 'YES' THEN GREATEST(MAXBYTES, bytes) ELSE bytes END) / 1024 / 1024 AS max_space_mb\n                      FROM dba_data_files\n                      GROUP BY tablespace_name) a\n                LEFT JOIN (SELECT tablespace_name, SUM(bytes) / 1024 / 1024 AS used_space_mb FROM dba_segments GROUP BY tablespace_name) b\n                ON a.tablespace_name = b.tablespace_name\n                ORDER BY used_percent DESC;\n            ",
+          "query_description_zh": "表空间使用率",
+          "query_description_en": "Tablespace usage"
+        },
+        {
+          "query_key": "ts_datafile_status",
+          "query_sql": "SELECT file_name, tablespace_name, ROUND(bytes/1024/1024) AS size_mb, autoextensible, maxbytes/1024/1024 AS max_mb, status FROM dba_data_files ORDER BY tablespace_name;",
+          "query_description_zh": "数据文件状态",
+          "query_description_en": "Data file status"
+        },
+        {
+          "query_key": "temp_space",
+          "query_sql": "\n                SELECT tablespace_name, SUM(bytes)/1024/1024 AS total_mb, SUM(NVL(blocks,0))*8192/1024/1024 AS used_mb\n                FROM dba_temp_files\n                GROUP BY tablespace_name;\n            ",
+          "query_description_zh": "临时表空间使用",
+          "query_description_en": "Temp tablespace usage"
+        }
+      ]
+    },
+    {
+      "chapter_number": 3,
+      "chapter_title_zh": "会话与连接检查",
+      "chapter_title_en": "Session & Connection Check",
+      "description": "会话和连接状态检查",
+      "queries": [
+        {
+          "query_key": "session_count",
+          "query_sql": "SELECT COUNT(*) AS total_sessions, SUM(CASE WHEN username IS NOT NULL THEN 1 ELSE 0 END) AS user_sessions, SUM(CASE WHEN username IS NULL THEN 1 ELSE 0 END) AS background_sessions FROM v$session;",
+          "query_description_zh": "会话数统计",
+          "query_description_en": "Session count statistics"
+        },
+        {
+          "query_key": "session_wait",
+          "query_sql": "\n                SELECT event, SUM(total_waits) AS total_waits, SUM(time_waited) AS total_time\n                FROM v$session_event\n                WHERE event NOT IN (\n                    'smon timer','pmon timer','rdbms ipc message','null event',\n                    'SQL*Net message from client','SQL*Net message to client',\n                    'wakeup time manager','pipe get','PX Idle Wait',\n                    'i/o completion wait','gcs remote message','gcs for action',\n                    'DIAG idle wait','ASM background timer','pfc timer')\n                GROUP BY event ORDER BY total_waits DESC;\n            ",
+          "query_description_zh": "等待事件统计",
+          "query_description_en": "Wait event statistics"
+        },
+        {
+          "query_key": "long_sessions",
+          "query_sql": "SELECT sid, serial#, username, status, machine, program, logon_time FROM v$session WHERE type='USER' AND username IS NOT NULL ORDER BY logon_time DESC;",
+          "query_description_zh": "用户会话列表",
+          "query_description_en": "User session list"
+        },
+        {
+          "query_key": "process_count",
+          "query_sql": "SELECT COUNT(*) AS process_count FROM v$process;",
+          "query_description_zh": "进程数",
+          "query_description_en": "Process count"
+        }
+      ]
+    },
+    {
+      "chapter_number": 4,
+      "chapter_title_zh": "锁等待检查",
+      "chapter_title_en": "Lock & Wait Analysis",
+      "description": "锁等待和长事务检查",
+      "queries": [
+        {
+          "query_key": "lock_wait",
+          "query_sql": "\n                SELECT s.sid, s.serial#, s.username, s.event, l.type, l.lmode, l.request, s.seconds_in_wait\n                FROM v$session s\n                JOIN v$lock l ON s.sid = l.sid\n                WHERE l.request > 0\n                ORDER BY s.seconds_in_wait DESC;\n            ",
+          "query_description_zh": "锁等待会话",
+          "query_description_en": "Lock waiting sessions"
+        },
+        {
+          "query_key": "long_trx",
+          "query_sql": "\n                SELECT s.sid, s.serial#, s.username, s.machine, s.program,\n                       t.START_DATE, ROUND((SYSDATE - t.START_DATE) * 86400) AS seconds,\n                       t.USED_UBLK, t.USED_UREC\n                FROM v$transaction t\n                JOIN v$session s ON s.SADDR = t.SES_ADDR\n                ORDER BY t.START_DATE;\n            ",
+          "query_description_zh": "长事务列表",
+          "query_description_en": "Long transactions"
+        },
+        {
+          "query_key": "lock_blockers",
+          "query_sql": "\n                SELECT blocking_session, sid, serial#, username, event, seconds_in_wait\n                FROM v$session\n                WHERE blocking_session IS NOT NULL\n                ORDER BY blocking_session;\n            ",
+          "query_description_zh": "锁阻塞源头",
+          "query_description_en": "Lock blocking sessions"
+        }
+      ]
+    },
+    {
+      "chapter_number": 5,
+      "chapter_title_zh": "参数与配置检查",
+      "chapter_title_en": "Parameter & Config Check",
+      "description": "关键参数检查",
+      "queries": [
+        {
+          "query_key": "key_params",
+          "query_sql": "\n                SELECT name, value, display_value, isdefault, ismodified\n                FROM v$parameter\n                WHERE name IN ('processes','sessions','sga_target','pga_aggregate_target',\n                               'db_cache_size','shared_pool_size','log_buffer',\n                               'open_cursors','cursor_sharing','optimizer_mode',\n                               'undo_tablespace','undo_retention')\n                ORDER BY name;\n            ",
+          "query_description_zh": "关键参数一览",
+          "query_description_en": "Key parameters overview"
+        },
+        {
+          "query_key": "nondefault_params",
+          "query_sql": "\n                SELECT name, value, isdefault\n                FROM v$parameter\n                WHERE isdefault = 'FALSE'\n                ORDER BY name;\n            ",
+          "query_description_zh": "非默认参数",
+          "query_description_en": "Non-default parameters"
+        }
+      ]
+    },
+    {
+      "chapter_number": 6,
+      "chapter_title_zh": "RMAN 备份状态",
+      "chapter_title_en": "RMAN Backup Status",
+      "description": "RMAN 备份状态检查",
+      "queries": [
+        {
+          "query_key": "rman_status",
+          "query_sql": "SELECT * FROM v$rman_status;",
+          "query_description_zh": "RMAN 运行状态",
+          "query_description_en": "RMAN running status"
+        },
+        {
+          "query_key": "backup_files",
+          "query_sql": "\n                SELECT TO_CHAR(END_TIME, 'YYYY-MM-DD HH24:MI') AS backup_time, STATUS, OUTPUT_DEVICE_TYPE AS device,\n                       ROUND(OUTPUT_BYTES/1024/1024/1024, 2) AS output_gb, ROUND(ELAPSED_SECONDS/60, 1) AS elapsed_min\n                FROM v$rman_backup_job_details\n                WHERE END_TIME IS NOT NULL ORDER BY END_TIME DESC;\n            ",
+          "query_description_zh": "当前备份文件",
+          "query_description_en": "Current backup files"
+        }
+      ]
+    },
+    {
+      "chapter_number": 7,
+      "chapter_title_zh": "归档日志状态",
+      "chapter_title_en": "Archive Log Status",
+      "description": "归档日志状态检查",
+      "queries": [
+        {
+          "query_key": "archive_dest",
+          "query_sql": "\n                SELECT dest_id, dest_name, status, target, schedule, destination\n                FROM v$archive_dest\n                WHERE target != 'PRIMARY'\n                ORDER BY dest_id;\n            ",
+          "query_description_zh": "归档目标状态",
+          "query_description_en": "Archive destination status"
+        },
+        {
+          "query_key": "archive_log",
+          "query_sql": "\n                SELECT sequence#, first_time, next_time, applied, deleted\n                FROM (SELECT sequence#, first_time, next_time, applied, deleted,\n                              ROW_NUMBER() OVER (ORDER BY sequence# DESC) AS rn\n                       FROM v$archived_log)\n                WHERE rn <= 20\n                ORDER BY sequence# DESC;\n            ",
+          "query_description_zh": "最近归档日志",
+          "query_description_en": "Recent archived logs"
+        },
+        {
+          "query_key": "archive_gap",
+          "query_sql": "\n                SELECT thread#, low_sequence#, high_sequence#\n                FROM v$archive_gap;\n            ",
+          "query_description_zh": "归档日志缺口",
+          "query_description_en": "Archive log gap"
+        }
+      ]
+    },
+    {
+      "chapter_number": 8,
+      "chapter_title_zh": "数据库文件状态",
+      "chapter_title_en": "Datafile Status",
+      "description": "数据文件和临时文件状态",
+      "queries": [
+        {
+          "query_key": "df_status",
+          "query_sql": "\n                SELECT file#, name, status, enabled, bytes/1024/1024 AS size_mb\n                FROM v$datafile\n                ORDER BY file#;\n            ",
+          "query_description_zh": "数据文件状态",
+          "query_description_en": "Data file status"
+        },
+        {
+          "query_key": "tempfile_status",
+          "query_sql": "\n                SELECT file#, name, status, enabled, bytes/1024/1024 AS size_mb\n                FROM v$tempfile\n                ORDER BY file#;\n            ",
+          "query_description_zh": "临时文件状态",
+          "query_description_en": "Temp file status"
+        }
+      ]
+    },
+    {
+      "chapter_number": 9,
+      "chapter_title_zh": "重做日志状态",
+      "chapter_title_en": "Redo Log Status",
+      "description": "重做日志组和成员状态",
+      "queries": [
+        {
+          "query_key": "log_group",
+          "query_sql": "\n                SELECT group#, thread#, sequence#, bytes/1024/1024 AS size_mb, members, archived, status\n                FROM v$log\n                ORDER BY group#;\n            ",
+          "query_description_zh": "日志组状态",
+          "query_description_en": "Log group status"
+        },
+        {
+          "query_key": "log_file",
+          "query_sql": "\n                SELECT group#, member, type, status\n                FROM v$logfile\n                ORDER BY group#, member;\n            ",
+          "query_description_zh": "日志文件成员",
+          "query_description_en": "Log file members"
+        },
+        {
+          "query_key": "log_switch",
+          "query_sql": "\n                SELECT TO_CHAR(first_time, 'YYYY-MM-DD HH24:MI') AS switch_time,\n                       COUNT(*) AS switch_count\n                FROM v$log_history\n                WHERE first_time > SYSDATE - 1\n                GROUP BY TO_CHAR(first_time, 'YYYY-MM-DD HH24:MI')\n                ORDER BY switch_time;\n            ",
+          "query_description_zh": "日志切换频率（24h）",
+          "query_description_en": "Log switch frequency (24h)"
+        }
+      ]
+    },
+    {
+      "chapter_number": 10,
+      "chapter_title_zh": "UNDO 表空间",
+      "chapter_title_en": "UNDO Tablespace",
+      "description": "UNDO 表空间使用率和状态",
+      "queries": [
+        {
+          "query_key": "undo_status",
+          "query_sql": "\n                SELECT tablespace_name, status, contents, logging\n                FROM dba_tablespaces\n                WHERE contents = 'UNDO'\n                ORDER BY tablespace_name;\n            ",
+          "query_description_zh": "UNDO 表空间状态",
+          "query_description_en": "UNDO tablespace status"
+        },
+        {
+          "query_key": "undo_usage",
+          "query_sql": "\n                SELECT seg.tablespace_name,\n                       ROUND(SUM(seg.bytes)/1024/1024, 2) AS used_mb,\n                       ROUND(SUM(NVL(u.bytes,0))) AS total_mb\n                FROM dba_segments seg\n                LEFT JOIN dba_data_files u ON seg.tablespace_name = u.tablespace_name\n                WHERE seg.tablespace_name IN (SELECT tablespace_name FROM dba_tablespaces WHERE contents = 'UNDO')\n                GROUP BY seg.tablespace_name;\n            ",
+          "query_description_zh": "UNDO 使用率",
+          "query_description_en": "UNDO usage"
+        },
+        {
+          "query_key": "undo_stats",
+          "query_sql": "\n                SELECT TO_CHAR(begin_time, 'YYYY-MM-DD HH24:MI') AS begin_time,\n                       TO_CHAR(end_time, 'YYYY-MM-DD HH24:MI') AS end_time,\n                       undoblks, txncount, maxquerylen\n                FROM v$undostat\n                WHERE begin_time > SYSDATE - 1\n                ORDER BY begin_time;\n            ",
+          "query_description_zh": "UNDO 统计（1h）",
+          "query_description_en": "UNDO statistics (1h)"
+        }
+      ]
+    },
+    {
+      "chapter_number": 11,
+      "chapter_title_zh": "AWR 快照状态",
+      "chapter_title_en": "AWR Snapshot Status",
+      "description": "AWR 快照和基线状态（需 Diagnostic+Tuning Pack 授权）",
+      "queries": [
+        {
+          "query_key": "awr_snap",
+          "query_sql": "\n                SELECT snap_id, dbid, instance_number, begin_interval_time, end_interval_time,\n                       snap_level, error_count\n                FROM (SELECT snap_id, dbid, instance_number, begin_interval_time, end_interval_time,\n                              snap_level, error_count,\n                              ROW_NUMBER() OVER (ORDER BY snap_id DESC) AS rn\n                       FROM dba_hist_snapshot)\n                WHERE rn <= 20;\n            ",
+          "query_description_zh": "AWR 快照列表",
+          "query_description_en": "AWR snapshot list"
+        },
+        {
+          "query_key": "awr_baseline",
+          "query_sql": "\n                SELECT baseline_id, baseline_name, start_snap_id, end_snap_id,\n                       TO_CHAR(creation_time, 'YYYY-MM-DD HH24:MI') AS created\n                FROM dba_hist_baseline\n                ORDER BY baseline_id;\n            ",
+          "query_description_zh": "AWR 基线列表",
+          "query_description_en": "AWR baseline list"
+        },
+        {
+          "query_key": "awr_retention",
+          "query_sql": "\n                SELECT retention, snap_interval, topnsql\n                FROM dba_hist_wr_control;\n            ",
+          "query_description_zh": "AWR 保留策略",
+          "query_description_en": "AWR retention policy"
+        }
+      ]
+    },
+    {
+      "chapter_number": 12,
+      "chapter_title_zh": "ADDM 发现",
+      "chapter_title_en": "ADDM Findings",
+      "description": "ADDM 自动发现的问题",
+      "queries": [
+        {
+          "query_key": "addm_findings",
+          "query_sql": "\n                SELECT r.RANK, f.FINDING_ID, f.FINDING_NAME, f.IMPACT_TYPE,\n                       f.IMPACT, r.BENEFIT_TYPE, r.BENEFIT, f.MESSAGE\n                FROM dba_advisor_findings f\n                INNER JOIN dba_advisor_recommendations r\n                  ON f.TASK_ID = r.TASK_ID\n                 AND f.EXECUTION_NAME = r.EXECUTION_NAME\n                 AND f.FINDING_ID = r.FINDING_ID\n                WHERE r.TASK_NAME = 'ADDM TASK'\n                ORDER BY r.RANK, f.FINDING_ID;\n            ",
+          "query_description_zh": "最新 ADDM 发现",
+          "query_description_en": "Latest ADDM findings"
+        }
+      ]
+    },
+    {
+      "chapter_number": 13,
+      "chapter_title_zh": "TOP SQL 分析",
+      "chapter_title_en": "Top SQL Analysis",
+      "description": "按资源消耗排序的 TOP SQL",
+      "queries": [
+        {
+          "query_key": "top_sql_elapsed",
+          "query_sql": "\n                SELECT sql_id, executions, elapsed_time/1000000 AS elapsed_sec,\n                       cpu_time/1000000 AS cpu_sec, disk_reads, buffer_gets,\n                       SUBSTR(sql_text, 1, 100) AS sql_preview\n                FROM (SELECT sql_id, executions, elapsed_time, cpu_time, disk_reads, buffer_gets, sql_text,\n                              ROW_NUMBER() OVER (ORDER BY elapsed_time DESC) AS rn\n                       FROM v$sqlarea WHERE executions > 0)\n                WHERE rn <= 10;\n            ",
+          "query_description_zh": "TOP SQL（耗时）",
+          "query_description_en": "Top SQL by elapsed time"
+        },
+        {
+          "query_key": "top_sql_cpu",
+          "query_sql": "\n                SELECT sql_id, executions, cpu_time/1000000 AS cpu_sec,\n                       elapsed_time/1000000 AS elapsed_sec, disk_reads,\n                       SUBSTR(sql_text, 1, 100) AS sql_preview\n                FROM (SELECT sql_id, executions, cpu_time, elapsed_time, disk_reads, sql_text,\n                              ROW_NUMBER() OVER (ORDER BY cpu_time DESC) AS rn\n                       FROM v$sqlarea WHERE executions > 0)\n                WHERE rn <= 10;\n            ",
+          "query_description_zh": "TOP SQL（CPU）",
+          "query_description_en": "Top SQL by CPU time"
+        },
+        {
+          "query_key": "top_sql_reads",
+          "query_sql": "\n                SELECT sql_id, executions, disk_reads,\n                       elapsed_time/1000000 AS elapsed_sec,\n                       SUBSTR(sql_text, 1, 100) AS sql_preview\n                FROM (SELECT sql_id, executions, disk_reads, elapsed_time, sql_text,\n                              ROW_NUMBER() OVER (ORDER BY disk_reads DESC) AS rn\n                       FROM v$sqlarea WHERE executions > 0)\n                WHERE rn <= 10;\n            ",
+          "query_description_zh": "TOP SQL（物理读）",
+          "query_description_en": "Top SQL by disk reads"
+        }
+      ]
+    },
+    {
+      "chapter_number": 14,
+      "chapter_title_zh": "表统计信息状态",
+      "chapter_title_en": "Table Statistics Status",
+      "description": "表统计信息新鲜度和质量",
+      "queries": [
+        {
+          "query_key": "stale_tables",
+          "query_sql": "\n                SELECT owner, table_name, num_rows, last_analyzed,\n                       stale_stats\n                FROM dba_tab_statistics\n                WHERE stale_stats = 'YES'\n                ORDER BY owner, table_name;\n            ",
+          "query_description_zh": "统计信息过期的表",
+          "query_description_en": "Tables with stale statistics"
+        },
+        {
+          "query_key": "no_stats_tables",
+          "query_sql": "\n                SELECT owner, table_name, num_rows, last_analyzed\n                FROM dba_tables\n                WHERE last_analyzed IS NULL\n                  AND owner NOT IN ('SYS','SYSTEM','OUTLN','DBSNMP')\n                ORDER BY owner, table_name;\n            ",
+          "query_description_zh": "从未收集统计的表",
+          "query_description_en": "Tables without statistics"
+        }
+      ]
+    },
+    {
+      "chapter_number": 15,
+      "chapter_title_zh": "索引统计信息状态",
+      "chapter_title_en": "Index Statistics Status",
+      "description": "索引统计信息新鲜度和质量",
+      "queries": [
+        {
+          "query_key": "stale_indexes",
+          "query_sql": "\n                SELECT owner, index_name, table_name, num_rows, last_analyzed,\n                       stale_stats\n                FROM dba_ind_statistics\n                WHERE stale_stats = 'YES'\n                ORDER BY owner, index_name;\n            ",
+          "query_description_zh": "统计信息过期的索引",
+          "query_description_en": "Indexes with stale statistics"
+        },
+        {
+          "query_key": "unused_indexes",
+          "query_sql": "\n                SELECT d.OWNER, d.OBJECT_NAME AS INDEX_NAME, d.OBJECT_TYPE, s.VALUE AS LOGICAL_READS\n                FROM v$segment_statistics s\n                JOIN dba_objects d ON s.OBJ# = d.OBJECT_ID\n                WHERE s.STATISTIC_NAME = 'logical reads'\n                  AND d.OBJECT_TYPE = 'INDEX'\n                  AND d.OWNER NOT IN ('SYS', 'SYSTEM')\n                  AND TO_NUMBER(s.VALUE) = 0\n                ORDER BY d.OWNER, d.OBJECT_NAME;\n            ",
+          "query_description_zh": "未使用的索引",
+          "query_description_en": "Unused indexes"
+        }
+      ]
+    },
+    {
+      "chapter_number": 16,
+      "chapter_title_zh": "无效对象",
+      "chapter_title_en": "Invalid Objects",
+      "description": "无效或破损的数据库对象",
+      "queries": [
+        {
+          "query_key": "invalid_objects",
+          "query_sql": "\n                SELECT owner, object_type, object_name, status, last_ddl_time\n                FROM dba_objects\n                WHERE status != 'VALID'\n                ORDER BY owner, object_type, object_name;\n            ",
+          "query_description_zh": "无效对象列表",
+          "query_description_en": "Invalid objects list"
+        },
+        {
+          "query_key": "broken_triggers",
+          "query_sql": "\n                SELECT owner, trigger_name, table_name, status\n                FROM dba_triggers\n                WHERE status = 'DISABLED'\n                ORDER BY owner, trigger_name;\n            ",
+          "query_description_zh": "禁用/破损的触发器",
+          "query_description_en": "Disabled/broken triggers"
+        }
+      ]
+    },
+    {
+      "chapter_number": 17,
+      "chapter_title_zh": "数据库链接",
+      "chapter_title_en": "Database Links",
+      "description": "数据库链接状态",
+      "queries": [
+        {
+          "query_key": "db_links",
+          "query_sql": "\n                SELECT owner, db_link, username, host, created\n                FROM dba_db_links\n                ORDER BY owner, db_link;\n            ",
+          "query_description_zh": "数据库链接列表",
+          "query_description_en": "Database links list"
+        }
+      ]
+    },
+    {
+      "chapter_number": 18,
+      "chapter_title_zh": "作业/调度器状态",
+      "chapter_title_en": "Jobs & Scheduler Status",
+      "description": "数据库作业和调度器状态",
+      "queries": [
+        {
+          "query_key": "dba_jobs",
+          "query_sql": "\n                SELECT job, log_user, priv_user, last_date, last_sec, next_date, next_sec,\n                       broken, failures\n                FROM dba_jobs\n                ORDER BY job;\n            ",
+          "query_description_zh": "传统作业状态",
+          "query_description_en": "Legacy jobs status"
+        },
+        {
+          "query_key": "scheduler_jobs",
+          "query_sql": "\n                SELECT owner, job_name, enabled, state, last_start_date, next_run_date\n                FROM dba_scheduler_jobs\n                WHERE owner NOT IN ('SYS','SYSTEM')\n                ORDER BY owner, job_name;\n            ",
+          "query_description_zh": "调度器作业状态",
+          "query_description_en": "Scheduler jobs status"
+        }
+      ]
+    },
+    {
+      "chapter_number": 19,
+      "chapter_title_zh": "用户与安全审计",
+      "chapter_title_en": "User & Security Audit",
+      "description": "用户、权限和安全审计",
+      "queries": [
+        {
+          "query_key": "dba_users",
+          "query_sql": "\n                SELECT username, account_status, lock_date, expiry_date,\n                       created, profile, authentication_type\n                FROM dba_users\n                WHERE username NOT IN ('SYS','SYSTEM','OUTLN','DBSNMP','APPQOSSYS','GSMADMIN_INTERNAL')\n                ORDER BY username;\n            ",
+          "query_description_zh": "用户账号状态",
+          "query_description_en": "User account status"
+        },
+        {
+          "query_key": "privileged_users",
+          "query_sql": "\n                SELECT grantee, granted_role, admin_option\n                FROM dba_role_privs\n                WHERE granted_role = 'DBA'\n                ORDER BY grantee;\n            ",
+          "query_description_zh": "DBA 权限用户",
+          "query_description_en": "DBA privileged users"
+        },
+        {
+          "query_key": "password_policy",
+          "query_sql": "\n                SELECT profile, resource_name, resource_type, limit\n                FROM dba_profiles\n                WHERE resource_type = 'PASSWORD'\n                ORDER BY profile, resource_name;\n            ",
+          "query_description_zh": "密码策略配置",
+          "query_description_en": "Password policy config"
+        }
+      ]
+    },
+    {
+      "chapter_number": 20,
+      "chapter_title_zh": "补丁级别",
+      "chapter_title_en": "Patch Level",
+      "description": "数据库补丁和 PSU 级别",
+      "queries": [
+        {
+          "query_key": "opatch_history",
+          "query_sql": "\n                SELECT action_time, action, namespace, version, id, comments\n                FROM registry$history\n                ORDER BY action_time DESC;\n            ",
+          "query_description_zh": "已安装补丁列表",
+          "query_description_en": "Installed patches list"
+        },
+        {
+          "query_key": "registry",
+          "query_sql": "\n                SELECT comp_id, comp_name, version, status, modified\n                FROM dba_registry\n                ORDER BY comp_id;\n            ",
+          "query_description_zh": "数据库组件注册表",
+          "query_description_en": "Database component registry"
+        }
+      ]
+    },
+    {
+      "chapter_number": 21,
+      "chapter_title_zh": "Data Guard 状态",
+      "chapter_title_en": "Data Guard Status",
+      "description": "Data Guard 主备同步状态",
+      "queries": [
+        {
+          "query_key": "dg_database",
+          "query_sql": "\n                SELECT name, db_unique_name, database_role, protection_mode,\n                       protection_level, switchover_status, dataguard_broker\n                FROM v$database;\n            ",
+          "query_description_zh": "Data Guard 数据库角色",
+          "query_description_en": "Data Guard database role"
+        },
+        {
+          "query_key": "dg_archive_dest",
+          "query_sql": "\n                SELECT DEST_ID, DEST_NAME, STATUS, TARGET, SCHEDULE, DESTINATION, ERROR\n                FROM v$archive_dest\n                WHERE DEST_ID < 3\n                ORDER BY DEST_ID;\n            ",
+          "query_description_zh": "归档目标同步状态",
+          "query_description_en": "Archive destination sync status"
+        },
+        {
+          "query_key": "dg_stats",
+          "query_sql": "\n                SELECT name, value, unit, time_computed\n                FROM v$dataguard_stats;\n            ",
+          "query_description_zh": "Data Guard 统计信息",
+          "query_description_en": "Data Guard statistics"
+        }
+      ]
+    }
+  ]
+}

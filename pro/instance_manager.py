@@ -561,6 +561,61 @@ class InstanceManager:
                     if 'Lost connection' in err or 'Can not get' in err:
                         return {'ok': False, 'message': '连接失败: %s\n提示：GBase 8s 需要开启 MySQL 协议支持' % err}
                     return {'ok': False, 'message': '连接失败: %s' % err}
+            
+            # 插件数据库类型：尝试委托给插件
+            try:
+                from plugin_loader import discover_plugins
+                plugins = discover_plugins()
+                plugin_meta = None
+                for p in plugins:
+                    if p.get('enabled') and p.get('db_type') == db_type:
+                        plugin_meta = p
+                        break
+                
+                if plugin_meta:
+                    # 加载插件并尝试测试连接
+                    plugin_path = plugin_meta.get('path')
+                    main_file = plugin_meta.get('main_file', 'main_plugin.py')
+                    
+                    import importlib.util
+                    spec = importlib.util.spec_from_file_location(
+                        f"plugin_{db_type}",
+                        f"{plugin_path}/{main_file}"
+                    )
+                    if spec:
+                        module = importlib.util.module_from_spec(spec)
+                        spec.loader.exec_module(module)
+                        
+                        # 查找引擎类（名称包含 Engine 的类）
+                        engine_class = None
+                        for attr_name in dir(module):
+                            attr = getattr(module, attr_name)
+                            if isinstance(attr, type) and 'Engine' in attr_name:
+                                engine_class = attr
+                                break
+                        
+                        if engine_class:
+                            engine = engine_class()
+                            # 尝试调用连接测试方法
+                            if hasattr(engine, 'test_connection'):
+                                return engine.test_connection(inst)
+                            elif hasattr(engine, 'connect'):
+                                # 尝试连接，成功则关闭并返回成功
+                                try:
+                                    conn = engine.connect(inst)
+                                    if conn:
+                                        if hasattr(conn, 'close'):
+                                            conn.close()
+                                        return {'ok': True, 'message': '连接成功 (插件 %s)' % db_type}
+                                    else:
+                                        return {'ok': False, 'message': '连接失败: 插件返回空连接'}
+                                except Exception as conn_e:
+                                    return {'ok': False, 'message': '连接失败: %s' % str(conn_e)}
+                            else:
+                                return {'ok': False, 'message': '插件 %s 不支持连接测试' % db_type}
+            except Exception as plugin_e:
+                return {'ok': False, 'message': '插件连接测试失败: %s' % str(plugin_e)}
+            
             else:
                 return {'ok': False, 'message': '不支持的数据库类型: %s' % db_type}
 

@@ -107,7 +107,7 @@ def enable_plugin(plugin_name: str, auto_init: bool = True) -> bool:
         if auto_init:
             # 即使已启用，也尝试初始化（幂等）
             _init_plugin_data(dst, auto_init=auto_init)
-        return True
+        return True, f"插件已启用: {plugin_name}"
     
     try:
         # Windows 下创建符号链接需要管理员权限，所以直接复制
@@ -119,10 +119,10 @@ def enable_plugin(plugin_name: str, auto_init: bool = True) -> bool:
         if auto_init:
             _init_plugin_data(dst, auto_init=auto_init)
         
-        return True
+        return True, f"插件启用成功: {plugin_name}"
     except Exception as e:
         print(f"[Plugin] 启用插件失败: {plugin_name}, 错误: {e}")
-        return False
+        return False, f"启用插件失败: {e}"
 
 
 def _init_plugin_data(plugin_dir: Path, auto_init: bool = True) -> None:
@@ -222,6 +222,20 @@ def _init_plugin_templates(plugin_dir: Path) -> None:
                 query_description_zh = q_data.get('desc_zh', '')
                 query_description_en = q_data.get('desc_en', '')
                 sort_order = q_data.get('sort_order', 1)
+                
+                # 检查是否已存在相同的 query_key（幂等性）
+                import sqlite3
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT id FROM inspection_query 
+                    WHERE chapter_id = ? AND query_key = ?
+                """, (chapter_id, query_key))
+                existing_query = cursor.fetchone()
+                
+                if existing_query:
+                    print(f"[Plugin]     跳过已存在的查询：{query_key}")
+                    continue
                 
                 query_id = create_query(
                     chapter_id, query_key, query_sql,
@@ -481,6 +495,11 @@ def get_plugin_task_config(db_type: str) -> Optional[Dict]:
             # 查找 get_task_config 函数
             if hasattr(module, 'get_task_config'):
                 config = module.get_task_config()
+                # 添加插件路径信息（供 web_ui.py 动态导入模块）
+                if not config.get('plugin_path'):
+                    config['plugin_path'] = str(plugin_dir)
+                if not config.get('main_file'):
+                    config['main_file'] = main_file
                 return config
             
             # 如果没有 get_task_config 函数，尝试自动构建配置
@@ -555,6 +574,36 @@ def get_all_plugin_task_configs() -> Dict[str, Dict]:
             continue
     
     return configs
+
+
+def get_plugin_instance(db_type: str) -> Optional[Any]:
+    """
+    获取指定数据库类型的插件实例（从 PluginRegistry）
+    用于 web_ui.py 动态调用插件方法（无侵入式架构）
+    
+    Args:
+        db_type: 数据库类型标识（如 'oracle_jdbc'）
+    
+    Returns:
+        插件实例（InspectionPlugin 对象），未找到返回 None
+    """
+    try:
+        from plugin_core import PluginRegistry
+        
+        # 从注册表中获取插件
+        plugin_info = PluginRegistry._all_plugins.get(db_type)
+        if not plugin_info:
+            return None
+        
+        # 获取插件实例（从 _inspections 或 _notifiers）
+        plugin = PluginRegistry._inspections.get(db_type)
+        if not plugin:
+            plugin = PluginRegistry._notifiers.get(db_type)
+        
+        return plugin
+    except Exception as e:
+        logger.warning(f"获取插件实例失败: {e}")
+        return None
 
 
 def install_plugin(plugin_package_path: str) -> bool:
