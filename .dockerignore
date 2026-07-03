@@ -65,7 +65,10 @@ secrets/
 *.crt
 
 # Large binaries (all drivers — downloaded at build time from GitHub Releases)
+# 注意：Oracle JDBC 驱动不允许公开下载，必须打包在镜像中
 drivers/
+!drivers/ojdbc6.jar
+!drivers/ojdbc8.jar
 
 # Documentation (optional, keep if you want docs in image)
 # *.md

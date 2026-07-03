@@ -42,5 +42,40 @@ fi
 echo "==> Initializing RBAC user management..."
 python -m user_management.seed 2>&1 || echo "WARNING: RBAC seed init failed"
 
+# Auto-install plugins from plugins/available/
+echo "==> Auto-installing plugins..."
+python -c "
+import sys
+import os
+
+# Add /app to Python path
+sys.path.insert(0, '/app')
+
+try:
+    from plugin_market import PluginMarket
+    
+    pm = PluginMarket()
+    available_plugins = pm.list_available()
+    
+    print(f'Found {len(available_plugins)} plugin(s) available:')
+    for plugin in available_plugins:
+        plugin_id = plugin['id']
+        if pm.is_installed(plugin_id):
+            print(f'  ✓ {plugin_id} (already installed)')
+        else:
+            print(f'  → Installing {plugin_id}...')
+            try:
+                pm.install(plugin_id)
+                print(f'  ✓ {plugin_id} installed successfully')
+            except Exception as e:
+                print(f'  ✗ {plugin_id} installation failed: {e}')
+    
+    print('Plugin auto-installation completed.')
+except ImportError as e:
+    print(f'WARNING: Plugin system not available: {e}')
+except Exception as e:
+    print(f'WARNING: Plugin auto-installation failed: {e}')
+" 2>&1 || echo "WARNING: Plugin auto-installation failed"
+
 echo "==> Starting Acdante DB Inspector Web UI on port 5003..."
 exec python /app/web_ui.py
