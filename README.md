@@ -31,6 +31,7 @@ DBCheck is an open-source, cross-platform database health inspection tool suppor
 | MySQL | pymysql | 3306 | 5.6 / 5.7 / 8.0+ |
 | PostgreSQL | psycopg2 | 5432 | 10+ |
 | Oracle | oracledb (pure Python, no client needed) | 1521 | 11g R2 / 12c / 19c / 21c+ |
+| Oracle (JDBC) | JDBC (JPype1 + ojdbc) | 1521 | 11g / 12c / 19c / 21c+，完整移植 Oracle 11g 巡检模板 |
 | SQL Server | pyodbc + ODBC Driver 17 | 1433 | 2012+ |
 | DM8 (Dameng) | dmpython | 5236 | Chinese domestic DB |
 | TiDB | pymysql (MySQL protocol) | 4000 | 6.5+ |
@@ -38,6 +39,9 @@ DBCheck is an open-source, cross-platform database health inspection tool suppor
 | YashanDB | yashandb | 1688 | Oracle-compatible, Chinese domestic DB |
 | KingbaseES | psycopg2 (PG protocol) | 54321 | Chinese domestic DB |
 | GBase 8s | JDBC (jaydebeapi + JDK) | 9088 | Chinese domestic DB |
+| MongoDB | pymongo | 27017 | 4.0+ |
+
+> **Note:** Oracle (JDBC) 是基于 JDBC (JPype) 连接的独立插件，提供与 Oracle 原生驱动相同的巡检能力，适合无法安装 Oracle 客户端的场景。
 
 ---
 
@@ -113,7 +117,8 @@ python web_ui.py         # Web interface
 | Feature | Description |
 |---------|-------------|
 | 🗄️ Data Source Manager | Unified management of all database instances, with grouping, batch inspection, CSV import/export |
-| 📋 Database Inspection | 10 database types covered, 160+ enhanced rules, auto-generates Word reports |
+| 📋 Database Inspection | 12 database types covered, 160+ enhanced rules, auto-generates Word reports |
+| 🔌 Plugin System | Extensible plugin architecture with lifecycle management (install/uninstall), independent plugin data, plugin marketplace |
 | 🔍 Deep Slow Query Analysis | Correlates execution plans, I/O patterns, lock waits; AI-assisted root cause analysis |
 | 🔒 Lock Diagnostics | Blocking chain visualization, deadlock stats, long transaction detection, with executable fix scripts |
 | 📊 Index Health Analysis | Detects missing indexes, redundant indexes, long-unused indexes |
@@ -132,30 +137,71 @@ python web_ui.py         # Web interface
 
 ---
 
+## 🔌 Plugin System
+
+DBCheck v2.8.0 introduces a fully independent plugin architecture. Plugins can now manage their own lifecycle and data, enabling true extensibility.
+
+### Key Features
+
+| Feature | Description |
+|---------|-------------|
+| Plugin Lifecycle Management | `on_install()` and `on_uninstall()` methods for automatic data initialization and cleanup |
+| Independent Plugin Data | Each plugin carries its own `template_data.json`, `baseline_data.json`, and rule engine files |
+| Plugin Marketplace | Browse, install, uninstall, enable/disable plugins via Web UI |
+| Clean Uninstall | Automatic cleanup of templates, baselines, and rules when uninstalling plugins |
+| Plugin Configuration | Each plugin has its own `plugin.json` for metadata and configuration |
+
+### Plugin Development
+
+Plugins are independent Python packages with the following structure:
+
+```
+plugins/available/your_plugin/
+├── plugin.json          # Plugin metadata
+├── main_plugin.py      # Plugin class (inherit from InspectionPlugin)
+├── template_data.json  # Inspection templates (optional)
+├── baseline_data.json  # Baseline configurations (optional)
+└── rules/             # Rule engine files (optional)
+```
+
+For detailed plugin development guide, see [Plugin Development Documentation](docs/plugin/).
+
+### Built-in Plugins (v2.8.0)
+
+| Plugin | Database | Description |
+|--------|----------|-------------|
+| MongoDB | MongoDB 4.0+ | Basic inspection (connection status, database stats, slow queries) |
+| Oracle (JDBC) | Oracle 11g/12c/19c/21c+ | Complete Oracle 11g template migration (21 chapters, 58 queries, 11 baselines) |
+
+> **Note:** Plugins are completely independent. Installing a plugin automatically initializes its data; uninstalling a plugin automatically cleans up all associated data.
+
+---
+
 ## Database Inspection
 
 ### Inspection Coverage by Database
 
-| Category | MySQL | PG | Oracle | SQL Server | DM8 | TiDB | IvorySQL | YashanDB | KingbaseES | GBase 8s |
-|----------|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| Basic Info (version/instance/DB) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Sessions & Connections | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Memory & Cache | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Tablespaces | — | — | ✅ | ✅ | ✅ | — | — | ✅ | — | ✅ |
-| SGA / PGA Memory | — | — | ✅ | — | ✅ | — | — | ✅ | — | — |
-| Redo Logs | — | — | ✅ | — | ✅ | — | ✅ | — | — | — |
-| Archive & Backup | — | — | ✅ | ✅ | ✅ | — | — | ✅ | — | — |
-| Key Parameter Config | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Invalid Objects | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| User Security Audit | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Top SQL / Slow Queries | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Replication / Data Guard | ✅ | ✅ | — | — | — | ✅ | ✅ | — | ✅ | — |
-| RAC Cluster | — | — | ✅ | — | — | — | — | — | — | — |
-| Lock & Blocking Detection | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Object Statistics | — | — | ✅ | ✅ | ✅ | ✅ | ✅ | — | ✅ | ✅ |
-| Partitioned Tables | — | — | ✅ | ✅ | ✅ | ✅ | ✅ | — | ✅ | — |
-| Chunks / Disk Storage | — | — | — | — | — | — | — | — | — | ✅ |
-| Logical Logs / Checkpoints | — | — | — | — | — | — | — | — | — | ✅ |
+| Category | MySQL | PG | Oracle | Oracle (JDBC) | SQL Server | DM8 | TiDB | IvorySQL | YashanDB | KingbaseES | GBase 8s | MongoDB |
+|----------|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| Basic Info (version/instance/DB) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Sessions & Connections | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Memory & Cache | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
+| Tablespaces | — | — | ✅ | ✅ | ✅ | ✅ | — | — | ✅ | — | ✅ | — |
+| SGA / PGA Memory | — | — | ✅ | ✅ | — | ✅ | — | — | ✅ | — | — | — |
+| Redo Logs | — | — | ✅ | ✅ | — | ✅ | — | ✅ | — | — | — | — |
+| Archive & Backup | — | — | ✅ | ✅ | ✅ | ✅ | — | — | ✅ | — | — | — |
+| Key Parameter Config | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Invalid Objects | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
+| User Security Audit | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Top SQL / Slow Queries | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Replication / Data Guard | ✅ | ✅ | — | — | — | — | ✅ | ✅ | — | ✅ | — | ✅ |
+| RAC Cluster | — | — | ✅ | ✅ | — | — | — | — | — | — | — | — |
+| Lock & Blocking Detection | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
+| Object Statistics | — | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — | ✅ | ✅ | — |
+| Partitioned Tables | — | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — | ✅ | — | — |
+| Chunks / Disk Storage | — | — | — | — | — | — | — | — | — | — | — | — |
+| Logical Logs / Checkpoints | — | — | — | — | — | — | — | — | — | — | — | — |
+| Database Status & Stats | — | — | — | — | — | — | — | — | — | — | — | ✅ |
 
 ### Word Report Structure (Oracle Example)
 
@@ -187,6 +233,7 @@ Automatically detects potential risks across all database types. **Each risk ite
 | MySQL | 35+ | Connections, memory, disk, slow queries, locks, security, replication |
 | PostgreSQL | 27+ | Connections, cache, performance, security, archive, dead tuples |
 | Oracle | 20+ | Tablespace, TEMP, sessions, SGA, Redo, DG, ASM, security |
+| Oracle (JDBC) | 20+ | Same as Oracle (complete Oracle 11g template migration) |
 | SQL Server | 15+ | Connections, sessions, waits, locks, deadlocks, backup, memory |
 | DM8 | 16+ | Tablespace, memory pools, sessions, transactions, backup, security |
 | TiDB | 18+ | Connections, memory, disk, slow queries, locks, security, placement |
@@ -194,6 +241,7 @@ Automatically detects potential risks across all database types. **Each risk ite
 | YashanDB | 15+ | Connections, memory, tablespace, locks, backup, security |
 | KingbaseES | 19+ | Connections, cache, performance, security, archive, stats |
 | GBase 8s | 6+ | Connections, dbspace, logs, memory, password policies |
+| MongoDB | 10+ | Connections, memory, operations, replication, security |
 
 ### One-Click Fix
 
@@ -258,12 +306,14 @@ Web UI visual editor for recommended values, thresholds, and compliance rules fo
 - MySQL: 22 parameters (buffer pool, connections, binlog, etc.)
 - PostgreSQL: 21 parameters (shared_buffers, work_mem, WAL, etc.)
 - Oracle: 12 parameters (SGA/PGA, processes, undo, etc.)
+- Oracle (JDBC): 12 parameters (same as Oracle)
 - SQL Server: 6 parameters (memory, parallelism, backup compression, etc.)
 - DM8: 7 parameters (memory target, sessions, buffer pool, etc.)
 - TiDB: 9 parameters (buffer pool, connections, concurrency, etc.)
 - YashanDB: 8 parameters (buffer pool, connections, logs, etc.)
 - KingbaseES: 7 parameters (connections, buffers, vacuum, etc.)
 - GBase 8s: 9 parameters (MAXCONNECTIONS, SHMVIRTSIZE, BUFFERS, LOGSMAX, etc.)
+- MongoDB: 8 parameters (max connections, cache size, replication, etc.)
 
 ### Inspection Chapter Management
 
@@ -345,6 +395,8 @@ cd dist
 | DM8 | dmpython | DM8 client libraries |
 | YashanDB | yashandb | — |
 | **GBase 8s** | **jaydebeapi + JPype1** | **JDK 8/11/17 + JDBC driver jar** |
+| **Oracle (JDBC)** | **jpype1 + ojdbc** | **JDK 8/11/17 + ojdbc6.jar/ojdbc8.jar** |
+| **MongoDB** | **pymongo** | **—** |
 
 ---
 
