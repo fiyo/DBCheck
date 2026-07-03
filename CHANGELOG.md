@@ -1,5 +1,92 @@
 # Changelog
 
+## v2.8.0 (2026-07-03)
+
+### 🚀 插件体系重构（Phase 1：插件完全独立）
+
+#### ✨ 新增功能
+- **插件生命周期管理**：新增 `on_install()` 和 `on_uninstall()` 生命周期方法
+  - 插件安装时自动初始化模板、基线、规则引擎等数据
+  - 插件卸载时自动清理所有关联数据（模板、基线、规则）
+  - 支持插件完全独立，不依赖平台初始化逻辑
+- **插件数据独立存储**：
+  - 插件自带 `template_data.json`（巡检模板数据）
+  - 插件自带 `baseline_data.json`（基线配置数据）
+  - 插件自带规则引擎文件（如 `oracle_jdbc.yaml`）
+- **插件卸载数据清理**：
+  - 支持 `plugin.json` 配置 `cleanup` 字段，指定卸载时清理的数据库类型和数据类型
+  - 自动删除插件创建的预置模板（`is_preset=1`，需 `force=True`）
+  - 自动删除插件创建的基线配置
+
+#### 🔧 技术改进
+- 插件基类（`InspectionPlugin`）新增 `on_install(db_path)` 和 `on_uninstall(db_path)` 方法
+- 插件市场（`PluginMarket`）安装/卸载时自动调用生命周期方法
+- 插件配置支持 `cleanup` 配置段，定义卸载清理规则
+
+---
+
+### ✨ 新增数据库插件
+
+#### MongoDB 插件
+- 支持 MongoDB 4.0+ 数据库连接和巡检
+- 基于 PyMongo 驱动
+- 提供基础巡检模板（连接状态、数据库状态、慢查询等）
+
+#### Oracle JDBC 插件
+- 支持 Oracle 11g/12c/19c/21c+ 实例
+- 基于 JDBC (JPype) 连接，数据驱动运行模式
+- **完整移植 Oracle 11g 巡检模板**：
+  - 21 个巡检章节（数据库概况、实例状态、表空间、内存、进程、锁等待、AWR、备份、安全等）
+  - 58 个 SQL 查询
+  - 11 条基线配置
+  - 完整规则引擎文件（`oracle_jdbc.yaml`）
+- 显示名称优化：改为 "Oracle (JDBC)"，避免与原 Oracle 插件混淆
+
+---
+
+### 🐛 修复问题
+
+#### 插件系统
+- 修复插件安装后模板和基线数据未创建问题
+  - 修复 `sql_templates.json` 格式错误（改为正确数组格式）
+  - 修复 `json` 模块未导入问题
+  - 修复 `on_install()` 不幂等问题（重复调用不再创建重复数据）
+- 修复卸载插件后模板未删除问题
+  - 修复 `delete_template()` 默认不删除 `is_preset=1` 模板（传入 `force=True`）
+  - 修复卸载时插件实例可能不在内存中的问题（改为读取 `plugin.json` 的 `cleanup` 配置）
+- 修复插件显示名称重复问题（Oracle 与原 Oracle 11g 冲突）
+
+#### 数据库
+- 修复数据库文件路径问题（根目录出现 `inspection.db`，应为 `data/inspection.db`）
+- 更新 `.gitignore`，忽略根目录的 `inspection.db`
+
+---
+
+### 📚 文档和代码质量
+
+#### 文档整理
+- 创建 `docs/` 目录，按功能分类存放开发文档：
+  - `docs/design/` - 设计文档
+  - `docs/release/` - 版本发布记录
+  - `docs/plugin/` - 插件开发文档
+  - `docs/deploy/` - 部署文档
+  - `docs/install/` - 安装文档
+- 移动根目录的开发文档（除 `README.md` 和 `CHANGELOG.md`）
+
+#### 代码清理
+- 删除临时调试脚本（`__pycache__`、`.pyc` 文件、probe 脚本等）
+- 删除无用的临时测试/调试/修复脚本
+- 提交 JDBC 驱动文件（`drivers/ojdbc6.jar`、`drivers/ojdbc8.jar`）
+
+---
+
+### 🔧 优化改进
+- 插件市场交互优化：安装插件后自动初始化数据，卸载后自动清理数据
+- 国际化优化：新增 `oracle_jdbc` 显示名称和描述（`i18n/zh.py`）
+- 版本号更新：`version.json` 更新为 `v2.8.0`
+
+---
+
 ## v2.6.3 (2026-06-24)
 
 ### Phase 1：流式输出 + Markdown 渲染（基础设施）
