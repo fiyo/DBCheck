@@ -109,7 +109,7 @@ ENV FLASK_ENV=production
 ENV PYTHONUNBUFFERED=1
 
 # Create VERSION.txt (without v prefix, matches Docker tag format)
-RUN echo 2.7.1 > /app/VERSION.txt
+RUN echo 2.8.0 > /app/VERSION.txt
 
 # Ensure data and pro_data directories exist for volume mounts
 RUN mkdir -p /app/data /app/pro_data /app/reports
