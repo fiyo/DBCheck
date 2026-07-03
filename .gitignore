@@ -54,6 +54,7 @@ plugins/enabled/*
 
 # Inspection database (auto-generated)
 data/inspection.db
+/inspection.db
 
 um_rbac.db
 test_*.py
