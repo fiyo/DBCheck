@@ -738,6 +738,19 @@ class BaseInspectionEngine:
     
     def generate_report(self, output_file, inspector_name="Jack"):
         """生成报告 - 通用逻辑！"""
+        # ── 内存监控（防止 Docker OOM）────────────────────
+        if psutil:
+            try:
+                process = psutil.Process()
+                mem_before = process.memory_info().rss / 1024**2  # MB
+                print(f"[Report] 开始生成报告，当前内存: {mem_before:.1f} MB")
+                
+                # 如果内存已超过 1.5GB，发出警告
+                if mem_before > 1536:
+                    print(f"[Report] ⚠️  警告：内存使用较高 ({mem_before:.1f} MB)，报告生成可能失败")
+            except Exception as e:
+                print(f"[Report] 内存监控初始化失败: {e}")
+        
         try:
             # 1. 加载 Word 模板（根据 db_type）
             self.template_file = self._load_word_template(inspector_name)
@@ -749,7 +762,22 @@ class BaseInspectionEngine:
             if success:
                 self._append_chapters(output_file)
             
+            # ── 内存监控（报告生成后）────────────────────
+            if psutil:
+                try:
+                    process = psutil.Process()
+                    mem_after = process.memory_info().rss / 1024**2  # MB
+                    print(f"[Report] 报告生成完成，当前内存: {mem_after:.1f} MB")
+                    if mem_after > 1536:
+                        print(f"[Report] ⚠️  警告：报告生成后内存使用较高 ({mem_after:.1f} MB)")
+                except Exception as e:
+                    print(f"[Report] 内存监控失败: {e}")
+            
             return output_file
+        except MemoryError as e:
+            print(f"[ERROR] 内存不足，报告生成失败: {e}")
+            print(f"[ERROR] 建议：减少巡检范围或增加 Docker 内存限制 (--memory=4g)")
+            return None
         except Exception as e:
             print(f"[ERROR] 生成报告失败: {e}")
             import traceback; traceback.print_exc(file=sys.stdout)

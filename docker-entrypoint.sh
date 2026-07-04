@@ -6,6 +6,16 @@ set -e
 
 echo "==> DBCheck v$(cat /app/VERSION.txt 2>/dev/null || echo 'unknown')"
 
+# Check available memory (warn if < 2GB)
+if [ -f /proc/meminfo ]; then
+    AVAIL_MEM=$(awk '/MemAvailable/{print $2}' /proc/meminfo 2>/dev/null || echo "unknown")
+    if [ "$AVAIL_MEM" != "unknown" ] && [ "$AVAIL_MEM" -lt 2097152 ]; then
+        echo "==> WARNING: Available memory is less than 2GB (${AVAIL_MEM}KB)"
+        echo "    Report generation may fail due to insufficient memory."
+        echo "    Consider increasing Docker memory limit (--memory=2g)"
+    fi
+fi
+
 # Ensure data/ and drivers/ directories exist and are writable
 mkdir -p /app/data
 chmod 755 /app/data
@@ -44,7 +54,7 @@ python -m user_management.seed 2>&1 || echo "WARNING: RBAC seed init failed"
 
 # Auto-install plugins from plugins/available/
 echo "==> Auto-installing plugins..."
-python -c "
+timeout 30 python -c "
 import sys
 import os
 
@@ -75,7 +85,7 @@ except ImportError as e:
     print(f'WARNING: Plugin system not available: {e}')
 except Exception as e:
     print(f'WARNING: Plugin auto-installation failed: {e}')
-" 2>&1 || echo "WARNING: Plugin auto-installation failed"
+" 2>&1 || echo "WARNING: Plugin auto-installation timeout or failed"
 
-echo "==> Starting Acdante DB Inspector Web UI on port 5003..."
+echo ""
 exec python /app/web_ui.py

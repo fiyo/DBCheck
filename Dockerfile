@@ -6,6 +6,7 @@
 #
 # Run:
 #   docker run -d -p 5003:5003 \
+#     --memory=2g --memory-swap=2g \
 #     -v dbcheck_data:/app/data \
 #     -v dbcheck_pro_data:/app/pro_data \
 #     -v dbcheck_reports:/app/reports \
@@ -107,6 +108,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 ENV TZ=Asia/Shanghai
 ENV FLASK_ENV=production
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONMEMORYLIMIT=2g
 
 # Create VERSION.txt (without v prefix, matches Docker tag format)
 RUN echo 2.8.0 > /app/VERSION.txt
