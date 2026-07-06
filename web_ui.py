@@ -18,6 +18,7 @@ DBCheck Web UI - Flask 应用
 import os, sys, platform, threading, datetime, json, uuid, time, re, random, sqlite3
 import signal
 import traceback
+import io
 from pathlib import Path
 
 # 全局基础目录（开发模式用 __file__，PyInstaller 打包后用 exe 目录）
@@ -8202,6 +8203,160 @@ def api_random_quote():
         return jsonify({'ok': False, 'msg': '语录库为空'})
     q = _random.choice(quotes)
     return jsonify({'ok': True, 'quote': q})
+
+
+# ═══════════════════════════════════════════════════════════════
+#  DM8 离线存储健康检查
+# ═══════════════════════════════════════════════════════════════
+
+dm8_offline_tasks = {}
+
+
+@app.route('/api/dm8_offline/check', methods=['POST'])
+def api_dm8_offline_check():
+    """启动 DM8 离线存储健康检查（支持本地/远程 SSH）"""
+    try:
+        data = request.json
+        db_dir = data.get('db_dir', '').strip()
+        page_size = int(data.get('page_size', 0) or 0)
+        host_type = data.get('host_type', 'local').strip()
+
+        if not db_dir:
+            return jsonify({'ok': False, 'msg': '请指定 DM8 数据文件目录'})
+
+        if host_type == 'local':
+            if not os.path.isdir(db_dir):
+                return jsonify({'ok': False, 'msg': f'目录不存在: {db_dir}'})
+        else:
+            # 远程模式：验证 SSH 参数
+            ssh_host = data.get('ssh_host', '').strip()
+            if not ssh_host:
+                return jsonify({'ok': False, 'msg': '请填写 SSH 主机地址'})
+
+        task_id = str(uuid.uuid4())
+        dm8_offline_tasks[task_id] = {
+            'id': task_id,
+            'db_dir': db_dir,
+            'page_size': page_size,
+            'host_type': host_type,
+            'status': 'running',
+            'started_at': datetime.datetime.now().isoformat(),
+        }
+
+        def _run_offline_check(tid, params):
+            try:
+                from dm8_offline_check import (
+                    DM8OfflineHealthChecker, DM8RemoteHealthChecker
+                )
+                if params.get('host_type') == 'remote':
+                    checker = DM8RemoteHealthChecker(
+                        db_dir=params['db_dir'],
+                        ssh_host=params['ssh_host'],
+                        ssh_port=int(params.get('ssh_port', 22)),
+                        ssh_user=params.get('ssh_user', 'root'),
+                        ssh_password=params.get('ssh_password', ''),
+                        ssh_key_file=params.get('ssh_key_file', ''),
+                        page_size=params.get('page_size', 0),
+                    )
+                else:
+                    checker = DM8OfflineHealthChecker(
+                        params['db_dir'], params.get('page_size', 0)
+                    )
+
+                result = checker.run()
+                dm8_offline_tasks[tid]['status'] = 'done'
+                dm8_offline_tasks[tid]['result'] = result
+            except Exception as e:
+                dm8_offline_tasks[tid]['status'] = 'error'
+                dm8_offline_tasks[tid]['error'] = str(e)
+                dm8_offline_tasks[tid]['traceback'] = traceback.format_exc()
+            finally:
+                if 'checker' in dir():
+                    try:
+                        checker.close()
+                    except Exception:
+                        pass
+
+        check_params = {
+            'db_dir': db_dir,
+            'page_size': page_size,
+            'host_type': host_type,
+            'ssh_host': data.get('ssh_host', ''),
+            'ssh_port': data.get('ssh_port', 22),
+            'ssh_user': data.get('ssh_user', 'root'),
+            'ssh_password': data.get('ssh_password', ''),
+            'ssh_key_file': data.get('ssh_key_file', ''),
+        }
+
+        t = threading.Thread(target=_run_offline_check,
+                             args=(task_id, check_params))
+        t.daemon = True
+        t.start()
+
+        return jsonify({'ok': True, 'task_id': task_id})
+    except Exception as e:
+        return jsonify({'ok': False, 'msg': str(e)})
+
+
+@app.route('/api/dm8_offline/status/<task_id>', methods=['GET'])
+def api_dm8_offline_status(task_id):
+    """查询 DM8 离线检查任务状态"""
+    task = dm8_offline_tasks.get(task_id)
+    if not task:
+        return jsonify({'ok': False, 'msg': '任务不存在'})
+    return jsonify({
+        'ok': True,
+        'status': task['status'],
+        'result': task.get('result'),
+        'error': task.get('error'),
+    })
+
+
+@app.route('/api/dm8_offline/report/<task_id>', methods=['GET'])
+def api_dm8_offline_report(task_id):
+    """获取 DM8 离线检查的 Word 报告"""
+    task = dm8_offline_tasks.get(task_id)
+    if not task or task['status'] != 'done':
+        return jsonify({'ok': False, 'msg': '报告尚未就绪'})
+
+    from dm8_offline_check import generate_offline_report_word
+    import tempfile, os
+
+    # 生成 Word 报告到临时文件
+    result = task['result']
+    mode = result.get('mode', 'local')
+    suffix = 'remote' if mode == 'remote' else 'local'
+
+    fd, tmp_path = tempfile.mkstemp(
+        suffix=f'_dm8_offline_{suffix}.docx', prefix='dm8_'
+    )
+    os.close(fd)
+
+    try:
+        report_path = generate_offline_report_word(result, tmp_path)
+
+        with open(report_path, 'rb') as f:
+            file_data = f.read()
+
+        # 生成文件名
+        if mode == 'remote':
+            ssh_host = result.get('ssh_host', 'remote')
+            filename = f'DM8离线存储检查报告_SSH_{ssh_host}_{task_id[:8]}.docx'
+        else:
+            filename = f'DM8离线存储检查报告_本机_{task_id[:8]}.docx'
+
+        from flask import send_file
+        return send_file(
+            io.BytesIO(file_data),
+            mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            as_attachment=True,
+            download_name=filename
+        )
+    except Exception as e:
+        return jsonify({'ok': False, 'msg': f'生成报告失败: {e}'})
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
 
 
 if __name__ == '__main__':

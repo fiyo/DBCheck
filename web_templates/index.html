@@ -4066,6 +4066,9 @@ function formatBytes(bytes) {
     <div class="nav-item" onclick="showPage('scheduler')" id="nav-scheduler">
       <span class="icon">⏰</span> <span data-i18n="webui.nav_scheduler">定时巡检</span>
     </div>
+    <div class="nav-item" onclick="showPage('dm8-offline')" id="nav-dm8-offline">
+      <span class="icon">💿</span> <span>达梦离线存储检查</span>
+    </div>
     <div class="nav-item" onclick="showPage('awr')" id="nav-awr">
       <span class="icon">📊</span> <span data-i18n="webui.awr_nav">AWR 报告分析</span>
     </div>
@@ -5655,6 +5658,195 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
         </div><!-- /card -->
       </div><!-- /page-rules -->
 
+      <!-- ══ Page: DM8 离线存储检查 ══ -->
+      <div class="page" id="page-dm8-offline" style="display:none;">
+        <div class="card" style="margin-bottom:12px;">
+          <div style="margin-bottom:16px;">
+            <h2 style="margin:0 0 4px 0;font-size:18px;">💿 DM8 离线存储健康检查</h2>
+            <p style="margin:0;font-size:12px;color:var(--text-muted);">
+              当 DM8 数据库实例无法启动时，直接扫描底层数据文件目录，检查文件完整性和存储健康状况。
+              适用于灾备评估、数据恢复前的预检。
+            </p>
+          </div>
+
+          <!-- 模式切换 -->
+          <div style="display:flex;gap:8px;margin-bottom:16px;">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 16px;border:1px solid var(--border);border-radius:8px;font-size:13px;" id="dm8-mode-local-label">
+              <input type="radio" name="dm8-offline-mode" value="local" checked onchange="dm8OfflineToggleMode('local')">
+              <span>🖥️ 本地检查</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 16px;border:1px solid var(--border);border-radius:8px;font-size:13px;" id="dm8-mode-remote-label">
+              <input type="radio" name="dm8-offline-mode" value="remote" onchange="dm8OfflineToggleMode('remote')">
+              <span>🌐 SSH 远程检查</span>
+            </label>
+          </div>
+
+          <!-- SSH 远程配置区（默认隐藏） -->
+          <div id="dm8-offline-ssh-config" style="display:none;margin-bottom:16px;padding:14px;background:var(--surface2);border-radius:10px;">
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;">
+              <div>
+                <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">SSH 主机地址</label>
+                <input id="dm8-ssh-host" type="text" placeholder="192.168.1.100" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--surface);color:var(--text);">
+              </div>
+              <div>
+                <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">SSH 端口</label>
+                <input id="dm8-ssh-port" type="text" value="22" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--surface);color:var(--text);">
+              </div>
+              <div>
+                <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">SSH 用户名</label>
+                <input id="dm8-ssh-user" type="text" value="root" placeholder="root" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--surface);color:var(--text);">
+              </div>
+              <div>
+                <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">SSH 密码</label>
+                <input id="dm8-ssh-password" type="password" placeholder="留空则使用密钥" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--surface);color:var(--text);">
+              </div>
+            </div>
+            <div style="margin-top:12px;">
+              <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">SSH 私钥文件路径（可选）</label>
+              <input id="dm8-ssh-key" type="text" placeholder="/home/user/.ssh/id_rsa" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--surface);color:var(--text);">
+            </div>
+          </div>
+
+          <!-- 配置区 -->
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;">
+            <div style="flex:1;min-width:300px;">
+              <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">
+                <span id="dm8-dir-label">DM8 数据文件目录</span>
+              </label>
+              <input id="dm8-offline-dir" type="text" placeholder="/opt/dmdbms/data/DAMENG" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--surface2);color:var(--text);">
+            </div>
+            <div>
+              <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">页大小</label>
+              <select id="dm8-offline-ps" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--surface2);color:var(--text);">
+                <option value="0">自动检测</option>
+                <option value="4096">4 KB</option>
+                <option value="8192" selected>8 KB (默认)</option>
+                <option value="16384">16 KB</option>
+                <option value="32768">32 KB</option>
+              </select>
+            </div>
+            <div>
+              <button class="btn btn-primary" onclick="dm8OfflineCheck()" id="btn-dm8-offline-run" style="padding:8px 20px;">
+                ▶ 开始检查
+              </button>
+            </div>
+          </div>
+
+          <!-- 提示信息 -->
+          <div id="dm8-offline-hint" style="display:none;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:12px;"></div>
+        </div>
+
+        <!-- 结果区 -->
+        <div id="dm8-offline-result" style="display:none;">
+          <!-- 健康分数 -->
+          <div class="card" style="margin-bottom:12px;">
+            <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
+              <div style="text-align:center;">
+                <div id="dm8-score-ring" style="width:100px;height:100px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;border:6px solid;position:relative;">
+                  <span id="dm8-score-num">--</span>
+                </div>
+                <div id="dm8-score-label" style="margin-top:6px;font-size:13px;font-weight:600;">--</div>
+              </div>
+              <div style="flex:1;min-width:200px;">
+                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;">
+                  <div style="padding:8px 12px;background:var(--surface2);border-radius:8px;">
+                    <div style="font-size:11px;color:var(--text-muted);">数据文件</div>
+                    <div id="dm8-stat-files" style="font-size:18px;font-weight:600;">--</div>
+                  </div>
+                  <div style="padding:8px 12px;background:var(--surface2);border-radius:8px;">
+                    <div style="font-size:11px;color:var(--text-muted);">总数据量</div>
+                    <div id="dm8-stat-size" style="font-size:18px;font-weight:600;">--</div>
+                  </div>
+                  <div style="padding:8px 12px;background:var(--surface2);border-radius:8px;">
+                    <div style="font-size:11px;color:var(--text-muted);">总页数</div>
+                    <div id="dm8-stat-pages" style="font-size:18px;font-weight:600;">--</div>
+                  </div>
+                  <div style="padding:8px 12px;background:var(--surface2);border-radius:8px;">
+                    <div style="font-size:11px;color:var(--text-muted);">检查耗时</div>
+                    <div id="dm8-stat-time" style="font-size:18px;font-weight:600;">--</div>
+                  </div>
+                  <div style="padding:8px 12px;background:var(--surface2);border-radius:8px;">
+                    <div style="font-size:11px;color:var(--text-muted);">检查模式</div>
+                    <div id="dm8-stat-mode" style="font-size:18px;font-weight:600;">--</div>
+                  </div>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:8px;">
+                  <div style="padding:4px 10px;background:rgba(239,68,68,0.1);border-radius:6px;font-size:12px;">
+                    <span style="color:#ef4444;">●</span> 严重: <span id="dm8-stat-fatal">0</span>
+                  </div>
+                  <div style="padding:4px 10px;background:rgba(249,115,22,0.1);border-radius:6px;font-size:12px;">
+                    <span style="color:#f97316;">●</span> 错误: <span id="dm8-stat-error">0</span>
+                  </div>
+                  <div style="padding:4px 10px;background:rgba(234,179,8,0.1);border-radius:6px;font-size:12px;">
+                    <span style="color:#eab308;">●</span> 警告: <span id="dm8-stat-warn">0</span>
+                  </div>
+                  <div style="padding:4px 10px;background:rgba(59,130,246,0.1);border-radius:6px;font-size:12px;">
+                    <span style="color:#3b82f6;">●</span> 信息: <span id="dm8-stat-info">0</span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <button class="btn btn-sm" onclick="dm8OfflineDownloadReport()" id="btn-dm8-report" style="padding:6px 14px;font-size:13px;">
+                  📄 下载 Word 报告
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 标签页：诊断 / 文件 / 控制文件 -->
+          <div class="card">
+            <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:12px;">
+              <button class="dm8-tab-btn active" onclick="dm8SwitchTab('diagnostics')" style="padding:8px 16px;border:none;background:none;font-size:13px;font-weight:600;color:var(--text);cursor:pointer;border-bottom:2px solid var(--accent,#3b82f6);">
+                诊断详情
+              </button>
+              <button class="dm8-tab-btn" onclick="dm8SwitchTab('files')" style="padding:8px 16px;border:none;background:none;font-size:13px;font-weight:600;color:var(--text-muted);cursor:pointer;">
+                数据文件
+              </button>
+              <button class="dm8-tab-btn" onclick="dm8SwitchTab('control')" style="padding:8px 16px;border:none;background:none;font-size:13px;font-weight:600;color:var(--text-muted);cursor:pointer;">
+                控制文件
+              </button>
+            </div>
+
+            <!-- 诊断列表 -->
+            <div id="dm8-tab-diagnostics">
+              <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                <thead>
+                  <tr style="border-bottom:1px solid var(--border);">
+                    <th style="padding:8px 10px;text-align:left;width:80px;">级别</th>
+                    <th style="padding:8px 10px;text-align:left;width:200px;">诊断码</th>
+                    <th style="padding:8px 10px;text-align:left;">描述</th>
+                    <th style="padding:8px 10px;text-align:left;width:150px;">文件</th>
+                  </tr>
+                </thead>
+                <tbody id="dm8-diag-body"></tbody>
+              </table>
+            </div>
+
+            <!-- 数据文件列表 -->
+            <div id="dm8-tab-files" style="display:none;">
+              <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                <thead>
+                  <tr style="border-bottom:1px solid var(--border);">
+                    <th style="padding:8px 10px;text-align:left;">文件名</th>
+                    <th style="padding:8px 10px;text-align:right;width:100px;">大小</th>
+                    <th style="padding:8px 10px;text-align:right;width:80px;">页数</th>
+                    <th style="padding:8px 10px;text-align:right;width:80px;">零页</th>
+                    <th style="padding:8px 10px;text-align:right;width:80px;">尾部字节</th>
+                    <th style="padding:8px 10px;text-align:center;width:60px;">状态</th>
+                  </tr>
+                </thead>
+                <tbody id="dm8-files-body"></tbody>
+              </table>
+            </div>
+
+            <!-- 控制文件列表 -->
+            <div id="dm8-tab-control" style="display:none;">
+              <div id="dm8-control-body"></div>
+            </div>
+          </div>
+        </div>
+      </div><!-- /page-dm8-offline -->
+
       <!-- ══ Page: SQL 编辑器 ══ -->
       <div class="page" id="page-sql-editor">
         <div class="sql-editor-wrap">
@@ -6411,6 +6603,7 @@ function applyI18N() {
     'server-thresholds': ['服务器阈值配置', '配置服务器健康评分阈值'],
     'monitor-slow':     ['实时慢查询',     '定时拉取各数据源 Top SQL'],
     'monitor-conn':     ['活跃连接监控',   '实时查看各数据源连接数'],
+    'dm8-offline':      ['DM8 离线存储检查', '扫描 DM8 数据文件目录，检查存储完整性'],
     };
     const _t = _titles[pageName];
     if (_t) {
@@ -6511,6 +6704,222 @@ async function executeFixSql(taskId, sql) {
 //  i18n 初始化
 // ══════════════════════════════════════════════════════════════
 
+// ══════════════════════════════════════════════════════════════
+//  DM8 离线存储健康检查
+// ══════════════════════════════════════════════════════════════
+
+var dm8OfflineTaskId = null;
+var dm8OfflinePollTimer = null;
+var dm8OfflineResultData = null;
+
+function dm8OfflineToggleMode(mode) {
+  var sshConfig = document.getElementById('dm8-offline-ssh-config');
+  var dirLabel = document.getElementById('dm8-dir-label');
+  var localLabel = document.getElementById('dm8-mode-local-label');
+  var remoteLabel = document.getElementById('dm8-mode-remote-label');
+  if (mode === 'remote') {
+    sshConfig.style.display = 'block';
+    if (dirLabel) dirLabel.textContent = '远程 DM8 数据文件目录';
+    localLabel.style.borderColor = 'var(--border)';
+    remoteLabel.style.borderColor = 'var(--accent, #2ea043)';
+  } else {
+    sshConfig.style.display = 'none';
+    if (dirLabel) dirLabel.textContent = 'DM8 数据文件目录';
+    localLabel.style.borderColor = 'var(--accent, #2ea043)';
+    remoteLabel.style.borderColor = 'var(--border)';
+  }
+}
+
+function dm8OfflineCheck() {
+  var dir = document.getElementById('dm8-offline-dir').value.trim();
+  var ps = parseInt(document.getElementById('dm8-offline-ps').value) || 0;
+  var mode = document.querySelector('input[name="dm8-offline-mode"]:checked').value;
+  if (!dir) { dm8OfflineShowHint('请输入 DM8 数据文件目录路径', 'error'); return; }
+
+  var postData = {db_dir: dir, page_size: ps, host_type: mode};
+
+  if (mode === 'remote') {
+    var sshHost = document.getElementById('dm8-ssh-host').value.trim();
+    if (!sshHost) { dm8OfflineShowHint('请填写 SSH 主机地址', 'error'); return; }
+    postData.ssh_host = sshHost;
+    postData.ssh_port = parseInt(document.getElementById('dm8-ssh-port').value) || 22;
+    postData.ssh_user = document.getElementById('dm8-ssh-user').value.trim() || 'root';
+    postData.ssh_password = document.getElementById('dm8-ssh-password').value;
+    postData.ssh_key_file = document.getElementById('dm8-ssh-key').value.trim();
+  }
+
+  var btn = document.getElementById('btn-dm8-offline-run');
+  btn.disabled = true; btn.textContent = '⏳ 检查中...';
+  document.getElementById('dm8-offline-result').style.display = 'none';
+  dm8OfflineShowHint(mode === 'remote'
+    ? '正在通过 SSH 连接远程服务器并扫描数据文件...'
+    : '正在扫描目录并分析数据文件...', 'info');
+
+  fetch('/api/dm8_offline/check', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(postData)
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (!d.ok) {
+      btn.disabled = false; btn.textContent = '▶ 开始检查';
+      dm8OfflineShowHint(d.msg || '启动检查失败', 'error');
+      return;
+    }
+    dm8OfflineTaskId = d.task_id;
+    dm8OfflinePollStatus();
+  })
+  .catch(err => {
+    btn.disabled = false; btn.textContent = '▶ 开始检查';
+    dm8OfflineShowHint('请求失败: ' + err, 'error');
+  });
+}
+
+function dm8OfflinePollStatus() {
+  if (!dm8OfflineTaskId) return;
+  fetch('/api/dm8_offline/status/' + dm8OfflineTaskId)
+  .then(r => r.json())
+  .then(d => {
+    if (!d.ok) { dm8OfflineStopPolling(); return; }
+    if (d.status === 'done') {
+      dm8OfflineStopPolling();
+      var btn = document.getElementById('btn-dm8-offline-run');
+      btn.disabled = false; btn.textContent = '▶ 开始检查';
+      dm8OfflineResultData = d.result;
+      dm8OfflineRender(d.result);
+      dm8OfflineShowHint('检查完成', 'success');
+    } else if (d.status === 'error') {
+      dm8OfflineStopPolling();
+      btn = document.getElementById('btn-dm8-offline-run');
+      btn.disabled = false; btn.textContent = '▶ 开始检查';
+      dm8OfflineShowHint('检查失败: ' + (d.error || '未知错误'), 'error');
+    } else {
+      dm8OfflinePollTimer = setTimeout(dm8OfflinePollStatus, 1000);
+    }
+  })
+  .catch(() => { dm8OfflinePollTimer = setTimeout(dm8OfflinePollStatus, 2000); });
+}
+
+function dm8OfflineStopPolling() {
+  if (dm8OfflinePollTimer) { clearTimeout(dm8OfflinePollTimer); dm8OfflinePollTimer = null; }
+}
+
+function dm8OfflineShowHint(msg, type) {
+  var el = document.getElementById('dm8-offline-hint');
+  el.style.display = 'block';
+  el.textContent = msg;
+  var colors = {error:'rgba(239,68,68,0.1)', info:'rgba(59,130,246,0.1)', success:'rgba(34,197,94,0.1)'};
+  var textColors = {error:'#ef4444', info:'#3b82f6', success:'#22c55e'};
+  el.style.background = colors[type] || colors.info;
+  el.style.color = textColors[type] || textColors.info;
+  if (type === 'success') setTimeout(() => { el.style.display = 'none'; }, 3000);
+}
+
+function dm8OfflineRender(r) {
+  document.getElementById('dm8-offline-result').style.display = 'block';
+
+  // 健康分数
+  var score = r.health_score;
+  var ring = document.getElementById('dm8-score-ring');
+  var num = document.getElementById('dm8-score-num');
+  var label = document.getElementById('dm8-score-label');
+  num.textContent = score;
+  label.textContent = r.health_label;
+  var level = r.health_level;
+  var ringColors = {healthy:'#22c55e', warning:'#eab308', critical:'#ef4444', unknown:'#94a3b8'};
+  ring.style.borderColor = ringColors[level] || ringColors.unknown;
+  ring.style.color = ringColors[level] || ringColors.unknown;
+
+  // 统计
+  document.getElementById('dm8-stat-files').textContent = (r.data_files || []).length;
+  document.getElementById('dm8-stat-size').textContent = r.scan_stats.total_data_size_human;
+  document.getElementById('dm8-stat-pages').textContent = r.scan_stats.total_pages_scanned;
+  document.getElementById('dm8-stat-time').textContent = r.scan_stats.duration + 's';
+  document.getElementById('dm8-stat-mode').textContent = r.mode === 'remote'
+    ? (r.ssh_host || '远程') : '本地';
+  var ds = r.diag_stats || {};
+  document.getElementById('dm8-stat-fatal').textContent = ds.fatal || 0;
+  document.getElementById('dm8-stat-error').textContent = ds.error || 0;
+  document.getElementById('dm8-stat-warn').textContent = ds.warning || 0;
+  document.getElementById('dm8-stat-info').textContent = ds.info || 0;
+
+  // 诊断列表
+  var diagBody = document.getElementById('dm8-diag-body');
+  diagBody.innerHTML = '';
+  var sevMap = {fatal:{label:'严重',color:'#ef4444',bg:'rgba(239,68,68,0.08)'},
+                error:{label:'错误',color:'#f97316',bg:'rgba(249,115,22,0.08)'},
+                warning:{label:'警告',color:'#eab308',bg:'rgba(234,179,8,0.08)'},
+                info:{label:'信息',color:'#3b82f6',bg:'rgba(59,130,246,0.08)'}};
+  (r.diagnostics || []).forEach(function(d) {
+    var s = sevMap[d.severity] || sevMap.info;
+    var tr = document.createElement('tr');
+    tr.style.borderBottom = '1px solid var(--border)';
+    tr.innerHTML = '<td style="padding:8px 10px;"><span style="padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600;background:' + s.bg + ';color:' + s.color + ';">' + s.label + '</span></td>'
+      + '<td style="padding:8px 10px;font-family:monospace;font-size:12px;color:var(--text-muted);">' + d.code + '</td>'
+      + '<td style="padding:8px 10px;">' + d.message + (d.detail ? '<br><span style="font-size:11px;color:var(--text-muted);">' + d.detail + '</span>' : '') + '</td>'
+      + '<td style="padding:8px 10px;font-size:12px;color:var(--text-muted);">' + (d.file_name || '') + '</td>';
+    diagBody.appendChild(tr);
+  });
+  if (!r.diagnostics || r.diagnostics.length === 0) {
+    diagBody.innerHTML = '<tr><td colspan="4" style="padding:20px;text-align:center;color:var(--text-muted);">未发现任何问题</td></tr>';
+  }
+
+  // 数据文件列表
+  var filesBody = document.getElementById('dm8-files-body');
+  filesBody.innerHTML = '';
+  (r.data_files || []).forEach(function(f) {
+    var statusIcon = f.exists && f.readable && !f.empty ? '<span style="color:#22c55e;">✓</span>' : '<span style="color:#ef4444;">✗</span>';
+    var tr = document.createElement('tr');
+    tr.style.borderBottom = '1px solid var(--border)';
+    tr.innerHTML = '<td style="padding:8px 10px;font-family:monospace;font-size:12px;">' + f.name + '</td>'
+      + '<td style="padding:8px 10px;text-align:right;">' + f.size_human + '</td>'
+      + '<td style="padding:8px 10px;text-align:right;">' + f.total_pages + '</td>'
+      + '<td style="padding:8px 10px;text-align:right;' + (f.zero_pages > 0 ? 'color:#f97316;' : '') + '">' + f.zero_pages + '</td>'
+      + '<td style="padding:8px 10px;text-align:right;' + (f.trailing_bytes > 0 ? 'color:#f97316;' : '') + '">' + f.trailing_bytes + '</td>'
+      + '<td style="padding:8px 10px;text-align:center;">' + statusIcon + '</td>';
+    filesBody.appendChild(tr);
+  });
+
+  // 控制文件列表
+  var ctrlBody = document.getElementById('dm8-control-body');
+  ctrlBody.innerHTML = '';
+  (r.control_files || []).forEach(function(c) {
+    var div = document.createElement('div');
+    div.style.cssText = 'padding:12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;';
+    var html = '<div style="font-weight:600;margin-bottom:6px;">' + c.name + ' (' + c.size_human + ')</div>';
+    if (c.data_files && c.data_files.length > 0) {
+      html += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">引用的数据文件:</div><ul style="margin:0;padding-left:20px;font-size:12px;">';
+      c.data_files.forEach(function(ref) { html += '<li style="font-family:monospace;">' + ref + '</li>'; });
+      html += '</ul>';
+    } else {
+      html += '<div style="font-size:12px;color:var(--text-muted);">未提取到文件引用</div>';
+    }
+    div.innerHTML = html;
+    ctrlBody.appendChild(div);
+  });
+  if (!r.control_files || r.control_files.length === 0) {
+    ctrlBody.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);">未找到控制文件</div>';
+  }
+}
+
+function dm8SwitchTab(tab) {
+  document.querySelectorAll('.dm8-tab-btn').forEach(function(btn) {
+    btn.style.borderBottom = '2px solid transparent';
+    btn.style.color = 'var(--text-muted)';
+  });
+  event.target.style.borderBottom = '2px solid var(--accent,#3b82f6)';
+  event.target.style.color = 'var(--text)';
+  document.getElementById('dm8-tab-diagnostics').style.display = tab === 'diagnostics' ? 'block' : 'none';
+  document.getElementById('dm8-tab-files').style.display = tab === 'files' ? 'block' : 'none';
+  document.getElementById('dm8-tab-control').style.display = tab === 'control' ? 'block' : 'none';
+}
+
+function dm8OfflineDownloadReport() {
+  if (!dm8OfflineTaskId) return;
+  window.location.href = '/api/dm8_offline/report/' + dm8OfflineTaskId;
+}
+
 // ─── Page Navigation ───
 function showPage(name) {
   // v2.6.2：更新全局页面变量（供 AI 上下文感知使用）
@@ -6562,6 +6971,7 @@ function showPage(name) {
     'oracle-client': [i18n('webui.oracle_client_title') || '数据库驱动设置', ''],
     'plugin-market': [i18n('webui.plugin_market_title') || '插件市场', ''],
     'rag': [i18n('webui.rag_page_title') || 'RAG 知识库', ''],
+    'dm8-offline': ['💿 DM8 离线存储检查', '扫描 DM8 数据文件目录，检查存储完整性'],
   };
   const t = titles[name] || [name, ''];
   document.getElementById('topbar-title').textContent = t[0];

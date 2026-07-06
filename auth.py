@@ -147,19 +147,18 @@ def init_default_user():
                     (admin_user_id, admin_role['id'])
                 )
                 print("  [OK] 已为 admin 用户分配 admin 角色")
-        # 初始化菜单数据（如果 um_menu 表为空）
+        # 初始化菜单数据（补充缺失的菜单项，已存在的不会重复插入）
         try:
-            menu_count = conn.execute("SELECT COUNT(*) as cnt FROM um_menu").fetchone()
-            if menu_count and menu_count['cnt'] == 0:
-                menus_data = [
+            menus_data = [
                     ('home',             '首页',            0, 10),
                     ('wizard',           '数据库巡检',       0, 21),
-                    ('server-inspect',   '服务器巡检',       0, 22),
-                    ('scheduler',        '任务调度',         0, 23),
-                    ('awr',              'AWR报告',         0, 24),
-                    ('reports',          '巡检报告',         0, 25),
-                    ('server-history',   '历史记录',         0, 26),
-                    ('trend',            '趋势分析',         0, 27),
+                    ('dm8-offline',      'DM8离线存储检查',   0, 22),
+                    ('server-inspect',   '服务器巡检',       0, 23),
+                    ('scheduler',        '任务调度',         0, 24),
+                    ('awr',              'AWR报告',         0, 25),
+                    ('reports',          '巡检报告',         0, 26),
+                    ('server-history',   '历史记录',         0, 27),
+                    ('trend',            '趋势分析',         0, 28),
                     ('datasources',     '数据源管理',       0, 31),
                     ('inspection-config','巡检配置',         0, 32),
                     ('baseline-config',  '基线配置',         0, 33),
@@ -179,27 +178,30 @@ def init_default_user():
                     ('data-management',   '数据管理',         0, 66),
                     ('about',            '关于DBCheck',      0, 67),
                 ]
-                for code, name, pid, order in menus_data:
-                    try:
-                        conn.execute(
-                            "INSERT INTO um_menu(menu_code, menu_name, parent_id, sort_order, menu_type) VALUES(?,?,?,?,?)",
-                            (code, name, pid, order, 1)
-                        )
-                    except Exception:
-                        pass
-                print("  [OK] 菜单数据已初始化")
+            new_menu_ids = []
+            for code, name, pid, order in menus_data:
+                try:
+                    cur = conn.execute(
+                        "INSERT OR IGNORE INTO um_menu(menu_code, menu_name, parent_id, sort_order, menu_type) VALUES(?,?,?,?,?)",
+                        (code, name, pid, order, 1)
+                    )
+                    if cur.rowcount > 0:
+                        new_menu_ids.append(cur.lastrowid)
+                        print(f"  [OK] 新增菜单: {code} ({name})")
+                except Exception:
+                    pass
 
-                # 给 admin 角色分配所有菜单的管理权限
-                menus = conn.execute("SELECT id FROM um_menu").fetchall()
+            # 给 admin 角色分配新菜单的管理权限
+            if new_menu_ids:
                 admin_role = conn.execute("SELECT id FROM um_role WHERE role_code='admin'").fetchone()
                 admin_perm = conn.execute("SELECT id FROM um_permission WHERE perm_level=1").fetchone()
                 if admin_role and admin_perm:
-                    for menu in menus:
+                    for mid in new_menu_ids:
                         conn.execute(
                             "INSERT OR IGNORE INTO um_role_menu_perm(role_id, menu_id, perm_id) VALUES(?,?,?)",
-                            (admin_role['id'], menu['id'], admin_perm['id'])
+                            (admin_role['id'], mid, admin_perm['id'])
                         )
-                    print("  [OK] admin 角色已分配所有菜单权限")
+                    print(f"  [OK] admin 角色已分配 {len(new_menu_ids)} 个新菜单权限")
         except Exception as e:
             print(f"  [WARN] 菜单初始化失败: {e}")
 
