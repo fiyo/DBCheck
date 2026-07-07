@@ -2647,54 +2647,166 @@ async function executeFixSql(taskId, sql) {
     .monitor-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
     @media (max-width: 1100px){ .monitor-grid { grid-template-columns: 1fr; } }
 
-    /* ── 首页驾驶舱（单屏布局）── */
+    /* ── 首页驾驶舱（单屏布局）v3 ── */
     #page-home.cockpit {
-      margin: -36px -40px;               /* 抵消 .content 内边距，铺满可视区 */
-      padding: 12px 16px 14px;
-      height: calc(100vh - 56px);        /* 顶栏高度 */
+      margin: -36px -40px;
+      padding: 16px 20px 14px;
+      height: calc(100vh - 56px);
       overflow: hidden;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 14px;
+      background: linear-gradient(180deg, var(--bg, #0d1117) 0%, rgba(13,17,23,0.96) 100%);
     }
-    #page-home.cockpit .slogan-wrapper { display: none; }   /* 驾驶舱下隐藏品牌动画，省空间 */
+    #page-home.cockpit .slogan-wrapper { display: none; }
 
-    /* KPI 条：4 张概览卡横排 */
-    .cockpit-kpi { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; flex-shrink: 0; }
-    .cockpit-kpi .overview-card { margin: 0; padding: 10px 14px; }
-    .cockpit-kpi .overview-card .card-header { margin-bottom: 4px; }
-    .cockpit-kpi .db-type-list, .cockpit-kpi .kb-summary, .cockpit-kpi .scheduler-summary { font-size: 12px; }
-    .cockpit-kpi .job-status-list { margin-top: 4px; }
+    /* ══ KPI 行：4 张概览卡 ══ */
+    .cockpit-kpi { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; flex-shrink: 0; }
+    .cockpit-kpi .overview-card {
+      margin: 0; padding: 16px 18px;
+      position: relative; overflow: hidden;
+      border: 1px solid var(--border, #30363d);
+      border-left: 3px solid transparent;
+      border-radius: 12px;
+      transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease;
+    }
+    .cockpit-kpi .overview-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(0,0,0,.35);
+      border-color: rgba(255,255,255,.1);
+    }
+    /* 每张 KPI 卡的左边条颜色 */
+    .cockpit-kpi .overview-card:nth-child(1) { border-left-color: #f97316; }
+    .cockpit-kpi .overview-card:nth-child(2) { border-left-color: #667eea; }
+    .cockpit-kpi .overview-card:nth-child(3) { border-left-color: #11998e; }
+    .cockpit-kpi .overview-card:nth-child(4) { border-left-color: #eb3349; }
+    /* 微弱背景渐变 */
+    .cockpit-kpi .overview-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 50%;
+      background: linear-gradient(180deg, rgba(255,255,255,.03) 0%, transparent 100%);
+      pointer-events: none; border-radius: 12px 12px 0 0;
+    }
+    .cockpit-kpi .overview-card .card-header { margin-bottom: 10px; }
+    .cockpit-kpi .overview-card .card-icon { width: 38px; height: 38px; border-radius: 10px; font-size: 17px; }
+    .cockpit-kpi .overview-card .card-title { font-size: 13px; }
+    .cockpit-kpi .overview-card .card-subtitle { font-size: 11px; }
+    .cockpit-kpi .db-type-list,
+    .cockpit-kpi .kb-summary,
+    .cockpit-kpi .scheduler-summary { font-size: 12px; }
+    .cockpit-kpi .job-status-list { margin-top: 6px; }
+    /* 健康评分大数字增强 */
+    .cockpit-kpi .health-summary { padding: 8px 2px !important; }
+    .cockpit-kpi .health-summary > div[style*="font-size:42px"] { font-size: 48px !important; }
 
-    /* 实时监控工具条 */
-    .cockpit-toolbar { display: flex; align-items: center; gap: 12px; flex-shrink: 0; font-size: 13px; color: var(--text, #e6edf3); padding: 2px 4px; }
-    .cockpit-toolbar .section-title { font-size: 14px; }
-    .cockpit-toolbar label { color: var(--text-muted, #8b949e); }
-    .cockpit-toolbar select { background: var(--bg, #0d1117); color: var(--text, #e6edf3); border: 1px solid var(--border, #30363d); border-radius: 6px; padding: 5px 10px; font-size: 13px; }
-    #page-home.cockpit .monitor-running-pill { margin-left: 8px; }
+    /* ══ 实时监控工具条 ══ */
+    .cockpit-toolbar {
+      display: flex; align-items: center; gap: 14px; flex-shrink: 0;
+      font-size: 13px; color: var(--text, #e6edf3);
+      padding: 8px 14px;
+      background: rgba(255,255,255,.03);
+      border: 1px solid var(--border, #30363d);
+      border-radius: 10px;
+    }
+    .cockpit-toolbar .section-title {
+      font-size: 13px; font-weight: 600;
+      background: linear-gradient(135deg, #388bfd, #a371f7);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      letter-spacing: .5px;
+    }
+    .cockpit-toolbar label { color: var(--text-muted, #8b949e); font-size: 12px; }
+    .cockpit-toolbar select {
+      background: var(--bg-secondary, #161b22);
+      color: var(--text, #e6edf3);
+      border: 1px solid var(--border, #30363d);
+      border-radius: 6px; padding: 5px 12px; font-size: 13px;
+      cursor: pointer; outline: none;
+      transition: border-color .2s;
+    }
+    .cockpit-toolbar select:hover { border-color: rgba(136,170,255,.4); }
+    .cockpit-toolbar select:focus { border-color: #388bfd; box-shadow: 0 0 0 2px rgba(56,139,253,.15); }
+    #page-home.cockpit .monitor-running-pill {
+      margin-left: 6px; font-size: 11px; padding: 2px 8px; border-radius: 10px;
+      background: rgba(34,197,94,.12); color: #4ade80;
+    }
 
-    /* 主网格：7 张实时图（12 列 2 行） */
-    .cockpit-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(12, 1fr); grid-auto-rows: 1fr; gap: 10px; }
-    .cockpit-card { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--card-bg, #161b22); border: 1px solid var(--border, #30363d); border-radius: 12px; padding: 8px 10px 6px; }
-    .cockpit-card .health-chart-title { font-size: 12px; margin-bottom: 4px; flex-shrink: 0; }
-    .cockpit-card .health-chart-box { flex: 1; min-height: 0; width: 100%; height: auto; }
-    .cockpit-card .health-chart-fallback { height: 100%; }
+    /* ══ 主图表网格 ══ */
+    .cockpit-grid {
+      flex: 1; min-height: 0;
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      grid-template-rows: 1fr 1fr;
+      gap: 14px;
+    }
+    .cockpit-card {
+      min-width: 0; min-height: 0;
+      display: flex; flex-direction: column;
+      background: linear-gradient(145deg, var(--card-bg, #161b22), rgba(22,27,34,.85));
+      border: 1px solid var(--border, #30363d);
+      border-top: 2px solid transparent;
+      border-radius: 14px;
+      padding: 12px 14px 10px;
+      transition: border-color .25s ease, box-shadow .25s ease;
+      position: relative; overflow: hidden;
+    }
+    .cockpit-card:hover {
+      border-color: rgba(255,255,255,.08);
+      box-shadow: 0 4px 16px rgba(0,0,0,.25);
+    }
+    /* 每张图表卡的顶色条 */
+    .cockpit-card:nth-child(1) { border-top-color: #f97316; } /* 健康评分 */
+    .cockpit-card:nth-child(2) { border-top-color: #ef4444; } /* 风险分布 */
+    .cockpit-card:nth-child(3) { border-top-color: #3b82f6; } /* 吞吐 */
+    .cockpit-card:nth-child(4) { border-top-color: #22c55e; } /* 连接数 */
+    .cockpit-card:nth-child(5) { border-top-color: #a855f7; } /* 趋势 */
+    .cockpit-card:nth-child(6) { border-top-color: #06b6d4; } /* 矩阵 */
+    .cockpit-card:nth-child(7) { border-top-color: #f59e0b; } /* 延迟 */
+
+    .cockpit-card .health-chart-title {
+      font-size: 12px; font-weight: 600;
+      margin-bottom: 8px; flex-shrink: 0;
+      display: flex; align-items: center; gap: 6px;
+      color: var(--text, #e6edf3);
+      opacity: .88;
+      letter-spacing: .2px;
+    }
+    .cockpit-card .health-chart-box {
+      flex: 1; min-height: 0; width: 100%; height: auto;
+    }
+    .cockpit-card .health-chart-fallback { height: 100%; display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 12px; text-align: center; }
+
     .span3 { grid-column: span 3; }
     .span4 { grid-column: span 4; }
+    .span5 { grid-column: span 5; }
 
-    /* 数据统计（折叠，低频） */
-    .cockpit-stats { flex-shrink: 0; color: var(--text-muted, #8b949e); font-size: 13px; }
-    .cockpit-stats summary { cursor: pointer; padding: 2px 4px; }
-    .cockpit-stats[open] .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 8px; }
-    .cockpit-stats .overview-card { margin: 0; padding: 10px 12px; }
+    /* ══ 数据统计折叠区 ══ */
+    .cockpit-stats {
+      flex-shrink: 0; color: var(--text-muted, #8b949e); font-size: 13px;
+    }
+    .cockpit-stats summary {
+      cursor: pointer; padding: 6px 10px;
+      font-weight: 600; font-size: 13px;
+      color: var(--text-muted, #8b949e);
+      list-style: none;
+      transition: color .2s;
+    }
+    .cockpit-stats summary:hover { color: var(--text, #e6edf3); }
+    .cockpit-stats summary::-webkit-details-marker { display: none; }
+    .cockpit-stats summary::before { content: '▸ '; margin-right: 4px; transition: transform .2s; }
+    .cockpit-stats[open] summary::before { content: '▾ '; }
+    .cockpit-stats[open] .stats-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      gap: 12px; margin-top: 10px;
+    }
+    .cockpit-stats .overview-card { margin: 0; padding: 12px 14px; }
     .cockpit-stats .chart-card-body { height: 150px !important; }
 
-    /* 小屏：驾驶舱改为可滚动，避免图表被挤压无法阅读 */
+    /* 小屏响应式 */
     @media (max-width: 1100px) {
-      #page-home.cockpit { height: auto; overflow: auto; }
-      .cockpit-grid { grid-auto-rows: 240px; }
-      .span3, .span4 { grid-column: span 6; }
-      .cockpit-kpi { grid-template-columns: repeat(2, 1fr); }
+      #page-home.cockpit { height: auto; overflow: auto; padding: 12px 14px; }
+      .cockpit-grid { grid-template-rows: unset; grid-auto-rows: 240px; }
+      .span3, .span4, .span5 { grid-column: span 6; }
+      .cockpit-kpi { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+      .cockpit-toolbar { flex-wrap: wrap; padding: 6px 10px; }
     }
   </style>
 
@@ -4351,10 +4463,10 @@ function formatBytes(bytes) {
             <div class="health-chart-box" id="echart-mon-throughput"></div>
           </div>
           <div class="cockpit-card span3">
-            <div class="health-chart-title">🔗 连接数</div>
+            <div class="health-chart-title">🔗 活跃连接数</div>
             <div class="health-chart-box" id="echart-mon-conn"></div>
           </div>
-          <div class="cockpit-card span4">
+          <div class="cockpit-card span5">
             <div class="health-chart-title">📈 健康评分趋势（近 30 天）</div>
             <div class="health-chart-box" id="echart-trend"></div>
           </div>
@@ -4362,7 +4474,7 @@ function formatBytes(bytes) {
             <div class="health-chart-title">🗂️ 实例健康矩阵</div>
             <div class="health-chart-box" id="echart-matrix"></div>
           </div>
-          <div class="cockpit-card span4">
+          <div class="cockpit-card span3">
             <div class="health-chart-title">⏱️ 响应延迟 (ms)</div>
             <div class="health-chart-box" id="echart-mon-latency"></div>
           </div>
@@ -11919,102 +12031,98 @@ function renderHealthScreen(dash) {
   const MUT  = cssVar('--text-muted', '#8b949e');
   const BORD = cssVar('--border', '#30363d');
 
-  // 1) 仪表盘：综合健康评分
+  // 1) 仪表盘：综合健康评分（精致环形仪表）
   const gauge = document.getElementById('echart-gauge');
   healthCharts.gauge = echarts.init(gauge);
   healthCharts.gauge.setOption({
     backgroundColor: 'transparent',
     series: [{
-      type: 'gauge', radius: '92%', center: ['50%', '58%'],
-      startAngle: 210, endAngle: -30, min: 0, max: 100,
-      progress: { show: true, width: 16, itemStyle: { color: RISK_COLORS[dash.level] || '#3b82f6' } },
-      axisLine: { lineStyle: { width: 16, color: [
-        [0.3, '#f85149'], [0.5, '#fb923c'], [0.7, '#eab308'], [0.85, '#4caf50'], [1, '#22c55e']
+      type: 'gauge', radius: '88%', center: ['50%', '55%'],
+      startAngle: 210, endAngle: -30, min: 0, max: 100, splitNumber: 5,
+      progress: {
+        show: true, width: 14, roundCap: true,
+        itemStyle: { color: new echarts.graphic.LinearGradient(0,0,1,0,[{offset:0,color:RISK_COLORS[dash.level]||'#3b82f6'},{offset:1,color:(RISK_COLORS[dash.level]||'#3b82f6')+'cc'}]) }
+      },
+      axisLine: { lineStyle: { width: 14, color: [
+        [0.3,'rgba(248,81,73,.25)'], [0.5,'rgba(251,146,60,.25)'], [0.7,'rgba(234,179,8,.25)'],
+        [0.85,'rgba(76,175,80,.25)'], [1,'rgba(34,197,94,.25)']
       ] } },
-      pointer: { show: true, length: '62%', width: 5, itemStyle: { color: TXT } },
-      axisTick: { distance: -16, length: 5, lineStyle: { color: MUT, width: 1 } },
-      splitLine: { distance: -16, length: 16, lineStyle: { color: MUT, width: 2 } },
-      axisLabel: { distance: 18, color: MUT, fontSize: 10 },
-      anchor: { show: true, size: 14, itemStyle: { color: TXT } },
-      detail: { valueAnimation: true, formatter: '{value}', color: TXT, fontSize: 34, fontWeight: 'bolder', offsetCenter: [0, '38%'] },
-      title: { offsetCenter: [0, '62%'], color: MUT, fontSize: 12 },
+      pointer: { show: true, length: '58%', width: 4, itemStyle: { color: TXT } },
+      axisTick: { distance: -14, length: 4, lineStyle: { color: MUT, width: 1 } },
+      splitLine: { distance: -14, length: 12, lineStyle: { color: MUT, width: 2 } },
+      axisLabel: { distance: 16, color: MUT, fontSize: 9, formatter: '{value}' },
+      anchor: { show: true, size: 10, itemStyle: { color: TXT, borderWidth: 2, borderColor: BORD } },
+      detail: { valueAnimation: true, formatter:function(v){return v;}, color: TXT, fontSize: 32, fontWeight:800, offsetCenter:[0,'30%'],
+        textShadowColor:'rgba(0,0,0,.3)', textShadowBlur:4 },
+      title: { offsetCenter: [0,'68%'], color: MUT, fontSize: 11, fontWeight:500 },
       data: [{ value: dash.total_score || 0, name: '健康评分' }]
     }]
   });
 
-  // 2) 风险等级分布环图
+  // 2) 风险等级分布（玫瑰环图）
   const risk = document.getElementById('echart-risk');
   healthCharts.risk = echarts.init(risk);
   const rb = dash.risk_breakdown || {};
   const riskData = [
-    { name: '严重', value: rb.critical || 0, itemStyle: { color: RISK_COLORS.critical } },
-    { name: '高危', value: rb.high || 0,     itemStyle: { color: RISK_COLORS.high } },
-    { name: '中危', value: rb.medium || 0,   itemStyle: { color: RISK_COLORS.medium } },
-    { name: '低危', value: rb.low || 0,      itemStyle: { color: RISK_COLORS.low } },
-    { name: '正常', value: rb.healthy || 0,  itemStyle: { color: RISK_COLORS.healthy } }
+    { name:'严重',value:rb.critical||0,itemStyle:{color:RISK_COLORS.critical} },
+    { name:'高危',value:rb.high||0,     itemStyle:{color:RISK_COLORS.high} },
+    { name:'中危',value:rb.medium||0,   itemStyle:{color:RISK_COLORS.medium} },
+    { name:'低危',value:rb.low||0,      itemStyle:{color:RISK_COLORS.low} },
+    { name:'正常',value:rb.healthy||0,  itemStyle:{color:RISK_COLORS.healthy} }
   ].filter(d => d.value > 0);
   healthCharts.risk.setOption({
     backgroundColor: 'transparent',
-    tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
-    legend: { bottom: 0, textStyle: { color: MUT, fontSize: 11 }, itemWidth: 10, itemHeight: 10 },
+    tooltip: { trigger:'item', backgroundColor:'rgba(13,17,23,.9)',borderColor:BORD,textStyle:{fontSize:12},formatter:'{b}: <strong>{c}</strong> ({d}%)' },
+    legend: { bottom:2, textStyle:{color:MUT,fontSize:10}, itemWidth:10, itemHeight:10, itemGap:10 },
     series: [{
-      type: 'pie', radius: ['42%', '68%'], center: ['50%', '46%'],
-      avoidLabelOverlap: true,
-      label: { color: TXT, fontSize: 11, formatter: '{b}\n{c}' },
-      labelLine: { lineStyle: { color: MUT } },
-      itemStyle: { borderColor: BORD, borderWidth: 2 },
-      data: riskData.length ? riskData : [{ name: '暂无风险', value: 1, itemStyle: { color: RISK_COLORS.healthy } }]
+      type:'pie', radius:['40%','70%'], center:['50%','45%'],
+      avoidLabelOverlap:true,
+      itemStyle:{borderColor:'var(--card-bg,#161b22)',borderWidth:2,borderRadius:6},
+      label:{show:false},
+      emphasis:{scale:true,scaleSize:8,label:{show:true,fontSize:12,fontWeight:600,color:TXT,formatter:'{b}\n{c} ({d}%)'},itemStyle:{shadowBlur:12,shadowColor:'rgba(0,0,0,.4)'}},
+      data:riskData.length ? riskData : [{name:'暂无风险',value:1,itemStyle:{color:RISK_COLORS.healthy}}]
     }]
   });
 
-  // 3) 健康评分趋势（近 30 天）
+  // 3) 健康评分趋势（近 30 天，紫色面积线）
   const trend = document.getElementById('echart-trend');
   healthCharts.trend = echarts.init(trend);
   const tdata = dash.trend || [];
   healthCharts.trend.setOption({
     backgroundColor: 'transparent',
-    tooltip: { trigger: 'axis' },
-    grid: { left: 38, right: 16, top: 20, bottom: 30 },
-    xAxis: {
-      type: 'category', boundaryGap: false, data: tdata.map(d => d.date),
-      axisLine: { lineStyle: { color: BORD } }, axisLabel: { color: MUT, fontSize: 10 }
-    },
-    yAxis: {
-      type: 'value', min: 0, max: 100,
-      splitLine: { lineStyle: { color: BORD } }, axisLabel: { color: MUT, fontSize: 10 }
-    },
-    series: [{
-      type: 'line', smooth: true, symbol: 'circle', symbolSize: 5,
-      data: tdata.map(d => d.score),
-      lineStyle: { width: 3, color: '#3b82f6' },
-      itemStyle: { color: '#3b82f6' },
-      areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-        { offset: 0, color: 'rgba(59,130,246,0.35)' },
-        { offset: 1, color: 'rgba(59,130,246,0.02)' }
-      ]) }
+    tooltip:{trigger:'axis',backgroundColor:'rgba(13,17,23,.92)',borderColor:BORD,textStyle:{fontSize:12,color:TXT},
+      formatter:p=>`${p[0].axisValue}<br/>${p[0].marker} 健康分：<strong>${p[0].data}</strong>`},
+    grid:{left:42,right:16,top:24,bottom:28},
+    xAxis:{type:'category',boundaryGap:false,data:tdata.map(d=>d.date),
+      axisLine:{lineStyle:{color:BORD}},axisTick:{show:false},axisLabel:{color:MUT,fontSize:10,interval:Math.floor(Math.max(tdata.length/6,1))}},
+    yAxis:{type:'value',min:0,max:100,
+      splitLine:{lineStyle:{color:BORD,type:'dashed'}},axisLabel:{color:MUT,fontSize:10}},
+    series:[{
+      type:'line',smooth:.6,symbol:'circle',symbolSize:5,
+      data:tdata.map(d=>d.score),
+      lineStyle:{width:2.5,color:'#a371f7'},
+      itemStyle:{color:'#a371f7',borderWidth:2,borderColor:'var(--card-bg,#161b22)'},
+      areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(163,113,247,.35)'},{offset:1,color:'rgba(163,113,247,.02)'}])}
     }]
   });
 
-  // 4) 实例健康矩阵
+  // 4) 实例健康矩阵（渐变水平条形图）
   const matrix = document.getElementById('echart-matrix');
   healthCharts.matrix = echarts.init(matrix);
-  const insts = (dash.instances || []).slice().reverse(); // 倒序：高分在上方
+  const insts = (dash.instances || []).slice().reverse();
   healthCharts.matrix.setOption({
     backgroundColor: 'transparent',
-    tooltip: {
-      trigger: 'axis', axisPointer: { type: 'shadow' },
-      formatter: p => {
-        const i = insts[p[0].dataIndex];
-        return `${i.instance_name} (${i.db_type})<br/>健康分: ${i.health_score}<br/>等级: ${i.risk_level}`;
-      }
-    },
-    grid: { left: 120, right: 28, top: 16, bottom: 24 },
-    xAxis: { type: 'value', max: 100, splitLine: { lineStyle: { color: BORD } }, axisLabel: { color: MUT, fontSize: 10 } },
-    yAxis: { type: 'category', data: insts.map(i => i.instance_name), axisLine: { lineStyle: { color: BORD } }, axisLabel: { color: MUT, fontSize: 10 } },
-    series: [{
-      type: 'bar', barWidth: '58%',
-      data: insts.map(i => ({ value: i.health_score, itemStyle: { color: RISK_COLORS[i.risk_level] || '#3b82f6', borderRadius: [0, 4, 4, 0] } })),
-      label: { show: true, position: 'right', color: TXT, fontSize: 10, formatter: '{c}' }
+    tooltip:{trigger:'axis',axisPointer:{type:'shadow'},backgroundColor:'rgba(13,17,23,.9)',borderColor:BORD,textStyle:{fontSize:12,color:TXT},
+      formatter:p=>{const i=insts[p[0].dataIndex];return`<strong>${i.instance_name}</strong> (${i.db_type})<br/>健康分：<strong style="color:${RISK_COLORS[i.risk_level]}">${i.health_score}</strong><br/>等级：${i.risk_level}`;}},
+    grid:{left:110,right:28,top:12,bottom:20},
+    xAxis:{type:'value',max:100,splitLine:{lineStyle:{color:BORD,type:'dashed'}},axisLabel:{color:MUT,fontSize:10},axisTick:{show:false}},
+    yAxis:{type:'category',data:insts.map(i=>i.instance_name),axisLine:{lineStyle:{color:BORD}},axisTick:{show:false},
+      axisLabel:{color:MUT,fontSize:10,width:100,overflow:'truncate',ellipsis:'...'}},
+    series:[{
+      type:'bar',barWidth:'52%',
+      data:insts.map(i=>({value:i.health_score,
+        itemStyle:{borderRadius:[0,4,4,0],color:new echarts.graphic.LinearGradient(0,0,1,0,[{offset:0,color:RISK_COLORS[i.risk_level]||'#3b82f6'},{offset:1,color:(RISK_COLORS[i.risk_level]||'#3b82f6')+'66'}])}})),
+      label:{show:true,position:'right',color:MUT,fontSize:10,fontWeight:600,formatter:'{c}'}
     }]
   });
 }
@@ -12161,15 +12269,15 @@ function renderMonitorCharts() {
     });
     return out;
   }
-  function opt(series) {
+  function opt(series, titleColor) {
     return {
       backgroundColor: 'transparent',
-      tooltip: { trigger: 'axis' },
-      legend: series.length > 1 ? { bottom: 0, textStyle: { color: MUT, fontSize: 10 }, itemWidth: 10, itemHeight: 10 } : undefined,
-      grid: { left: 46, right: 16, top: 18, bottom: series.length > 1 ? 28 : 24 },
-      xAxis: { type: 'category', boundaryGap: false, data: times, axisLine: { lineStyle: { color: BORD } }, axisLabel: { color: MUT, fontSize: 9, hideOverlap: true } },
-      yAxis: { type: 'value', splitLine: { lineStyle: { color: BORD } }, axisLabel: { color: MUT, fontSize: 10 } },
-      series: series
+      tooltip: { trigger:'axis',backgroundColor:'rgba(13,17,23,.9)',borderColor:BORD,textStyle:{fontSize:11,color:TXT} },
+      legend: series.length > 1 ? { bottom:0, textStyle:{color:MUT,fontSize:9}, itemWidth:8, itemHeight:8 } : undefined,
+      grid: { left:42, right:14, top:18, bottom: series.length > 1 ? 28 : 22 },
+      xAxis:{type:'category',boundaryGap:false,data:times,axisLine:{lineStyle:{color:BORD}},axisTick:{show:false},axisLabel:{color:MUT,fontSize:9,hideOverlap:true} },
+      yAxis:{type:'value',splitLine:{lineStyle:{color:BORD,type:'dashed'}},axisLabel:{color:MUT,fontSize:10},axisTick:{show:false} },
+      series:series.map(function(s){return Object.assign({},s,{symbol:'circle',symbolSize:3,lineStyle:Object.assign({width:2},s.lineStyle||{})});})
     };
   }
 
@@ -12177,8 +12285,8 @@ function renderMonitorCharts() {
   if (!tp.length) { const f = pick(['rate_queries', 'rate_xact_commit', 'rate_ora_user_commits'], '#3b82f6'); if (f) tp.push(f); }
   ensureMonChart('throughput', 'echart-mon-throughput').setOption(opt(tp));
 
-  const conn = [pick(['threads_connected', 'numbackends', 'user_sessions', 'active_sessions', 'connections'], '#22c55e'),
-                pick(['threads_running'], '#f59e0b')].filter(Boolean);
+  const conn = [pick(['threads_connected','numbackends','user_sessions','active_sessions','connections'],'#22c55e'),
+                pick(['threads_running'],'#f59e0b')].filter(Boolean);
   ensureMonChart('conn', 'echart-mon-conn').setOption(opt(conn));
 
   const lat = pick(['latency_ms'], '#f85149');
