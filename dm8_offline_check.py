@@ -1186,14 +1186,6 @@ def generate_offline_report_word(result: dict, output_path: str = '') -> str:
         )
         _set_font(run, size=Pt(11))
 
-        p = doc.add_paragraph()
-        run = p.add_run(
-            '说明：以下坏块基于"页内容明显异常"的通用信号识别（全零页 / 整页单一字节'
-            '异常填充 / 文件末页不足页大小），不读取 DM8 页头私有格式，不依赖第三方'
-            '逆向代码，零侵权。离线场景无法 100% 确认损坏，需数据库实例启动后核实。'
-        )
-        _set_font(run, size=Pt(9), color=RGBColor(120, 120, 120))
-
     if corrupt_blocks:
         # 坏块数量可能很大，最多展示前 500 个，避免文档过大
         show_blocks = corrupt_blocks[:500]
