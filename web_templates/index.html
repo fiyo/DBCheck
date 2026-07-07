@@ -5805,6 +5805,9 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
               <button class="dm8-tab-btn" onclick="dm8SwitchTab('control')" style="padding:8px 16px;border:none;background:none;font-size:13px;font-weight:600;color:var(--text-muted);cursor:pointer;">
                 控制文件
               </button>
+              <button class="dm8-tab-btn" onclick="dm8SwitchTab('corrupt')" style="padding:8px 16px;border:none;background:none;font-size:13px;font-weight:600;color:var(--text-muted);cursor:pointer;">
+                数据块损坏
+              </button>
             </div>
 
             <!-- 诊断列表 -->
@@ -5842,6 +5845,24 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
             <!-- 控制文件列表 -->
             <div id="dm8-tab-control" style="display:none;">
               <div id="dm8-control-body"></div>
+            </div>
+
+            <!-- 数据块损坏分析 -->
+            <div id="dm8-tab-corrupt" style="display:none;">
+              <div id="dm8-corrupt-summary" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;"></div>
+              <div id="dm8-corrupt-tip" style="font-size:12px;color:var(--text-muted);margin-bottom:10px;"></div>
+              <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                <thead>
+                  <tr style="border-bottom:1px solid var(--border);">
+                    <th style="padding:8px 10px;text-align:left;">数据文件</th>
+                    <th style="padding:8px 10px;text-align:right;width:90px;">物理页号</th>
+                    <th style="padding:8px 10px;text-align:right;width:140px;">文件偏移</th>
+                    <th style="padding:8px 10px;text-align:left;width:110px;">损坏类型</th>
+                    <th style="padding:8px 10px;text-align:left;">所属表空间</th>
+                  </tr>
+                </thead>
+                <tbody id="dm8-corrupt-body"></tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -6901,6 +6922,55 @@ function dm8OfflineRender(r) {
   if (!r.control_files || r.control_files.length === 0) {
     ctrlBody.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);">未找到控制文件</div>';
   }
+
+  // 数据块损坏分析
+  var csummary = r.corrupt_summary || {total:0, zero:0, constant_fill:0, truncated:0};
+  var sumEl = document.getElementById('dm8-corrupt-summary');
+  sumEl.innerHTML = '';
+  var cstats = [
+    {label:'可疑坏块', val:csummary.total, color:'#ef4444'},
+    {label:'全零页',   val:csummary.zero, color:'#ef4444'},
+    {label:'异常填充', val:csummary.constant_fill, color:'#f59e0b'},
+    {label:'截断页',   val:csummary.truncated, color:'#dc2626'}
+  ];
+  cstats.forEach(function(s) {
+    var d = document.createElement('div');
+    d.style.cssText = 'padding:8px 12px;background:var(--surface2);border-radius:8px;min-width:96px;';
+    d.innerHTML = '<div style="font-size:11px;color:var(--text-muted);">' + s.label + '</div>'
+      + '<div style="font-size:18px;font-weight:600;color:' + s.color + ';">' + s.val + '</div>';
+    sumEl.appendChild(d);
+  });
+
+  var tipEl = document.getElementById('dm8-corrupt-tip');
+  tipEl.textContent = csummary.total > 0
+    ? '离线场景无法 100% 确认损坏，建议数据库实例启动后进一步核实。'
+    : '未发现可疑坏块。';
+
+  var corruptBody = document.getElementById('dm8-corrupt-body');
+  corruptBody.innerHTML = '';
+  var blocks = r.corrupt_blocks || [];
+  var showBlocks = blocks.slice(0, 500);
+  var typeLabels = {ZERO_PAGE:'全零页', CONSTANT_FILL:'异常填充页', TRUNCATED:'截断页'};
+  var typeColors = {ZERO_PAGE:'#ef4444', CONSTANT_FILL:'#f59e0b', TRUNCATED:'#dc2626'};
+  showBlocks.forEach(function(b) {
+    var color = typeColors[b.type] || '#808080';
+    var label = typeLabels[b.type] || b.type;
+    var tr = document.createElement('tr');
+    tr.style.borderBottom = '1px solid var(--border)';
+    tr.innerHTML = '<td style="padding:8px 10px;font-family:monospace;font-size:12px;">' + (b.file_name || '') + '</td>'
+      + '<td style="padding:8px 10px;text-align:right;">' + (b.page_no != null ? b.page_no : '') + '</td>'
+      + '<td style="padding:8px 10px;text-align:right;font-family:monospace;">' + (b.file_offset != null ? b.file_offset : '') + '</td>'
+      + '<td style="padding:8px 10px;"><span style="padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600;color:#fff;background:' + color + ';">' + label + '</span></td>'
+      + '<td style="padding:8px 10px;font-size:12px;color:var(--text-muted);">' + (b.tablespace || '未知') + '</td>';
+    corruptBody.appendChild(tr);
+  });
+  if (blocks.length === 0) {
+    corruptBody.innerHTML = '<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--text-muted);">未发现可疑坏块</td></tr>';
+  } else if (blocks.length > showBlocks.length) {
+    var mt = document.createElement('tr');
+    mt.innerHTML = '<td colspan="5" style="padding:10px;text-align:center;color:var(--text-muted);font-size:12px;">仅展示前 ' + showBlocks.length + ' 个坏块，共 ' + blocks.length + ' 个，完整清单见下载的 Word 报告</td>';
+    corruptBody.appendChild(mt);
+  }
 }
 
 function dm8SwitchTab(tab) {
@@ -6913,6 +6983,7 @@ function dm8SwitchTab(tab) {
   document.getElementById('dm8-tab-diagnostics').style.display = tab === 'diagnostics' ? 'block' : 'none';
   document.getElementById('dm8-tab-files').style.display = tab === 'files' ? 'block' : 'none';
   document.getElementById('dm8-tab-control').style.display = tab === 'control' ? 'block' : 'none';
+  document.getElementById('dm8-tab-corrupt').style.display = tab === 'corrupt' ? 'block' : 'none';
 }
 
 function dm8OfflineDownloadReport() {

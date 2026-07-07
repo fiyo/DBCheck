@@ -8314,38 +8314,33 @@ def api_dm8_offline_status(task_id):
 
 @app.route('/api/dm8_offline/report/<task_id>', methods=['GET'])
 def api_dm8_offline_report(task_id):
-    """获取 DM8 离线检查的 Word 报告"""
+    """获取 DM8 离线检查的 Word 报告（同时落盘到 reports 目录）"""
     task = dm8_offline_tasks.get(task_id)
     if not task or task['status'] != 'done':
         return jsonify({'ok': False, 'msg': '报告尚未就绪'})
 
     from dm8_offline_check import generate_offline_report_word
-    import tempfile, os
+    from flask import send_file
 
-    # 生成 Word 报告到临时文件
     result = task['result']
     mode = result.get('mode', 'local')
-    suffix = 'remote' if mode == 'remote' else 'local'
 
-    fd, tmp_path = tempfile.mkstemp(
-        suffix=f'_dm8_offline_{suffix}.docx', prefix='dm8_'
-    )
-    os.close(fd)
+    # 生成文件名
+    if mode == 'remote':
+        ssh_host = result.get('ssh_host', 'remote')
+        filename = f'DM8离线存储检查报告_SSH_{ssh_host}_{task_id[:8]}.docx'
+    else:
+        filename = f'DM8离线存储检查报告_本机_{task_id[:8]}.docx'
+
+    # 落盘到 reports 目录（与其他巡检报告统一管理）
+    reports_dir = os.path.join(BASE_DIR, 'reports')
+    os.makedirs(reports_dir, exist_ok=True)
+    ofile = os.path.join(reports_dir, filename)
 
     try:
-        report_path = generate_offline_report_word(result, tmp_path)
-
+        report_path = generate_offline_report_word(result, ofile)
         with open(report_path, 'rb') as f:
             file_data = f.read()
-
-        # 生成文件名
-        if mode == 'remote':
-            ssh_host = result.get('ssh_host', 'remote')
-            filename = f'DM8离线存储检查报告_SSH_{ssh_host}_{task_id[:8]}.docx'
-        else:
-            filename = f'DM8离线存储检查报告_本机_{task_id[:8]}.docx'
-
-        from flask import send_file
         return send_file(
             io.BytesIO(file_data),
             mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -8354,9 +8349,6 @@ def api_dm8_offline_report(task_id):
         )
     except Exception as e:
         return jsonify({'ok': False, 'msg': f'生成报告失败: {e}'})
-    finally:
-        if os.path.exists(tmp_path):
-            os.remove(tmp_path)
 
 
 if __name__ == '__main__':
