@@ -10,4 +10,4 @@
 DBCheck 版本信息
 """
 
-__version__ = 'v2.8.2'
+__version__ = 'v2.9.0'

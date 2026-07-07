@@ -2622,6 +2622,18 @@ async function executeFixSql(taskId, sql) {
   <script src="/static/js/xterm-addon-fit.js"></script>
   <script src="/static/js/xterm-addon-attach.js"></script>
   <script src="/static/js/socket.io.min.js"></script>
+  <!-- 健康态势大屏：ECharts (CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+  <style>
+    /* ── 健康态势大屏 (ECharts) ── */
+    .health-screen { margin-top: 24px; }
+    .health-screen-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+    @media (max-width: 900px){ .health-screen-grid { grid-template-columns: 1fr; } }
+    .health-chart-card { background: var(--card-bg, #161b22); border: 1px solid var(--border, #30363d); border-radius: 14px; padding: 14px 16px; }
+    .health-chart-title { font-size: 14px; font-weight: 600; color: var(--text, #e6edf3); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+    .health-chart-box { width: 100%; height: 280px; }
+    .health-chart-fallback { height: 280px; display: flex; align-items: center; justify-content: center; color: var(--text-muted, #8b949e); font-size: 13px; text-align: center; line-height: 1.6; }
+  </style>
 
 
     <style>
@@ -4277,6 +4289,32 @@ function formatBytes(bytes) {
                 </div>
               </div>
               <div class="kb-hint" id="home-kb-hint" data-i18n="webui.home_kb_hint">上传数据库文档，AI 诊断更精准</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 健康态势大屏 (ECharts) -->
+        <div class="home-section health-screen" id="health-screen-section" style="display:none;">
+          <div class="section-header">
+            <h2 class="section-title">🩺 健康态势大屏</h2>
+            <span class="section-desc">实时健康评分 · 风险分布 · 趋势研判 · 实例矩阵</span>
+          </div>
+          <div class="health-screen-grid">
+            <div class="health-chart-card">
+              <div class="health-chart-title">🎯 综合健康评分</div>
+              <div class="health-chart-box" id="echart-gauge"></div>
+            </div>
+            <div class="health-chart-card">
+              <div class="health-chart-title">⚠️ 风险等级分布</div>
+              <div class="health-chart-box" id="echart-risk"></div>
+            </div>
+            <div class="health-chart-card">
+              <div class="health-chart-title">📈 健康评分趋势（近 30 天）</div>
+              <div class="health-chart-box" id="echart-trend"></div>
+            </div>
+            <div class="health-chart-card">
+              <div class="health-chart-title">🗂️ 实例健康矩阵</div>
+              <div class="health-chart-box" id="echart-matrix"></div>
             </div>
           </div>
         </div>
@@ -11715,12 +11753,13 @@ async function loadHomeStats() {
     // 逐个获取，一个失败不影响其他
     let dash = {}, dataStats = {}, dataJobs = {}, dataRag = {}, dataHome = {};
     try { const r = await fetch('/api/pro/dashboard'); dash = await r.json(); } catch(e) {}
+    try { renderHealthScreen(dash); } catch(e) { console.error('renderHealthScreen failed:', e); }
     try { const r = await fetch('/api/pro/statistics'); dataStats = await r.json(); } catch(e) {}
     try { const r = await fetch('/api/scheduler/jobs'); dataJobs = await r.json(); } catch(e) {}
     try { const r = await fetch('/api/rag/documents'); dataRag = await r.json(); } catch(e) {}
     try { const r = await fetch('/api/home_stats'); dataHome = await r.json(); } catch(e) {}
 
-    // 1. 健康评分仪表盘
+    // 1. 健康评分摘要（紧凑卡片——详细仪表盘见下方「健康态势大屏」）
     const dashEl = document.getElementById('home-health-dashboard');
     if (dashEl) {
       try {
@@ -11728,23 +11767,6 @@ async function loadHomeStats() {
           const level = dash.level || 'unknown';
           const color = levelColors[level] || '#8b949e';
           const total = dash.total_score || 0;
-          // SVG 环形图参数
-          const R = 52;
-          const C = 2 * Math.PI * R;
-          const dashOffset = C * (1 - total / 100);
-
-          const catRows = (dash.categories || []).map(cat => {
-            const catColor = catColors[cat.key] || '#8b949e';
-            const catIcon = catIcons[cat.key] || '📊';
-            return `<div class="health-cat-row">
-              <span class="health-cat-icon">${catIcon}</span>
-              <span class="health-cat-label">${cat.name}</span>
-              <div class="health-cat-bar-wrap">
-                <div class="health-cat-bar" style="width:${cat.score}%;background:${catColor}"></div>
-              </div>
-              <span class="health-cat-score" style="color:${cat.score >= 70 ? '#4caf50' : cat.score >= 50 ? '#e3b341' : '#f85149'}">${cat.score}</span>
-            </div>`;
-          }).join('');
 
           // 风险分布 chips
           const riskChips = [];
@@ -11755,25 +11777,20 @@ async function loadHomeStats() {
           if (riskB.low > 0)     riskChips.push(`<span class="health-risk-chip low">低危 ${riskB.low}</span>`);
           if (riskB.healthy > 0) riskChips.push(`<span class="health-risk-chip healthy">正常 ${riskB.healthy}</span>`);
 
+          // 实例数统计
+          const instTotal = dash.total_instances || 0;
+          const instDone  = dash.inspected_count || 0;
+
           dashEl.innerHTML = `
-            <div class="health-dashboard">
-              <div class="health-ring-wrap">
-                <svg width="120" height="120" viewBox="0 0 120 120">
-                  <!-- 背景圆环 -->
-                  <circle cx="60" cy="60" r="${R}" fill="none" stroke="var(--border)" stroke-width="10"/>
-                  <!-- 得分圆环 -->
-                  <circle cx="60" cy="60" r="${R}" fill="none" stroke="${color}" stroke-width="10"
-                    stroke-dasharray="${C}" stroke-dashoffset="${dashOffset}"
-                    stroke-linecap="round"/>
-                </svg>
-                <div class="health-score-text">
-                  <span class="health-score-num">${total}</span>
-                  <span class="health-score-unit">分</span>
-                  <span class="health-level-badge ${level}">${levelLabels[level] || level}</span>
-                </div>
+            <div class="health-summary" style="display:flex;flex-direction:column;align-items:center;padding:12px 4px;text-align:center;">
+              <div style="font-size:42px;font-weight:800;line-height:1;color:${color};letter-spacing:-2px;">${total}
+                <span style="font-size:14px;font-weight:600;color:var(--text-muted);margin-left:2px;">分</span>
               </div>
-              <div class="health-categories">${catRows}</div>
-              ${riskChips.length ? '<div class="health-risk-row">' + riskChips.join('') + '</div>' : ''}
+              <span class="health-level-badge ${level}" style="margin-top:4px;margin-bottom:10px;">${levelLabels[level] || level}</span>
+              ${riskChips.length ? '<div class="health-risk-row" style="margin-bottom:8px">' + riskChips.join('') + '</div>' : ''}
+              <div style="font-size:11px;color:var(--text-muted);">
+                已巡检 ${instDone}/${instTotal} 个实例 · 详情见下方大屏 ↓
+              </div>
             </div>`;
         } else {
           dashEl.innerHTML = `<div class="health-no-data">暂无巡检数据<br><span style="font-size:12px">开始一次巡检即可看到评分</span></div>`;
@@ -11892,11 +11909,152 @@ async function loadHomeStats() {
 
     // 显示概览区域
     overviewSection.style.display = '';
+    // 大屏容器此刻才获得宽度，重算 ECharts 尺寸
+    Object.values(healthCharts).forEach(c => c && c.resize());
 
   } catch(e) {
     console.error('Failed to load home stats:', e);
   }
 }
+
+// ─── 健康态势大屏 (ECharts) ──────────────────────────────
+const healthCharts = { gauge: null, risk: null, trend: null, matrix: null };
+const RISK_COLORS = {
+  critical: '#f85149', high: '#fb923c', medium: '#eab308',
+  low: '#3b82f6', healthy: '#22c55e', unknown: '#8b949e'
+};
+
+function cssVar(name, fb) {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || fb;
+}
+
+function renderHealthScreen(dash) {
+  const section = document.getElementById('health-screen-section');
+  if (!section) return;
+
+  // ECharts 未加载（离线环境）时给出提示，不阻塞页面
+  if (typeof echarts === 'undefined') {
+    section.style.display = '';
+    section.querySelectorAll('.health-chart-box').forEach(b => {
+      b.innerHTML = '<div class="health-chart-fallback">ECharts 未加载<br>请联网或部署离线版以查看可视化大屏</div>';
+    });
+    return;
+  }
+
+  if (!dash || !dash.ok || !dash.has_history) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = '';
+
+  const TXT  = cssVar('--text', '#e6edf3');
+  const MUT  = cssVar('--text-muted', '#8b949e');
+  const BORD = cssVar('--border', '#30363d');
+
+  // 1) 仪表盘：综合健康评分
+  const gauge = document.getElementById('echart-gauge');
+  healthCharts.gauge = echarts.init(gauge);
+  healthCharts.gauge.setOption({
+    backgroundColor: 'transparent',
+    series: [{
+      type: 'gauge', radius: '92%', center: ['50%', '58%'],
+      startAngle: 210, endAngle: -30, min: 0, max: 100,
+      progress: { show: true, width: 16, itemStyle: { color: RISK_COLORS[dash.level] || '#3b82f6' } },
+      axisLine: { lineStyle: { width: 16, color: [
+        [0.3, '#f85149'], [0.5, '#fb923c'], [0.7, '#eab308'], [0.85, '#4caf50'], [1, '#22c55e']
+      ] } },
+      pointer: { show: true, length: '62%', width: 5, itemStyle: { color: TXT } },
+      axisTick: { distance: -16, length: 5, lineStyle: { color: MUT, width: 1 } },
+      splitLine: { distance: -16, length: 16, lineStyle: { color: MUT, width: 2 } },
+      axisLabel: { distance: 18, color: MUT, fontSize: 10 },
+      anchor: { show: true, size: 14, itemStyle: { color: TXT } },
+      detail: { valueAnimation: true, formatter: '{value}', color: TXT, fontSize: 34, fontWeight: 'bolder', offsetCenter: [0, '38%'] },
+      title: { offsetCenter: [0, '62%'], color: MUT, fontSize: 12 },
+      data: [{ value: dash.total_score || 0, name: '健康评分' }]
+    }]
+  });
+
+  // 2) 风险等级分布环图
+  const risk = document.getElementById('echart-risk');
+  healthCharts.risk = echarts.init(risk);
+  const rb = dash.risk_breakdown || {};
+  const riskData = [
+    { name: '严重', value: rb.critical || 0, itemStyle: { color: RISK_COLORS.critical } },
+    { name: '高危', value: rb.high || 0,     itemStyle: { color: RISK_COLORS.high } },
+    { name: '中危', value: rb.medium || 0,   itemStyle: { color: RISK_COLORS.medium } },
+    { name: '低危', value: rb.low || 0,      itemStyle: { color: RISK_COLORS.low } },
+    { name: '正常', value: rb.healthy || 0,  itemStyle: { color: RISK_COLORS.healthy } }
+  ].filter(d => d.value > 0);
+  healthCharts.risk.setOption({
+    backgroundColor: 'transparent',
+    tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+    legend: { bottom: 0, textStyle: { color: MUT, fontSize: 11 }, itemWidth: 10, itemHeight: 10 },
+    series: [{
+      type: 'pie', radius: ['42%', '68%'], center: ['50%', '46%'],
+      avoidLabelOverlap: true,
+      label: { color: TXT, fontSize: 11, formatter: '{b}\n{c}' },
+      labelLine: { lineStyle: { color: MUT } },
+      itemStyle: { borderColor: BORD, borderWidth: 2 },
+      data: riskData.length ? riskData : [{ name: '暂无风险', value: 1, itemStyle: { color: RISK_COLORS.healthy } }]
+    }]
+  });
+
+  // 3) 健康评分趋势（近 30 天）
+  const trend = document.getElementById('echart-trend');
+  healthCharts.trend = echarts.init(trend);
+  const tdata = dash.trend || [];
+  healthCharts.trend.setOption({
+    backgroundColor: 'transparent',
+    tooltip: { trigger: 'axis' },
+    grid: { left: 38, right: 16, top: 20, bottom: 30 },
+    xAxis: {
+      type: 'category', boundaryGap: false, data: tdata.map(d => d.date),
+      axisLine: { lineStyle: { color: BORD } }, axisLabel: { color: MUT, fontSize: 10 }
+    },
+    yAxis: {
+      type: 'value', min: 0, max: 100,
+      splitLine: { lineStyle: { color: BORD } }, axisLabel: { color: MUT, fontSize: 10 }
+    },
+    series: [{
+      type: 'line', smooth: true, symbol: 'circle', symbolSize: 5,
+      data: tdata.map(d => d.score),
+      lineStyle: { width: 3, color: '#3b82f6' },
+      itemStyle: { color: '#3b82f6' },
+      areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+        { offset: 0, color: 'rgba(59,130,246,0.35)' },
+        { offset: 1, color: 'rgba(59,130,246,0.02)' }
+      ]) }
+    }]
+  });
+
+  // 4) 实例健康矩阵
+  const matrix = document.getElementById('echart-matrix');
+  healthCharts.matrix = echarts.init(matrix);
+  const insts = (dash.instances || []).slice().reverse(); // 倒序：高分在上方
+  healthCharts.matrix.setOption({
+    backgroundColor: 'transparent',
+    tooltip: {
+      trigger: 'axis', axisPointer: { type: 'shadow' },
+      formatter: p => {
+        const i = insts[p[0].dataIndex];
+        return `${i.instance_name} (${i.db_type})<br/>健康分: ${i.health_score}<br/>等级: ${i.risk_level}`;
+      }
+    },
+    grid: { left: 120, right: 28, top: 16, bottom: 24 },
+    xAxis: { type: 'value', max: 100, splitLine: { lineStyle: { color: BORD } }, axisLabel: { color: MUT, fontSize: 10 } },
+    yAxis: { type: 'category', data: insts.map(i => i.instance_name), axisLine: { lineStyle: { color: BORD } }, axisLabel: { color: MUT, fontSize: 10 } },
+    series: [{
+      type: 'bar', barWidth: '58%',
+      data: insts.map(i => ({ value: i.health_score, itemStyle: { color: RISK_COLORS[i.risk_level] || '#3b82f6', borderRadius: [0, 4, 4, 0] } })),
+      label: { show: true, position: 'right', color: TXT, fontSize: 10, formatter: '{c}' }
+    }]
+  });
+}
+
+window.addEventListener('resize', () => {
+  Object.values(healthCharts).forEach(c => c && c.resize());
+});
 
 // ─── 一键修复建议功能 ───────────────────────────────────────
 

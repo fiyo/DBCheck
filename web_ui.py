@@ -4335,27 +4335,28 @@ def api_pro_dashboard():
             LIMIT 10
         """)
         latest_rows = cursor.fetchall()
+
+        # 聚合健康分趋势（按日平均，近 30 天）——来自 instance_trend 真实数据
+        cursor.execute("""
+            SELECT date, AVG(health_score) as avg_score
+            FROM instance_trend
+            GROUP BY date ORDER BY date DESC LIMIT 30
+        """)
+        trend_rows = cursor.fetchall()
+
+        # 实例矩阵（各实例最新巡检真实数据）
+        instances = [{
+            'instance_id': r['instance_id'],
+            'instance_name': r['instance_name'],
+            'db_type': r['db_type'],
+            'health_score': r['health_score'],
+            'risk_level': r['risk_level'],
+            'inspect_time': r['inspect_time'],
+        } for r in latest_rows]
+
         conn.close()
 
-        # 如果有历史记录，模拟5类评分（性能/安全/配置/容量/可用性）
-        # 真实评分需要从 report_score.InspectionDataScorer 计算，此处基于 risk_count 估算
-        categories = [
-            {'name': '性能', 'key': 'performance', 'score': 0, 'icon': '🚀'},
-            {'name': '安全', 'key': 'security',     'score': 0, 'icon': '🔒'},
-            {'name': '配置', 'key': 'configuration','score': 0, 'icon': '⚙️'},
-            {'name': '容量', 'key': 'capacity',     'score': 0, 'icon': '💾'},
-            {'name': '可用性', 'key': 'availability','score': 0, 'icon': '✅'},
-        ]
-
-        if latest_rows:
-            # 基于 health_score 分配各类评分（加权分配，模拟真实评分）
-            for cat in categories:
-                offset = random.randint(-10, 10)
-                cat['score'] = max(0, min(100, score + offset))
-        else:
-            # 无历史记录时，所有分类显示为 0
-            for cat in categories:
-                cat['score'] = 0
+        trend = [{'date': r['date'], 'score': round(r['avg_score'])} for r in reversed(trend_rows)]
 
         # 总实例数和已巡检实例数
         stats = im.get_statistics()
@@ -4367,7 +4368,8 @@ def api_pro_dashboard():
             'total_score': score,
             'level': level,
             'risk_breakdown': risk_breakdown,
-            'categories': categories,
+            'trend': trend,
+            'instances': instances,
             'total_instances': total_instances,
             'inspected_count': inspected_count,
             'has_history': inspected_count > 0,
