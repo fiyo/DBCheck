@@ -132,6 +132,7 @@ python web_ui.py         # Web interface
 | ⏰ Scheduled Tasks | Cron-based periodic inspections, auto email/Webhook notification on completion |
 | 📚 RAG Knowledge Base | Upload ops documentation; AI retrieves relevant knowledge during diagnostics |
 | 📊 AWR Report Analysis | Upload Oracle AWR HTML reports; auto-generates structured Word analysis report |
+| 💿 DM8 Offline Storage Check | Inspect DM8 storage health offline (no running instance); scan data files and locate bad blocks (full-zero / constant-fill / truncated) |
 | 📝 SQL Editor | Built-in Web UI SQL editor with syntax highlighting, result table, execution history |
 | 🖥️ Remote Terminal | SSH-based, multi-tab, fullscreen mode |
 
@@ -322,6 +323,18 @@ Configuration-driven — each database type can independently add/delete/reorder
 ### AWR Report Analysis
 
 Upload Oracle AWR HTML reports; automatically parse key performance metrics and generate structured Word analysis reports with AI-assisted diagnostics.
+
+### DM8 Offline Storage Check
+
+Inspect DM8 storage health **without a running database instance** — directly scan the data file directory (`.DBF` files + `dm.ctl`). Supports both local directory and remote server via SSH.
+
+- **Local & SSH remote modes** — point at a local path, or connect to a remote host over SSH (password / key) to scan its data files.
+- **Block corruption analysis** — flags suspicious bad blocks using universal binary signals:
+  - `ZERO_PAGE` — an entire page filled with `0x00`
+  - `CONSTANT_FILL` — an entire page filled with a single byte (e.g. `0xFF`)
+  - `TRUNCATED` — the trailing page is shorter than the page size (file truncated)
+  - Each bad block is located by physical page number and file offset, and attributed to its tablespace (resolved from `dm.ctl`).
+- **Word report + Web UI** — a structured Word report is generated with a dedicated *Block Corruption Analysis* chapter, and the same bad-block list is viewable directly in the Web UI. Reports are saved to the unified `reports/` directory.
 
 ### RAG Knowledge Base
 
