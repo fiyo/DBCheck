@@ -180,6 +180,68 @@ app = Flask(__name__, template_folder='web_templates', static_folder='web_templa
 app.config['SECRET_KEY'] = os.urandom(24)
 socketio.init_app(app)
 
+# ── 实时监控采集器（v2.10）────────────────────────────────────
+# 采集器与 web_ui 同进程运行，复用同一 socketio 实时推流。
+_monitor_started = False
+try:
+    from pro.metrics_collector import MetricsCollector, get_collector, set_collector
+    _collector = MetricsCollector(socketio=socketio)
+    set_collector(_collector)
+    from apscheduler.schedulers.background import BackgroundScheduler
+    from apscheduler.triggers.interval import IntervalTrigger
+    _monitor_sched = BackgroundScheduler()
+    _monitor_sched.add_job(_collector.tick, IntervalTrigger(seconds=30))
+    _monitor_sched.start()
+    _collector.running = True
+    _monitor_started = True
+    print('[monitor] 实时监控采集器已启动（间隔 30s）', flush=True)
+except Exception as _mon_e:
+    print('[monitor] 采集器启动失败: %s' % _mon_e, flush=True)
+
+
+@app.route('/api/pro/metrics/summary')
+def api_pro_metrics_summary():
+    """所有实例的最新指标快照概览（供前端实时监控区初始化）。"""
+    from pro import get_instance_manager
+    c = get_collector()
+    im = get_instance_manager()
+    out = []
+    try:
+        for inst in im.get_all_instances(mask_password=True):
+            iid = inst.get('id') or inst.get('instance_id')
+            latest = c.store.get_latest(iid) if c else {}
+            skip = ('instance_id', 'name', 'db_type', 'ts', 'available',
+                    'latency_ms', 'status', 'error', 'deep_error')
+            out.append({
+                'instance_id': iid,
+                'name': inst.get('name'),
+                'db_type': inst.get('db_type'),
+                'available': latest.get('available'),
+                'latency_ms': latest.get('latency_ms'),
+                'status': latest.get('status'),
+                'metrics': {k: v for k, v in latest.items() if k not in skip},
+                'error': latest.get('error') or latest.get('deep_error'),
+                'last_ts': latest.get('ts'),
+            })
+    except Exception as e:
+        return jsonify({'ok': False, 'msg': str(e)[:200], 'instances': []})
+    return jsonify({'ok': True, 'running': bool(c and c.running), 'instances': out})
+
+
+@app.route('/api/pro/metrics/<instance_id>')
+def api_pro_metrics_detail(instance_id):
+    """单个实例的近期快照序列（供图表回填历史）。"""
+    c = get_collector()
+    limit = request.args.get('limit', 120, type=int)
+    if not c:
+        return jsonify({'ok': False, 'msg': 'collector not started', 'series': []})
+    try:
+        series = c.store.get_recent(instance_id, limit)
+    except Exception as e:
+        return jsonify({'ok': False, 'msg': str(e)[:200], 'series': []})
+    return jsonify({'ok': True, 'instance_id': instance_id, 'series': series})
+
+
 # ── 纪念日灰度模式（5月19-25日，不可调整）───────────────────────
 @app.before_request
 def _enforce_grayscale():

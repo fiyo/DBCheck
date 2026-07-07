@@ -2633,6 +2633,19 @@ async function executeFixSql(taskId, sql) {
     .health-chart-title { font-size: 14px; font-weight: 600; color: var(--text, #e6edf3); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
     .health-chart-box { width: 100%; height: 280px; }
     .health-chart-fallback { height: 280px; display: flex; align-items: center; justify-content: center; color: var(--text-muted, #8b949e); font-size: 13px; text-align: center; line-height: 1.6; }
+    /* ── 实时监控 (v2.10) ── */
+    .monitor-section { margin-top: 24px; }
+    .monitor-running-pill { font-size: 12px; color: var(--text-muted, #8b949e); margin-left: auto; }
+    .monitor-toolbar { display: flex; align-items: center; gap: 12px; margin: 12px 0 16px; flex-wrap: wrap; font-size: 13px; color: var(--text, #e6edf3); }
+    .monitor-toolbar label { color: var(--text-muted, #8b949e); }
+    .monitor-toolbar select { background: var(--bg, #0d1117); color: var(--text, #e6edf3); border: 1px solid var(--border, #30363d); border-radius: 6px; padding: 6px 10px; font-size: 13px; }
+    .monitor-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--text-muted, #8b949e); display: inline-block; }
+    .monitor-dot.up { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
+    .monitor-dot.down { background: #f85149; box-shadow: 0 0 6px #f85149; }
+    .monitor-latency { color: var(--text-muted, #8b949e); }
+    .monitor-updated { color: var(--text-muted, #8b949e); margin-left: auto; }
+    .monitor-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    @media (max-width: 1100px){ .monitor-grid { grid-template-columns: 1fr; } }
   </style>
 
 
@@ -4315,6 +4328,39 @@ function formatBytes(bytes) {
             <div class="health-chart-card">
               <div class="health-chart-title">🗂️ 实例健康矩阵</div>
               <div class="health-chart-box" id="echart-matrix"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 实时监控 (v2.10) -->
+        <div class="home-section monitor-section" id="monitor-section" style="display:none;">
+          <div class="section-header">
+            <h2 class="section-title">📡 实时监控</h2>
+            <span class="section-desc">采集器每 30s 推送 · QPS / TPS · 连接数 · 延迟 · 可用性</span>
+            <span class="monitor-running-pill" id="monitor-running-pill">采集器：检测中…</span>
+          </div>
+          <div class="monitor-toolbar">
+            <label>实例</label>
+            <select id="monitor-instance-select" onchange="onMonitorInstanceChange()">
+              <option value="">请选择实例</option>
+            </select>
+            <span class="monitor-dot" id="monitor-dot"></span>
+            <span id="monitor-status-text">—</span>
+            <span class="monitor-latency" id="monitor-latency-text"></span>
+            <span class="monitor-updated" id="monitor-updated-text"></span>
+          </div>
+          <div class="monitor-grid">
+            <div class="health-chart-card">
+              <div class="health-chart-title">⚡ 吞吐（QPS / TPS）</div>
+              <div class="health-chart-box" id="echart-mon-throughput"></div>
+            </div>
+            <div class="health-chart-card">
+              <div class="health-chart-title">🔗 连接数</div>
+              <div class="health-chart-box" id="echart-mon-conn"></div>
+            </div>
+            <div class="health-chart-card">
+              <div class="health-chart-title">⏱️ 响应延迟 (ms)</div>
+              <div class="health-chart-box" id="echart-mon-latency"></div>
             </div>
           </div>
         </div>
@@ -11911,6 +11957,8 @@ async function loadHomeStats() {
     overviewSection.style.display = '';
     // 大屏容器此刻才获得宽度，重算 ECharts 尺寸
     Object.values(healthCharts).forEach(c => c && c.resize());
+    // 实时监控区（v2.10）：概览可见即初始化采集器推送与图表
+    try { initMonitor(); } catch(e) { console.error('initMonitor failed:', e); }
 
   } catch(e) {
     console.error('Failed to load home stats:', e);
@@ -12054,6 +12102,173 @@ function renderHealthScreen(dash) {
 
 window.addEventListener('resize', () => {
   Object.values(healthCharts).forEach(c => c && c.resize());
+});
+
+// ─── 实时监控 (v2.10) ──────────────────────────────────
+const monitorCharts = { throughput: null, conn: null, latency: null };
+let monitorCurrentId = '';
+let monitorHistory = {};   // instance_id -> [{ts, metrics}]
+let monitorSummary = [];
+
+function ensureMonChart(key, id) {
+  if (!monitorCharts[key]) {
+    const el = document.getElementById(id);
+    if (el) monitorCharts[key] = echarts.init(el);
+  }
+  return monitorCharts[key];
+}
+
+function monitorShowFallback(msg) {
+  ['echart-mon-throughput', 'echart-mon-conn', 'echart-mon-latency'].forEach(function (id) {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<div class="health-chart-fallback">' + (msg || '暂无数据') + '</div>';
+  });
+}
+
+function initMonitor() {
+  const section = document.getElementById('monitor-section');
+  if (!section) return;
+  section.style.display = '';
+  if (typeof echarts === 'undefined') {
+    monitorShowFallback('ECharts 未加载<br>请联网或部署离线版以查看实时监控');
+    return;
+  }
+  try {
+    if (typeof socket !== 'undefined') {
+      socket.emit('join', { task_id: 'monitor' });
+      socket.on('metrics', function (data) {
+        if (!data || !data.snapshots) return;
+        data.snapshots.forEach(function (snap) { pushMonitorSnapshot(snap); });
+      });
+    }
+  } catch (e) { console.error('monitor socket init failed:', e); }
+  loadMonitorSummary();
+}
+
+async function loadMonitorSummary() {
+  try {
+    const r = await fetch('/api/pro/metrics/summary');
+    const d = await r.json();
+    monitorSummary = d.instances || [];
+    const pill = document.getElementById('monitor-running-pill');
+    if (pill) pill.textContent = '采集器：' + (d.running ? '运行中' : '未运行');
+    const sel = document.getElementById('monitor-instance-select');
+    if (!sel) return;
+    const cur = monitorCurrentId;
+    sel.innerHTML = '<option value="">请选择实例</option>' +
+      monitorSummary.map(function (i) {
+        return '<option value="' + i.instance_id + '">' + (i.name || i.instance_id) + ' (' + (i.db_type || '') + ')</option>';
+      }).join('');
+    if (cur) sel.value = cur;
+    else if (monitorSummary.length) { sel.value = monitorSummary[0].instance_id; monitorCurrentId = monitorSummary[0].instance_id; }
+    if (monitorCurrentId) loadMonitorHistory(monitorCurrentId);
+    else monitorShowFallback('暂无被监控实例');
+  } catch (e) { console.error('loadMonitorSummary failed:', e); }
+}
+
+function onMonitorInstanceChange() {
+  const sel = document.getElementById('monitor-instance-select');
+  if (!sel) return;
+  monitorCurrentId = sel.value;
+  if (monitorCurrentId) loadMonitorHistory(monitorCurrentId);
+}
+
+async function loadMonitorHistory(id) {
+  try {
+    const r = await fetch('/api/pro/metrics/' + encodeURIComponent(id) + '?limit=120');
+    const d = await r.json();
+    monitorHistory[id] = (d.series || []).map(function (s) { return { ts: s.ts, metrics: s.metrics }; });
+    renderMonitorCharts();
+    updateMonitorStatus(id);
+  } catch (e) { console.error('loadMonitorHistory failed:', e); }
+}
+
+function pushMonitorSnapshot(snap) {
+  const id = snap.instance_id;
+  if (!id) return;
+  if (!monitorHistory[id]) monitorHistory[id] = [];
+  monitorHistory[id].push({ ts: snap.ts, metrics: snap.metrics || {} });
+  if (monitorHistory[id].length > 200) monitorHistory[id].shift();
+  updateMonitorStatus(id);
+  if (id === monitorCurrentId) renderMonitorCharts();
+}
+
+function updateMonitorStatus(id) {
+  if (id !== monitorCurrentId) return;
+  const inst = monitorSummary.find(function (i) { return i.instance_id === id; });
+  const latest = (monitorHistory[id] || []).slice(-1)[0];
+  const dot = document.getElementById('monitor-dot');
+  const st = document.getElementById('monitor-status-text');
+  const lt = document.getElementById('monitor-latency-text');
+  const up = document.getElementById('monitor-updated-text');
+  const avail = latest ? latest.metrics.available : (inst ? inst.available : undefined);
+  if (dot) dot.className = 'monitor-dot ' + (avail ? 'up' : 'down');
+  if (st) st.textContent = avail === false ? (latest && latest.metrics.status === 'cooldown' ? '退避中' : '不可用') : '正常';
+  if (lt) lt.textContent = (latest && latest.metrics.latency_ms != null) ? ('延迟 ' + latest.metrics.latency_ms + ' ms') : '';
+  if (up) up.textContent = latest ? ('更新于 ' + (latest.ts || '').replace('T', ' ').slice(0, 19)) : '';
+}
+
+function renderMonitorCharts() {
+  if (typeof echarts === 'undefined') return;
+  const id = monitorCurrentId;
+  const hist = monitorHistory[id] || [];
+  if (!hist.length) { monitorShowFallback('等待采集数据…'); return; }
+
+  const TXT = cssVar('--text', '#e6edf3');
+  const MUT = cssVar('--text-muted', '#8b949e');
+  const BORD = cssVar('--border', '#30363d');
+  const times = hist.map(function (h) { return (h.ts || '').replace('T', ' ').slice(0, 19); });
+
+  function pick(keys, color) {
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i];
+      const data = hist.map(function (h) { return h.metrics[k]; });
+      if (data.some(function (v) { return v !== undefined && v !== null; })) {
+        return { name: k, type: 'line', smooth: true, symbol: 'none', data: data, lineStyle: { width: 2, color: color }, itemStyle: { color: color } };
+      }
+    }
+    return null;
+  }
+  function multi(prefix, colors) {
+    const out = []; let ci = 0;
+    const m0 = hist[0].metrics || {};
+    Object.keys(m0).forEach(function (k) {
+      if (k.indexOf(prefix) === 0) {
+        const data = hist.map(function (h) { return h.metrics[k]; });
+        if (data.some(function (v) { return v !== undefined && v !== null; })) {
+          const c = colors[ci % colors.length]; ci++;
+          out.push({ name: k, type: 'line', smooth: true, symbol: 'none', data: data, lineStyle: { width: 2, color: c }, itemStyle: { color: c } });
+        }
+      }
+    });
+    return out;
+  }
+  function opt(series) {
+    return {
+      backgroundColor: 'transparent',
+      tooltip: { trigger: 'axis' },
+      legend: series.length > 1 ? { bottom: 0, textStyle: { color: MUT, fontSize: 10 }, itemWidth: 10, itemHeight: 10 } : undefined,
+      grid: { left: 46, right: 16, top: 18, bottom: series.length > 1 ? 28 : 24 },
+      xAxis: { type: 'category', boundaryGap: false, data: times, axisLine: { lineStyle: { color: BORD } }, axisLabel: { color: MUT, fontSize: 9, hideOverlap: true } },
+      yAxis: { type: 'value', splitLine: { lineStyle: { color: BORD } }, axisLabel: { color: MUT, fontSize: 10 } },
+      series: series
+    };
+  }
+
+  const tp = multi('rate_', ['#3b82f6', '#22c55e', '#f59e0b', '#a855f7']);
+  if (!tp.length) { const f = pick(['rate_queries', 'rate_xact_commit', 'rate_ora_user_commits'], '#3b82f6'); if (f) tp.push(f); }
+  ensureMonChart('throughput', 'echart-mon-throughput').setOption(opt(tp));
+
+  const conn = [pick(['threads_connected', 'numbackends', 'user_sessions', 'active_sessions', 'connections'], '#22c55e'),
+                pick(['threads_running'], '#f59e0b')].filter(Boolean);
+  ensureMonChart('conn', 'echart-mon-conn').setOption(opt(conn));
+
+  const lat = pick(['latency_ms'], '#f85149');
+  ensureMonChart('latency', 'echart-mon-latency').setOption(opt(lat ? [lat] : []));
+}
+
+window.addEventListener('resize', function () {
+  Object.values(monitorCharts).forEach(function (c) { if (c) c.resize(); });
 });
 
 // ─── 一键修复建议功能 ───────────────────────────────────────

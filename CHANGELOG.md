@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.10.0 (2026-07-07)
+- 新增「实时监控采集器」：采集器随 Web 进程启动，基于 APScheduler 每 30s 采集一次
+- 通用探针：对所有数据库类型做 TCP 连通探测，输出可用性 + 响应延迟
+- 深采指标：MySQL/TiDB、PostgreSQL/PG/Kingbase、Oracle、达梦 DM8 采集连接数、QPS/TPS、复制延迟等；计数器型指标自动差分算速率
+- 实时推送：通过 flask-socketio 的 `metrics` 事件（room=monitor）推流，前端「实时监控」区 ECharts 实时刷新
+- 存储：新增 `metrics_snapshot` 时序表（SQLite），按实例环形裁剪最近 2000 个快照
+- 健壮性：连接超时 3s、单实例连续失败断路器退避、单指标采集失败不影响整体循环
+
 ## v2.9.0 (2026-07-07)
 
 ### 🚀 可视化大屏升级（健康态势大屏）
