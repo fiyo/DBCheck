@@ -12187,7 +12187,9 @@ function pushMonitorSnapshot(snap) {
   const id = snap.instance_id;
   if (!id) return;
   if (!monitorHistory[id]) monitorHistory[id] = [];
-  monitorHistory[id].push({ ts: snap.ts, metrics: snap.metrics || {} });
+  // snap 本身就是 collect_one() 的扁平快照（含 latency_ms / queries / rate_* 等），
+  // 不存在 snap.metrics 嵌套字段——与 get_recent() 返回的 {ts, metrics:<payload>} 对齐。
+  monitorHistory[id].push({ ts: snap.ts, metrics: Object.assign({}, snap) });
   if (monitorHistory[id].length > 200) monitorHistory[id].shift();
   updateMonitorStatus(id);
   if (id === monitorCurrentId) renderMonitorCharts();
