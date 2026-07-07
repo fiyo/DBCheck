@@ -2646,6 +2646,56 @@ async function executeFixSql(taskId, sql) {
     .monitor-updated { color: var(--text-muted, #8b949e); margin-left: auto; }
     .monitor-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
     @media (max-width: 1100px){ .monitor-grid { grid-template-columns: 1fr; } }
+
+    /* ── 首页驾驶舱（单屏布局）── */
+    #page-home.cockpit {
+      margin: -36px -40px;               /* 抵消 .content 内边距，铺满可视区 */
+      padding: 12px 16px 14px;
+      height: calc(100vh - 56px);        /* 顶栏高度 */
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    #page-home.cockpit .slogan-wrapper { display: none; }   /* 驾驶舱下隐藏品牌动画，省空间 */
+
+    /* KPI 条：4 张概览卡横排 */
+    .cockpit-kpi { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; flex-shrink: 0; }
+    .cockpit-kpi .overview-card { margin: 0; padding: 10px 14px; }
+    .cockpit-kpi .overview-card .card-header { margin-bottom: 4px; }
+    .cockpit-kpi .db-type-list, .cockpit-kpi .kb-summary, .cockpit-kpi .scheduler-summary { font-size: 12px; }
+    .cockpit-kpi .job-status-list { margin-top: 4px; }
+
+    /* 实时监控工具条 */
+    .cockpit-toolbar { display: flex; align-items: center; gap: 12px; flex-shrink: 0; font-size: 13px; color: var(--text, #e6edf3); padding: 2px 4px; }
+    .cockpit-toolbar .section-title { font-size: 14px; }
+    .cockpit-toolbar label { color: var(--text-muted, #8b949e); }
+    .cockpit-toolbar select { background: var(--bg, #0d1117); color: var(--text, #e6edf3); border: 1px solid var(--border, #30363d); border-radius: 6px; padding: 5px 10px; font-size: 13px; }
+    #page-home.cockpit .monitor-running-pill { margin-left: 8px; }
+
+    /* 主网格：7 张实时图（12 列 2 行） */
+    .cockpit-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(12, 1fr); grid-auto-rows: 1fr; gap: 10px; }
+    .cockpit-card { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--card-bg, #161b22); border: 1px solid var(--border, #30363d); border-radius: 12px; padding: 8px 10px 6px; }
+    .cockpit-card .health-chart-title { font-size: 12px; margin-bottom: 4px; flex-shrink: 0; }
+    .cockpit-card .health-chart-box { flex: 1; min-height: 0; width: 100%; height: auto; }
+    .cockpit-card .health-chart-fallback { height: 100%; }
+    .span3 { grid-column: span 3; }
+    .span4 { grid-column: span 4; }
+
+    /* 数据统计（折叠，低频） */
+    .cockpit-stats { flex-shrink: 0; color: var(--text-muted, #8b949e); font-size: 13px; }
+    .cockpit-stats summary { cursor: pointer; padding: 2px 4px; }
+    .cockpit-stats[open] .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 8px; }
+    .cockpit-stats .overview-card { margin: 0; padding: 10px 12px; }
+    .cockpit-stats .chart-card-body { height: 150px !important; }
+
+    /* 小屏：驾驶舱改为可滚动，避免图表被挤压无法阅读 */
+    @media (max-width: 1100px) {
+      #page-home.cockpit { height: auto; overflow: auto; }
+      .cockpit-grid { grid-auto-rows: 240px; }
+      .span3, .span4 { grid-column: span 6; }
+      .cockpit-kpi { grid-template-columns: repeat(2, 1fr); }
+    }
   </style>
 
 
@@ -4214,267 +4264,132 @@ function formatBytes(bytes) {
     <div class="content">
 
       <!-- ══ Page: Home ══ -->
-      <div class="page active" id="page-home">
-        <!-- 简化标题栏 -->
-        <!-- Slogan 动画 -->
-        <div class="slogan-wrapper" id="slogan-wrapper">
-          <div class="slogan-container">
-            <div class="slogan-glow"></div>
-            <div class="slogan-text" id="slogan-text"></div>
+      <div class="page active cockpit" id="page-home">
+
+        <!-- KPI 条：4 张概览卡（紧凑横排） -->
+        <div class="cockpit-kpi" id="home-overview-section">
+          <!-- 健康评分 -->
+          <div class="overview-card">
+            <div class="card-header">
+              <div class="card-icon" style="background:linear-gradient(135deg,#f97316,#ea580c);">📊</div>
+              <div>
+                <div class="card-title" data-i18n="webui.home_health_score">健康评分</div>
+                <div class="card-subtitle" data-i18n="webui.home_health_score_sub">综合健康状态</div>
+              </div>
+            </div>
+            <div id="home-health-dashboard"><div class="health-no-data">暂无巡检数据</div></div>
           </div>
-          <div class="slogan-sub" id="slogan-sub">DBCheck · Database Inspector</div>
-        </div>
-
-
-        <!-- 首页概览卡片 -->
-        <div class="home-overview" id="home-overview-section" style="display:none;">
-          <div class="section-header" style="display:none;"></div>
-          <div class="overview-grid">
-            <!-- 健康评分仪表盘 -->
-            <div class="overview-card">
-              <div class="card-header">
-                <div class="card-icon" style="background:linear-gradient(135deg,#f97316,#ea580c);">📊</div>
-                <div>
-                  <div class="card-title" data-i18n="webui.home_health_score">健康评分</div>
-                  <div class="card-subtitle" data-i18n="webui.home_health_score_sub">综合健康状态</div>
-                </div>
-              </div>
-              <div id="home-health-dashboard">
-                <div class="health-no-data">暂无巡检数据</div>
+          <!-- 实例分布 -->
+          <div class="overview-card">
+            <div class="card-header">
+              <div class="card-icon" style="background:linear-gradient(135deg,#667eea,#764ba2);">🗄️</div>
+              <div>
+                <div class="card-title" data-i18n="webui.home_instance_dist">实例分布</div>
+                <div class="card-subtitle" data-i18n="webui.home_instance_dist_sub">各类型数据库数量</div>
               </div>
             </div>
-
-            <!-- 实例分布 -->
-            <div class="overview-card">
-              <div class="card-header">
-                <div class="card-icon" style="background:linear-gradient(135deg,#667eea,#764ba2);">🗄️</div>
-                <div>
-                  <div class="card-title" data-i18n="webui.home_instance_dist">实例分布</div>
-                  <div class="card-subtitle" data-i18n="webui.home_instance_dist_sub">各类型数据库数量</div>
-                </div>
-              </div>
-              <div class="db-type-list" id="home-db-type-list">
-                <!-- 动态加载 -->
+            <div class="db-type-list" id="home-db-type-list"></div>
+          </div>
+          <!-- 定时任务 -->
+          <div class="overview-card">
+            <div class="card-header">
+              <div class="card-icon" style="background:linear-gradient(135deg,#11998e,#38ef7d);">⏰</div>
+              <div>
+                <div class="card-title" data-i18n="webui.home_scheduler">定时巡检</div>
+                <div class="card-subtitle" data-i18n="webui.home_scheduler_sub">自动化调度任务</div>
               </div>
             </div>
-
-            <!-- 定时任务 -->
-            <div class="overview-card">
-              <div class="card-header">
-                <div class="card-icon" style="background:linear-gradient(135deg,#11998e,#38ef7d);">⏰</div>
-                <div>
-                  <div class="card-title" data-i18n="webui.home_scheduler">定时巡检</div>
-                  <div class="card-subtitle" data-i18n="webui.home_scheduler_sub">自动化调度任务</div>
-                </div>
-              </div>
-              <div class="scheduler-summary" id="home-scheduler-summary">
-                <div class="scheduler-stat">
-                  <div class="stat-num" id="home-job-total">--</div>
-                  <div class="stat-lbl" data-i18n="webui.home_job_total">总任务数</div>
-                </div>
-                <div class="scheduler-stat">
-                  <div class="stat-num" id="home-job-active">--</div>
-                  <div class="stat-lbl" data-i18n="webui.home_job_active">运行中</div>
-                </div>
-              </div>
-              <div class="job-status-list" id="home-job-list">
-                <!-- 动态加载 -->
+            <div class="scheduler-summary" id="home-scheduler-summary">
+              <div class="scheduler-stat"><div class="stat-num" id="home-job-total">--</div><div class="stat-lbl" data-i18n="webui.home_job_total">总任务数</div></div>
+              <div class="scheduler-stat"><div class="stat-num" id="home-job-active">--</div><div class="stat-lbl" data-i18n="webui.home_job_active">运行中</div></div>
+            </div>
+            <div class="job-status-list" id="home-job-list"></div>
+          </div>
+          <!-- 知识库 -->
+          <div class="overview-card">
+            <div class="card-header">
+              <div class="card-icon" style="background:linear-gradient(135deg,#eb3349,#f45c43);">📚</div>
+              <div>
+                <div class="card-title" data-i18n="webui.home_knowledge_base">知识库</div>
+                <div class="card-subtitle" data-i18n="webui.home_knowledge_base_sub">RAG 智能检索</div>
               </div>
             </div>
-
-            <!-- 知识库 -->
-            <div class="overview-card">
-              <div class="card-header">
-                <div class="card-icon" style="background:linear-gradient(135deg,#eb3349,#f45c43);">📚</div>
-                <div>
-                  <div class="card-title" data-i18n="webui.home_knowledge_base">知识库</div>
-                  <div class="card-subtitle" data-i18n="webui.home_knowledge_base_sub">RAG 智能检索</div>
-                </div>
-              </div>
-              <div class="kb-summary" id="home-kb-summary">
-                <div class="kb-stat">
-                  <div class="stat-num" id="home-kb-docs">--</div>
-                  <div class="stat-lbl" data-i18n="webui.home_kb_docs">文档数</div>
-                </div>
-                <div class="kb-stat">
-                  <div class="stat-num" id="home-kb-chunks">--</div>
-                  <div class="stat-lbl" data-i18n="webui.home_kb_chunks">知识块</div>
-                </div>
-              </div>
-              <div class="kb-hint" id="home-kb-hint" data-i18n="webui.home_kb_hint">上传数据库文档，AI 诊断更精准</div>
+            <div class="kb-summary" id="home-kb-summary">
+              <div class="kb-stat"><div class="stat-num" id="home-kb-docs">--</div><div class="stat-lbl" data-i18n="webui.home_kb_docs">文档数</div></div>
+              <div class="kb-stat"><div class="stat-num" id="home-kb-chunks">--</div><div class="stat-lbl" data-i18n="webui.home_kb_chunks">知识块</div></div>
             </div>
+            <div class="kb-hint" id="home-kb-hint" data-i18n="webui.home_kb_hint">上传数据库文档，AI 诊断更精准</div>
           </div>
         </div>
 
-        <!-- 健康态势大屏 (ECharts) -->
-        <div class="home-section health-screen" id="health-screen-section" style="display:none;">
-          <div class="section-header">
-            <h2 class="section-title">🩺 健康态势大屏</h2>
-            <span class="section-desc">实时健康评分 · 风险分布 · 趋势研判 · 实例矩阵</span>
+        <!-- 实时监控工具条 -->
+        <div class="cockpit-toolbar">
+          <span class="section-title">📡 实时监控</span>
+          <span class="monitor-running-pill" id="monitor-running-pill">采集器：检测中…</span>
+          <label>实例</label>
+          <select id="monitor-instance-select" onchange="onMonitorInstanceChange()">
+            <option value="">请选择实例</option>
+          </select>
+          <span class="monitor-dot" id="monitor-dot"></span>
+          <span id="monitor-status-text">—</span>
+          <span class="monitor-latency" id="monitor-latency-text"></span>
+          <span class="monitor-updated" id="monitor-updated-text"></span>
+        </div>
+
+        <!-- 驾驶舱主网格：7 张实时图 -->
+        <div class="cockpit-grid">
+          <div class="cockpit-card span3">
+            <div class="health-chart-title">🎯 综合健康评分</div>
+            <div class="health-chart-box" id="echart-gauge"></div>
           </div>
-          <div class="health-screen-grid">
-            <div class="health-chart-card">
-              <div class="health-chart-title">🎯 综合健康评分</div>
-              <div class="health-chart-box" id="echart-gauge"></div>
-            </div>
-            <div class="health-chart-card">
-              <div class="health-chart-title">⚠️ 风险等级分布</div>
-              <div class="health-chart-box" id="echart-risk"></div>
-            </div>
-            <div class="health-chart-card">
-              <div class="health-chart-title">📈 健康评分趋势（近 30 天）</div>
-              <div class="health-chart-box" id="echart-trend"></div>
-            </div>
-            <div class="health-chart-card">
-              <div class="health-chart-title">🗂️ 实例健康矩阵</div>
-              <div class="health-chart-box" id="echart-matrix"></div>
-            </div>
+          <div class="cockpit-card span3">
+            <div class="health-chart-title">⚠️ 风险等级分布</div>
+            <div class="health-chart-box" id="echart-risk"></div>
+          </div>
+          <div class="cockpit-card span3">
+            <div class="health-chart-title">⚡ 吞吐（QPS / TPS）</div>
+            <div class="health-chart-box" id="echart-mon-throughput"></div>
+          </div>
+          <div class="cockpit-card span3">
+            <div class="health-chart-title">🔗 连接数</div>
+            <div class="health-chart-box" id="echart-mon-conn"></div>
+          </div>
+          <div class="cockpit-card span4">
+            <div class="health-chart-title">📈 健康评分趋势（近 30 天）</div>
+            <div class="health-chart-box" id="echart-trend"></div>
+          </div>
+          <div class="cockpit-card span4">
+            <div class="health-chart-title">🗂️ 实例健康矩阵</div>
+            <div class="health-chart-box" id="echart-matrix"></div>
+          </div>
+          <div class="cockpit-card span4">
+            <div class="health-chart-title">⏱️ 响应延迟 (ms)</div>
+            <div class="health-chart-box" id="echart-mon-latency"></div>
           </div>
         </div>
 
-        <!-- 实时监控 (v2.10) -->
-        <div class="home-section monitor-section" id="monitor-section" style="display:none;">
-          <div class="section-header">
-            <h2 class="section-title">📡 实时监控</h2>
-            <span class="section-desc">采集器每 30s 推送 · QPS / TPS · 连接数 · 延迟 · 可用性</span>
-            <span class="monitor-running-pill" id="monitor-running-pill">采集器：检测中…</span>
-          </div>
-          <div class="monitor-toolbar">
-            <label>实例</label>
-            <select id="monitor-instance-select" onchange="onMonitorInstanceChange()">
-              <option value="">请选择实例</option>
-            </select>
-            <span class="monitor-dot" id="monitor-dot"></span>
-            <span id="monitor-status-text">—</span>
-            <span class="monitor-latency" id="monitor-latency-text"></span>
-            <span class="monitor-updated" id="monitor-updated-text"></span>
-          </div>
-          <div class="monitor-grid">
-            <div class="health-chart-card">
-              <div class="health-chart-title">⚡ 吞吐（QPS / TPS）</div>
-              <div class="health-chart-box" id="echart-mon-throughput"></div>
-            </div>
-            <div class="health-chart-card">
-              <div class="health-chart-title">🔗 连接数</div>
-              <div class="health-chart-box" id="echart-mon-conn"></div>
-            </div>
-            <div class="health-chart-card">
-              <div class="health-chart-title">⏱️ 响应延迟 (ms)</div>
-              <div class="health-chart-box" id="echart-mon-latency"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 数据统计图表 -->
-        <div class="home-section" style="margin-top:24px;">
-          <div class="section-header">
-            <h2 class="section-title" data-i18n="webui.home_chart_title">数据统计</h2>
-            <span class="section-desc" data-i18n="webui.home_chart_desc">模板、巡检、基线、规则统计</span>
-          </div>
-          <div class="overview-grid" id="home-charts-grid">
-            <!-- 模板统计 -->
+        <!-- 数据统计（低频，默认折叠） -->
+        <details class="cockpit-stats">
+          <summary>📊 数据统计（模板 / 巡检 / 基线 / 规则）</summary>
+          <div class="stats-grid">
             <div class="overview-card">
-              <div class="card-header">
-                <div class="card-icon" style="background:linear-gradient(135deg,#3b82f6,#2563eb);">📋</div>
-                <div>
-                  <div class="card-title" data-i18n="webui.home_template_stats">模板统计</div>
-                  <div class="card-subtitle" data-i18n="webui.home_template_stats_sub">各模板章节数</div>
-                </div>
-              </div>
+              <div class="card-header"><div class="card-icon" style="background:linear-gradient(135deg,#3b82f6,#2563eb);">📋</div><div><div class="card-title" data-i18n="webui.home_template_stats">模板统计</div><div class="card-subtitle" data-i18n="webui.home_template_stats_sub">各模板章节数</div></div></div></div>
               <canvas class="chart-card-body" id="home-template-chart"></canvas>
             </div>
-            <!-- 巡检统计 -->
             <div class="overview-card">
-              <div class="card-header">
-                <div class="card-icon" style="background:linear-gradient(135deg,#f97316,#ea580c);">📊</div>
-                <div>
-                  <div class="card-title" data-i18n="webui.home_inspection_stats">巡检统计</div>
-                  <div class="card-subtitle" data-i18n="webui.home_inspection_stats_sub">各数据库巡检次数</div>
-                </div>
-              </div>
+              <div class="card-header"><div class="card-icon" style="background:linear-gradient(135deg,#f97316,#ea580c);">📊</div><div><div class="card-title" data-i18n="webui.home_inspection_stats">巡检统计</div><div class="card-subtitle" data-i18n="webui.home_inspection_stats_sub">各数据库巡检次数</div></div></div></div>
               <canvas class="chart-card-body" id="home-inspection-chart"></canvas>
             </div>
-            <!-- 基线统计 -->
             <div class="overview-card">
-              <div class="card-header">
-                <div class="card-icon" style="background:linear-gradient(135deg,#22c55e,#16a34a);">📈</div>
-                <div>
-                  <div class="card-title" data-i18n="webui.home_baseline_stats">基线统计</div>
-                  <div class="card-subtitle" data-i18n="webui.home_baseline_stats_sub">各数据库基线数</div>
-                </div>
-              </div>
+              <div class="card-header"><div class="card-icon" style="background:linear-gradient(135deg,#22c55e,#16a34a);">📈</div><div><div class="card-title" data-i18n="webui.home_baseline_stats">基线统计</div><div class="card-subtitle" data-i18n="webui.home_baseline_stats_sub">各数据库基线数</div></div></div></div>
               <canvas class="chart-card-body" id="home-baseline-chart"></canvas>
             </div>
-            <!-- 规则统计 -->
             <div class="overview-card">
-              <div class="card-header">
-                <div class="card-icon" style="background:linear-gradient(135deg,#a855f7,#9333ea);">📏</div>
-                <div>
-                  <div class="card-title" data-i18n="webui.home_rule_stats">规则统计</div>
-                  <div class="card-subtitle" data-i18n="webui.home_rule_stats_sub">各数据库规则数</div>
-                </div>
-              </div>
+              <div class="card-header"><div class="card-icon" style="background:linear-gradient(135deg,#a855f7,#9333ea);">📏</div><div><div class="card-title" data-i18n="webui.home_rule_stats">规则统计</div><div class="card-subtitle" data-i18n="webui.home_rule_stats_sub">各数据库规则数</div></div></div></div>
               <canvas class="chart-card-body" id="home-rule-chart"></canvas>
             </div>
           </div>
-          <!-- 数据库类型图标墙 -->
-          <div class="db-icon-wall">
-            <div class="db-icon-wall-inner">
-              <div class="db-icon-item" title="MySQL">
-                <img src="/mysql.png" alt="MySQL" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="db-icon-fallback" style="display:none;">🐬</span>
-                <span class="db-icon-label">MySQL</span>
-              </div>
-              <div class="db-icon-item" title="PostgreSQL">
-                <img src="/postgresql.png" alt="PostgreSQL" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="db-icon-fallback" style="display:none;">🐘</span>
-                <span class="db-icon-label">PostgreSQL</span>
-              </div>
-              <div class="db-icon-item" title="Oracle">
-                <img src="/oracle.png" alt="Oracle" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="db-icon-fallback" style="display:none;">📰</span>
-                <span class="db-icon-label">Oracle</span>
-              </div>
-              <div class="db-icon-item" title="DM8">
-                <img src="/dm.png" alt="DM8" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="db-icon-fallback" style="display:none;">🏛️</span>
-                <span class="db-icon-label">DM8</span>
-              </div>
-              <div class="db-icon-item" title="SQL Server">
-                <img src="/sqlserver.png" alt="SQL Server" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="db-icon-fallback" style="display:none;">🪟</span>
-                <span class="db-icon-label">SQL Server</span>
-              </div>
-              <div class="db-icon-item" title="TiDB">
-                <img src="/tidb.png" alt="TiDB" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="db-icon-fallback" style="display:none;">♟</span>
-                <span class="db-icon-label">TiDB</span>
-              </div>
-              <div class="db-icon-item" title="IvorySQL">
-                <img src="/ivorysql.png" alt="IvorySQL" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="db-icon-fallback" style="display:none;">🦣</span>
-                <span class="db-icon-label">IvorySQL</span>
-              </div>
-              <div class="db-icon-item" title="YashanDB">
-                <img src="/yashandb.png" alt="YashanDB" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="db-icon-fallback" style="display:none;">🗻</span>
-                <span class="db-icon-label">YashanDB</span>
-              </div>
-              <div class="db-icon-item" title="GBase">
-                <img src="/gbase.png" alt="GBase" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="db-icon-fallback" style="display:none;">⛰️</span>
-                <span class="db-icon-label">GBase</span>
-              </div>
-            </div>
-          </div>
-
-        </div>
-
-        <!-- 随机语录卡片 -->
-        <div class="quotes-card" id="quotes-card" style="margin-top:16px;">
-          <div class="quotes-inner">
-            <div class="quotes-icon">💡</div>
-            <div class="quotes-body">
-              <div class="quotes-text" id="quotes-text">加载中...</div>
-              <div class="quotes-meta">
-                <span class="quotes-category" id="quotes-category"></span>
-                <span class="quotes-refresh" onclick="refreshQuote()" title="换一条">🔄</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
+        </details>
       </div>
 
       <!-- ══ Page: Wizard ══ -->
@@ -11959,6 +11874,11 @@ async function loadHomeStats() {
     Object.values(healthCharts).forEach(c => c && c.resize());
     // 实时监控区（v2.10）：概览可见即初始化采集器推送与图表
     try { initMonitor(); } catch(e) { console.error('initMonitor failed:', e); }
+    // 驾驶舱：布局定型后重算一次图表尺寸，避免固定高度容器内图表被裁剪
+    requestAnimationFrame(function () {
+      Object.values(healthCharts).forEach(c => c && c.resize());
+      Object.values(monitorCharts).forEach(c => c && c.resize());
+    });
 
   } catch(e) {
     console.error('Failed to load home stats:', e);
@@ -11978,23 +11898,22 @@ function cssVar(name, fb) {
 }
 
 function renderHealthScreen(dash) {
-  const section = document.getElementById('health-screen-section');
-  if (!section) return;
+  const boxes = ['echart-gauge', 'echart-risk', 'echart-trend', 'echart-matrix'].map(function (id) {
+    return document.getElementById(id);
+  });
+  function fallback(msg) {
+    boxes.forEach(function (b) { if (b) b.innerHTML = '<div class="health-chart-fallback">' + msg + '</div>'; });
+  }
 
   // ECharts 未加载（离线环境）时给出提示，不阻塞页面
   if (typeof echarts === 'undefined') {
-    section.style.display = '';
-    section.querySelectorAll('.health-chart-box').forEach(b => {
-      b.innerHTML = '<div class="health-chart-fallback">ECharts 未加载<br>请联网或部署离线版以查看可视化大屏</div>';
-    });
+    fallback('ECharts 未加载<br>请联网或部署离线版以查看可视化大屏');
     return;
   }
-
-  if (!dash || !dash.ok || !dash.has_history) {
-    section.style.display = 'none';
+  if (!dash || !dash.ok) {
+    fallback('暂无数据');
     return;
   }
-  section.style.display = '';
 
   const TXT  = cssVar('--text', '#e6edf3');
   const MUT  = cssVar('--text-muted', '#8b949e');
@@ -12126,9 +12045,6 @@ function monitorShowFallback(msg) {
 }
 
 function initMonitor() {
-  const section = document.getElementById('monitor-section');
-  if (!section) return;
-  section.style.display = '';
   if (typeof echarts === 'undefined') {
     monitorShowFallback('ECharts 未加载<br>请联网或部署离线版以查看实时监控');
     return;
