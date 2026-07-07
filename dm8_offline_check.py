@@ -61,6 +61,16 @@ SEVERITY_WARN = 'warning'
 SEVERITY_ERROR = 'error'
 SEVERITY_FATAL = 'fatal'
 
+# ── 数据块损坏类型（基于通用二进制分析，不依赖 DM8 专有页格式）──
+# 以下检测仅使用"页内容明显异常"的通用信号，不读取任何 DM8 页头私有偏移、
+# 不依赖 bic-dmdul 代码、不依赖达梦未公开的页格式知识，零侵权风险。
+#   - ZERO_PAGE    : 整页字节全为 0x00
+#   - CONSTANT_FILL: 整页为单一非全零字节（异常填充 / 磁盘坏道特征）
+#   - TRUNCATED    : 文件末页字节数不足页大小（文件被截断）
+BLOCK_ZERO = 'ZERO_PAGE'
+BLOCK_CONSTANT = 'CONSTANT_FILL'
+BLOCK_TRUNCATED = 'TRUNCATED'
+
 
 class DM8DataFileInfo:
     """单个 DM8 数据文件的基本信息"""
@@ -76,6 +86,7 @@ class DM8DataFileInfo:
         self.total_pages = 0
         self.trailing_bytes = 0  # 文件大小 % 页大小的余数
         self.zero_pages = 0  # 全零页数量
+        self.corrupt_blocks = []  # 坏块列表：[{file_name,file_path,page_no,file_offset,type,tablespace}]
         self.empty = False
         self.too_small = False  # 小于一个页大小
         self.header_hex = ''  # 首页头部前 64 字节的十六进制
@@ -104,6 +115,7 @@ class DM8DataFileInfo:
             'total_pages': self.total_pages,
             'trailing_bytes': self.trailing_bytes,
             'zero_pages': self.zero_pages,
+            'corrupt_blocks': self.corrupt_blocks,
             'empty': self.empty,
             'too_small': self.too_small,
             'mtime': self.mtime.isoformat() if self.mtime else None,
@@ -198,6 +210,7 @@ class DM8OfflineHealthChecker:
         self.data_files: list[DM8DataFileInfo] = []
         self.control_files: list[DM8ControlFileInfo] = []
         self.diagnostics: list[DM8Diagnostic] = []
+        self.corrupt_blocks = []  # 所有数据文件的坏块汇总
         self.scan_stats = {
             'start_time': None,
             'end_time': None,
@@ -387,23 +400,46 @@ class DM8OfflineHealthChecker:
 
     def _scan_pages(self, info: DM8DataFileInfo, page_size: int):
         """
-        扫描数据文件的所有页面，统计全零页等指标。
+        扫描数据文件的所有页面，识别坏块（数据块损坏）。
 
-        采用流式读取，避免大文件内存溢出。
+        坏块识别基于"页内容明显异常"的通用信号，不读取任何 DM8 页头私有偏移、
+        不依赖 bic-dmdul 代码、不依赖达梦未公开的页格式知识，零侵权：
+          - ZERO_PAGE    : 整页字节全为 0x00
+          - CONSTANT_FILL: 整页为单一非全零字节（异常填充 / 磁盘坏道特征）
+          - TRUNCATED    : 文件末页字节数不足页大小（文件被截断）
+
+        每个坏块记录物理页号（= file_offset // page_size，纯文件布局数学）
+        与文件偏移，便于精确定位。
         """
         try:
             zero_count = 0
+            constant_count = 0
+            corrupt_blocks = []
             header_buf = None
             md5_buf = None
             pages_checked = 0
 
+            # 多扫描一页以覆盖末页截断（文件大小非页大小整数倍）；
             # 限制单文件最大扫描页数，防止超大文件耗时过长
-            max_pages = min(info.total_pages, 500000)
+            max_pages = min(
+                info.total_pages + (1 if info.trailing_bytes > 0 else 0),
+                500000
+            )
 
             with open(info.path, 'rb') as f:
                 for page_idx in range(max_pages):
+                    file_offset = page_idx * page_size
                     page_data = f.read(page_size)
                     if len(page_data) < page_size:
+                        # 文件末页不足页大小 → 截断损坏
+                        corrupt_blocks.append({
+                            'file_name': info.name,
+                            'file_path': str(info.path),
+                            'page_no': page_idx,
+                            'file_offset': file_offset,
+                            'type': BLOCK_TRUNCATED,
+                            'tablespace': '',
+                        })
                         break
 
                     pages_checked += 1
@@ -411,6 +447,27 @@ class DM8OfflineHealthChecker:
                     # 检测全零页
                     if page_data == b'\x00' * page_size:
                         zero_count += 1
+                        corrupt_blocks.append({
+                            'file_name': info.name,
+                            'file_path': str(info.path),
+                            'page_no': page_idx,
+                            'file_offset': file_offset,
+                            'type': BLOCK_ZERO,
+                            'tablespace': '',
+                        })
+                        continue
+
+                    # 检测整页单一非全零字节（异常填充 / 磁盘坏道特征）
+                    if page_data == page_data[:1] * page_size:
+                        constant_count += 1
+                        corrupt_blocks.append({
+                            'file_name': info.name,
+                            'file_path': str(info.path),
+                            'page_no': page_idx,
+                            'file_offset': file_offset,
+                            'type': BLOCK_CONSTANT,
+                            'tablespace': '',
+                        })
                         continue
 
                     # 保存首页头部信息
@@ -422,8 +479,9 @@ class DM8OfflineHealthChecker:
 
             info.zero_pages = zero_count
             info.total_pages = pages_checked  # 使用实际扫描的页数
+            info.corrupt_blocks = corrupt_blocks
 
-            # 全零页诊断
+            # 全零页诊断（保留按文件详细诊断）
             if zero_count > 0:
                 pct = (zero_count / pages_checked * 100) if pages_checked > 0 else 0
                 if pct > 50:
@@ -631,8 +689,59 @@ class DM8OfflineHealthChecker:
 
         return score, 'unknown'
 
+    def _build_file_to_ts_map(self) -> dict:
+        """构建 文件名(大写) → 表空间 的反向映射（来自控制文件解析结果）"""
+        fmap = {}
+        for ctl in self.control_files:
+            tbs_map = getattr(ctl, 'tablespace_map', {}) or {}
+            for tbs_name, paths in tbs_map.items():
+                for p in paths:
+                    fmap[os.path.basename(p).upper()] = tbs_name
+        return fmap
+
+    def _summarize_corrupt_blocks(self):
+        """
+        汇总所有数据文件的坏块，填充所属表空间，并生成汇总诊断。
+
+        不读取任何 DM8 页头私有偏移，仅依赖文件布局数学与已解析的控制文件
+        表空间映射，零侵权。
+        """
+        fmap = self._build_file_to_ts_map()
+        summary = {
+            'total': 0,
+            BLOCK_ZERO: 0,
+            BLOCK_CONSTANT: 0,
+            BLOCK_TRUNCATED: 0,
+        }
+        all_blocks = []
+        for info in self.data_files:
+            for cb in getattr(info, 'corrupt_blocks', []):
+                cb = dict(cb)
+                cb['tablespace'] = fmap.get(cb['file_name'].upper(), '未知')
+                summary[cb['type']] = summary.get(cb['type'], 0) + 1
+                summary['total'] += 1
+                all_blocks.append(cb)
+
+        all_blocks.sort(key=lambda x: (x['file_name'], x['page_no']))
+        self.corrupt_blocks = all_blocks
+
+        if summary['total'] > 0:
+            total_pages = self.scan_stats.get('total_pages_scanned', 0) or 0
+            pct = (summary['total'] / total_pages * 100) if total_pages > 0 else 0
+            msg = (f'发现 {summary["total"]} 个可疑坏块 '
+                   f'(全零 {summary[BLOCK_ZERO]}, 异常填充 {summary[BLOCK_CONSTANT]}, '
+                   f'截断 {summary[BLOCK_TRUNCATED]}，损坏率 {pct:.2f}%)')
+            if pct > 5 or summary[BLOCK_TRUNCATED] > 0:
+                sev = SEVERITY_ERROR
+            elif pct > 1:
+                sev = SEVERITY_WARN
+            else:
+                sev = SEVERITY_INFO
+            self._add_diag(sev, 'BLOCK_CORRUPT_SUMMARY', msg)
+
     def _build_result(self) -> dict:
         """构建最终结果字典"""
+        self._summarize_corrupt_blocks()
         score, level = self._calculate_health_score()
 
         # 按严重级别排序诊断
@@ -667,6 +776,13 @@ class DM8OfflineHealthChecker:
             },
             'timestamp': datetime.now().isoformat(),
             'mode': 'local',
+            'corrupt_blocks': self.corrupt_blocks,
+            'corrupt_summary': {
+                'total': len(self.corrupt_blocks),
+                'zero': sum(1 for b in self.corrupt_blocks if b['type'] == BLOCK_ZERO),
+                'constant_fill': sum(1 for b in self.corrupt_blocks if b['type'] == BLOCK_CONSTANT),
+                'truncated': sum(1 for b in self.corrupt_blocks if b['type'] == BLOCK_TRUNCATED),
+            },
         }
 
 
@@ -1046,6 +1162,83 @@ def generate_offline_report_word(result: dict, output_path: str = '') -> str:
         run = p.add_run('未找到控制文件。')
         _set_font(run, size=Pt(11))
 
+    # ── 第五章：数据块损坏分析 ──────────────────────────────
+    _add_heading_styled('第五章 数据块损坏分析', level=1)
+
+    corrupt_blocks = result.get('corrupt_blocks', [])
+    csummary = result.get('corrupt_summary', {})
+    total_scanned = result.get('scan_stats', {}).get('total_pages_scanned', 0)
+
+    if csummary:
+        rate = (csummary.get('total', 0) / total_scanned * 100) if total_scanned > 0 else 0
+        p = doc.add_paragraph()
+        run = p.add_run(
+            f'扫描总页数: {total_scanned}  |  可疑坏块: {csummary.get("total", 0)}  |  '
+            f'损坏率: {rate:.2f}%'
+        )
+        _set_font(run, size=Pt(11))
+
+        p = doc.add_paragraph()
+        run = p.add_run(
+            f'坏块类型分布 — 全零页: {csummary.get("zero", 0)}, '
+            f'异常填充页: {csummary.get("constant_fill", 0)}, '
+            f'截断页: {csummary.get("truncated", 0)}'
+        )
+        _set_font(run, size=Pt(11))
+
+        p = doc.add_paragraph()
+        run = p.add_run(
+            '说明：以下坏块基于"页内容明显异常"的通用信号识别（全零页 / 整页单一字节'
+            '异常填充 / 文件末页不足页大小），不读取 DM8 页头私有格式，不依赖第三方'
+            '逆向代码，零侵权。离线场景无法 100% 确认损坏，需数据库实例启动后核实。'
+        )
+        _set_font(run, size=Pt(9), color=RGBColor(120, 120, 120))
+
+    if corrupt_blocks:
+        # 坏块数量可能很大，最多展示前 500 个，避免文档过大
+        show_blocks = corrupt_blocks[:500]
+        tbl = doc.add_table(rows=1 + len(show_blocks), cols=5,
+                            style='Table Grid')
+        _style_header_row(tbl, [
+            '数据文件', '物理页号', '文件偏移(字节)', '损坏类型', '所属表空间'
+        ])
+
+        type_labels = {
+            BLOCK_ZERO: '全零页',
+            BLOCK_CONSTANT: '异常填充页',
+            BLOCK_TRUNCATED: '截断页',
+        }
+        type_colors = {
+            BLOCK_ZERO: 'EF4444',
+            BLOCK_CONSTANT: 'F59E0B',
+            BLOCK_TRUNCATED: 'DC2626',
+        }
+        for idx, b in enumerate(show_blocks, 1):
+            row = tbl.rows[idx]
+            _style_data_cell(row.cells[0], b.get('file_name', ''))
+            _style_data_cell(row.cells[1], b.get('page_no', ''))
+            _style_data_cell(row.cells[2], b.get('file_offset', ''))
+            btype = b.get('type', '')
+            _style_data_cell(row.cells[3], type_labels.get(btype, btype))
+            _set_cell_bg(row.cells[3], type_colors.get(btype, '808080'))
+            for p in row.cells[3].paragraphs:
+                for run in p.runs:
+                    _set_font(run, size=Pt(9), bold=True,
+                              color=RGBColor(255, 255, 255))
+            _style_data_cell(row.cells[4], b.get('tablespace', '未知'))
+
+        if len(corrupt_blocks) > len(show_blocks):
+            p = doc.add_paragraph()
+            run = p.add_run(
+                f'（仅展示前 {len(show_blocks)} 个坏块，'
+                f'共 {len(corrupt_blocks)} 个，完整清单见 JSON 结果）'
+            )
+            _set_font(run, size=Pt(9), color=RGBColor(120, 120, 120))
+    else:
+        p = doc.add_paragraph()
+        run = p.add_run('未发现可疑坏块。')
+        _set_font(run, size=Pt(11))
+
     # ── 报告尾部 ──────────────────────────────────────────────
     doc.add_paragraph()
     p = doc.add_paragraph()
@@ -1106,6 +1299,7 @@ class DM8RemoteHealthChecker(DM8OfflineHealthChecker):
         self.data_files: list[DM8DataFileInfo] = []
         self.control_files: list[DM8ControlFileInfo] = []
         self.diagnostics: list[DM8Diagnostic] = []
+        self.corrupt_blocks = []  # 所有数据文件的坏块汇总
         self.scan_stats = {
             'start_time': None,
             'end_time': None,
@@ -1333,52 +1527,64 @@ class DM8RemoteHealthChecker(DM8OfflineHealthChecker):
 
     def _scan_pages(self, info: DM8DataFileInfo, page_size: int):
         """
-        远程页面扫描：通过 SSH 在远程执行 Python 脚本检测零页。
-        如果远程没有 python3，则降级为只读取首页头。
+        远程页面扫描：通过 SSH 在远程执行 Python 脚本，识别坏块
+        （全零页 / 整页单一字节异常填充 / 末页截断）。
+
+        与本地版逻辑一致，仅检测"页内容明显异常"的通用信号，不读取 DM8 页头
+        私有偏移、不依赖 bic-dmdul 代码，零侵权。
+
+        若远程不支持 python3，降级为仅检查首页头（标记 REMOTE_SCAN_LIMITED）。
         """
         remote_path = info.path if isinstance(info.path, str) else str(info.path)
 
-        # 尝试用远程 python3 执行页面扫描
+        # 远程 python3 脚本：扫描零页 + 异常填充 + 截断，输出 JSON
         scan_script = (
-            f'python3 -c "'
-            f'import sys,os;'
-            f'ps={page_size};'
-            f'fp=sys.argv[1];'
-            f'total=os.path.getsize(fp);'
-            f'pages=total//ps;'
-            f'maxp=min(pages,500000);'
-            f'z=0;'
-            f'f=open(fp,\'rb\');'
-            f'hdr=f.read(ps)[:64];'
-            f'import binascii;'
-            f'hx=binascii.hexlify(hdr).decode();'
-            f'for i in range(maxp):'
-            f' d=f.read(ps);'
-            f' if len(d)<ps: break;'
-            f' if d==b\'\\x00\'*ps: z+=1;'
-            f'f.close();'
-            f'print(z,pages,hx)'
-            f'" "{remote_path}" 2>/dev/null'
+            "python3 -c \""
+            "import sys,os,json,binascii;"
+            "ps=" + str(page_size) + ";"
+            "fp=sys.argv[1];"
+            "total=os.path.getsize(fp);"
+            "pages=total//ps;"
+            "maxp=min(pages+(1 if total%ps else 0),500000);"
+            "z=0;cf=0;cb=[];"
+            "f=open(fp,'rb');"
+            "hdr=f.read(ps)[:64];"
+            "hx=binascii.hexlify(hdr).decode();"
+            "zero=b'\\x00'*ps;"
+            "for i in range(maxp):"
+            " o=i*ps;"
+            " d=f.read(ps);"
+            " if len(d)<ps: cb.append({'page_no':i,'file_offset':o,'type':'TRUNCATED'});break;"
+            " if d==zero: z+=1;cb.append({'page_no':i,'file_offset':o,'type':'ZERO_PAGE'});continue;"
+            " if d==d[:1]*ps: cf+=1;cb.append({'page_no':i,'file_offset':o,'type':'CONSTANT_FILL'});"
+            "f.close();"
+            "print(json.dumps({'z':z,'pages':pages,'hx':hx,'cf':cf,'cb':cb}))"
+            " \" \"" + remote_path + "\" 2>/dev/null"
         )
 
-        out, err, code = self._remote_exec(scan_script, timeout=120)
+        out, err, code = self._remote_exec(scan_script, timeout=300)
 
         if code == 0 and out.strip():
-            # 解析输出: zero_pages total_pages header_hex
-            parts = out.strip().split()
-            if len(parts) >= 3:
-                try:
-                    info.zero_pages = int(parts[0])
-                    info.total_pages = int(parts[1])
-                    info.header_hex = parts[2]
-                    info.page_size = page_size
-                    info.trailing_bytes = info.size % page_size
-
-                    # 诊断
-                    self._diag_zero_pages(info)
-                    return
-                except (ValueError, IndexError):
-                    pass
+            try:
+                data = json.loads(out.strip().splitlines()[-1])
+                info.zero_pages = int(data.get('z', 0))
+                info.total_pages = int(data.get('pages', 0))
+                info.header_hex = data.get('hx', '')
+                info.page_size = page_size
+                info.trailing_bytes = info.size % page_size
+                # 还原坏块（tablespace 在汇总时填充）
+                info.corrupt_blocks = [{
+                    'file_name': info.name,
+                    'file_path': str(info.path),
+                    'page_no': b.get('page_no', 0),
+                    'file_offset': b.get('file_offset', 0),
+                    'type': b.get('type', ''),
+                    'tablespace': '',
+                } for b in data.get('cb', [])]
+                self._diag_zero_pages(info)
+                return
+            except (ValueError, IndexError, json.JSONDecodeError):
+                pass
 
         # 降级：通过 SFTP 读取首页头
         header_bytes = self._remote_read_file_bytes(remote_path, page_size)
@@ -1387,11 +1593,20 @@ class DM8RemoteHealthChecker(DM8OfflineHealthChecker):
             info.page_size = page_size
             info.total_pages = info.size // page_size
             info.trailing_bytes = info.size % page_size
+            info.corrupt_blocks = []
 
             # 检查首页是否全零
             if len(header_bytes) >= page_size:
                 if header_bytes[:page_size] == b'\x00' * page_size:
                     info.zero_pages = 1
+                    info.corrupt_blocks = [{
+                        'file_name': info.name,
+                        'file_path': str(info.path),
+                        'page_no': 0,
+                        'file_offset': 0,
+                        'type': BLOCK_ZERO,
+                        'tablespace': '',
+                    }]
 
             self._add_diag(SEVERITY_INFO, 'REMOTE_SCAN_LIMITED',
                            f'远程不支持 python3，仅检查了首页: {info.name}',
