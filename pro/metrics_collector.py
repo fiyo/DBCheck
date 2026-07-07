@@ -50,6 +50,30 @@ COUNTER_KEYS = {
     # DM8 计数器名不固定，速率在深采中按 dm_ 前缀动态处理
 }
 
+# ── 统计项名称 → 规范指标键 的跨版本映射 ──────────────────
+# 用于 Oracle / 达梦 等「按名称取计数器」的场景。
+# 设计原则：不写死任何单一版本——
+#   1) 数值列（VALUE/STAT_VAL ...）在采集时动态探测，见 _fetch_name_value；
+#   2) 统计项名称跨版本高度兼容，匹配策略为「精确名优先，子串兜底」，见 _map_stats。
+_ORACLE_STAT_MAP = {
+    'user_commits': ['user commits', 'user commit'],
+    'physical_reads': ['physical reads', 'physical read'],
+    'redo_size': ['redo size'],
+    'user_calls': ['user calls', 'user call'],
+    'session_logical_reads': ['session logical reads', 'session logical read'],
+    'db_block_gets': ['db block gets', 'db block get'],
+    'consistent_gets': ['consistent gets', 'consistent get'],
+}
+_DM_STAT_MAP = {
+    'user_commits': ['user commit'],
+    'physical_reads': ['physical read'],
+    'redo_size': ['redo size'],
+    'logical_reads': ['logical read', 'session logical read'],
+    'db_block_gets': ['db block get'],
+    'consistent_gets': ['consistent get'],
+    'user_calls': ['user call'],
+}
+
 
 def _to_num(v):
     """把数据库返回的值尽量转成数字；失败返回 0。"""
@@ -64,6 +88,73 @@ def _to_num(v):
         return int(s)
     except (ValueError, TypeError):
         return 0
+
+
+def _fetch_name_value(cur, sql, value_candidates=('STAT_VAL', 'STAT_VALUE', 'VALUE', 'VAL')):
+    """执行 sql，按 NAME 列做键、动态选择数值列做值，返回 {name_lower: value}。
+
+    解决不同版本「数值列名」不一致的问题（如达梦 stat_val / value、Oracle VALUE）。
+    - 优先在 value_candidates 中匹配存在的列名；
+    - 否则退避到「列名含 VAL 的非键列」；
+    - 再否则退避到 NAME 之后的第一列。
+    """
+    cur.execute(sql)
+    desc = cur.description
+    if not desc:
+        return {}
+    cols = [str(c[0]).upper() for c in desc]
+    key_idx = cols.index('NAME') if 'NAME' in cols else 0
+    val_idx = None
+    for cand in value_candidates:
+        if cand in cols:
+            val_idx = cols.index(cand)
+            break
+    if val_idx is None:
+        for i, c in enumerate(cols):
+            if i != key_idx and 'VAL' in c:
+                val_idx = i
+                break
+    if val_idx is None:
+        for i, c in enumerate(cols):
+            if i != key_idx:
+                val_idx = i
+                break
+    out = {}
+    for row in cur.fetchall():
+        try:
+            key = str(row[key_idx]).strip().lower()
+        except Exception:
+            continue
+        if not key:
+            continue
+        out[key] = _to_num(row[val_idx])
+    return out
+
+
+def _map_stats(stats, mapping):
+    """stats: {name_lower: value}；mapping: {canonical: [候选名...]}。
+    优先精确匹配，失败用子串兜底；返回 {canonical: value}。
+    """
+    out = {}
+    for canonical, names in mapping.items():
+        val = None
+        for n in names:
+            nl = n.lower()
+            if nl in stats:
+                val = stats[nl]
+                break
+        if val is None:
+            # 子串兜底：收集所有含 needle 的键，取最长 needle 命中、同档取最短键，
+            # 避免 'physical read total bytes' 这类汇总项被误当成基础统计。
+            for needle in names:
+                nl = needle.lower()
+                hits = [k for k in stats if nl in k]
+                if hits:
+                    val = stats[min(hits, key=len)]
+                    break
+        if val is not None:
+            out[canonical] = val
+    return out
 
 
 # ── 存储层 ──────────────────────────────────────────────
@@ -259,48 +350,54 @@ class MetricsCollector:
     def _collect_oracle(self, conn) -> dict:
         m = {}
         cur = conn.cursor()
-        names = ('user commits', 'physical reads', 'redo size', 'user calls',
-                 'session logical reads', 'db block gets', 'consistent gets')
-        placeholders = ','.join(':%d' % (i + 1) for i in range(len(names)))
+        # v$sysstat 的「数值列」与「统计项名」跨版本高度兼容，但为稳妥仍：
+        #  - 数值列动态探测（_fetch_name_value，不写死 VALUE）；
+        #  - 统计项名按「精确名 → 子串」匹配（_map_stats），不写死某一版本。
         try:
-            cur.execute(
-                "SELECT name, value FROM v$sysstat WHERE name IN (%s)" % placeholders,
-                names,
-            )
-            for name, value in cur.fetchall():
-                m['ora_' + str(name).replace(' ', '_')] = _to_num(value)
+            stats = _fetch_name_value(cur, "SELECT * FROM v$sysstat")
+            mapped = _map_stats(stats, _ORACLE_STAT_MAP)
+            for k, v in mapped.items():
+                m['ora_' + k] = v
         except Exception:
             pass
-        # 用户会话数
+        # 用户会话数：type='USER' 在多数版本通用；兜底用 username IS NOT NULL
         try:
             cur.execute("SELECT count(*) FROM v$session WHERE type = 'USER'")
             m['user_sessions'] = _to_num(cur.fetchone()[0])
         except Exception:
-            pass
+            try:
+                cur.execute("SELECT count(*) FROM v$session WHERE username IS NOT NULL")
+                m['user_sessions'] = _to_num(cur.fetchone()[0])
+            except Exception:
+                pass
         return m
 
     def _collect_dm(self, conn) -> dict:
         m = {}
         cur = conn.cursor()
-        # 达梦 v$sysstat 列名在不同版本有差异，优先尝试 stat_val，失败回退 value
+        # 达梦 v$sysstat 的「数值列」在不同版本叫 stat_val/stat_value/value，
+        # 动态探测，绝不写死；统计名按子串自适应。
         try:
-            cur.execute("SELECT name, stat_val FROM v$sysstat")
-            rows = cur.fetchall()
+            stats = _fetch_name_value(cur, "SELECT * FROM v$sysstat")
+            mapped = _map_stats(stats, _DM_STAT_MAP)
+            for k, v in mapped.items():
+                m['dm_' + k] = v
         except Exception:
-            rows = []
-            try:
-                cur.execute("SELECT name, value FROM v$sysstat")
-                rows = cur.fetchall()
-            except Exception:
-                rows = []
-        for name, value in rows:
-            m['dm_' + str(name).replace(' ', '_')] = _to_num(value)
-        # 活跃会话
+            pass
+        # 活跃会话：STATE='ACTIVE' 通用；兜底为「非 INACTIVE」或全量
         try:
             cur.execute("SELECT count(*) FROM v$session WHERE state = 'ACTIVE'")
             m['active_sessions'] = _to_num(cur.fetchone()[0])
         except Exception:
-            pass
+            try:
+                cur.execute("SELECT count(*) FROM v$session WHERE state <> 'INACTIVE'")
+                m['active_sessions'] = _to_num(cur.fetchone()[0])
+            except Exception:
+                try:
+                    cur.execute("SELECT count(*) FROM v$session")
+                    m['active_sessions'] = _to_num(cur.fetchone()[0])
+                except Exception:
+                    pass
         return m
 
     # ── 速率计算 ──
