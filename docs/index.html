@@ -972,12 +972,21 @@ python web_ui.py</pre>
       resize(); draw();
     })();
 
-    // ---- Docker pulls (user volume): live from Docker Hub, fallback 3651 ----
+    // ---- Docker pulls (user volume): live via shields.io (CORS-enabled, reads Docker Hub) ----
     (function(){
       const el=document.getElementById('dockerPulls');
       if(!el) return;
       const fmt=n=>n.toLocaleString('en-US');
-      const fallback=3651;
+      const fallback=3651; // 离线兜底
+      // 解析 "3.7k" / "12.5m" 这类缩写
+      function parseAbbrev(s){
+        if(typeof s!=='string') return null;
+        const m=s.trim().toLowerCase().match(/^([\d.]+)\s*([kmb])?$/);
+        if(!m) return null;
+        let n=parseFloat(m[1]); if(isNaN(n)) return null;
+        const u=m[2]; if(u==='k')n*=1e3; else if(u==='m')n*=1e6; else if(u==='b')n*=1e9;
+        return Math.round(n);
+      }
       function countTo(target){
         const dur=1500,t0=performance.now();
         (function step(t){
@@ -988,9 +997,10 @@ python web_ui.py</pre>
         })(t0);
       }
       el.textContent='0'; countTo(fallback);
-      fetch('https://hub.docker.com/v2/repositories/jackge12345/dbcheck/')
+      // shields.io 带 Access-Control-Allow-Origin: *，浏览器可跨域实时读取
+      fetch('https://img.shields.io/docker/pulls/jackge12345/dbcheck.json')
         .then(r=>r.json())
-        .then(d=>{ if(d&&typeof d.pull_count==='number'&&d.pull_count>fallback) countTo(d.pull_count); })
+        .then(d=>{ const n=parseAbbrev(d&&d.value); if(n&&n>0) countTo(n); })
         .catch(()=>{});
     })();
   </script>
