@@ -3699,7 +3699,7 @@ function formatBytes(bytes) {
                 '<input id="ds-service-name" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="' + i18n('webui.pro_ds_placeholder_service') + '"></div>' +
               '<div id="ds-sysdba-wrap" style="display:none"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 0">' +
                 '<input type="checkbox" id="ds-sysdba" style="width:16px;height:16px;accent-color:var(--accent)" />' +
-                '<span style="font-size:13px">' + i18n('webui.checkbox_sysdba') + '</span></label></div>' +
+                '<span style="font-size:13px;color:var(--text-muted)">' + i18n('webui.checkbox_sysdba') + '</span></label></div>' +
               '<div id="ds-jdbc-url-wrap" style="display:none"><label style="font-size:12px;color:var(--text-muted)">JDBC URL <span style="color:var(--text-muted);font-weight:normal">（可选，留空则使用上方主机/端口/服务名）</span></label>' +
                 '<input id="ds-jdbc-url" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="jdbc:oracle:thin:@//host:1521/ORCLCDB 或 @host:1521:ORCL"></div>' +
               '<div><label style="font-size:12px;color:var(--text-muted)">' + i18n('webui.pro_ds_group') + '</label>' +
@@ -4844,7 +4844,7 @@ function formatBytes(bytes) {
             <div class="field" id="job-sysdba-wrap" style="display:none">
               <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
                 <input type="checkbox" id="job-sysdba" />
-                <span>使用 SYSDBA 连接</span>
+                <span style="color:var(--text-muted)">使用 SYSDBA 连接</span>
               </label>
             </div>
           </div>
