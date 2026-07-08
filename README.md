@@ -10,7 +10,7 @@ DBCheck is an open-source, cross-platform database health inspection tool suppor
 > 
 > Language: [English](./README.md) | 语言：[中文](./README_zh.md)
 
-[![Version](https://img.shields.io/badge/Version-v2.10.1-blue.svg)]()
+[![Version](https://img.shields.io/badge/Version-v26.7.8.1-blue.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-green.svg)]()
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)]()
 [![AI](https://img.shields.io/badge/AI-Ollama+OpenAI-orange.svg)]()
