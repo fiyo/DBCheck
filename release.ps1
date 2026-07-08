@@ -1,5 +1,5 @@
 # DBCheck Release Script (simplified)
-# Usage: .\release.ps1 -Version "2.5.6"
+# Usage: .\release.ps1 -Version "2.5.6"  (or date-based "26.7.8.1")
 # GitHub Actions will handle Docker build/push and GitHub Release automatically.
 
 param(
@@ -11,9 +11,9 @@ $ErrorActionPreference = "Stop"
 $VersionWithV = "v$Version"
 $ProjectRoot = Split-Path $MyInvocation.MyCommand.Path
 
-# Validate version format
-if ($Version -notmatch '^\d+\.\d+\.\d+$') {
-    Write-Host "ERROR: Version must be x.y.z (e.g. 2.5.6)" -ForegroundColor Red
+# Validate version format (supports x.y.z and x.y.z.n, e.g. 2.5.6 or 26.7.8.1)
+if ($Version -notmatch '^\d+\.\d+\.\d+(\.\d+)?$') {
+    Write-Host "ERROR: Version must be x.y.z or x.y.z.n (e.g. 2.5.6 or 26.7.8.1)" -ForegroundColor Red
     exit 1
 }
 
@@ -99,8 +99,8 @@ if (Test-Path $Dockerfile) {
 # Step 4: Commit, push, and create tag
 Write-Host "[4/4] Committing, pushing, and creating tag..." -ForegroundColor Yellow
 
-# Commit and push
-git add -A
+# Commit and push (only version files, avoid staging runtime data/ or untracked files)
+git add version.py Dockerfile
 git diff --cached --quiet 2>$null
 if ($LASTEXITCODE -eq 0) {
     Write-Host "  WARN: Nothing to commit, skipping commit" -ForegroundColor Yellow
