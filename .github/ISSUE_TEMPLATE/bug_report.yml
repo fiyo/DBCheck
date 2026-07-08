@@ -1,0 +1,74 @@
+name: "🐛 Bug 报告 / Bug Report"
+description: "报告 DBCheck 的功能缺陷、报错或异常行为"
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈！请尽量填写以下信息，便于我们复现与定位问题。
+
+        ⚠️ **安全提示**：请勿在本 issue 中粘贴可执行文件、脚本或外部下载链接。
+        如收到他人提供的“补丁/样本/复现脚本”，不要在本机下载或执行，先用杀毒软件扫描。
+  - type: dropdown
+    id: dbtype
+    attributes:
+      label: "数据库类型 / 场景"
+      description: "问题发生在哪种数据库或哪个功能模块？"
+      options:
+        - "MySQL"
+        - "PostgreSQL"
+        - "Oracle"
+        - "Oracle (JDBC)"
+        - "SQL Server"
+        - "DM8 (达梦)"
+        - "TiDB"
+        - "IvorySQL"
+        - "YashanDB"
+        - "KingbaseES (人大金仓)"
+        - "服务器巡检 / 其他"
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: "DBCheck 版本"
+      description: "可在关于页或 `version.py` 查看，例如 v2.10.1"
+      placeholder: "v2.10.1"
+    validations:
+      required: true
+  - type: textarea
+    id: desc
+    attributes:
+      label: "问题描述"
+      description: "期望发生什么？实际发生了什么？"
+      placeholder: "例如：点击“测试连接”后界面卡死，控制台报 xxx 错误。"
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: "复现步骤"
+      description: "一步一步的操作，让我们可以复现"
+      placeholder: |
+        1. 添加数据源，类型选择 Oracle (JDBC)
+        2. 填写 jdbc_url 为 ...
+        3. 点击测试连接
+        4. 观察结果
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: "日志 / 错误信息"
+      description: "粘贴相关报错（可脱敏账号/IP），纯文本即可"
+      render: shell
+    validations:
+      required: false
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: "确认"
+      options:
+        - label: "我确认本 issue 未包含任何可执行文件或外部下载链接"
+          required: true

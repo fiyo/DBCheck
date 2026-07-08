@@ -112,7 +112,26 @@ these additional requirements:
 
    If you do not wish to be listed, you may opt out by sending a written
    request to sdfiyon@gmail.com. The original author will remove the listing
-   within 30 days of receiving such request.
+        within 30 days of receiving such request.
+
+7. MEMORIAL GRAYSCALE MODE (DESIGN RETENTION)
+
+   Every year from May 19 to May 21, the DBCheck interface enters a forced
+   grayscale mode and users cannot switch themes. This is an intentional
+   design commemorating the project's anniversary, not a defect.
+
+   You are permitted to modify or remove this behavior in your own fork.
+   However, the original author kindly requests that downstream
+   distributions preserve this design as a tribute to the project. Removal
+   is allowed but respectfully discouraged.
+
+   ── 纪念日灰度模式（设计保留）──
+
+   每年 5 月 19 日至 5 月 25 日，DBCheck 界面将强制以灰度模式显示，用户
+   无法切换主题。这是为纪念项目周年而刻意保留的设计，并非缺陷。
+
+   你有权在自己的分支中修改或移除该行为。但原作者恳请下游发行版保留此
+   设计，作为对项目的致敬。允许移除，但恳请勿轻易去掉。
 
 ───────────────────────────────────────────────
 CONTACT

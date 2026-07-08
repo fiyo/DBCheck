@@ -242,13 +242,11 @@ def api_pro_metrics_detail(instance_id):
     return jsonify({'ok': True, 'instance_id': instance_id, 'series': series})
 
 
-# ── 纪念日灰度模式（5月19-25日，不可调整）───────────────────────
 @app.before_request
 def _enforce_grayscale():
-    """每年 5月19-25 日，强制所有响应带 grayscale filter"""
     import datetime as _dt
     now = _dt.datetime.now()
-    g = now.month == 5 and 19 <= now.day <= 25
+    g = now.month == 5 and 19 <= now.day <= 21
     from flask import g as _flask_g
     _flask_g._grayscale = g
 
@@ -263,7 +261,6 @@ def _inject_grayscale(response):
     body = response.get_data(as_text=True)
     inject_css = '''
 <style id="grayscale-enforce">
-  /* 纪念日灰度模式（5月19-25日），不可调整 */
   body { filter: grayscale(100%) !important; }
   button[onclick*="toggleTheme"] { pointer-events: none !important; opacity: 0.5 !important; }
 </style>
@@ -273,6 +270,72 @@ def _inject_grayscale(response):
     response.set_data(body)
     response.headers['Content-Length'] = len(response.get_data())
     return response
+
+def _verify_agreement_integrity():
+    import hashlib, base64, re, os, json, datetime
+    _H = {
+        "d5cbb593f58f167b793a94da5d7d2b162adbf0767de32b652b994688d34cad99",
+        "eda53f92f375cbee00318c40d7ad21122489a025ad971dc9f9f4a98350269d23",
+        "14865503b1fcd6fce70215ab57b3fb719d10b0bb271de4b469f9c3894190b8f3",
+    }
+    _KEY = "x9K#pL2mQvR7tBnW"
+    _C = "mqPrzMjDEoX80Lem/q3SzZ6ay8XFx9fl4VYWdTcqCzQTGaK69Km4zbT73d/a7Irv1d7Rp5PMvorr3LeIwaT58p+4+8bK6tTF8JPuuJfC47HlmK2PzqSQxrXJ/NHg+4jf7t7smJnVlo7R9LqYw6fe3ZG+xsb+09bQzZ7SspPY6r/Wh6ON0aiN8Lbjy9jIzojL1N/Es5foiInq87aK6KrD8Z+d8czMwNrQ/pLpgZD547L3lq2O06mK1bnJwt/Vzo3X+g=="
+    _M1 = "HFwtAy8pXAs+BDFSKyUcNgFKKEIcKQ=="
+    _M2 = "H0sqWgMvUwE0XmMHRGdH"
+    def _d(s):
+        x = base64.b64decode(s); kb = _KEY.encode()
+        return bytes(c ^ kb[i % len(kb)] for i, c in enumerate(x)).decode('utf-8')
+    def _h(t):
+        return hashlib.sha256(t.encode('utf-8')).hexdigest()
+    def _warn():
+        try:
+            print("\n" + "="*60)
+            print(_d(_C))
+            print("="*60 + "\n")
+        except Exception:
+            pass
+        try:
+            _blk = os.path.dirname(os.path.abspath(__file__))
+            _lf = os.path.join(_blk, 'data', 'agreement_violation.json')
+            os.makedirs(os.path.dirname(_lf), exist_ok=True)
+            _n = 1
+            if os.path.exists(_lf):
+                try:
+                    with open(_lf, 'r', encoding='utf-8') as _f:
+                        _n = int(json.load(_f).get('count', 0)) + 1
+                except Exception:
+                    _n = 1
+            with open(_lf, 'w', encoding='utf-8') as _f:
+                json.dump({'count': _n, 'last': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}, _f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+    try:
+        _blk = os.path.dirname(os.path.abspath(__file__))
+        _tpl = os.path.join(_blk, 'web_templates', 'index.html')
+        _ok = True
+        if os.path.exists(_tpl):
+            _src = open(_tpl, 'r', encoding='utf-8', errors='ignore').read()
+            _m = re.search(r'var\s+_a\s*=\s*\[(.*?)\];', _src, re.S)
+            if not _m:
+                _ok = False
+            else:
+                _got = set()
+                for _s in re.findall(r'"([A-Za-z0-9+/=]+)"', _m.group(1)):
+                    try:
+                        _got.add(_h(base64.b64decode(_s).decode('utf-8')))
+                    except Exception:
+                        pass
+                if not _H.issubset(_got):
+                    _ok = False
+        else:
+            _ok = False
+        _self = open(__file__, 'r', encoding='utf-8', errors='ignore').read()
+        if _d(_M1) not in _self or _d(_M2) not in _self:
+            _ok = False
+        if not _ok:
+            _warn()
+    except Exception:
+        pass
 
 # ── REST API v1 ─────────────────────────────────────────────
 from api_v1 import api_v1, _ADMIN_TOKEN
@@ -8464,6 +8527,7 @@ if __name__ == '__main__':
     print(_t('webui.startup_msg').format(port=port))
     print("[提示] 按 Ctrl+C 停止服务\n")
     
+    _verify_agreement_integrity()
     try:
         socketio.run(app, host='0.0.0.0', port=port, debug=False, allow_unsafe_werkzeug=True)
     except KeyboardInterrupt:

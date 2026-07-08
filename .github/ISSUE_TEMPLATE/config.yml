@@ -1,0 +1,10 @@
+# ISSUE_TEMPLATE 配置
+# 禁止空白 issue（必须选模板填写），并引导安全/恶意内容走专门通道
+blank_issues_enabled: false
+contact_links:
+  - name: "🔒 安全漏洞 / issue 中的恶意内容举报"
+    url: "https://github.com/contact/report-abuse"
+    about: "发现安全漏洞，或 issue 中含有病毒、钓鱼链接、恶意代码，请走此官方通道，不要公开讨论。"
+  - name: "💬 使用咨询 / 社区讨论"
+    url: "https://dbcheck.top"
+    about: "一般使用问题、功能讨论与建议。"
