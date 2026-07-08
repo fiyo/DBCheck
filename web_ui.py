@@ -4804,6 +4804,7 @@ def api_db_types():
 
 
 
+@app.route('/api/pro/datasources/<instance_id>', methods=['DELETE'])
 def api_pro_datasource_delete(instance_id):
     """删除数据源，同时清理 history.db 趋势数据"""
     try:
