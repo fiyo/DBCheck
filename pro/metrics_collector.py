@@ -17,6 +17,7 @@ pro/metrics_collector.py — 实时监控采集器（v2.10）
 """
 
 import os
+import re
 import json
 import time
 import socket
@@ -47,6 +48,9 @@ COUNTER_KEYS = {
     'oracle': {'ora_user_commits', 'ora_physical_reads', 'ora_redo_size',
                'ora_user_calls', 'ora_session_logical_reads',
                'ora_db_block_gets', 'ora_consistent_gets'},
+    'oracle_jdbc': {'ora_user_commits', 'ora_physical_reads', 'ora_redo_size',
+                    'ora_user_calls', 'ora_session_logical_reads',
+                    'ora_db_block_gets', 'ora_consistent_gets'},
     'sqlserver': {'io_read_count', 'io_write_count', 'io_read_bytes', 'io_write_bytes'},
     'mssql':   {'io_read_count', 'io_write_count', 'io_read_bytes', 'io_write_bytes'},
     # DM8 计数器名不固定，速率在深采中按 dm_ 前缀动态处理
@@ -256,20 +260,39 @@ class MetricsCollector:
             return psycopg2.connect(host=host, port=port, user=user,
                                     password=password, dbname=dbname,
                                     connect_timeout=CONNECT_TIMEOUT)
-        if db_type == 'oracle' or db_type == 'oracle_jdbc':
+        if db_type == 'oracle_jdbc':
+            # oracle_jdbc 数据源一律走插件 JDBC 连接，绝不走 oracledb，
+            # 以避免 Oracle 11g 在无 Oracle 客户端环境下连接失败。
+            return self._connect_oracle_jdbc(inst)
+        if db_type == 'oracle':
             import oracledb
-            # oracle_jdbc 类型可能用 jdbc_url 而非标准 dsn，尝试从 service_name 或 host:port 构造
-            dsn = inst.get('service_name') or inst.get('dsn')
-            if not dsn:
-                # 尝试从 jdbc_url 提取 host:port:sid 格式
-                jdbc_url = inst.get('jdbc_url') or ''
-                if '@' in jdbc_url:
-                    after_at = jdbc_url.split('@')[1].split('/')[0]
-                    dsn = after_at  # host:port:sid
-            if not dsn:
-                dsn = '%s:%d/orcl' % (host, port)
+            # 原生 oracle 用 oracledb 直连；端口/协议探测提前暴露典型误配
+            ohost, oport, oservice, ois_sid, oproto = self._parse_oracle_target(inst)
+            if ohost and oport:
+                self._oracle_protocol_probe(ohost, oport, oproto)
+            jdbc_url = (inst.get('jdbc_url') or '').strip()
+            # 纯 TNS 描述符 (DESCRIPTION=...) oracledb 可直接作为 dsn 使用，无需解析后重拼
+            if jdbc_url and jdbc_url.lstrip().upper().startswith('(DESCRIPTION'):
+                dsn = jdbc_url
+            elif oservice:
+                # 服务名用 host:port/service，SID 用 host:port:sid
+                dsn = ('%s:%d/%s' % (ohost, oport, oservice)) if not ois_sid \
+                      else ('%s:%d:%s' % (ohost, oport, oservice))
+            else:
+                dsn = '%s:%d/orcl' % (ohost or host, oport or port)
             mode = oracledb.SYSDBA if inst.get('sysdba') else oracledb.DEFAULT_MODE
-            return oracledb.connect(user=user, password=password, dsn=dsn, mode=mode)
+            kw = dict(user=user, password=password, dsn=dsn, mode=mode)
+            # TCPS / SSL：从 jdbc_url 解析到 tcps 时尝试 SSL 连接
+            if oproto == 'tcps':
+                try:
+                    import ssl
+                    ctx = ssl.create_default_context()
+                    ctx.check_hostname = False
+                    ctx.verify_mode = ssl.CERT_NONE
+                    kw['ssl_context'] = ctx
+                except Exception:
+                    pass
+            return oracledb.connect(**kw)
         if db_type == 'dm':
             import dmPython
             return dmPython.connect(user=user, password=password, server='%s:%d' % (host, port))
@@ -291,6 +314,31 @@ class MetricsCollector:
             return pyodbc.connect(conn_str, timeout=CONNECT_TIMEOUT)
         return None
 
+    def _connect_oracle_jdbc(self, inst: dict):
+        """oracle_jdbc 类型：一律通过插件走 JDBC 连接（JdbcConnectionWrapper，DB-API 兼容），
+        绝不走 oracledb，以避免 Oracle 11g 在无 Oracle 客户端环境下连接失败。
+        插件在内部用 JPype 启动 JVM + ojdbc8.jar 建立连接，深采逻辑复用 _collect_oracle()。
+        """
+        try:
+            from plugin_loader import get_plugin_module
+        except Exception as e:
+            raise RuntimeError('加载插件系统失败: %s' % e)
+        mod = get_plugin_module('oracle_jdbc')
+        if mod is None or not hasattr(mod, 'get_connection'):
+            raise RuntimeError(
+                'oracle_jdbc 插件未启用或缺少 get_connection 入口，'
+                '请先在插件管理中启用 Oracle (JDBC) 插件'
+            )
+        return mod.get_connection(
+            host=inst.get('host'),
+            port=int(inst.get('port') or 1521),
+            user=inst.get('user'),
+            password=inst.get('password'),
+            service_name=inst.get('service_name') or 'ORCL',
+            sysdba=bool(inst.get('sysdba')),
+            jdbc_url=inst.get('jdbc_url') or None,
+        )
+
     # ── 通用探针 ──
     def _tcp_probe(self, host, port) -> tuple:
         if not host or not port:
@@ -309,6 +357,133 @@ class MetricsCollector:
                     s.close()
                 except Exception:
                     pass
+
+    # ── Oracle 端口/协议探测 ──
+    def _parse_oracle_target(self, inst: dict):
+        """从实例字段或 jdbc_url 统一解析出 (host, port, service, is_sid, protocol)。
+
+        探测与正式建连共用同一套解析，避免「探测对、连接错」。支持的 JDBC URL 写法：
+          - jdbc:oracle:thin:@host:port:SID             (老式 SID，dsn 用 host:port:sid)
+          - jdbc:oracle:thin:@//host:port/SERVICE_NAME  (EZConnect 服务名，dsn 用 host:port/service)
+          - jdbc:oracle:thin:@(DESCRIPTION=(HOST=..)(PORT=..)(CONNECT_DATA=(SERVICE_NAME=..|SID=..)))  (TNS 描述符)
+          - PROTOCOL=tcps                               (SSL 监听，常用 2484 端口)
+        """
+        host = inst.get('host')
+        port = int(inst.get('port') or 0)
+        service = inst.get('service_name') or inst.get('dsn')
+        is_sid = False
+        protocol = 'tcp'
+        jdbc_url = (inst.get('jdbc_url') or '').strip()
+
+        if jdbc_url:
+            m = re.search(r'PROTOCOL\s*=\s*(tcps|tcp)', jdbc_url, re.I)
+            if m:
+                protocol = m.group(1).lower()
+            after = jdbc_url.split('@')[-1]
+            # TNS 描述符优先用 HOST=/PORT=/SERVICE_NAME=/SID=
+            hm = re.search(r'HOST\s*=\s*([^)\s]+)', jdbc_url, re.I)
+            if hm:
+                host = hm.group(1)
+            pm = re.search(r'PORT\s*=\s*(\d+)', jdbc_url, re.I)
+            if pm:
+                port = int(pm.group(1))
+            sm = re.search(r'SERVICE_NAME\s*=\s*([^)\s]+)', jdbc_url, re.I)
+            sidm = re.search(r'\(SID\s*=\s*([^)\s]+)\)', jdbc_url, re.I)
+            if sm:
+                service = sm.group(1)
+                is_sid = False
+            elif sidm:
+                service = sidm.group(1)
+                is_sid = True
+            if not service:
+                # 形如 //host:port/service 或 host:port:sid
+                if '//' in after:
+                    seg = after.split('//')[-1]
+                    p0 = seg.split(':')
+                    if len(p0) >= 2:
+                        host = p0[0]
+                        port = int(p0[1].split('/')[0])
+                        if '/' in p0[1]:
+                            service = p0[1].split('/', 1)[1]
+                else:
+                    p0 = after.split(':')
+                    if len(p0) == 3:
+                        host, port, service = p0[0], int(p0[1]), p0[2]
+                        is_sid = True
+        return host, port, service, is_sid, protocol
+
+    def _tns_connect_probe(self) -> bytes:
+        """构造一个最小 TNS Connect 包，用于触发 Oracle 监听器回包以便嗅探。"""
+        connect_data = b'(CONNECT_DATA=(SID=ORCL))'
+        body = b''.join([
+            (312).to_bytes(2, 'big'),     # version
+            (312).to_bytes(2, 'big'),     # version(compat)
+            (0).to_bytes(2, 'big'),       # service options
+            (2048).to_bytes(2, 'big'),    # SDU
+            (2048).to_bytes(2, 'big'),    # TDU
+            (0x07ff).to_bytes(2, 'big'),  # characteristics
+            (0).to_bytes(2, 'big'),       # turnaround
+            (1).to_bytes(2, 'big'),       # 1 in hw
+            len(connect_data).to_bytes(2, 'big'),  # connect data length
+            (58).to_bytes(2, 'big'),      # offset to connect data (0x3a)
+            (2048).to_bytes(2, 'big'),    # max receive
+            (0).to_bytes(4, 'big'),       # connect flags
+            connect_data,
+        ])
+        length = 8 + len(body)
+        header = length.to_bytes(2, 'big') + bytes([0x01, 0x00]) + (0).to_bytes(4, 'big')
+        return header + body
+
+    def _oracle_protocol_probe(self, host, port, protocol):
+        """连接端口并嗅探首字节，提前发现「连错端口 / SSL 不匹配」等典型误配，
+        给出清晰中文提示，避免笼统的握手失败。探测用独立 socket，失败不阻断正式连接。"""
+        s = None
+        try:
+            s = socket.create_connection((host, int(port)), timeout=CONNECT_TIMEOUT)
+            try:
+                s.sendall(self._tns_connect_probe())
+            except Exception:
+                pass
+            s.settimeout(2.0)
+            data = b''
+            try:
+                while len(data) < 16:
+                    chunk = s.recv(4096)
+                    if not chunk:
+                        break
+                    data += chunk
+            except Exception:
+                pass
+        except socket.timeout:
+            return
+        except Exception:
+            return
+        finally:
+            if s:
+                try:
+                    s.close()
+                except Exception:
+                    pass
+        if not data:
+            return
+        if data[:4] == b'HTTP':
+            raise ValueError(
+                'Oracle 连接失败：该端口返回了 HTTP 响应，疑似连到了 Web/HTTP 服务'
+                '（如 8080 / 443 控制台端口），并非 Oracle 监听器端口。'
+                '请核对 jdbc_url 中 @ 后的 host:port 是否为真实 listener 端口（通常 1521）。'
+            )
+        if data[0] in (0x15, 0x16):
+            raise ValueError(
+                'Oracle 连接失败：该端口返回了 TLS/SSL 握手，疑似需要 TCPS(SSL) 连接'
+                '（常用 2484 端口）。请在 jdbc_url 中使用 PROTOCOL=tcps 或改用 SSL 连接。'
+            )
+        # TNS 包：第 3 字节为包类型（1..12）
+        if len(data) >= 3 and 1 <= data[2] <= 12:
+            return
+        raise ValueError(
+            'Oracle 连接失败：该端口返回了非 TNS 的协议数据，可能不是 Oracle 监听器端口。'
+            '请核对 jdbc_url 中的 host:port。'
+        )
 
     # ── 深采分派 ──
     def _collect_deep(self, db_type: str, conn) -> dict:

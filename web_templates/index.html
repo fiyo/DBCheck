@@ -3700,6 +3700,8 @@ function formatBytes(bytes) {
               '<div id="ds-sysdba-wrap" style="display:none"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 0">' +
                 '<input type="checkbox" id="ds-sysdba" style="width:16px;height:16px;accent-color:var(--accent)" />' +
                 '<span style="font-size:13px">' + i18n('webui.checkbox_sysdba') + '</span></label></div>' +
+              '<div id="ds-jdbc-url-wrap" style="display:none"><label style="font-size:12px;color:var(--text-muted)">JDBC URL <span style="color:var(--text-muted);font-weight:normal">（可选，留空则使用上方主机/端口/服务名）</span></label>' +
+                '<input id="ds-jdbc-url" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="jdbc:oracle:thin:@//host:1521/ORCLCDB 或 @host:1521:ORCL"></div>' +
               '<div><label style="font-size:12px;color:var(--text-muted)">' + i18n('webui.pro_ds_group') + '</label>' +
                 '<select id="ds-group" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px">' +
                 '<option value="default">default</option></select></div>' +
@@ -3778,6 +3780,7 @@ function formatBytes(bytes) {
         document.getElementById('ds-database-wrap').style.display = (dbType === 'pg' || dbType === 'ivorysql' || dbType === 'kingbase' || dbType === 'gbase') ? '' : 'none';
         document.getElementById('ds-service-wrap').style.display = (dbType === 'oracle' || dbType === 'oracle_jdbc') ? '' : 'none';
         document.getElementById('ds-sysdba-wrap').style.display = (dbType === 'oracle' || dbType === 'oracle_jdbc') ? '' : 'none';
+        document.getElementById('ds-jdbc-url-wrap').style.display = (dbType === 'oracle_jdbc') ? '' : 'none';
         var gbaseWrap = document.getElementById('ds-gbase-server-wrap');
         if (gbaseWrap) gbaseWrap.style.display = dbType === 'gbase' ? '' : 'none';
         // 根据数据库类型更新 database 输入框的 placeholder
@@ -3822,6 +3825,7 @@ function formatBytes(bytes) {
         if (!dbName && dbType === 'gbase') dbName = 'sysmaster';
         const sysdba = document.getElementById('ds-sysdba')?.checked || false;
         const gbaseServer = document.getElementById('ds-gbase-server')?.value.trim() || '';
+        const jdbcUrl = (document.getElementById('ds-jdbc-url')?.value || '').trim();
         const sshHost = document.getElementById('ds-ssh-host')?.value || '';
         const sshPort = document.getElementById('ds-ssh-port')?.value || 22;
         const sshUser = document.getElementById('ds-ssh-user')?.value || '';
@@ -3834,7 +3838,7 @@ function formatBytes(bytes) {
           const res = await fetch('/api/pro/datasources/test-connection', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ db_type: dbType, host, port: parseInt(port), user, password, service_name: svcName, database: dbName, sysdba, gbase_server_name: gbaseServer, ssh_host: sshHost, ssh_port: parseInt(sshPort), ssh_user: sshUser, ssh_password: sshPass })
+            body: JSON.stringify({ db_type: dbType, host, port: parseInt(port), user, password, service_name: svcName, database: dbName, sysdba, jdbc_url: jdbcUrl, gbase_server_name: gbaseServer, ssh_host: sshHost, ssh_port: parseInt(sshPort), ssh_user: sshUser, ssh_password: sshPass })
           });
           const data = await res.json();
           msgEl.style.color = data.ok ? 'var(--success)' : 'var(--danger)';
@@ -3868,6 +3872,8 @@ function formatBytes(bytes) {
         if (payload.db_type === 'oracle' || payload.db_type === 'oracle_jdbc') {
           payload.service_name = document.getElementById('ds-service-name').value.trim();
           payload.sysdba = document.getElementById('ds-sysdba').checked;
+          const jdbcUrl = document.getElementById('ds-jdbc-url')?.value.trim();
+          if (jdbcUrl) payload.jdbc_url = jdbcUrl;
         }
         if (payload.db_type === 'gbase') {
           payload.gbase_server_name = document.getElementById('ds-gbase-server').value.trim();
@@ -3943,6 +3949,7 @@ function formatBytes(bytes) {
               if (ds.db_type === 'oracle' || ds.db_type === 'oracle_jdbc') {
                 document.getElementById('ds-service-name').value = ds.service_name || '';
                 document.getElementById('ds-sysdba').checked = ds.sysdba === true;
+                if (ds.jdbc_url) document.getElementById('ds-jdbc-url').value = ds.jdbc_url;
               }
               // SSH 回填
               if (ds.ssh_enabled || ds.ssh_host) {
@@ -4002,6 +4009,7 @@ function formatBytes(bytes) {
               service_name: ds.service_name || '',
               database: ds.database || '',
               sysdba: ds.sysdba || false,
+              jdbc_url: ds.jdbc_url || '',
               ssh_host: ds.ssh_host || '',
               ssh_port: ds.ssh_port || 22,
               ssh_user: ds.ssh_user || '',
@@ -4546,13 +4554,17 @@ function formatBytes(bytes) {
             </div>
             <div class="field full" id="f-service-wrap" style="display:none">
               <label><span data-i18n="webui.label_service_sid">服务名/SID (Service Name)</span> <span class="opt" data-i18n="webui.label_service_sid_opt">Oracle</span></label>
-              <input type="text" id="f-service-name" data-i18n="webui.placeholder_service" placeholder="ORCL 或 orcl.example.com（留空则使用主机地址）" />
+              <input type="text" id="f-service-name" data-i18n="webui.placeholder_service" placeholder="ORCL 或 orcl.example.com（填写服务名或 SID）" />
             </div>
             <div class="field full" id="f-sysdba-wrap" style="display:none">
               <label>
                 <input type="checkbox" id="f-sysdba" />
                 <span style="font-size: 13px; color: var(--text-muted)" data-i18n="webui.checkbox_sysdba">以 SYSDBA 身份连接</span>
               </label>
+            </div>
+            <div class="field full" id="f-jdbc-url-wrap" style="display:none">
+              <label><span>JDBC URL</span> <span class="opt" style="font-weight:normal;color:var(--text-muted)">可选，留空则使用上方主机/端口/服务名</span></label>
+              <input type="text" id="f-jdbc-url" placeholder="jdbc:oracle:thin:@//host:1521/ORCLCDB 或 @host:1521:ORCL" />
             </div>
           </div>
           <div id="db-test-status" style="margin-top:12px"></div>
@@ -7714,6 +7726,9 @@ async function selectDbType(type, skipReload) {
   // Oracle全面巡检：显示 SYSDBA 复选框
   var sysdbaWrap = document.getElementById('f-sysdba-wrap');
   if (sysdbaWrap) sysdbaWrap.style.display = (type === 'oracle' || type === 'oracle_jdbc') ? '' : 'none';
+  // Oracle JDBC：显示 JDBC URL 输入框
+  var jdbcWrap = document.getElementById('f-jdbc-url-wrap');
+  if (jdbcWrap) jdbcWrap.style.display = (type === 'oracle_jdbc') ? '' : 'none';
   // 更新数据库名称输入框的 placeholder 并自动填写默认值
   const defaultDbMap = { pg: 'postgres', ivorysql: 'postgres', kingbase: 'kingbase', gbase: 'sysmaster' };
   var fDbEl = document.getElementById('f-database');
@@ -7798,6 +7813,7 @@ async function testDb() {
         database: (dbType === 'pg' || dbType === 'ivorysql') ? (document.getElementById('f-database').value.trim() || 'postgres') : (dbType === 'kingbase') ? (document.getElementById('f-database').value.trim() || 'kingbase') : (dbType === 'gbase') ? (document.getElementById('f-database').value.trim() || 'sysmaster') : (document.getElementById('f-database').value.trim() || ''),
         service_name: document.getElementById('f-service-name') ? document.getElementById('f-service-name').value.trim() : null,
         sysdba: document.getElementById('f-sysdba').checked,
+        jdbc_url: document.getElementById('f-jdbc-url')?.value.trim() || null,
       })
     });
     const data = await res.json();
@@ -8212,13 +8228,14 @@ async function startInspection() {
   const password = document.getElementById('f-password').value;
   const database = (dbType === 'pg' || dbType === 'ivorysql') ? (document.getElementById('f-database').value.trim() || 'postgres') : (dbType === 'kingbase') ? (document.getElementById('f-database').value.trim() || 'kingbase') : (dbType === 'gbase') ? (document.getElementById('f-database').value.trim() || 'sysmaster') : (document.getElementById('f-database').value.trim() || '');
   const svcName = document.getElementById('f-service-name') ? document.getElementById('f-service-name').value.trim() : null;
+  const jdbcUrl = document.getElementById('f-jdbc-url')?.value.trim() || null;
   const inspector = document.getElementById('f-inspector').value.trim() || 'Jack';
 
   // 检查是否选择了已保存的数据源
   const datasourceId = document.getElementById('f-datasource').value;
   const payload = datasourceId
     ? { db_type: dbType, datasource_id: datasourceId, inspector_name: inspector, desensitize: document.getElementById('f-desensitize').checked }
-    : { db_type: dbType, name, host, port, user, password, database, service_name: svcName, inspector_name: inspector, sysdba: document.getElementById('f-sysdba').checked, desensitize: document.getElementById('f-desensitize').checked };
+    : { db_type: dbType, name, host, port, user, password, database, service_name: svcName, jdbc_url: jdbcUrl, inspector_name: inspector, sysdba: document.getElementById('f-sysdba').checked, desensitize: document.getElementById('f-desensitize').checked };
   if (sshEnabled) {
     payload.ssh_host     = document.getElementById('f-ssh-host').value.trim() || host;
     payload.ssh_port     = parseInt(document.getElementById('f-ssh-port').value) || 22;

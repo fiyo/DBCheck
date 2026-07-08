@@ -2379,13 +2379,14 @@ def api_test_db():
     else:
         # 尝试使用插件测试连接
         ok, msg = test_plugin_connection(
-            db_type, 
-            data['host'], 
-            data['port'], 
-            data['user'], 
+            db_type,
+            data['host'],
+            data['port'],
+            data['user'],
             data['password'],
             service_name=data.get('service_name', ''),
-            sysdba=bool(data.get('sysdba', False))
+            sysdba=bool(data.get('sysdba', False)),
+            jdbc_url=data.get('jdbc_url') or None
         )
         if ok is not None:
             result = {'ok': ok, 'msg': msg}
@@ -4595,6 +4596,7 @@ def api_pro_datasource_add():
             password=data.get('password', ''),
             service_name=data.get('service_name', ''),
             sysdba=bool(data.get('sysdba', False)),
+            jdbc_url=data.get('jdbc_url', ''),
             ssh_host=data.get('ssh_host', ''),
             ssh_port=int(data.get('ssh_port', 22)),
             ssh_user=data.get('ssh_user', ''),
@@ -4799,6 +4801,7 @@ def api_pro_datasources_test_conn():
         user = data.get('user', '')
         password = data.get('password', '')
         service_name = data.get('service_name', '')
+        jdbc_url = data.get('jdbc_url')
 
         if not host:
             return jsonify({'ok': False, 'error': '请输入主机地址'})
@@ -4928,7 +4931,8 @@ def api_pro_datasources_test_conn():
                 user,
                 password,
                 service_name=service_name,
-                sysdba=data.get('sysdba', False)
+                sysdba=data.get('sysdba', False),
+                jdbc_url=jdbc_url
             )
             if ok:
                 return jsonify({'ok': True, 'message': msg})

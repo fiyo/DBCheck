@@ -19,6 +19,7 @@ REGISTRY_FILE = PLUGIN_DIR / "plugin_registry.json"
 # 插件元数据缓存
 _plugin_cache: Dict[str, Dict] = {}
 _plugin_classes: Dict[str, Type[Any]] = {}
+_plugin_modules: Dict[str, Any] = {}
 
 
 def _load_registry() -> Dict:
@@ -367,8 +368,9 @@ def load_enabled_plugins() -> Dict[str, Type[Any]]:
     Returns:
         字典：db_type -> 巡检器类
     """
-    global _plugin_classes
+    global _plugin_classes, _plugin_modules
     _plugin_classes.clear()
+    _plugin_modules.clear()
     
     if not ENABLED_DIR.exists():
         return _plugin_classes
@@ -419,6 +421,7 @@ def load_enabled_plugins() -> Dict[str, Type[Any]]:
                 for db_type in db_types:
                     if db_type:
                         _plugin_classes[db_type] = inspector_class
+                        _plugin_modules[db_type] = module
                         print(f"[Plugin] 已加载插件: {meta.get('name', plugin_dir.name)} ({db_type})")
             else:
                 print(f"[Plugin] 插件中未找到 Inspector 类: {plugin_dir.name}")
@@ -823,6 +826,22 @@ if __name__ == '__main__':
     plugins = discover_plugins()
     for p in plugins:
         print(f"  - {p['name']} ({p['db_type']}), 启用: {p['enabled']}")
+
+def get_plugin_module(db_type: str):
+    """
+    获取指定数据库类型插件的主模块（已动态导入）。
+    供实时监控等模块调用插件提供的连接工厂（如 get_connection）。
+
+    Args:
+        db_type: 数据库类型标识（如 'oracle_jdbc'）
+
+    Returns:
+        插件模块对象；未加载或不存在返回 None
+    """
+    if not _plugin_classes:
+        load_enabled_plugins()
+    return _plugin_modules.get(db_type)
+
 
 def get_all_plugin_db_types() -> List[str]:
     """

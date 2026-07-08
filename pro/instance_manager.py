@@ -78,6 +78,7 @@ class DatabaseInstance:
     service_name: str = ""  # Oracle 专用
     gbase_server_name: str = ""  # GBase 8s 服务器实例名
     sysdba: bool = False  # Oracle SYSDBA 连接
+    jdbc_url: str = ""  # Oracle JDBC 专用连接串（EZConnect / TNS / TCPS），优先于 host/port/service_name
     ssh_host: str = ""     # SSH 跳板主机
     ssh_port: int = 22     # SSH 端口
     ssh_user: str = ""     # SSH 用户

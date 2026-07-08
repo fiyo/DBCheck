@@ -123,7 +123,7 @@ class OracleJdbcInspector(BaseInspectionEngine):
     """Oracle JDBC 巡检器"""
 
     def __init__(self, host, port, user, password, service_name='ORCL',
-                 ssh_info=None, template_id=None, sysdba=False):
+                 ssh_info=None, template_id=None, sysdba=False, jdbc_url=None):
         """
         初始化 Oracle JDBC 巡检器
 
@@ -142,6 +142,7 @@ class OracleJdbcInspector(BaseInspectionEngine):
         self.db_type = 'oracle_jdbc'
         self.service_name = service_name
         self.sysdba = sysdba
+        self.jdbc_url = jdbc_url
         self.conn = None
         self.cursor = None
         self.checkdb_result = []
@@ -187,7 +188,11 @@ class OracleJdbcInspector(BaseInspectionEngine):
             jpype.JClass('oracle.jdbc.driver.OracleDriver')()
 
             # 3. 构建连接 URL
-            url = f"jdbc:oracle:thin:@//{self.host}:{self.port}/{self.service_name}"
+            if self.jdbc_url and self.jdbc_url.strip().lower().startswith('jdbc:oracle'):
+                # 用户直接提供了完整 JDBC URL（EZConnect / TNS / TCPS 等），原样使用
+                url = self.jdbc_url.strip()
+            else:
+                url = f"jdbc:oracle:thin:@//{self.host}:{self.port}/{self.service_name}"
 
             # 4. 建立连接（支持 SYSDBA 身份）
             if self.sysdba:
@@ -317,7 +322,7 @@ class OracleJdbcInspector(BaseInspectionEngine):
 
 
 # ── 测试连接函数（供 plugin_loader.py 使用）─────────────────────────────
-def test_connection(host, port, user, password, service_name='ORCL', sysdba=False):
+def test_connection(host, port, user, password, service_name='ORCL', sysdba=False, jdbc_url=None):
     """
     测试 Oracle JDBC 连接
 
@@ -331,12 +336,30 @@ def test_connection(host, port, user, password, service_name='ORCL', sysdba=Fals
     """
     try:
         inspector = OracleJdbcInspector(host, int(port), user, password, service_name,
-                                         template_id=None, sysdba=sysdba)
+                                         template_id=None, sysdba=sysdba, jdbc_url=jdbc_url)
         ok, msg = inspector.connect()
         inspector.disconnect()
         return ok, msg
     except Exception as e:
         return False, str(e)
+
+
+# ── 实时监控连接工厂（供 pro/metrics_collector.py 使用）─────────────
+def get_connection(host, port, user, password, service_name='ORCL', sysdba=False, jdbc_url=None):
+    """
+    返回 DB-API 2.0 兼容的 JDBC 连接包装（JdbcConnectionWrapper），
+    供实时监控（metrics_collector）采集 Oracle 指标使用。
+    统一走 JDBC，避免 oracledb 在 Oracle 11g 无客户端环境下连接失败。
+
+    :return: JdbcConnectionWrapper
+    :raises RuntimeError: 连接失败时抛出，含 JDBC 错误信息
+    """
+    inspector = OracleJdbcInspector(host, int(port), user, password, service_name,
+                                    sysdba=sysdba, jdbc_url=jdbc_url)
+    ok, msg = inspector.connect()
+    if not ok:
+        raise RuntimeError('Oracle JDBC 连接失败: %s' % msg)
+    return inspector.conn
 
 
 # ── 数据源获取函数（供 web_ui.py 使用）─────────────────────────────
