@@ -182,6 +182,12 @@
     .fcard p{font-size:.92rem;color:var(--text-2)}
     .fcard .tag{display:inline-block;margin-top:14px;font-size:.74rem;font-weight:600;color:var(--primary-2);
       background:rgba(99,102,241,.1);padding:3px 10px;border-radius:999px}
+    .feat-cat{margin-top:46px}
+    .feat-cat:first-of-type{margin-top:6px}
+    .feat-cat-h{display:flex;align-items:center;gap:12px;font-size:1.15rem;font-weight:800;color:var(--text);margin-bottom:18px;padding-left:4px}
+    .feat-cat-h .fic-mini{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;color:#fff;font-size:1rem;
+      background:linear-gradient(135deg,var(--primary),var(--cyan))}
+    .feat-cat-h::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--border-strong),transparent)}
 
     /* ---------- DB LOGO STRIP ---------- */
     .dbstrip{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:30px 44px;margin-top:10px}
@@ -303,7 +309,7 @@
         <a href="#model" class="btn btn-ghost"><i class="fas fa-chart-line"></i> 了解商业模式</a>
       </div>
       <div class="stats">
-        <div class="stat"><div class="num" data-target="10" data-suffix="+">0</div><div class="lbl">数据库类型</div></div>
+        <div class="stat"><div class="num" data-target="12">0</div><div class="lbl">数据库类型</div></div>
         <div class="stat"><div class="num" data-target="160" data-suffix="+">0</div><div class="lbl">检查规则</div></div>
         <div class="stat"><div class="num" data-target="9" data-suffix="+">0</div><div class="lbl">国产库适配</div></div>
         <div class="stat"><div class="num" data-text="MIT">0</div><div class="lbl">开源 + 软著 IP</div></div>
@@ -332,20 +338,68 @@
   <section class="block" id="features">
     <div class="container">
       <div class="sec-head reveal">
-        <div class="sec-tag"><i class="fas fa-layer-group"></i> 核心能力</div>
+        <div class="sec-tag"><i class="fas fa-layer-group"></i> 功能全览</div>
         <h2>一套平台，覆盖数据库全生命周期</h2>
-        <p>从健康巡检、实时监控到智能诊断与合规报告，DBCheck 把 DBA 的经验沉淀为可复用的自动化能力。</p>
+        <p>从智能巡检、实时监控到 AI 诊断与合规报告——以下能力均已落地（参考官方文档）。</p>
       </div>
-      <div class="grid-3">
-        <div class="fcard reveal"><div class="fic"><i class="fas fa-clipboard-check"></i></div><h3>160+ 智能巡检规则</h3><p>覆盖性能、安全、配置、容量等维度，自动生成风险卡片与优化建议。</p><span class="tag">开箱即用</span></div>
-        <div class="fcard reveal"><div class="fic"><i class="fas fa-chart-line"></i></div><h3>实时监控大屏</h3><p>吞吐 / 连接 / 响应延迟 / 端口可用性，多实例健康态势一屏掌握。</p><span class="tag">实时</span></div>
-        <div class="fcard reveal"><div class="fic"><i class="fas fa-puzzle-piece"></i></div><h3>插件扩展平台</h3><p>热加载插件市场，巡检规则、告警渠道、报告模板皆可扩展，从工具进化为平台。</p><span class="tag">平台化</span></div>
-        <div class="fcard reveal"><div class="fic"><i class="fas fa-brain"></i></div><h3>本地 AI 诊断</h3><p>仅支持本地 Ollama，数据绝不外传；代码层硬性限制，金融政务可放心使用。</p><span class="tag">零数据外传</span></div>
-        <div class="fcard reveal"><div class="fic"><i class="fas fa-file-waveform"></i></div><h3>Oracle AWR 解析</h3><p>上传 AWR 报告自动解析，生成结构化 Word 分析 + AI 诊断，降低性能分析门槛。</p><span class="tag">降本</span></div>
-        <div class="fcard reveal"><div class="fic"><i class="fas fa-file-word"></i></div><h3>报告 + 脱敏导出</h3><p>一键生成专业 Word / PDF 巡检报告，自动掩码 IP、端口、账号等敏感信息。</p><span class="tag">合规交付</span></div>
-        <div class="fcard reveal"><div class="fic"><i class="fas fa-sitemap"></i></div><h3>配置基线 & 索引健康</h3><p>自动比对推荐基线、检测冗余与缺失索引，从源头消除性能隐患。</p><span class="tag">治未病</span></div>
-        <div class="fcard reveal"><div class="fic"><i class="fas fa-bell"></i></div><h3>定时巡检 + 告警</h3><p>Cron 定时任务，完成后自动推送邮件 / Webhook，融入现有运维体系、无人值守。</p><span class="tag">自动化</span></div>
-        <div class="fcard reveal"><div class="fic"><i class="fas fa-heart-pulse"></i></div><h3>连通性诊断 & 备份校验</h3><p>清晰呈现端口可用率与深采失败原因；把「备份是否到位」纳入巡检，手上有备份才安心。</p><span class="tag">呼应需求</span></div>
+
+      <!-- 智能巡检 -->
+      <div class="feat-cat reveal">
+        <div class="feat-cat-h"><span class="fic-mini"><i class="fas fa-clipboard-check"></i></span> 智能巡检</div>
+        <div class="grid-3">
+          <div class="fcard reveal"><div class="fic"><i class="fas fa-database"></i></div><h3>数据库巡检</h3><p>覆盖 12 种数据库，160+ 增强规则，自动生成专业 Word 报告，支持自由配置巡检章节。</p></div>
+          <div class="fcard reveal"><div class="fic"><i class="fas fa-table-list"></i></div><h3>逐库深度覆盖</h3><p>基本信息、会话连接、内存缓存、表空间、SGA/PGA、Redo、归档备份、安全审计、Top SQL、复制/Data Guard、RAC、锁与阻塞等多维度检查。</p></div>
+          <div class="fcard reveal"><div class="fic"><i class="fas fa-triangle-exclamation"></i></div><h3>智能风险分析</h3><p>自动识别风险，每条附<strong>可执行修复 SQL</strong>，支持一键执行；危险操作二次确认 + 全程日志。</p></div>
+          <div class="fcard reveal"><div class="fic"><i class="fas fa-sliders"></i></div><h3>配置基线管理</h3><p>可视化编辑各库推荐值（MySQL 22 / PG 21 / Oracle 12 / DM8 7 … 项参数），偏离即告警。</p></div>
+          <div class="fcard reveal"><div class="fic"><i class="fas fa-sitemap"></i></div><h3>索引健康分析</h3><p>检测缺失、冗余、长期未使用索引，给出优化建议，从源头消除性能隐患。</p></div>
+          <div class="fcard reveal"><div class="fic"><i class="fas fa-chart-pie"></i></div><h3>风险规则统计</h3><p>MySQL 35+ · PG 27+ · Oracle 20+ · SQL Server 15+ · DM8 16+ · TiDB 18+ · Kingbase 19+ … 按库细分。</p></div>
+        </div>
+      </div>
+
+      <!-- 实时监控 -->
+      <div class="feat-cat reveal">
+        <div class="feat-cat-h"><span class="fic-mini"><i class="fas fa-chart-line"></i></span> 实时监控</div>
+        <div class="grid-3">
+          <div class="fcard reveal"><div class="fic"><i class="fas fa-gauge-high"></i></div><h3>首页实时监控</h3><p>吞吐 / 连接 / 响应延迟 / 端口可用性，flask-socketio 每 30s 推送刷新，多实例健康态势一屏掌握。</p></div>
+          <div class="fcard reveal"><div class="fic"><i class="fas fa-fire"></i></div><h3>慢查询与连接热力图</h3><p>活跃连接与慢查询实时监控，5~60s 刷新可调，支持 CSV 导出。</p></div>
+          <div class="fcard reveal"><div class="fic"><i class="fas fa-arrow-trend-up"></i></div><h3>历史趋势分析</h3><p>多轮巡检数据聚合，阈值线 + 前后对比彩色标注，提前发现风险。</p></div>
+          <div class="fcard reveal"><div class="fic"><i class="fas fa-heart-pulse"></i></div><h3>非深采连通性画像</h3><p>暂不支持深采的实例，展示「端口可用性」时间线 + 「连通性诊断」仪表盘（可用率 + 真实失败原因）。</p></div>
+        </div>
+      </div>
+
+      <!-- AI 与诊断 -->
+      <div class="feat-cat reveal">
+        <div class="feat-cat-h"><span class="fic-mini"><i class="fas fa-brain"></i></span> AI 与诊断</div>
+        <div class="grid-3">
+          <div class="fcard reveal"><div class="fic"><i class="fas fa-robot"></i></div><h3>本地 AI 智能诊断</h3><p>基于本地 Ollama，数据完全离线、零外传；另支持 OpenAI / DeepSeek 云端后端。</p></div>
+          <div class="fcard reveal"><div class="fic"><i class="fas fa-comments"></i></div><h3>AI 对话巡检</h3><p>Web UI 内置 AI 面板，自然语言发起巡检，降低使用门槛。</p></div>
+          <div class="fcard reveal"><div class="fic"><i class="fas fa-book-open"></i></div><h3>RAG 知识库</h3><p>上传 PDF / Word / MD / TXT 自动向量化，诊断时自动检索最佳实践。</p></div>
+          <div class="fcard reveal"><div class="fic"><i class="fas fa-file-waveform"></i></div><h3>Oracle AWR 分析</h3><p>上传 AWR HTML，自动解析生成结构化 Word 报告 + AI 诊断建议。</p></div>
+          <div class="fcard reveal"><div class="fic"><i class="fas fa-hdd"></i></div><h3>DM8 离线存储检查</h3><p>无需启动实例，直接扫描 .DBF 识别坏块（全零 / 常量填充 / 截断），支持本地与 SSH 远程。</p></div>
+        </div>
+      </div>
+
+      <!-- 报告与协作 -->
+      <div class="feat-cat reveal">
+        <div class="feat-cat-h"><span class="fic-mini"><i class="fas fa-file-export"></i></span> 报告与协作</div>
+        <div class="grid-3">
+          <div class="fcard reveal"><div class="fic"><i class="fas fa-file-word"></i></div><h3>Word / PDF + 脱敏</h3><p>一键生成专业报告，自动掩码 IP、端口、账号等敏感信息，适合对外交付。</p></div>
+          <div class="fcard reveal"><div class="fic"><i class="fas fa-link"></i></div><h3>分享链接</h3><p>一键生成在线链接，免登录查看，权限隔离 + 访问统计，随时撤销。</p></div>
+          <div class="fcard reveal"><div class="fic"><i class="fas fa-list-check"></i></div><h3>巡检章节管理</h3><p>每种库可独立增删 / 排序 / 启停章节，Word 报告动态生成。</p></div>
+          <div class="fcard reveal"><div class="fic"><i class="fas fa-bell"></i></div><h3>定时任务与通知</h3><p>Cron 快捷预设，完成后自动邮件（带附件）或 Webhook（企微 / 钉钉 / 自定义）。</p></div>
+        </div>
+      </div>
+
+      <!-- 扩展与运维 -->
+      <div class="feat-cat reveal">
+        <div class="feat-cat-h"><span class="fic-mini"><i class="fas fa-puzzle-piece"></i></span> 扩展与运维</div>
+        <div class="grid-3">
+          <div class="fcard reveal"><div class="fic"><i class="fas fa-plug"></i></div><h3>插件系统</h3><p>独立插件架构，生命周期管理、插件市场、干净卸载、数据隔离；内置 MongoDB / Oracle(JDBC) 插件。</p></div>
+          <div class="fcard reveal"><div class="fic"><i class="fas fa-terminal"></i></div><h3>SQL 编辑器 & 远程终端</h3><p>内置 SQL 编辑器（全 12 库、语法高亮）；SSH 远程终端支持多标签与全屏。</p></div>
+          <div class="fcard reveal"><div class="fic"><i class="fas fa-server"></i></div><h3>服务器巡检</h3><p>独立于数据库巡检，覆盖 CPU / 内存 / 磁盘 / 网络 / 服务 / 进程。</p></div>
+          <div class="fcard reveal"><div class="fic"><i class="fas fa-code"></i></div><h3>REST API</h3><p>API Key 认证，便于接入 CI/CD 与监控系统，实现自动化编排。</p></div>
+          <div class="fcard reveal"><div class="fic"><i class="fas fa-globe"></i></div><h3>多语言 · 主题 · 分发</h3><p>中 / 英文切换，深 / 浅色主题；Docker 多架构镜像 + 一键打包分发。</p></div>
+        </div>
       </div>
     </div>
   </section>
@@ -356,7 +410,7 @@
       <div class="sec-head reveal">
         <div class="sec-tag"><i class="fas fa-server"></i> 广泛兼容</div>
         <h2>一套工具，纳管你的全部数据库</h2>
-        <p>主流商用库与国产库统一接入，正是信创混合架构下的现实需求。</p>
+        <p>12 种主流与国产数据库统一接入，正是信创混合架构下的现实需求。</p>
       </div>
       <div class="dbstrip reveal">
         <div class="db"><img src="postgresql.png" alt="PostgreSQL"><span>PostgreSQL</span></div>
