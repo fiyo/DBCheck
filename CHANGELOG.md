@@ -3,10 +3,22 @@
 ## v2.10.0 (2026-07-07)
 - 新增「实时监控采集器」：采集器随 Web 进程启动，基于 APScheduler 每 30s 采集一次
 - 通用探针：对所有数据库类型做 TCP 连通探测，输出可用性 + 响应延迟
-- 深采指标：MySQL/TiDB、PostgreSQL/PG/Kingbase、Oracle、达梦 DM8 采集连接数、QPS/TPS、复制延迟等；计数器型指标自动差分算速率
+- 深采指标：MySQL/TiDB、PostgreSQL/PG/Kingbase、Oracle、达梦 DM8、SQL Server 采集连接数、QPS/TPS、复制延迟等；计数器型指标自动差分算速率
 - 实时推送：通过 flask-socketio 的 `metrics` 事件（room=monitor）推流，前端「实时监控」区 ECharts 实时刷新
 - 存储：新增 `metrics_snapshot` 时序表（SQLite），按实例环形裁剪最近 2000 个快照
 - 健壮性：连接超时 3s、单实例连续失败断路器退避、单指标采集失败不影响整体循环
+
+### 🐛 修复 (2026-07-08)
+
+- **采集器连接修复**：修复 `mask_password=True` 导致采集器用脱敏密码（`****`）连不上库的问题，改为 `False` 使用真实密码
+- **SQL Server / Oracle (JDBC) 深采**：补充 pyodbc 连接分支、新增 `_collect_sqlserver`（会话状态、性能计数器、IO 统计），SQL Server 现在可采集连接数 / 吞吐 / 延迟等深采指标；Oracle (JDBC) 深采分支连通
+- **首页监控图表**：
+  - `multi()` 扫描全部历史快照键名（不再只看首快照），修复切换实例后吞吐/连接数图表为空
+  - 时间轴只显示 `HH:mm`，图例置顶滚动避免与坐标轴重叠
+  - 合并 resize 监听器并加防抖 + `requestAnimationFrame`，修复窗口缩放后布局错乱
+  - 修复 `innerHTML` 覆盖 canvas 导致切实例失效，改用 ECharts `title` + 污染检测自动重建容器
+  - `setOption` 使用 `notMerge:true`，避免切换实例残留旧数据
+- **非深采实例空图优化**：不支持深采（或深采临时失败）的实例，原空白图表改为展示「端口可用性」时间线（可达/不可达）与「连通性诊断」仪表盘（可用率 + 真实失败原因），页面不再留白
 
 ## v2.9.0 (2026-07-07)
 

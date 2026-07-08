@@ -126,7 +126,7 @@ python web_ui.py         # Web interface
 | 📈 Historical Trend Analysis | Aggregate multi-round inspection data, trend line charts, before/after change comparison |
 | 🤖 AI Smart Diagnostics | Local Ollama-based, analyzes inspection metrics and generates optimization suggestions |
 | 💬 AI Chat Inspection | AI panel (bottom-right in Web UI), natural language inspection workflow |
-| 📡 Real-time Monitoring | Slow queries + active connections monitoring with heatmap visualization |
+| 📡 Real-time Monitoring | Homepage live collector (throughput, connections, latency, availability) + slow-query/active-connection heatmap |
 | 🖥️ Server Inspection | CPU / memory / disk / network / process comprehensive check |
 | 🔗 Shareable Links | One-click shareable report links, viewable without login |
 | ⏰ Scheduled Tasks | Cron-based periodic inspections, auto email/Webhook notification on completion |
@@ -276,7 +276,17 @@ python web_ui.py                # Configure in AI Settings page after launching
 
 Built-in interactive SQL editor in Web UI, supporting all 10 database types with syntax highlighting, result tables, and friendly error messages.
 
-### Real-time Monitoring
+### Homepage Live Monitoring (实时监控采集器)
+
+The homepage "📡 Real-time Monitoring" panel shows live ECharts charts per instance, auto-refreshed every 30s via flask-socketio push (introduced in v2.10.0):
+
+- **Response Latency (ms)** — TCP round-trip time, available for all instance types.
+- **Throughput (QPS / TPS)** — deep-collected counters (queries, transactions, batch requests, compilations, …) auto-differentiated into rates. Supported for MySQL/TiDB, PostgreSQL/PG/Kingbase, Oracle, DM8 and SQL Server.
+- **Connections** — active/total sessions and running sessions.
+
+**Connectivity profile for non-deep instances:** instance types that do not yet support deep collection (or whose deep collection is temporarily failing) no longer show empty charts. They display a **port-availability timeline** (reachable / unreachable over time) and a **connectivity diagnostic gauge** showing the availability percentage plus the real reason (auth failure, circuit-breaker cooldown, port unreachable, or "type not yet supported"), keeping the dashboard informative from TCP-level data alone.
+
+### Slow Query & Connection Heatmap
 
 Slow queries + active connections live monitoring with heatmap visualization, auto-refresh (5–60s adjustable), CSV export support.
 
