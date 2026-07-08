@@ -45,6 +45,7 @@ drivers/oracle_client/macos_x64
 drivers/oracle_client/darwin_x64
 awr_uploads/
 data/*.db
+data/agreement_violation.json
 drivers_bak/*
 commit_msg.txt
 docker_images/*
