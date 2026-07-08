@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.10.1 (2026-07-08)
+- **Oracle (JDBC) 插件路由修正**：`oracle_jdbc` 类型数据源的实时监控改为统一走插件 JDBC 连接（JPype + ojdbc8.jar），彻底不再走 python `oracledb`，避免 Oracle 11g 在无 Oracle 客户端环境下连接失败；监控深采逻辑 `_collect_oracle()` 原样复用（插件 `JdbcConnectionWrapper` 为 DB-API 2.0 兼容）
+- **jdbc_url 全链路打通**：前端添加数据源 / 巡检表单新增 `jdbc_url` 输入框；后端测试连接与保存路由补齐 `jdbc_url` 透传；`DatabaseInstance` 新增 `jdbc_url` 字段并落库；插件 `get_connection()` / `test_connection()` 支持完整 JDBC URL（EZConnect / TNS 描述符 / TCPS 原样直连）
+- **默认端口修复**：`oracle_jdbc` 插件默认端口由误用的 3306 修正为 1521（plugin.json + api_v1 映射），默认用户 system
+- **文案修正**：服务名 / SID 输入框占位提示由"留空则使用 SID"改为"填写服务名或 SID"
+
 ## v2.10.0 (2026-07-07)
 - 新增「实时监控采集器」：采集器随 Web 进程启动，基于 APScheduler 每 30s 采集一次
 - 通用探针：对所有数据库类型做 TCP 连通探测，输出可用性 + 响应延迟
