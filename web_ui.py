@@ -1244,14 +1244,19 @@ def _find_oracle_client_lib_dir(platform_key=None):
     return None
 
 
-def test_oracle_connection(host, port, user, password, service_name='ORCL', sysdba=False):
+def test_oracle_connection(host, port, user, password, service_name='ORCL', sysdba=False, jdbc_url=None):
     try:
         import oracledb
         # 解析 "user as sysdba" 语法
         _user = user.strip()
         _mode = oracledb.SYSDBA if (sysdba or re.search(r'\bas\s+sysdba\b', _user, re.IGNORECASE)) else None
         _user = re.sub(r'\s+as\s+sysdba\b', '', _user, flags=re.IGNORECASE).strip()
-        kw = dict(user=_user, password=password, host=host, port=int(port), service_name=service_name)
+        _jdbc = (jdbc_url or '').strip()
+        if _jdbc and _jdbc.lstrip().upper().startswith('(DESCRIPTION'):
+            # 纯 TNS 描述符：oracledb 可直接作为 dsn 使用
+            kw = dict(user=_user, password=password, dsn=_jdbc)
+        else:
+            kw = dict(user=_user, password=password, host=host, port=int(port), service_name=service_name)
         if _mode is not None:
             kw['mode'] = _mode
         try:
@@ -2347,7 +2352,7 @@ def api_test_db():
         ok, msg = test_pg_connection(data['host'], data['port'], data['user'], data['password'], data.get('database', 'postgres'))
         result = {'ok': ok, 'msg': msg}
     elif db_type == 'oracle':
-        ok, msg = test_oracle_connection(data['host'], data['port'], data['user'], data['password'], data.get('service_name', 'ORCL'), bool(data.get('sysdba')))
+        ok, msg = test_oracle_connection(data['host'], data['port'], data['user'], data['password'], data.get('service_name', 'ORCL'), bool(data.get('sysdba')), data.get('jdbc_url') or None)
         result = {'ok': ok, 'msg': msg}
         if ok:
             # 提取 Oracle 大版本（11 / 12 / 18 / 19 / 21 等）
@@ -4817,7 +4822,12 @@ def api_pro_datasources_test_conn():
             conn.close()
         elif db_type == 'oracle':
             import oracledb
-            dsn = f"{host}:{port}/{service_name}" if service_name else f"{host}:{port}"
+            _jdbc = (data.get('jdbc_url') or '').strip()
+            if _jdbc and _jdbc.lstrip().upper().startswith('(DESCRIPTION'):
+                # 纯 TNS 描述符：oracledb 可直接作为 dsn 使用
+                dsn = _jdbc
+            else:
+                dsn = f"{host}:{port}/{service_name}" if service_name else f"{host}:{port}"
             ssh_host = data.get('ssh_host', '')
             _tunnel = None
 

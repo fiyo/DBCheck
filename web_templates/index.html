@@ -3700,7 +3700,7 @@ function formatBytes(bytes) {
               '<div id="ds-sysdba-wrap" style="display:none"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 0">' +
                 '<input type="checkbox" id="ds-sysdba" style="width:16px;height:16px;accent-color:var(--accent)" />' +
                 '<span style="font-size:13px;color:var(--text-muted)">' + i18n('webui.checkbox_sysdba') + '</span></label></div>' +
-              '<div id="ds-jdbc-url-wrap" style="display:none"><label style="font-size:12px;color:var(--text-muted)">JDBC URL <span style="color:var(--text-muted);font-weight:normal">（可选，留空则使用上方主机/端口/服务名）</span></label>' +
+              '<div id="ds-jdbc-url-wrap" style="display:none"><label id="ds-jdbc-url-label" style="font-size:12px;color:var(--text-muted)">JDBC URL <span style="color:var(--text-muted);font-weight:normal">（可选，留空则使用上方主机/端口/服务名）</span></label>' +
                 '<input id="ds-jdbc-url" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="jdbc:oracle:thin:@//host:1521/ORCLCDB 或 @host:1521:ORCL"></div>' +
               '<div><label style="font-size:12px;color:var(--text-muted)">' + i18n('webui.pro_ds_group') + '</label>' +
                 '<select id="ds-group" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px">' +
@@ -3780,7 +3780,21 @@ function formatBytes(bytes) {
         document.getElementById('ds-database-wrap').style.display = (dbType === 'pg' || dbType === 'ivorysql' || dbType === 'kingbase' || dbType === 'gbase') ? '' : 'none';
         document.getElementById('ds-service-wrap').style.display = (dbType === 'oracle' || dbType === 'oracle_jdbc') ? '' : 'none';
         document.getElementById('ds-sysdba-wrap').style.display = (dbType === 'oracle' || dbType === 'oracle_jdbc') ? '' : 'none';
-        document.getElementById('ds-jdbc-url-wrap').style.display = (dbType === 'oracle_jdbc') ? '' : 'none';
+        // 原生 Oracle 与 Oracle(JDBC) 均显示连接串字段；标签随类型切换
+        var _jdbcWrap = document.getElementById('ds-jdbc-url-wrap');
+        if (_jdbcWrap) _jdbcWrap.style.display = (dbType === 'oracle' || dbType === 'oracle_jdbc') ? '' : 'none';
+        var _jdbcLabel = document.getElementById('ds-jdbc-url-label');
+        var _jdbcInput = document.getElementById('ds-jdbc-url');
+        if (_jdbcLabel) {
+          _jdbcLabel.innerHTML = (dbType === 'oracle_jdbc')
+            ? 'JDBC URL <span style="color:var(--text-muted);font-weight:normal">（可选，留空则使用上方主机/端口/服务名）</span>'
+            : '连接串 (DSN) <span style="color:var(--text-muted);font-weight:normal">（可选，TNS 描述符 (DESCRIPTION=...) 或留空用上方主机/端口/服务名）</span>';
+        }
+        if (_jdbcInput) {
+          _jdbcInput.placeholder = (dbType === 'oracle_jdbc')
+            ? 'jdbc:oracle:thin:@//host:1521/ORCLCDB 或 @host:1521:ORCL'
+            : '(DESCRIPTION=(HOST=host)(PORT=1521)(CONNECT_DATA=(SERVICE_NAME=ORCLCDB))) 或 //host:1521/ORCLCDB';
+        }
         var gbaseWrap = document.getElementById('ds-gbase-server-wrap');
         if (gbaseWrap) gbaseWrap.style.display = dbType === 'gbase' ? '' : 'none';
         // 根据数据库类型更新 database 输入框的 placeholder
@@ -4563,7 +4577,7 @@ function formatBytes(bytes) {
               </label>
             </div>
             <div class="field full" id="f-jdbc-url-wrap" style="display:none">
-              <label><span>JDBC URL</span> <span class="opt" style="font-weight:normal;color:var(--text-muted)">可选，留空则使用上方主机/端口/服务名</span></label>
+              <label><span id="f-jdbc-url-label">JDBC URL</span> <span id="f-jdbc-url-hint" class="opt" style="font-weight:normal;color:var(--text-muted)">可选，留空则使用上方主机/端口/服务名</span></label>
               <input type="text" id="f-jdbc-url" placeholder="jdbc:oracle:thin:@//host:1521/ORCLCDB 或 @host:1521:ORCL" />
             </div>
           </div>
@@ -7726,9 +7740,15 @@ async function selectDbType(type, skipReload) {
   // Oracle全面巡检：显示 SYSDBA 复选框
   var sysdbaWrap = document.getElementById('f-sysdba-wrap');
   if (sysdbaWrap) sysdbaWrap.style.display = (type === 'oracle' || type === 'oracle_jdbc') ? '' : 'none';
-  // Oracle JDBC：显示 JDBC URL 输入框
+  // Oracle / Oracle(JDBC)：显示连接串字段，标签随类型切换
   var jdbcWrap = document.getElementById('f-jdbc-url-wrap');
-  if (jdbcWrap) jdbcWrap.style.display = (type === 'oracle_jdbc') ? '' : 'none';
+  if (jdbcWrap) jdbcWrap.style.display = (type === 'oracle' || type === 'oracle_jdbc') ? '' : 'none';
+  var fJdbcLabel = document.getElementById('f-jdbc-url-label');
+  if (fJdbcLabel) fJdbcLabel.textContent = (type === 'oracle_jdbc') ? 'JDBC URL' : '连接串 (DSN)';
+  var fJdbcHint = document.getElementById('f-jdbc-url-hint');
+  if (fJdbcHint) fJdbcHint.textContent = (type === 'oracle_jdbc') ? '可选，留空则使用上方主机/端口/服务名' : '可选，TNS 描述符 (DESCRIPTION=...) 或留空用上方主机/端口/服务名';
+  var fJdbcInput = document.getElementById('f-jdbc-url');
+  if (fJdbcInput) fJdbcInput.placeholder = (type === 'oracle_jdbc') ? 'jdbc:oracle:thin:@//host:1521/ORCLCDB 或 @host:1521:ORCL' : '(DESCRIPTION=(HOST=host)(PORT=1521)(CONNECT_DATA=(SERVICE_NAME=ORCLCDB))) 或 //host:1521/ORCLCDB';
   // 更新数据库名称输入框的 placeholder 并自动填写默认值
   const defaultDbMap = { pg: 'postgres', ivorysql: 'postgres', kingbase: 'kingbase', gbase: 'sysmaster' };
   var fDbEl = document.getElementById('f-database');
