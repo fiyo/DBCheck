@@ -3,22 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DBCheck · 数据库自治运维基础设施 | 开源 · 信创 · 企业级</title>
-  <meta name="description" content="DBCheck 是一款开源、跨平台、支持 10+ 主流与国产数据库的智能巡检与实时监控平台。乘信创国产化东风，为金融、政务与企业提供数据不出网的数据库自治运维基础设施。">
+  <title>DBCheck · 开源数据库智能巡检与实时监控平台</title>
+  <meta name="description" content="DBCheck 是一款开源、跨平台、支持 12 种主流与国产数据库的智能巡检与实时监控平台。内置 160+ 增强规则、实时监控大屏、本地 AI 诊断与一键报告，让数据库运维可知、可控、可防。">
   <meta name="keywords" content="数据库巡检, 数据库监控, 信创, 国产化替代, DBA工具, Kingbase, 达梦, Oracle, MySQL, PostgreSQL, 开源, 数据库可观测性">
   <meta name="author" content="Jack Ge (fiyo)">
   <meta name="robots" content="index, follow">
 
   <!-- Open Graph -->
-  <meta property="og:title" content="DBCheck · 数据库自治运维基础设施">
-  <meta property="og:description" content="开源 · 跨平台 · 10+ 数据库智能巡检与实时监控，乘信创国产化东风。">
+  <meta property="og:title" content="DBCheck · 开源数据库巡检与实时监控平台">
+  <meta property="og:description" content="开源 · 跨平台 · 支持 12 种数据库的智能巡检与实时监控，本地 AI 诊断、数据不出网。">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://fiyo.github.io/DBCheck">
   <meta property="og:image" content="https://fiyo.github.io/DBCheck/dbcheck_logo_banner.png">
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="DBCheck · 数据库自治运维基础设施">
+  <meta name="twitter:title" content="DBCheck · 开源数据库巡检与实时监控平台">
   <meta name="twitter:description" content="开源跨平台数据库智能巡检与实时监控平台">
 
   <!-- Fonts -->
@@ -31,7 +31,7 @@
 
   <style>
     /* ============================================================
-       DBCheck — Investor Landing (Bright / Tech)
+       DBCheck — Product Landing (Bright / Tech / Refined)
        ============================================================ */
     :root{
       --primary:#6366f1;
@@ -90,7 +90,7 @@
     .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:1.15rem;letter-spacing:-.02em}
     .brand img{height:30px;width:auto}
     .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px rgba(16,185,129,.18)}
-    .nav-links{display:flex;gap:26px;font-weight:500;color:var(--text-2);font-size:.95rem}
+    .nav-links{display:flex;gap:24px;font-weight:500;color:var(--text-2);font-size:.95rem}
     .nav-links a{position:relative;transition:color .2s}
     .nav-links a:hover{color:var(--primary)}
     .nav-actions{display:flex;gap:10px;align-items:center}
@@ -107,7 +107,7 @@
     .menu-toggle{display:none;font-size:1.3rem;color:var(--text);background:none;border:none;cursor:pointer}
 
     /* ---------- HERO ---------- */
-    .hero{position:relative;padding:96px 0 80px;text-align:center;overflow:hidden}
+    .hero{position:relative;padding:92px 0 76px;text-align:center;overflow:hidden}
     .hero::before{
       content:"";position:absolute;inset:0;z-index:0;
       background:
@@ -124,17 +124,19 @@
       -webkit-mask-image:radial-gradient(70% 60% at 50% 30%,#000,transparent 75%);
       mask-image:radial-gradient(70% 60% at 50% 30%,#000,transparent 75%);
     }
-    .hero-inner{position:relative;z-index:1;max-width:960px;margin:0 auto;padding:0 24px}
+    .hero-inner{position:relative;z-index:1;max-width:980px;margin:0 auto;padding:0 24px}
     .hero-badge{
       display:inline-flex;align-items:center;gap:8px;padding:7px 15px;border-radius:999px;
       background:#fff;border:1px solid var(--border-strong);box-shadow:var(--shadow-sm);
-      font-size:.82rem;font-weight:600;color:var(--text-2);margin-bottom:26px;
+      font-size:.82rem;font-weight:600;color:var(--text-2);margin-bottom:24px;
     }
     .hero-badge .pulse{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 0 rgba(16,185,129,.5);animation:pulse 2s infinite}
     @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(16,185,129,.5)}70%{box-shadow:0 0 0 10px rgba(16,185,129,0)}100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}}
-    .hero h1{font-size:clamp(2.3rem,5.4vw,4rem);line-height:1.08;font-weight:900;letter-spacing:-.03em;margin-bottom:22px}
-    .hero p.sub{font-size:clamp(1rem,1.6vw,1.22rem);color:var(--text-2);max-width:760px;margin:0 auto 34px}
-    .hero-cta{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-bottom:54px}
+    .hero h1{font-size:clamp(2.3rem,5.4vw,4rem);line-height:1.08;font-weight:900;letter-spacing:-.03em;margin-bottom:20px}
+    .hero p.sub{font-size:clamp(1rem,1.6vw,1.2rem);color:var(--text-2);max-width:780px;margin:0 auto 26px}
+    .hero-tags{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:30px}
+    .hero-tags span{font-size:.8rem;font-weight:600;color:var(--text-2);background:#fff;border:1px solid var(--border);padding:6px 14px;border-radius:999px;box-shadow:var(--shadow-sm)}
+    .hero-cta{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-bottom:50px}
     .hero-cta .btn{padding:13px 24px;font-size:1rem}
 
     .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;max-width:920px;margin:0 auto}
@@ -149,7 +151,7 @@
     /* ---------- SECTION SHELL ---------- */
     section.block{padding:84px 0;position:relative}
     section.block.alt{background:linear-gradient(180deg,#fff,var(--surface-2))}
-    .sec-head{text-align:center;max-width:760px;margin:0 auto 50px}
+    .sec-head{text-align:center;max-width:780px;margin:0 auto 50px}
     .sec-tag{
       display:inline-flex;align-items:center;gap:8px;font-size:.8rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
       color:var(--primary-2);background:rgba(99,102,241,.1);padding:6px 14px;border-radius:999px;margin-bottom:16px;
@@ -157,7 +159,7 @@
     .sec-head h2{font-size:clamp(1.7rem,3.4vw,2.5rem);font-weight:800;letter-spacing:-.02em;margin-bottom:14px}
     .sec-head p{color:var(--text-2);font-size:1.05rem}
 
-    /* ---------- MARKET (Why Now) ---------- */
+    /* ---------- VALUE (Why) ---------- */
     .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
     .mcard{
       background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:26px 22px;
@@ -189,13 +191,33 @@
       background:linear-gradient(135deg,var(--primary),var(--cyan))}
     .feat-cat-h::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--border-strong),transparent)}
 
-    /* ---------- DB LOGO STRIP ---------- */
-    .dbstrip{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:30px 44px;margin-top:10px}
-    .dbstrip .db{display:flex;flex-direction:column;align-items:center;gap:8px;opacity:.82;transition:opacity .2s,transform .2s}
-    .dbstrip .db:hover{opacity:1;transform:translateY(-3px)}
-    .dbstrip img{height:42px;width:auto;object-fit:contain;filter:drop-shadow(0 4px 8px rgba(15,23,42,.08))}
-    .dbstrip .db span{font-size:.78rem;color:var(--text-3);font-weight:600}
-    .dbstrip .more{font-weight:700;color:var(--text-2);font-size:.9rem;padding:8px 16px;border:1px dashed var(--border-strong);border-radius:12px}
+    /* ---------- DB CHIPS ---------- */
+    .dbchips{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;margin-top:12px}
+    .dbchip{display:inline-flex;align-items:center;gap:9px;padding:11px 18px;border-radius:12px;background:var(--surface);
+      border:1px solid var(--border);box-shadow:var(--shadow-sm);font-weight:600;font-size:.92rem;color:var(--text);
+      transition:transform .2s,border-color .2s,box-shadow .2s}
+    .dbchip:hover{transform:translateY(-3px);border-color:var(--primary);box-shadow:var(--shadow)}
+    .dbchip i{color:var(--primary-2);font-size:1.05rem}
+
+    /* ---------- HOW IT WORKS ---------- */
+    .steps{display:grid;grid-template-columns:repeat(4,1fr);gap:0;position:relative;max-width:1080px;margin:10px auto 0}
+    .step{position:relative;padding:30px 22px 12px;text-align:center}
+    .step .num{width:56px;height:56px;border-radius:50%;margin:0 auto 16px;display:grid;place-items:center;
+      font-family:'JetBrains Mono',monospace;font-weight:700;font-size:1.35rem;color:#fff;
+      background:linear-gradient(135deg,var(--primary),var(--cyan));box-shadow:var(--shadow);position:relative;z-index:2}
+    .step h4{font-size:1.05rem;font-weight:700;margin-bottom:8px}
+    .step p{font-size:.9rem;color:var(--text-2);max-width:230px;margin:0 auto}
+    .steps .step:not(:last-child)::after{content:"";position:absolute;top:58px;left:50%;width:100%;height:2px;
+      background:linear-gradient(90deg,var(--primary),transparent);opacity:.28;z-index:1}
+
+    /* ---------- QUICK START ---------- */
+    .qs-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+    .qs{background:#0f172a;color:#e2e8f0;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);display:flex;flex-direction:column}
+    .qs-head{display:flex;align-items:center;gap:10px;padding:14px 18px;background:rgba(255,255,255,.04);
+      font-weight:700;font-size:.95rem;border-bottom:1px solid rgba(255,255,255,.08)}
+    .qs-head i{color:var(--cyan)}
+    .qs pre{margin:0;padding:18px;font-family:'JetBrains Mono',monospace;font-size:.8rem;line-height:1.75;color:#cbd5e1;overflow-x:auto;flex:1}
+    .qs .hint{padding:12px 18px;font-size:.8rem;color:#94a3b8;background:rgba(255,255,255,.03);border-top:1px solid rgba(255,255,255,.08)}
 
     /* ---------- MOAT ---------- */
     .moat-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px}
@@ -205,34 +227,28 @@
     .moat h4{font-size:1rem;font-weight:700;margin-bottom:6px}
     .moat p{font-size:.84rem;color:var(--text-2)}
 
-    /* ---------- BUSINESS MODEL ---------- */
+    /* ---------- BUSINESS MODEL (planned) ---------- */
     .bm-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
     .bm{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:30px 26px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden}
-    .bm.featured{border-color:transparent;background:linear-gradient(160deg,#fff,#faf5ff);box-shadow:var(--shadow-lg)}
-    .bm.featured::before{content:"";position:absolute;inset:0;padding:1px;border-radius:var(--radius);
-      background:linear-gradient(135deg,var(--primary),var(--violet),var(--cyan));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+    .bm.plan{border-style:dashed;border-color:var(--border-strong)}
     .bm .bmk{font-size:.78rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--primary-2)}
-    .bm h3{font-size:1.25rem;font-weight:800;margin:8px 0 6px}
-    .bm .price{font-family:'JetBrains Mono',monospace;font-size:1.05rem;color:var(--text-2);margin-bottom:14px}
+    .bm h3{font-size:1.2rem;font-weight:800;margin:8px 0 6px}
+    .bm .price{font-family:'JetBrains Mono',monospace;font-size:1.02rem;color:var(--text-2);margin-bottom:14px}
     .bm ul{list-style:none;display:flex;flex-direction:column;gap:10px}
     .bm li{display:flex;gap:10px;font-size:.92rem;color:var(--text-2)}
-    .bm li i{color:var(--green);margin-top:4px}
-    .bm .ribbon{position:absolute;top:16px;right:-34px;transform:rotate(45deg);background:linear-gradient(120deg,var(--primary),var(--violet));
-      color:#fff;font-size:.7rem;font-weight:700;padding:4px 40px}
+    .bm li i.fa-check{color:var(--green);margin-top:4px}
+    .bm li i.fa-clock{color:var(--amber);margin-top:4px}
+    .bm .tag-plan{display:inline-block;margin-top:14px;font-size:.72rem;font-weight:700;color:var(--amber);
+      background:rgba(245,158,11,.12);padding:3px 10px;border-radius:999px}
 
-    /* ---------- WHY INVEST ---------- */
-    .invest{background:linear-gradient(135deg,#0f172a,#1e1b4b 55%,#0c4a6e);color:#e2e8f0;border-radius:28px;padding:56px 48px;position:relative;overflow:hidden}
-    .invest::before{content:"";position:absolute;inset:0;background:radial-gradient(50% 60% at 85% 10%,rgba(139,92,246,.35),transparent 60%),radial-gradient(40% 50% at 10% 90%,rgba(6,182,212,.3),transparent 60%)}
-    .invest-inner{position:relative;z-index:1}
-    .invest .sec-tag{background:rgba(255,255,255,.12);color:#c7d2fe}
-    .invest h2{color:#fff}
-    .invest p.lead{color:#cbd5e1}
-    .invest-list{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;margin-top:34px}
-    .invest-item{display:flex;gap:14px;align-items:flex-start}
-    .invest-item .ni{flex:0 0 40px;height:40px;border-radius:11px;display:grid;place-items:center;font-size:1.1rem;color:#fff;
-      background:linear-gradient(135deg,var(--primary),var(--cyan))}
-    .invest-item h4{color:#fff;font-size:1.02rem;font-weight:700;margin-bottom:3px}
-    .invest-item p{color:#aeb8d4;font-size:.9rem}
+    /* ---------- COMMUNITY (replaces investor block) ---------- */
+    .community{background:linear-gradient(135deg,#eef2ff,#ecfeff);border:1px solid var(--border);border-radius:28px;padding:56px 48px;text-align:center;position:relative;overflow:hidden}
+    .community::before{content:"";position:absolute;inset:0;background:radial-gradient(40% 60% at 85% 10%,rgba(139,92,246,.16),transparent 60%),radial-gradient(40% 50% at 10% 90%,rgba(6,182,212,.16),transparent 60%)}
+    .community-inner{position:relative;z-index:1}
+    .community .sec-tag{background:#fff;color:var(--primary-2)}
+    .community h2{font-size:clamp(1.6rem,3vw,2.3rem);font-weight:800;margin-bottom:12px}
+    .community p.lead{color:var(--text-2);max-width:640px;margin:0 auto 28px;font-size:1.05rem}
+    .community .hero-cta{margin-bottom:0}
 
     /* ---------- CTA ---------- */
     .cta{text-align:center}
@@ -250,7 +266,7 @@
     .foot-brand{display:flex;align-items:center;gap:10px;color:#fff;font-weight:800;font-size:1.1rem}
     .foot-brand img{height:26px}
     .foot-meta{font-size:.85rem;line-height:1.9}
-    .foot-links{display:flex;gap:22px;font-size:.9rem}
+    .foot-links{display:flex;gap:22px;font-size:.9rem;flex-wrap:wrap}
     .foot-links a:hover{color:#fff}
     .foot-bottom{max-width:var(--maxw);margin:28px auto 0;padding:18px 24px 0;border-top:1px solid rgba(255,255,255,.08);font-size:.8rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
 
@@ -261,18 +277,19 @@
     /* ---------- responsive ---------- */
     @media(max-width:980px){
       .grid-4,.moat-grid{grid-template-columns:repeat(2,1fr)}
-      .grid-3,.bm-grid{grid-template-columns:1fr}
-      .invest-list{grid-template-columns:1fr}
+      .grid-3,.bm-grid,.qs-grid{grid-template-columns:1fr}
+      .steps{grid-template-columns:repeat(2,1fr);gap:0}
       .nav-links{display:none}
       .menu-toggle{display:block}
       .nav-links.open{display:flex;position:absolute;top:64px;left:0;right:0;flex-direction:column;background:#fff;padding:18px 24px;gap:14px;border-bottom:1px solid var(--border);box-shadow:var(--shadow)}
     }
     @media(max-width:620px){
       .stats{grid-template-columns:repeat(2,1fr)}
-      .grid-4,.moat-grid{grid-template-columns:1fr}
-      .hero{padding:70px 0 60px}
+      .grid-4,.moat-grid,.steps{grid-template-columns:1fr}
+      .hero{padding:70px 0 56px}
       section.block{padding:60px 0}
-      .invest{padding:40px 24px}
+      .community{padding:40px 22px}
+      .steps .step:not(:last-child)::after{display:none}
     }
   </style>
 </head>
@@ -283,15 +300,15 @@
     <div class="nav-inner">
       <a href="#" class="brand"><img src="dbcheck_logo.png" alt="DBCheck"> DBCheck</a>
       <nav class="nav-links" id="navLinks">
-        <a href="#market">市场机遇</a>
-        <a href="#features">核心能力</a>
-        <a href="#moat">技术壁垒</a>
-        <a href="#model">商业模式</a>
-        <a href="#invest">投资亮点</a>
+        <a href="#features">功能</a>
+        <a href="#how">如何工作</a>
+        <a href="#quickstart">快速开始</a>
+        <a href="#databases">数据库</a>
+        <a href="#usecases">使用场景</a>
+        <a href="#model">商业计划</a>
       </nav>
       <div class="nav-actions">
         <a href="https://github.com/fiyo/DBCheck" target="_blank" class="btn btn-ghost"><i class="fab fa-github"></i> GitHub</a>
-        <a href="#contact" class="btn btn-primary"><i class="fas fa-handshake"></i> 投资 / 企业版</a>
         <button class="menu-toggle" onclick="toggleMenu()"><i class="fas fa-bars"></i></button>
       </div>
     </div>
@@ -301,12 +318,18 @@
   <section class="hero">
     <div class="hero-inner">
       <div class="hero-badge"><span class="pulse"></span> 开源 MIT 协议 · 已获软件著作权 · <span id="verBadge">v2.7.0</span></div>
-      <h1>数据库自治运维基础设施<br><span class="gradient-text">乘信创国产化东风</span></h1>
-      <p class="sub">DBCheck 是一款<strong>开源、跨平台</strong>、支持 <strong>10+</strong> 主流与国产数据库的智能巡检与实时监控平台。让每一台数据库<strong>可知、可控、可防</strong>——为国产化替代时代的数据安全筑底。</p>
+      <h1>让数据库运维<br><span class="gradient-text">可知 · 可控 · 可防</span></h1>
+      <p class="sub">DBCheck 是一款<strong>开源、跨平台</strong>、支持 <strong>12 种</strong>主流与国产数据库的智能巡检与实时监控平台。内置 160+ 增强规则、实时监控大屏、本地 AI 诊断与一键报告，把 DBA 的重复劳动变成一键流程。</p>
+      <div class="hero-tags">
+        <span>🌐 Web 界面</span>
+        <span>🔒 私有化部署</span>
+        <span>🧠 离线 AI 诊断</span>
+        <span>💻 跨平台</span>
+      </div>
       <div class="hero-cta">
         <a href="https://github.com/fiyo/DBCheck" target="_blank" class="btn btn-primary"><i class="fab fa-github"></i> 在 GitHub 查看</a>
-        <a href="#contact" class="btn btn-outline"><i class="fas fa-calendar-check"></i> 预约企业版演示</a>
-        <a href="#model" class="btn btn-ghost"><i class="fas fa-chart-line"></i> 了解商业模式</a>
+        <a href="#quickstart" class="btn btn-outline"><i class="fas fa-rocket"></i> 快速开始</a>
+        <a href="#features" class="btn btn-ghost"><i class="fas fa-layer-group"></i> 核心功能</a>
       </div>
       <div class="stats">
         <div class="stat"><div class="num" data-target="12">0</div><div class="lbl">数据库类型</div></div>
@@ -317,17 +340,17 @@
     </div>
   </section>
 
-  <!-- ================= MARKET / WHY NOW ================= -->
-  <section class="block alt" id="market">
+  <!-- ================= VALUE / WHY ================= -->
+  <section class="block alt" id="why">
     <div class="container">
       <div class="sec-head reveal">
-        <div class="sec-tag"><i class="fas fa-bolt"></i> 市场机遇 · WHY NOW</div>
-        <h2>为什么是现在</h2>
-        <p>数据库是数字基础设施的核心资产，而统一的「巡检 + 可观测」能力，正成为国产化替代进程中最稀缺的拼图。</p>
+        <div class="sec-tag"><i class="fas fa-compass"></i> 为什么需要</div>
+        <h2>数据库稳，业务才稳</h2>
+        <p>巡检与可观测不是锦上添花，而是数据库日常运维里最容易被忽略、却最影响稳定性的环节。</p>
       </div>
       <div class="grid-4">
-        <div class="mcard reveal"><div class="ic"><i class="fas fa-database"></i></div><h3>数据资产爆发</h3><p>业务连续性高度依赖数据库稳定，一次故障的代价远超巡检投入，可观测性是刚需。</p></div>
-        <div class="mcard reveal"><div class="ic"><i class="fas fa-flag-checkered"></i></div><h3>信创国产化替代</h3><p>国产库百花齐放，却普遍缺乏统一的巡检与监控工具——DBCheck 已率先适配 9+ 国产库。</p></div>
+        <div class="mcard reveal"><div class="ic"><i class="fas fa-database"></i></div><h3>业务连续性依赖</h3><p>一次数据库故障的代价远超日常巡检投入，提前发现隐患才是真正的降本。</p></div>
+        <div class="mcard reveal"><div class="ic"><i class="fas fa-flag-checkered"></i></div><h3>国产化替代</h3><p>国产库百花齐放，却普遍缺乏统一的巡检与监控工具——DBCheck 已适配 9+ 国产库。</p></div>
         <div class="mcard reveal"><div class="ic"><i class="fas fa-users-slash"></i></div><h3>运维人力缺口</h3><p>DBA 人力成本高、流动性大，自动化巡检把重复劳动变成一键流程，释放团队产能。</p></div>
         <div class="mcard reveal"><div class="ic"><i class="fas fa-shield-halved"></i></div><h3>数据安全合规</h3><p>金融、政务要求数据不出网。DBCheck 支持纯本地部署与离线 AI 诊断，天然契合高安全场景。</p></div>
       </div>
@@ -404,110 +427,197 @@
     </div>
   </section>
 
+  <!-- ================= HOW IT WORKS ================= -->
+  <section class="block alt" id="how">
+    <div class="container">
+      <div class="sec-head reveal">
+        <div class="sec-tag"><i class="fas fa-diagram-project"></i> 如何工作</div>
+        <h2>四步，从接入到报告</h2>
+        <p>无需复杂配置，DBCheck 把「连上数据库 → 自动巡检 → 风险诊断 → 产出报告」串成一条流水线。</p>
+      </div>
+      <div class="steps">
+        <div class="step reveal">
+          <div class="num">1</div>
+          <h4>接入数据源</h4>
+          <p>统一管理连接，支持分组、批量巡检、CSV 导入导出，一次配置多次使用。</p>
+        </div>
+        <div class="step reveal">
+          <div class="num">2</div>
+          <h4>智能采集</h4>
+          <p>按库执行 160+ 规则与深采指标，多实例并发采集，连接失败自动重试与退避。</p>
+        </div>
+        <div class="step reveal">
+          <div class="num">3</div>
+          <h4>风险分析</h4>
+          <p>自动识别风险并附可执行修复 SQL；本地 AI 辅助诊断，给出优化建议。</p>
+        </div>
+        <div class="step reveal">
+          <div class="num">4</div>
+          <h4>报告与告警</h4>
+          <p>一键生成 Word / PDF（自动脱敏），定时推送邮件 / Webhook，随时掌控。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= QUICK START ================= -->
+  <section class="block" id="quickstart">
+    <div class="container">
+      <div class="sec-head reveal">
+        <div class="sec-tag"><i class="fas fa-rocket"></i> 快速开始</div>
+        <h2>三种方式，几分钟跑起来</h2>
+        <p>无论你习惯容器、编排还是源码，都能快速启动。启动后访问 <span class="mono">http://localhost:5003</span>。</p>
+      </div>
+      <div class="qs-grid">
+        <div class="qs reveal">
+          <div class="qs-head"><i class="fab fa-docker"></i> Docker（推荐）</div>
+          <pre>docker run -d -p 5003:5003 \
+  -v dbcheck_data:/app/data \
+  -v dbcheck_reports:/app/reports \
+  --name dbcheck \
+  jackge12345/dbcheck:latest</pre>
+          <div class="hint">默认账号 admin / admin123，首次登录请修改密码。</div>
+        </div>
+        <div class="qs reveal">
+          <div class="qs-head"><i class="fas fa-cubes"></i> docker-compose</div>
+          <pre>curl -o docker-compose.yml \
+  https://raw.githubusercontent.com/\
+fiyo/DBCheck/main/docker-compose.yml
+docker compose up -d</pre>
+          <div class="hint">一条命令拉起完整服务，适合长期使用。</div>
+        </div>
+        <div class="qs reveal">
+          <div class="qs-head"><i class="fab fa-github"></i> 源码安装</div>
+          <pre>git clone https://github.com/fiyo/DBCheck.git
+cd DBCheck
+pip install -r requirements.txt
+python web_ui.py</pre>
+          <div class="hint">需要 Python 3.10+，访问 http://localhost:5003。</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ================= SUPPORTED DB ================= -->
-  <section class="block alt">
+  <section class="block alt" id="databases">
     <div class="container">
       <div class="sec-head reveal">
         <div class="sec-tag"><i class="fas fa-server"></i> 广泛兼容</div>
         <h2>一套工具，纳管你的全部数据库</h2>
         <p>12 种主流与国产数据库统一接入，正是信创混合架构下的现实需求。</p>
       </div>
-      <div class="dbstrip reveal">
-        <div class="db"><img src="postgresql.png" alt="PostgreSQL"><span>PostgreSQL</span></div>
-        <div class="db"><img src="oracle.png" alt="Oracle"><span>Oracle</span></div>
-        <div class="db"><img src="sqlserver.png" alt="SQL Server"><span>SQL Server</span></div>
-        <div class="db"><img src="dm.png" alt="达梦 DM8"><span>达梦 DM8</span></div>
-        <div class="db"><img src="kingbase.png" alt="KingbaseES"><span>KingbaseES</span></div>
-        <div class="db"><img src="tidb.png" alt="TiDB"><span>TiDB</span></div>
-        <div class="db"><img src="gbase.png" alt="GBase 8s"><span>GBase 8s</span></div>
-        <div class="db"><img src="ivorysql.png" alt="IvorySQL"><span>IvorySQL</span></div>
-        <div class="db"><img src="yashandb.png" alt="YashanDB"><span>YashanDB</span></div>
-        <div class="db more">+ MySQL 等</div>
+      <div class="dbchips reveal">
+        <span class="dbchip"><i class="fas fa-database"></i> MySQL</span>
+        <span class="dbchip"><i class="fas fa-database"></i> TiDB</span>
+        <span class="dbchip"><i class="fas fa-database"></i> PostgreSQL</span>
+        <span class="dbchip"><i class="fas fa-database"></i> IvorySQL</span>
+        <span class="dbchip"><i class="fas fa-database"></i> KingbaseES</span>
+        <span class="dbchip"><i class="fas fa-database"></i> Oracle</span>
+        <span class="dbchip"><i class="fas fa-database"></i> Oracle (JDBC)</span>
+        <span class="dbchip"><i class="fas fa-database"></i> SQL Server</span>
+        <span class="dbchip"><i class="fas fa-database"></i> 达梦 DM8</span>
+        <span class="dbchip"><i class="fas fa-database"></i> YashanDB</span>
+        <span class="dbchip"><i class="fas fa-database"></i> GBase 8s</span>
+        <span class="dbchip"><i class="fas fa-database"></i> MongoDB</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= USE CASES ================= -->
+  <section class="block" id="usecases">
+    <div class="container">
+      <div class="sec-head reveal">
+        <div class="sec-tag"><i class="fas fa-lightbulb"></i> 使用场景</div>
+        <h2>谁在用，用在哪</h2>
+        <p>从个人 DBA 到企业信创项目，DBCheck 覆盖数据库运维的关键节点。</p>
+      </div>
+      <div class="grid-4">
+        <div class="mcard reveal"><div class="ic"><i class="fas fa-clipboard-list"></i></div><h3>日常巡检与交接</h3><p>定时巡检 + 一键报告，把经验沉淀成文档，新人也能快速接手库。</p></div>
+        <div class="mcard reveal"><div class="ic"><i class="fas fa-flag"></i></div><h3>国产化迁移合规</h3><p>统一纳管混合架构下的国产库，生成信创合规报表，迁移前后可对比。</p></div>
+        <div class="mcard reveal"><div class="ic"><i class="fas fa-lock"></i></div><h3>数据安全与等保</h3><p>纯本地部署、离线 AI 诊断，数据不出网，契合金融政务等高监管场景。</p></div>
+        <div class="mcard reveal"><div class="ic"><i class="fas fa-bolt"></i></div><h3>故障快速定位</h3><p>实时监控大屏 + 历史趋势，异常早发现、根因快定位，缩短 MTTR。</p></div>
       </div>
     </div>
   </section>
 
   <!-- ================= MOAT ================= -->
-  <section class="block" id="moat">
+  <section class="block alt" id="moat">
     <div class="container">
       <div class="sec-head reveal">
-        <div class="sec-tag"><i class="fas fa-chess-rook"></i> 技术壁垒</div>
-        <h2>为什么是 DBCheck</h2>
-        <p>四重护城河，让先发优势可累积、难复制。</p>
+        <div class="sec-tag"><i class="fas fa-chess-rook"></i> 为什么是 DBCheck</div>
+        <h2>务实、开源、贴合国产环境</h2>
+        <p>这些特质让 DBCheck 在真实运维场景里更好用、更可信。</p>
       </div>
       <div class="moat-grid">
-        <div class="moat reveal"><div class="mic"><i class="fas fa-wind"></i></div><h4>开源飞轮</h4><p>MIT 开源持续获客，社区反哺产品与口碑。</p></div>
-        <div class="moat reveal"><div class="mic"><i class="fas fa-flag"></i></div><h4>国产库广覆盖</h4><p>9+ 国产库率先适配，踩中信创节奏。</p></div>
-        <div class="moat reveal"><div class="mic"><i class="fas fa-certificate"></i></div><h4>软著 IP</h4><p>已获软件著作权，ToB / 招投标硬通货。</p></div>
-        <div class="moat reveal"><div class="mic"><i class="fas fa-lock"></i></div><h4>数据不出网</h4><p>纯本地 / 私有化部署，契合高安全监管。</p></div>
-        <div class="moat reveal"><div class="mic"><i class="fas fa-bolt"></i></div><h4>轻量落地</h4><p>一条命令或打包版，部署成本极低。</p></div>
+        <div class="moat reveal"><div class="mic"><i class="fas fa-wind"></i></div><h4>开源可审计</h4><p>MIT 开源，代码透明、可自托管，社区持续反哺。</p></div>
+        <div class="moat reveal"><div class="mic"><i class="fas fa-flag"></i></div><h4>国产库适配</h4><p>9+ 国产库率先适配，覆盖信创混合架构现实需求。</p></div>
+        <div class="moat reveal"><div class="mic"><i class="fas fa-certificate"></i></div><h4>软著 IP</h4><p>已获软件著作权，便于 ToB 交付与招投标。</p></div>
+        <div class="moat reveal"><div class="mic"><i class="fas fa-lock"></i></div><h4>数据不出网</h4><p>纯本地 / 私有化部署，离线 AI 诊断契合高安全监管。</p></div>
+        <div class="moat reveal"><div class="mic"><i class="fas fa-bolt"></i></div><h4>轻量落地</h4><p>一条命令或打包版即可运行，部署与学习成本极低。</p></div>
       </div>
     </div>
   </section>
 
-  <!-- ================= BUSINESS MODEL ================= -->
-  <section class="block alt" id="model">
+  <!-- ================= BUSINESS MODEL (planned) ================= -->
+  <section class="block" id="model">
     <div class="container">
       <div class="sec-head reveal">
-        <div class="sec-tag"><i class="fas fa-hand-holding-dollar"></i> 商业模式</div>
-        <h2>Open-Core：开源引流，企业版变现</h2>
-        <p>社区版建立信任与规模，企业版提供刚需的合规、管控与运维能力，形成可复制的收费闭环。</p>
+        <div class="sec-tag"><i class="fas fa-hand-holding-dollar"></i> 商业化（规划中）</div>
+        <h2>开源免费，企业版规划中</h2>
+        <p>DBCheck 当前以 MIT 开源的<strong>社区版免费提供</strong>，所有已发布功能均可直接使用。企业版与增值服务处于<strong>规划阶段，尚未开发</strong>——以下为方向展望，并非已售产品。</p>
       </div>
       <div class="bm-grid">
         <div class="bm reveal">
-          <div class="bmk">COMMUNITY</div>
-          <h3>社区版 · 免费</h3>
+          <div class="bmk">COMMUNITY · 已发布</div>
+          <h3>社区版 · 免费开源</h3>
           <div class="price">MIT 开源</div>
           <ul>
-            <li><i class="fas fa-check"></i> 全量巡检与监控能力</li>
-            <li><i class="fas fa-check"></i> 多数据库适配</li>
+            <li><i class="fas fa-check"></i> 全量巡检与实时监控能力</li>
+            <li><i class="fas fa-check"></i> 12 种数据库适配</li>
             <li><i class="fas fa-check"></i> 本地 AI 诊断 / 报告导出</li>
-            <li><i class="fas fa-check"></i> 建立信任 · 积累案例</li>
+            <li><i class="fas fa-check"></i> 插件系统与 REST API</li>
           </ul>
         </div>
-        <div class="bm featured reveal">
-          <div class="ribbon">核心营收</div>
-          <div class="bmk">ENTERPRISE</div>
+        <div class="bm plan reveal">
+          <div class="bmk">ENTERPRISE · 规划中</div>
           <h3>企业版 · 私有化</h3>
-          <div class="price">License + 年维保 · 按实例/年</div>
+          <div class="price">方向展望，尚未发布</div>
           <ul>
-            <li><i class="fas fa-check"></i> 多租户 / RBAC / SSO / 审计</li>
-            <li><i class="fas fa-check"></i> 告警中心（钉钉/企微/邮件/Webhook）</li>
-            <li><i class="fas fa-check"></i> 自动巡检报告 + 备份校验</li>
-            <li><i class="fas fa-check"></i> 集中纳管多套实例 · 信创合规报表</li>
+            <li><i class="fas fa-clock"></i> 多租户 / RBAC / SSO / 审计</li>
+            <li><i class="fas fa-clock"></i> 告警中心（钉钉/企微/邮件/Webhook）</li>
+            <li><i class="fas fa-clock"></i> 自动巡检报告 + 备份校验</li>
+            <li><i class="fas fa-clock"></i> 集中纳管多套实例 · 信创合规报表</li>
           </ul>
+          <span class="tag-plan">规划中 · 尚未开发</span>
         </div>
-        <div class="bm reveal">
-          <div class="bmk">SERVICES</div>
-          <h3>服务与云市场</h3>
-          <div class="price">高毛利增值</div>
+        <div class="bm plan reveal">
+          <div class="bmk">SERVICES · 规划中</div>
+          <h3>服务与生态</h3>
+          <div class="price">方向展望，尚未发布</div>
           <ul>
-            <li><i class="fas fa-check"></i> 数据库健康检查服务（按年）</li>
-            <li><i class="fas fa-check"></i> 阿里云 / 腾讯云 / 华为云市场入驻</li>
-            <li><i class="fas fa-check"></i> 定制适配与专家支持</li>
+            <li><i class="fas fa-clock"></i> 数据库健康检查服务（按年）</li>
+            <li><i class="fas fa-clock"></i> 云市场入驻（阿里云/腾讯云/华为云）</li>
+            <li><i class="fas fa-clock"></i> 定制适配与专家支持</li>
           </ul>
+          <span class="tag-plan">规划中 · 尚未开发</span>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ================= WHY INVEST ================= -->
-  <section class="block">
+  <!-- ================= COMMUNITY (replaces investor block) ================= -->
+  <section class="block alt">
     <div class="container">
-      <div class="invest reveal">
-        <div class="invest-inner">
-          <div class="sec-head" style="text-align:left;margin:0 0 6px">
-            <div class="sec-tag"><i class="fas fa-rocket"></i> 投资亮点 · WHY INVEST</div>
-            <h2>卡位高景气赛道，轻资产撬动大市场</h2>
-            <p class="lead">数据库运维与国产化替代双轮驱动，DBCheck 已具备早期壁垒与可复制的商业化路径。</p>
+      <div class="community reveal">
+        <div class="community-inner">
+          <div class="sec-head" style="text-align:center;margin:0 0 6px">
+            <div class="sec-tag"><i class="fas fa-users"></i> 开源社区</div>
+            <h2>和我们一起把数据库运维变得更简单</h2>
+            <p class="lead">DBCheck 由社区驱动。欢迎 Star、提交 Issue、贡献代码，或来信交流你的使用场景与需求。</p>
           </div>
-          <div class="invest-list">
-            <div class="invest-item"><div class="ni"><i class="fas fa-arrow-trend-up"></i></div><div><h4>政策与国产替代双驱动</h4><p>信创进入深化期，国产库统一运维工具稀缺，赛道高景气、空间广阔。</p></div></div>
-            <div class="invest-item"><div class="ni"><i class="fas fa-wind"></i></div><div><h4>开源飞轮已转动</h4><p>GitHub 社区 + 软著 + 多库适配构成早期壁垒，获客成本随口碑递减。</p></div></div>
-            <div class="invest-item"><div class="ni"><i class="fas fa-lock"></i></div><div><h4>契合中国 ToB 刚需</h4><p>轻量私有化、数据不出网，高度匹配金融、政务、国企的采购偏好。</p></div></div>
-            <div class="invest-item"><div class="ni"><i class="fas fa-repeat"></i></div><div><h4>可复制的收费模型</h4><p>从单实例 License 到企业级年费，毛利高、续费稳、延展性强。</p></div></div>
-            <div class="invest-item"><div class="ni"><i class="fas fa-bullhorn"></i></div><div><h4>技术品牌自带流量</h4><p>开发者博主身份带来冷启动用户与内容获客，降低早期营销成本。</p></div></div>
-            <div class="invest-item"><div class="ni"><i class="fas fa-clone"></i></div><div><h4>平台化延展空间</h4><p>插件生态可横向扩展至更多数据库与场景，构筑长期竞争壁垒。</p></div></div>
+          <div class="hero-cta">
+            <a href="https://github.com/fiyo/DBCheck" target="_blank" class="btn btn-primary"><i class="fab fa-github"></i> 在 GitHub 查看</a>
+            <a href="mailto:sdfiyon@gmail.com" class="btn btn-ghost"><i class="fas fa-envelope"></i> 邮件联系 sdfiyon@gmail.com</a>
           </div>
         </div>
       </div>
@@ -515,13 +625,13 @@
   </section>
 
   <!-- ================= CTA ================= -->
-  <section class="block alt cta" id="contact">
+  <section class="block cta" id="contact">
     <div class="container">
       <div class="cta-box reveal">
-        <h2>与我们一起，定义数据库自治运维</h2>
-        <p>无论你是寻求企业级数据库巡检方案，还是关注信创基础设施的投资人，都欢迎联系。我们提供产品演示、PoC 与商业合作洽谈。</p>
+        <h2>开始使用 DBCheck</h2>
+        <p>免费、开源、可私有化部署。欢迎试用、提建议，或与我们交流你的数据库运维场景。</p>
         <div class="hero-cta">
-          <a href="mailto:sdfiyon@gmail.com" class="btn btn-ghost"><i class="fas fa-envelope"></i> 邮件联系 sdfiyon@gmail.com</a>
+          <a href="#quickstart" class="btn btn-ghost"><i class="fas fa-rocket"></i> 快速开始</a>
           <a href="https://github.com/fiyo/DBCheck" target="_blank" class="btn btn-primary"><i class="fab fa-github"></i> 查看开源项目</a>
         </div>
       </div>
@@ -536,16 +646,18 @@
         <div class="foot-meta" style="margin-top:12px">开源智能数据库巡检与实时监控平台<br>让每一台数据库可知 · 可控 · 可防</div>
       </div>
       <div class="foot-links">
-        <a href="https://github.com/fiyo/DBCheck" target="_blank">GitHub</a>
-        <a href="#features">核心能力</a>
-        <a href="#model">商业模式</a>
-        <a href="#invest">投资亮点</a>
+        <a href="#features">功能</a>
+        <a href="#how">如何工作</a>
+        <a href="#quickstart">快速开始</a>
+        <a href="#databases">数据库</a>
+        <a href="#usecases">使用场景</a>
+        <a href="#model">商业计划</a>
         <a href="mailto:sdfiyon@gmail.com">联系</a>
       </div>
     </div>
     <div class="foot-bottom">
       <span>© 2025–2026 Jack Ge (fiyo). 基于 MIT 协议开源，已获软件著作权。</span>
-      <span>DBCheck · 数据库自治运维基础设施</span>
+      <span>DBCheck · 开源数据库巡检与实时监控平台</span>
     </div>
   </footer>
 
