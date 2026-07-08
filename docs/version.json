@@ -1,1 +1,5 @@
-{"version": "v2.7.0", "release_date": "2026-06", "description": "新增插件系统、Oracle AWR 解析、配置基线检查、索引健康分析、数据脱敏导出"}
+{
+  "version": "v2.10.0",
+  "lastUpdated": "2026-07-07",
+  "description": "首页实时监控大屏、非深采实例连通性画像、SQL Server/Oracle JDBC 深采、报告脱敏导出"
+}
