@@ -47,6 +47,8 @@ COUNTER_KEYS = {
     'oracle': {'ora_user_commits', 'ora_physical_reads', 'ora_redo_size',
                'ora_user_calls', 'ora_session_logical_reads',
                'ora_db_block_gets', 'ora_consistent_gets'},
+    'sqlserver': {'io_read_count', 'io_write_count', 'io_read_bytes', 'io_write_bytes'},
+    'mssql':   {'io_read_count', 'io_write_count', 'io_read_bytes', 'io_write_bytes'},
     # DM8 计数器名不固定，速率在深采中按 dm_ 前缀动态处理
 }
 
@@ -254,14 +256,39 @@ class MetricsCollector:
             return psycopg2.connect(host=host, port=port, user=user,
                                     password=password, dbname=dbname,
                                     connect_timeout=CONNECT_TIMEOUT)
-        if db_type == 'oracle':
+        if db_type == 'oracle' or db_type == 'oracle_jdbc':
             import oracledb
-            dsn = inst.get('service_name') or '%s:%d/orcl' % (host, port)
+            # oracle_jdbc 类型可能用 jdbc_url 而非标准 dsn，尝试从 service_name 或 host:port 构造
+            dsn = inst.get('service_name') or inst.get('dsn')
+            if not dsn:
+                # 尝试从 jdbc_url 提取 host:port:sid 格式
+                jdbc_url = inst.get('jdbc_url') or ''
+                if '@' in jdbc_url:
+                    after_at = jdbc_url.split('@')[1].split('/')[0]
+                    dsn = after_at  # host:port:sid
+            if not dsn:
+                dsn = '%s:%d/orcl' % (host, port)
             mode = oracledb.SYSDBA if inst.get('sysdba') else oracledb.DEFAULT_MODE
             return oracledb.connect(user=user, password=password, dsn=dsn, mode=mode)
         if db_type == 'dm':
             import dmPython
             return dmPython.connect(user=user, password=password, server='%s:%d' % (host, port))
+        if db_type in ('sqlserver', 'mssql'):
+            import pyodbc
+            # 支持 DSN 或 host/port 直连
+            conn_str = inst.get('connection_string') or ''
+            if not conn_str:
+                database = inst.get('database') or 'master'
+                driver = '{ODBC Driver 17 for SQL Server}'
+                try:
+                    import pyodbc as _pyodbc
+                    drivers = [d for d in _pyodbc.drivers() if 'sql server' in d.lower()]
+                    if drivers:
+                        driver = '{%s}' % drivers[0]
+                except Exception:
+                    pass
+                conn_str = f'DRIVER={driver};SERVER={host},{port};DATABASE={database};UID={user};PWD={password}'
+            return pyodbc.connect(conn_str, timeout=CONNECT_TIMEOUT)
         return None
 
     # ── 通用探针 ──
@@ -290,10 +317,12 @@ class MetricsCollector:
                 return self._collect_mysql(conn)
             if db_type in ('postgresql', 'pg', 'ivorysql', 'kingbase'):
                 return self._collect_postgres(conn)
-            if db_type == 'oracle':
+            if db_type in ('oracle', 'oracle_jdbc'):
                 return self._collect_oracle(conn)
             if db_type == 'dm':
                 return self._collect_dm(conn)
+            if db_type in ('sqlserver', 'mssql'):
+                return self._collect_sqlserver(conn)
         except Exception as e:
             return {'deep_error': str(e)[:200]}
         return {}
@@ -343,6 +372,57 @@ class MetricsCollector:
             r = cur.fetchone()
             if r and r[0] is not None:
                 m['replay_lag_sec'] = float(r[0])
+        except Exception:
+            pass
+        return m
+
+    def _collect_sqlserver(self, conn) -> dict:
+        """SQL Server 深采：连接数、批处理数、锁等待等。"""
+        m = {}
+        cur = conn.cursor()
+        # 连接数（sys.dm_exec_sessions 按状态统计）
+        try:
+            cur.execute("""
+                SELECT status, COUNT(*) FROM sys.dm_exec_sessions
+                WHERE session_id > 50 GROUP BY status
+            """)
+            for row in cur.fetchall():
+                st = (str(row[0]) or '').lower()
+                if 'running' in st:
+                    m['sessions_running'] = int(row[1])
+                elif 'sleeping' in st or 'background' in st:
+                    m['sessions_idle'] = int(row[1])
+                m['total_sessions'] = m.get('total_sessions', 0) + int(row[1])
+        except Exception:
+            pass
+        # 批处理请求/秒 等计数器（sys.dm_os_performance_counters）
+        try:
+            cur.execute("""
+                SELECT object_name, counter_name, cntr_value
+                FROM sys.dm_os_performance_counters
+                WHERE object_name LIKE '%SQL Statistics%'
+                  AND counter_name IN ('SQL Compilations/sec', 'SQL Re-Compilations/sec',
+                                       'Batch Requests/sec')
+            """)
+            for row in cur.fetchall():
+                cname = str(row[1]).lower().replace('/sec','').replace(' ','_')
+                key = 'mssql_' + cname
+                m[key] = _to_num(row[2])
+        except Exception:
+            pass
+        # 数据库级 I/O
+        try:
+            cur.execute("""
+                SELECT SUM(num_of_reads), SUM(num_of_writes), SUM(num_of_bytes_read),
+                       SUM(num_of_bytes_written)
+                FROM sys.dm_io_virtual_file_stats(NULL, NULL)
+            """)
+            row = cur.fetchone()
+            if row:
+                m['io_read_count'] = _to_num(row[0]) or 0
+                m['io_write_count'] = _to_num(row[1]) or 0
+                m['io_read_bytes'] = _to_num(row[2]) or 0
+                m['io_write_bytes'] = _to_num(row[3]) or 0
         except Exception:
             pass
         return m
@@ -485,12 +565,15 @@ class MetricsCollector:
         try:
             from pro import get_instance_manager
             im = get_instance_manager()
-            instances = im.get_all_instances(mask_password=True)
+            # 注意：采集器在服务端运行，需要真实密码才能建立数据库连接，
+            # 因此不能用 mask_password=True（会把密码替换为 ****）。
+            # 参考 scheduler.py / monitor_engine.py 的做法：使用 False 或 get_instance_decrypted()。
+            raw_instances = im.get_all_instances(mask_password=False)
         except Exception as e:
             return [{'error': 'collector tick failed: %s' % str(e)[:200]}]
 
         batch = []
-        for inst in instances:
+        for inst in raw_instances:
             try:
                 snap = self.collect_one(inst)
             except Exception as e:

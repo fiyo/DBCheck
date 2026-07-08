@@ -2646,168 +2646,6 @@ async function executeFixSql(taskId, sql) {
     .monitor-updated { color: var(--text-muted, #8b949e); margin-left: auto; }
     .monitor-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
     @media (max-width: 1100px){ .monitor-grid { grid-template-columns: 1fr; } }
-
-    /* ── 首页驾驶舱（单屏布局）v3 ── */
-    #page-home.cockpit {
-      margin: -36px -40px;
-      padding: 16px 20px 14px;
-      height: calc(100vh - 56px);
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      background: linear-gradient(180deg, var(--bg, #0d1117) 0%, rgba(13,17,23,0.96) 100%);
-    }
-    #page-home.cockpit .slogan-wrapper { display: none; }
-
-    /* ══ KPI 行：4 张概览卡 ══ */
-    .cockpit-kpi { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; flex-shrink: 0; }
-    .cockpit-kpi .overview-card {
-      margin: 0; padding: 16px 18px;
-      position: relative; overflow: hidden;
-      border: 1px solid var(--border, #30363d);
-      border-left: 3px solid transparent;
-      border-radius: 12px;
-      transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease;
-    }
-    .cockpit-kpi .overview-card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 8px 24px rgba(0,0,0,.35);
-      border-color: rgba(255,255,255,.1);
-    }
-    /* 每张 KPI 卡的左边条颜色 */
-    .cockpit-kpi .overview-card:nth-child(1) { border-left-color: #f97316; }
-    .cockpit-kpi .overview-card:nth-child(2) { border-left-color: #667eea; }
-    .cockpit-kpi .overview-card:nth-child(3) { border-left-color: #11998e; }
-    .cockpit-kpi .overview-card:nth-child(4) { border-left-color: #eb3349; }
-    /* 微弱背景渐变 */
-    .cockpit-kpi .overview-card::before {
-      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 50%;
-      background: linear-gradient(180deg, rgba(255,255,255,.03) 0%, transparent 100%);
-      pointer-events: none; border-radius: 12px 12px 0 0;
-    }
-    .cockpit-kpi .overview-card .card-header { margin-bottom: 10px; }
-    .cockpit-kpi .overview-card .card-icon { width: 38px; height: 38px; border-radius: 10px; font-size: 17px; }
-    .cockpit-kpi .overview-card .card-title { font-size: 13px; }
-    .cockpit-kpi .overview-card .card-subtitle { font-size: 11px; }
-    .cockpit-kpi .db-type-list,
-    .cockpit-kpi .kb-summary,
-    .cockpit-kpi .scheduler-summary { font-size: 12px; }
-    .cockpit-kpi .job-status-list { margin-top: 6px; }
-    /* 健康评分大数字增强 */
-    .cockpit-kpi .health-summary { padding: 8px 2px !important; }
-    .cockpit-kpi .health-summary > div[style*="font-size:42px"] { font-size: 48px !important; }
-
-    /* ══ 实时监控工具条 ══ */
-    .cockpit-toolbar {
-      display: flex; align-items: center; gap: 14px; flex-shrink: 0;
-      font-size: 13px; color: var(--text, #e6edf3);
-      padding: 8px 14px;
-      background: rgba(255,255,255,.03);
-      border: 1px solid var(--border, #30363d);
-      border-radius: 10px;
-    }
-    .cockpit-toolbar .section-title {
-      font-size: 13px; font-weight: 600;
-      background: linear-gradient(135deg, #388bfd, #a371f7);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-      letter-spacing: .5px;
-    }
-    .cockpit-toolbar label { color: var(--text-muted, #8b949e); font-size: 12px; }
-    .cockpit-toolbar select {
-      background: var(--bg-secondary, #161b22);
-      color: var(--text, #e6edf3);
-      border: 1px solid var(--border, #30363d);
-      border-radius: 6px; padding: 5px 12px; font-size: 13px;
-      cursor: pointer; outline: none;
-      transition: border-color .2s;
-    }
-    .cockpit-toolbar select:hover { border-color: rgba(136,170,255,.4); }
-    .cockpit-toolbar select:focus { border-color: #388bfd; box-shadow: 0 0 0 2px rgba(56,139,253,.15); }
-    #page-home.cockpit .monitor-running-pill {
-      margin-left: 6px; font-size: 11px; padding: 2px 8px; border-radius: 10px;
-      background: rgba(34,197,94,.12); color: #4ade80;
-    }
-
-    /* ══ 主图表网格 ══ */
-    .cockpit-grid {
-      flex: 1; min-height: 0;
-      display: grid;
-      grid-template-columns: repeat(12, 1fr);
-      grid-template-rows: 1fr 1fr;
-      gap: 14px;
-    }
-    .cockpit-card {
-      min-width: 0; min-height: 0;
-      display: flex; flex-direction: column;
-      background: linear-gradient(145deg, var(--card-bg, #161b22), rgba(22,27,34,.85));
-      border: 1px solid var(--border, #30363d);
-      border-top: 2px solid transparent;
-      border-radius: 14px;
-      padding: 12px 14px 10px;
-      transition: border-color .25s ease, box-shadow .25s ease;
-      position: relative; overflow: hidden;
-    }
-    .cockpit-card:hover {
-      border-color: rgba(255,255,255,.08);
-      box-shadow: 0 4px 16px rgba(0,0,0,.25);
-    }
-    /* 每张图表卡的顶色条 */
-    .cockpit-card:nth-child(1) { border-top-color: #f97316; } /* 健康评分 */
-    .cockpit-card:nth-child(2) { border-top-color: #ef4444; } /* 风险分布 */
-    .cockpit-card:nth-child(3) { border-top-color: #3b82f6; } /* 吞吐 */
-    .cockpit-card:nth-child(4) { border-top-color: #22c55e; } /* 连接数 */
-    .cockpit-card:nth-child(5) { border-top-color: #a855f7; } /* 趋势 */
-    .cockpit-card:nth-child(6) { border-top-color: #06b6d4; } /* 矩阵 */
-    .cockpit-card:nth-child(7) { border-top-color: #f59e0b; } /* 延迟 */
-
-    .cockpit-card .health-chart-title {
-      font-size: 12px; font-weight: 600;
-      margin-bottom: 8px; flex-shrink: 0;
-      display: flex; align-items: center; gap: 6px;
-      color: var(--text, #e6edf3);
-      opacity: .88;
-      letter-spacing: .2px;
-    }
-    .cockpit-card .health-chart-box {
-      flex: 1; min-height: 0; width: 100%; height: auto;
-    }
-    .cockpit-card .health-chart-fallback { height: 100%; display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 12px; text-align: center; }
-
-    .span3 { grid-column: span 3; }
-    .span4 { grid-column: span 4; }
-    .span5 { grid-column: span 5; }
-
-    /* ══ 数据统计折叠区 ══ */
-    .cockpit-stats {
-      flex-shrink: 0; color: var(--text-muted, #8b949e); font-size: 13px;
-    }
-    .cockpit-stats summary {
-      cursor: pointer; padding: 6px 10px;
-      font-weight: 600; font-size: 13px;
-      color: var(--text-muted, #8b949e);
-      list-style: none;
-      transition: color .2s;
-    }
-    .cockpit-stats summary:hover { color: var(--text, #e6edf3); }
-    .cockpit-stats summary::-webkit-details-marker { display: none; }
-    .cockpit-stats summary::before { content: '▸ '; margin-right: 4px; transition: transform .2s; }
-    .cockpit-stats[open] summary::before { content: '▾ '; }
-    .cockpit-stats[open] .stats-grid {
-      display: grid; grid-template-columns: repeat(4, 1fr);
-      gap: 12px; margin-top: 10px;
-    }
-    .cockpit-stats .overview-card { margin: 0; padding: 12px 14px; }
-    .cockpit-stats .chart-card-body { height: 150px !important; }
-
-    /* 小屏响应式 */
-    @media (max-width: 1100px) {
-      #page-home.cockpit { height: auto; overflow: auto; padding: 12px 14px; }
-      .cockpit-grid { grid-template-rows: unset; grid-auto-rows: 240px; }
-      .span3, .span4, .span5 { grid-column: span 6; }
-      .cockpit-kpi { grid-template-columns: repeat(2, 1fr); gap: 10px; }
-      .cockpit-toolbar { flex-wrap: wrap; padding: 6px 10px; }
-    }
   </style>
 
 
@@ -4376,132 +4214,267 @@ function formatBytes(bytes) {
     <div class="content">
 
       <!-- ══ Page: Home ══ -->
-      <div class="page active cockpit" id="page-home">
-
-        <!-- KPI 条：4 张概览卡（紧凑横排） -->
-        <div class="cockpit-kpi" id="home-overview-section">
-          <!-- 健康评分 -->
-          <div class="overview-card">
-            <div class="card-header">
-              <div class="card-icon" style="background:linear-gradient(135deg,#f97316,#ea580c);">📊</div>
-              <div>
-                <div class="card-title" data-i18n="webui.home_health_score">健康评分</div>
-                <div class="card-subtitle" data-i18n="webui.home_health_score_sub">综合健康状态</div>
-              </div>
-            </div>
-            <div id="home-health-dashboard"><div class="health-no-data">暂无巡检数据</div></div>
+      <div class="page active" id="page-home">
+        <!-- 简化标题栏 -->
+        <!-- Slogan 动画 -->
+        <div class="slogan-wrapper" id="slogan-wrapper">
+          <div class="slogan-container">
+            <div class="slogan-glow"></div>
+            <div class="slogan-text" id="slogan-text"></div>
           </div>
-          <!-- 实例分布 -->
-          <div class="overview-card">
-            <div class="card-header">
-              <div class="card-icon" style="background:linear-gradient(135deg,#667eea,#764ba2);">🗄️</div>
-              <div>
-                <div class="card-title" data-i18n="webui.home_instance_dist">实例分布</div>
-                <div class="card-subtitle" data-i18n="webui.home_instance_dist_sub">各类型数据库数量</div>
-              </div>
-            </div>
-            <div class="db-type-list" id="home-db-type-list"></div>
-          </div>
-          <!-- 定时任务 -->
-          <div class="overview-card">
-            <div class="card-header">
-              <div class="card-icon" style="background:linear-gradient(135deg,#11998e,#38ef7d);">⏰</div>
-              <div>
-                <div class="card-title" data-i18n="webui.home_scheduler">定时巡检</div>
-                <div class="card-subtitle" data-i18n="webui.home_scheduler_sub">自动化调度任务</div>
-              </div>
-            </div>
-            <div class="scheduler-summary" id="home-scheduler-summary">
-              <div class="scheduler-stat"><div class="stat-num" id="home-job-total">--</div><div class="stat-lbl" data-i18n="webui.home_job_total">总任务数</div></div>
-              <div class="scheduler-stat"><div class="stat-num" id="home-job-active">--</div><div class="stat-lbl" data-i18n="webui.home_job_active">运行中</div></div>
-            </div>
-            <div class="job-status-list" id="home-job-list"></div>
-          </div>
-          <!-- 知识库 -->
-          <div class="overview-card">
-            <div class="card-header">
-              <div class="card-icon" style="background:linear-gradient(135deg,#eb3349,#f45c43);">📚</div>
-              <div>
-                <div class="card-title" data-i18n="webui.home_knowledge_base">知识库</div>
-                <div class="card-subtitle" data-i18n="webui.home_knowledge_base_sub">RAG 智能检索</div>
-              </div>
-            </div>
-            <div class="kb-summary" id="home-kb-summary">
-              <div class="kb-stat"><div class="stat-num" id="home-kb-docs">--</div><div class="stat-lbl" data-i18n="webui.home_kb_docs">文档数</div></div>
-              <div class="kb-stat"><div class="stat-num" id="home-kb-chunks">--</div><div class="stat-lbl" data-i18n="webui.home_kb_chunks">知识块</div></div>
-            </div>
-            <div class="kb-hint" id="home-kb-hint" data-i18n="webui.home_kb_hint">上传数据库文档，AI 诊断更精准</div>
-          </div>
+          <div class="slogan-sub" id="slogan-sub">DBCheck · Database Inspector</div>
         </div>
 
-        <!-- 实时监控工具条 -->
-        <div class="cockpit-toolbar">
-          <span class="section-title">📡 实时监控</span>
-          <span class="monitor-running-pill" id="monitor-running-pill">采集器：检测中…</span>
-          <label>实例</label>
-          <select id="monitor-instance-select" onchange="onMonitorInstanceChange()">
-            <option value="">请选择实例</option>
-          </select>
-          <span class="monitor-dot" id="monitor-dot"></span>
-          <span id="monitor-status-text">—</span>
-          <span class="monitor-latency" id="monitor-latency-text"></span>
-          <span class="monitor-updated" id="monitor-updated-text"></span>
-        </div>
 
-        <!-- 驾驶舱主网格：7 张实时图 -->
-        <div class="cockpit-grid">
-          <div class="cockpit-card span3">
-            <div class="health-chart-title">🎯 综合健康评分</div>
-            <div class="health-chart-box" id="echart-gauge"></div>
-          </div>
-          <div class="cockpit-card span3">
-            <div class="health-chart-title">⚠️ 风险等级分布</div>
-            <div class="health-chart-box" id="echart-risk"></div>
-          </div>
-          <div class="cockpit-card span3">
-            <div class="health-chart-title">⚡ 吞吐（QPS / TPS）</div>
-            <div class="health-chart-box" id="echart-mon-throughput"></div>
-          </div>
-          <div class="cockpit-card span3">
-            <div class="health-chart-title">🔗 活跃连接数</div>
-            <div class="health-chart-box" id="echart-mon-conn"></div>
-          </div>
-          <div class="cockpit-card span5">
-            <div class="health-chart-title">📈 健康评分趋势（近 30 天）</div>
-            <div class="health-chart-box" id="echart-trend"></div>
-          </div>
-          <div class="cockpit-card span4">
-            <div class="health-chart-title">🗂️ 实例健康矩阵</div>
-            <div class="health-chart-box" id="echart-matrix"></div>
-          </div>
-          <div class="cockpit-card span3">
-            <div class="health-chart-title">⏱️ 响应延迟 (ms)</div>
-            <div class="health-chart-box" id="echart-mon-latency"></div>
-          </div>
-        </div>
-
-        <!-- 数据统计（低频，默认折叠） -->
-        <details class="cockpit-stats">
-          <summary>📊 数据统计（模板 / 巡检 / 基线 / 规则）</summary>
-          <div class="stats-grid">
+        <!-- 首页概览卡片 -->
+        <div class="home-overview" id="home-overview-section" style="display:none;">
+          <div class="section-header" style="display:none;"></div>
+          <div class="overview-grid">
+            <!-- 健康评分仪表盘 -->
             <div class="overview-card">
-              <div class="card-header"><div class="card-icon" style="background:linear-gradient(135deg,#3b82f6,#2563eb);">📋</div><div><div class="card-title" data-i18n="webui.home_template_stats">模板统计</div><div class="card-subtitle" data-i18n="webui.home_template_stats_sub">各模板章节数</div></div></div></div>
+              <div class="card-header">
+                <div class="card-icon" style="background:linear-gradient(135deg,#f97316,#ea580c);">📊</div>
+                <div>
+                  <div class="card-title" data-i18n="webui.home_health_score">健康评分</div>
+                  <div class="card-subtitle" data-i18n="webui.home_health_score_sub">综合健康状态</div>
+                </div>
+              </div>
+              <div id="home-health-dashboard">
+                <div class="health-no-data">暂无巡检数据</div>
+              </div>
+            </div>
+
+            <!-- 实例分布 -->
+            <div class="overview-card">
+              <div class="card-header">
+                <div class="card-icon" style="background:linear-gradient(135deg,#667eea,#764ba2);">🗄️</div>
+                <div>
+                  <div class="card-title" data-i18n="webui.home_instance_dist">实例分布</div>
+                  <div class="card-subtitle" data-i18n="webui.home_instance_dist_sub">各类型数据库数量</div>
+                </div>
+              </div>
+              <div class="db-type-list" id="home-db-type-list">
+                <!-- 动态加载 -->
+              </div>
+            </div>
+
+            <!-- 定时任务 -->
+            <div class="overview-card">
+              <div class="card-header">
+                <div class="card-icon" style="background:linear-gradient(135deg,#11998e,#38ef7d);">⏰</div>
+                <div>
+                  <div class="card-title" data-i18n="webui.home_scheduler">定时巡检</div>
+                  <div class="card-subtitle" data-i18n="webui.home_scheduler_sub">自动化调度任务</div>
+                </div>
+              </div>
+              <div class="scheduler-summary" id="home-scheduler-summary">
+                <div class="scheduler-stat">
+                  <div class="stat-num" id="home-job-total">--</div>
+                  <div class="stat-lbl" data-i18n="webui.home_job_total">总任务数</div>
+                </div>
+                <div class="scheduler-stat">
+                  <div class="stat-num" id="home-job-active">--</div>
+                  <div class="stat-lbl" data-i18n="webui.home_job_active">运行中</div>
+                </div>
+              </div>
+              <div class="job-status-list" id="home-job-list">
+                <!-- 动态加载 -->
+              </div>
+            </div>
+
+            <!-- 知识库 -->
+            <div class="overview-card">
+              <div class="card-header">
+                <div class="card-icon" style="background:linear-gradient(135deg,#eb3349,#f45c43);">📚</div>
+                <div>
+                  <div class="card-title" data-i18n="webui.home_knowledge_base">知识库</div>
+                  <div class="card-subtitle" data-i18n="webui.home_knowledge_base_sub">RAG 智能检索</div>
+                </div>
+              </div>
+              <div class="kb-summary" id="home-kb-summary">
+                <div class="kb-stat">
+                  <div class="stat-num" id="home-kb-docs">--</div>
+                  <div class="stat-lbl" data-i18n="webui.home_kb_docs">文档数</div>
+                </div>
+                <div class="kb-stat">
+                  <div class="stat-num" id="home-kb-chunks">--</div>
+                  <div class="stat-lbl" data-i18n="webui.home_kb_chunks">知识块</div>
+                </div>
+              </div>
+              <div class="kb-hint" id="home-kb-hint" data-i18n="webui.home_kb_hint">上传数据库文档，AI 诊断更精准</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 健康态势大屏 (ECharts) -->
+        <div class="home-section health-screen" id="health-screen-section" style="display:none;">
+          <div class="section-header">
+            <h2 class="section-title">🩺 健康态势大屏</h2>
+            <span class="section-desc">实时健康评分 · 风险分布 · 趋势研判 · 实例矩阵</span>
+          </div>
+          <div class="health-screen-grid">
+            <div class="health-chart-card">
+              <div class="health-chart-title">🎯 综合健康评分</div>
+              <div class="health-chart-box" id="echart-gauge"></div>
+            </div>
+            <div class="health-chart-card">
+              <div class="health-chart-title">⚠️ 风险等级分布</div>
+              <div class="health-chart-box" id="echart-risk"></div>
+            </div>
+            <div class="health-chart-card">
+              <div class="health-chart-title">📈 健康评分趋势（近 30 天）</div>
+              <div class="health-chart-box" id="echart-trend"></div>
+            </div>
+            <div class="health-chart-card">
+              <div class="health-chart-title">🗂️ 实例健康矩阵</div>
+              <div class="health-chart-box" id="echart-matrix"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 实时监控 (v2.10) -->
+        <div class="home-section monitor-section" id="monitor-section" style="display:none;">
+          <div class="section-header">
+            <h2 class="section-title">📡 实时监控</h2>
+            <span class="section-desc">采集器每 30s 推送 · QPS / TPS · 连接数 · 延迟 · 可用性</span>
+            <span class="monitor-running-pill" id="monitor-running-pill">采集器：检测中…</span>
+          </div>
+          <div class="monitor-toolbar">
+            <label>实例</label>
+            <select id="monitor-instance-select" onchange="onMonitorInstanceChange()">
+              <option value="">请选择实例</option>
+            </select>
+            <span class="monitor-dot" id="monitor-dot"></span>
+            <span id="monitor-status-text">—</span>
+            <span class="monitor-latency" id="monitor-latency-text"></span>
+            <span class="monitor-updated" id="monitor-updated-text"></span>
+          </div>
+          <div class="monitor-grid">
+            <div class="health-chart-card">
+              <div class="health-chart-title" id="monitor-throughput-title">⚡ 吞吐（QPS / TPS）</div>
+              <div class="health-chart-box" id="echart-mon-throughput"></div>
+            </div>
+            <div class="health-chart-card">
+              <div class="health-chart-title" id="monitor-conn-title">🔗 连接数</div>
+              <div class="health-chart-box" id="echart-mon-conn"></div>
+            </div>
+            <div class="health-chart-card">
+              <div class="health-chart-title" id="monitor-latency-title">⏱️ 响应延迟 (ms)</div>
+              <div class="health-chart-box" id="echart-mon-latency"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 数据统计图表 -->
+        <div class="home-section" style="margin-top:24px;">
+          <div class="section-header">
+            <h2 class="section-title" data-i18n="webui.home_chart_title">数据统计</h2>
+            <span class="section-desc" data-i18n="webui.home_chart_desc">模板、巡检、基线、规则统计</span>
+          </div>
+          <div class="overview-grid" id="home-charts-grid">
+            <!-- 模板统计 -->
+            <div class="overview-card">
+              <div class="card-header">
+                <div class="card-icon" style="background:linear-gradient(135deg,#3b82f6,#2563eb);">📋</div>
+                <div>
+                  <div class="card-title" data-i18n="webui.home_template_stats">模板统计</div>
+                  <div class="card-subtitle" data-i18n="webui.home_template_stats_sub">各模板章节数</div>
+                </div>
+              </div>
               <canvas class="chart-card-body" id="home-template-chart"></canvas>
             </div>
+            <!-- 巡检统计 -->
             <div class="overview-card">
-              <div class="card-header"><div class="card-icon" style="background:linear-gradient(135deg,#f97316,#ea580c);">📊</div><div><div class="card-title" data-i18n="webui.home_inspection_stats">巡检统计</div><div class="card-subtitle" data-i18n="webui.home_inspection_stats_sub">各数据库巡检次数</div></div></div></div>
+              <div class="card-header">
+                <div class="card-icon" style="background:linear-gradient(135deg,#f97316,#ea580c);">📊</div>
+                <div>
+                  <div class="card-title" data-i18n="webui.home_inspection_stats">巡检统计</div>
+                  <div class="card-subtitle" data-i18n="webui.home_inspection_stats_sub">各数据库巡检次数</div>
+                </div>
+              </div>
               <canvas class="chart-card-body" id="home-inspection-chart"></canvas>
             </div>
+            <!-- 基线统计 -->
             <div class="overview-card">
-              <div class="card-header"><div class="card-icon" style="background:linear-gradient(135deg,#22c55e,#16a34a);">📈</div><div><div class="card-title" data-i18n="webui.home_baseline_stats">基线统计</div><div class="card-subtitle" data-i18n="webui.home_baseline_stats_sub">各数据库基线数</div></div></div></div>
+              <div class="card-header">
+                <div class="card-icon" style="background:linear-gradient(135deg,#22c55e,#16a34a);">📈</div>
+                <div>
+                  <div class="card-title" data-i18n="webui.home_baseline_stats">基线统计</div>
+                  <div class="card-subtitle" data-i18n="webui.home_baseline_stats_sub">各数据库基线数</div>
+                </div>
+              </div>
               <canvas class="chart-card-body" id="home-baseline-chart"></canvas>
             </div>
+            <!-- 规则统计 -->
             <div class="overview-card">
-              <div class="card-header"><div class="card-icon" style="background:linear-gradient(135deg,#a855f7,#9333ea);">📏</div><div><div class="card-title" data-i18n="webui.home_rule_stats">规则统计</div><div class="card-subtitle" data-i18n="webui.home_rule_stats_sub">各数据库规则数</div></div></div></div>
+              <div class="card-header">
+                <div class="card-icon" style="background:linear-gradient(135deg,#a855f7,#9333ea);">📏</div>
+                <div>
+                  <div class="card-title" data-i18n="webui.home_rule_stats">规则统计</div>
+                  <div class="card-subtitle" data-i18n="webui.home_rule_stats_sub">各数据库规则数</div>
+                </div>
+              </div>
               <canvas class="chart-card-body" id="home-rule-chart"></canvas>
             </div>
           </div>
-        </details>
+          <!-- 数据库类型图标墙 -->
+          <div class="db-icon-wall">
+            <div class="db-icon-wall-inner">
+              <div class="db-icon-item" title="MySQL">
+                <img src="/mysql.png" alt="MySQL" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="db-icon-fallback" style="display:none;">🐬</span>
+                <span class="db-icon-label">MySQL</span>
+              </div>
+              <div class="db-icon-item" title="PostgreSQL">
+                <img src="/postgresql.png" alt="PostgreSQL" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="db-icon-fallback" style="display:none;">🐘</span>
+                <span class="db-icon-label">PostgreSQL</span>
+              </div>
+              <div class="db-icon-item" title="Oracle">
+                <img src="/oracle.png" alt="Oracle" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="db-icon-fallback" style="display:none;">📰</span>
+                <span class="db-icon-label">Oracle</span>
+              </div>
+              <div class="db-icon-item" title="DM8">
+                <img src="/dm.png" alt="DM8" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="db-icon-fallback" style="display:none;">🏛️</span>
+                <span class="db-icon-label">DM8</span>
+              </div>
+              <div class="db-icon-item" title="SQL Server">
+                <img src="/sqlserver.png" alt="SQL Server" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="db-icon-fallback" style="display:none;">🪟</span>
+                <span class="db-icon-label">SQL Server</span>
+              </div>
+              <div class="db-icon-item" title="TiDB">
+                <img src="/tidb.png" alt="TiDB" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="db-icon-fallback" style="display:none;">♟</span>
+                <span class="db-icon-label">TiDB</span>
+              </div>
+              <div class="db-icon-item" title="IvorySQL">
+                <img src="/ivorysql.png" alt="IvorySQL" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="db-icon-fallback" style="display:none;">🦣</span>
+                <span class="db-icon-label">IvorySQL</span>
+              </div>
+              <div class="db-icon-item" title="YashanDB">
+                <img src="/yashandb.png" alt="YashanDB" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="db-icon-fallback" style="display:none;">🗻</span>
+                <span class="db-icon-label">YashanDB</span>
+              </div>
+              <div class="db-icon-item" title="GBase">
+                <img src="/gbase.png" alt="GBase" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="db-icon-fallback" style="display:none;">⛰️</span>
+                <span class="db-icon-label">GBase</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 随机语录卡片 -->
+        <div class="quotes-card" id="quotes-card" style="margin-top:16px;">
+          <div class="quotes-inner">
+            <div class="quotes-icon">💡</div>
+            <div class="quotes-body">
+              <div class="quotes-text" id="quotes-text">加载中...</div>
+              <div class="quotes-meta">
+                <span class="quotes-category" id="quotes-category"></span>
+                <span class="quotes-refresh" onclick="refreshQuote()" title="换一条">🔄</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
 
       <!-- ══ Page: Wizard ══ -->
@@ -11986,11 +11959,6 @@ async function loadHomeStats() {
     Object.values(healthCharts).forEach(c => c && c.resize());
     // 实时监控区（v2.10）：概览可见即初始化采集器推送与图表
     try { initMonitor(); } catch(e) { console.error('initMonitor failed:', e); }
-    // 驾驶舱：布局定型后重算一次图表尺寸，避免固定高度容器内图表被裁剪
-    requestAnimationFrame(function () {
-      Object.values(healthCharts).forEach(c => c && c.resize());
-      Object.values(monitorCharts).forEach(c => c && c.resize());
-    });
 
   } catch(e) {
     console.error('Failed to load home stats:', e);
@@ -12010,126 +11978,151 @@ function cssVar(name, fb) {
 }
 
 function renderHealthScreen(dash) {
-  const boxes = ['echart-gauge', 'echart-risk', 'echart-trend', 'echart-matrix'].map(function (id) {
-    return document.getElementById(id);
-  });
-  function fallback(msg) {
-    boxes.forEach(function (b) { if (b) b.innerHTML = '<div class="health-chart-fallback">' + msg + '</div>'; });
-  }
+  const section = document.getElementById('health-screen-section');
+  if (!section) return;
 
   // ECharts 未加载（离线环境）时给出提示，不阻塞页面
   if (typeof echarts === 'undefined') {
-    fallback('ECharts 未加载<br>请联网或部署离线版以查看可视化大屏');
+    section.style.display = '';
+    section.querySelectorAll('.health-chart-box').forEach(b => {
+      b.innerHTML = '<div class="health-chart-fallback">ECharts 未加载<br>请联网或部署离线版以查看可视化大屏</div>';
+    });
     return;
   }
-  if (!dash || !dash.ok) {
-    fallback('暂无数据');
+
+  if (!dash || !dash.ok || !dash.has_history) {
+    section.style.display = 'none';
     return;
   }
+  section.style.display = '';
 
   const TXT  = cssVar('--text', '#e6edf3');
   const MUT  = cssVar('--text-muted', '#8b949e');
   const BORD = cssVar('--border', '#30363d');
 
-  // 1) 仪表盘：综合健康评分（精致环形仪表）
+  // 1) 仪表盘：综合健康评分
   const gauge = document.getElementById('echart-gauge');
   healthCharts.gauge = echarts.init(gauge);
   healthCharts.gauge.setOption({
     backgroundColor: 'transparent',
     series: [{
-      type: 'gauge', radius: '88%', center: ['50%', '55%'],
-      startAngle: 210, endAngle: -30, min: 0, max: 100, splitNumber: 5,
-      progress: {
-        show: true, width: 14, roundCap: true,
-        itemStyle: { color: new echarts.graphic.LinearGradient(0,0,1,0,[{offset:0,color:RISK_COLORS[dash.level]||'#3b82f6'},{offset:1,color:(RISK_COLORS[dash.level]||'#3b82f6')+'cc'}]) }
-      },
-      axisLine: { lineStyle: { width: 14, color: [
-        [0.3,'rgba(248,81,73,.25)'], [0.5,'rgba(251,146,60,.25)'], [0.7,'rgba(234,179,8,.25)'],
-        [0.85,'rgba(76,175,80,.25)'], [1,'rgba(34,197,94,.25)']
+      type: 'gauge', radius: '92%', center: ['50%', '58%'],
+      startAngle: 210, endAngle: -30, min: 0, max: 100,
+      progress: { show: true, width: 16, itemStyle: { color: RISK_COLORS[dash.level] || '#3b82f6' } },
+      axisLine: { lineStyle: { width: 16, color: [
+        [0.3, '#f85149'], [0.5, '#fb923c'], [0.7, '#eab308'], [0.85, '#4caf50'], [1, '#22c55e']
       ] } },
-      pointer: { show: true, length: '58%', width: 4, itemStyle: { color: TXT } },
-      axisTick: { distance: -14, length: 4, lineStyle: { color: MUT, width: 1 } },
-      splitLine: { distance: -14, length: 12, lineStyle: { color: MUT, width: 2 } },
-      axisLabel: { distance: 16, color: MUT, fontSize: 9, formatter: '{value}' },
-      anchor: { show: true, size: 10, itemStyle: { color: TXT, borderWidth: 2, borderColor: BORD } },
-      detail: { valueAnimation: true, formatter:function(v){return v;}, color: TXT, fontSize: 32, fontWeight:800, offsetCenter:[0,'30%'],
-        textShadowColor:'rgba(0,0,0,.3)', textShadowBlur:4 },
-      title: { offsetCenter: [0,'68%'], color: MUT, fontSize: 11, fontWeight:500 },
+      pointer: { show: true, length: '62%', width: 5, itemStyle: { color: TXT } },
+      axisTick: { distance: -16, length: 5, lineStyle: { color: MUT, width: 1 } },
+      splitLine: { distance: -16, length: 16, lineStyle: { color: MUT, width: 2 } },
+      axisLabel: { distance: 18, color: MUT, fontSize: 10 },
+      anchor: { show: true, size: 14, itemStyle: { color: TXT } },
+      detail: { valueAnimation: true, formatter: '{value}', color: TXT, fontSize: 34, fontWeight: 'bolder', offsetCenter: [0, '38%'] },
+      title: { offsetCenter: [0, '62%'], color: MUT, fontSize: 12 },
       data: [{ value: dash.total_score || 0, name: '健康评分' }]
     }]
   });
 
-  // 2) 风险等级分布（玫瑰环图）
+  // 2) 风险等级分布环图
   const risk = document.getElementById('echart-risk');
   healthCharts.risk = echarts.init(risk);
   const rb = dash.risk_breakdown || {};
   const riskData = [
-    { name:'严重',value:rb.critical||0,itemStyle:{color:RISK_COLORS.critical} },
-    { name:'高危',value:rb.high||0,     itemStyle:{color:RISK_COLORS.high} },
-    { name:'中危',value:rb.medium||0,   itemStyle:{color:RISK_COLORS.medium} },
-    { name:'低危',value:rb.low||0,      itemStyle:{color:RISK_COLORS.low} },
-    { name:'正常',value:rb.healthy||0,  itemStyle:{color:RISK_COLORS.healthy} }
+    { name: '严重', value: rb.critical || 0, itemStyle: { color: RISK_COLORS.critical } },
+    { name: '高危', value: rb.high || 0,     itemStyle: { color: RISK_COLORS.high } },
+    { name: '中危', value: rb.medium || 0,   itemStyle: { color: RISK_COLORS.medium } },
+    { name: '低危', value: rb.low || 0,      itemStyle: { color: RISK_COLORS.low } },
+    { name: '正常', value: rb.healthy || 0,  itemStyle: { color: RISK_COLORS.healthy } }
   ].filter(d => d.value > 0);
   healthCharts.risk.setOption({
     backgroundColor: 'transparent',
-    tooltip: { trigger:'item', backgroundColor:'rgba(13,17,23,.9)',borderColor:BORD,textStyle:{fontSize:12},formatter:'{b}: <strong>{c}</strong> ({d}%)' },
-    legend: { bottom:2, textStyle:{color:MUT,fontSize:10}, itemWidth:10, itemHeight:10, itemGap:10 },
+    tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+    legend: { bottom: 0, textStyle: { color: MUT, fontSize: 11 }, itemWidth: 10, itemHeight: 10 },
     series: [{
-      type:'pie', radius:['40%','70%'], center:['50%','45%'],
-      avoidLabelOverlap:true,
-      itemStyle:{borderColor:'var(--card-bg,#161b22)',borderWidth:2,borderRadius:6},
-      label:{show:false},
-      emphasis:{scale:true,scaleSize:8,label:{show:true,fontSize:12,fontWeight:600,color:TXT,formatter:'{b}\n{c} ({d}%)'},itemStyle:{shadowBlur:12,shadowColor:'rgba(0,0,0,.4)'}},
-      data:riskData.length ? riskData : [{name:'暂无风险',value:1,itemStyle:{color:RISK_COLORS.healthy}}]
+      type: 'pie', radius: ['42%', '68%'], center: ['50%', '46%'],
+      avoidLabelOverlap: true,
+      label: { color: TXT, fontSize: 11, formatter: '{b}\n{c}' },
+      labelLine: { lineStyle: { color: MUT } },
+      itemStyle: { borderColor: BORD, borderWidth: 2 },
+      data: riskData.length ? riskData : [{ name: '暂无风险', value: 1, itemStyle: { color: RISK_COLORS.healthy } }]
     }]
   });
 
-  // 3) 健康评分趋势（近 30 天，紫色面积线）
+  // 3) 健康评分趋势（近 30 天）
   const trend = document.getElementById('echart-trend');
   healthCharts.trend = echarts.init(trend);
   const tdata = dash.trend || [];
   healthCharts.trend.setOption({
     backgroundColor: 'transparent',
-    tooltip:{trigger:'axis',backgroundColor:'rgba(13,17,23,.92)',borderColor:BORD,textStyle:{fontSize:12,color:TXT},
-      formatter:p=>`${p[0].axisValue}<br/>${p[0].marker} 健康分：<strong>${p[0].data}</strong>`},
-    grid:{left:42,right:16,top:24,bottom:28},
-    xAxis:{type:'category',boundaryGap:false,data:tdata.map(d=>d.date),
-      axisLine:{lineStyle:{color:BORD}},axisTick:{show:false},axisLabel:{color:MUT,fontSize:10,interval:Math.floor(Math.max(tdata.length/6,1))}},
-    yAxis:{type:'value',min:0,max:100,
-      splitLine:{lineStyle:{color:BORD,type:'dashed'}},axisLabel:{color:MUT,fontSize:10}},
-    series:[{
-      type:'line',smooth:.6,symbol:'circle',symbolSize:5,
-      data:tdata.map(d=>d.score),
-      lineStyle:{width:2.5,color:'#a371f7'},
-      itemStyle:{color:'#a371f7',borderWidth:2,borderColor:'var(--card-bg,#161b22)'},
-      areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(163,113,247,.35)'},{offset:1,color:'rgba(163,113,247,.02)'}])}
+    tooltip: { trigger: 'axis' },
+    grid: { left: 38, right: 16, top: 20, bottom: 30 },
+    xAxis: {
+      type: 'category', boundaryGap: false, data: tdata.map(d => d.date),
+      axisLine: { lineStyle: { color: BORD } }, axisLabel: { color: MUT, fontSize: 10 }
+    },
+    yAxis: {
+      type: 'value', min: 0, max: 100,
+      splitLine: { lineStyle: { color: BORD } }, axisLabel: { color: MUT, fontSize: 10 }
+    },
+    series: [{
+      type: 'line', smooth: true, symbol: 'circle', symbolSize: 5,
+      data: tdata.map(d => d.score),
+      lineStyle: { width: 3, color: '#3b82f6' },
+      itemStyle: { color: '#3b82f6' },
+      areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+        { offset: 0, color: 'rgba(59,130,246,0.35)' },
+        { offset: 1, color: 'rgba(59,130,246,0.02)' }
+      ]) }
     }]
   });
 
-  // 4) 实例健康矩阵（渐变水平条形图）
+  // 4) 实例健康矩阵
   const matrix = document.getElementById('echart-matrix');
   healthCharts.matrix = echarts.init(matrix);
-  const insts = (dash.instances || []).slice().reverse();
+  const insts = (dash.instances || []).slice().reverse(); // 倒序：高分在上方
   healthCharts.matrix.setOption({
     backgroundColor: 'transparent',
-    tooltip:{trigger:'axis',axisPointer:{type:'shadow'},backgroundColor:'rgba(13,17,23,.9)',borderColor:BORD,textStyle:{fontSize:12,color:TXT},
-      formatter:p=>{const i=insts[p[0].dataIndex];return`<strong>${i.instance_name}</strong> (${i.db_type})<br/>健康分：<strong style="color:${RISK_COLORS[i.risk_level]}">${i.health_score}</strong><br/>等级：${i.risk_level}`;}},
-    grid:{left:110,right:28,top:12,bottom:20},
-    xAxis:{type:'value',max:100,splitLine:{lineStyle:{color:BORD,type:'dashed'}},axisLabel:{color:MUT,fontSize:10},axisTick:{show:false}},
-    yAxis:{type:'category',data:insts.map(i=>i.instance_name),axisLine:{lineStyle:{color:BORD}},axisTick:{show:false},
-      axisLabel:{color:MUT,fontSize:10,width:100,overflow:'truncate',ellipsis:'...'}},
-    series:[{
-      type:'bar',barWidth:'52%',
-      data:insts.map(i=>({value:i.health_score,
-        itemStyle:{borderRadius:[0,4,4,0],color:new echarts.graphic.LinearGradient(0,0,1,0,[{offset:0,color:RISK_COLORS[i.risk_level]||'#3b82f6'},{offset:1,color:(RISK_COLORS[i.risk_level]||'#3b82f6')+'66'}])}})),
-      label:{show:true,position:'right',color:MUT,fontSize:10,fontWeight:600,formatter:'{c}'}
+    tooltip: {
+      trigger: 'axis', axisPointer: { type: 'shadow' },
+      formatter: p => {
+        const i = insts[p[0].dataIndex];
+        return `${i.instance_name} (${i.db_type})<br/>健康分: ${i.health_score}<br/>等级: ${i.risk_level}`;
+      }
+    },
+    grid: { left: 120, right: 28, top: 16, bottom: 24 },
+    xAxis: { type: 'value', max: 100, splitLine: { lineStyle: { color: BORD } }, axisLabel: { color: MUT, fontSize: 10 } },
+    yAxis: { type: 'category', data: insts.map(i => i.instance_name), axisLine: { lineStyle: { color: BORD } }, axisLabel: { color: MUT, fontSize: 10 } },
+    series: [{
+      type: 'bar', barWidth: '58%',
+      data: insts.map(i => ({ value: i.health_score, itemStyle: { color: RISK_COLORS[i.risk_level] || '#3b82f6', borderRadius: [0, 4, 4, 0] } })),
+      label: { show: true, position: 'right', color: TXT, fontSize: 10, formatter: '{c}' }
     }]
   });
 }
 
-window.addEventListener('resize', () => {
-  Object.values(healthCharts).forEach(c => c && c.resize());
-});
+// ── 统一 Resize 处理（防抖 + rAF + 可见性检查）──
+(function () {
+  let timer = null;
+  window.addEventListener('resize', function () {
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      requestAnimationFrame(function () {
+        // 合并 healthCharts + monitorCharts，统一 resize
+        var all = Object.values(healthCharts).concat(Object.values(monitorCharts));
+        all.forEach(function (c) {
+          if (!c) return;
+          try {
+            var dom = c.getDom();
+            // 跳过不可见容器（display:none 或 offsetParent==null 时尺寸为 0）
+            if (dom && dom.offsetParent !== null) {
+              c.resize({ silent: false });
+            }
+          } catch (_) { /* 容器可能已销毁 */ }
+        });
+      });
+    }, 150);
+  });
+})();
 
 // ─── 实时监控 (v2.10) ──────────────────────────────────
 const monitorCharts = { throughput: null, conn: null, latency: null };
@@ -12138,11 +12131,18 @@ let monitorHistory = {};   // instance_id -> [{ts, metrics}]
 let monitorSummary = [];
 
 function ensureMonChart(key, id) {
-  if (!monitorCharts[key]) {
-    const el = document.getElementById(id);
-    if (el) monitorCharts[key] = echarts.init(el);
+  const el = document.getElementById(id);
+  if (!el) return null;
+  let chart = monitorCharts[key];
+  // 若实例不存在，或容器已被提示文字污染（无 canvas），则重建
+  const polluted = el.querySelector('canvas') === null;
+  if (!chart || polluted) {
+    try { if (chart) chart.dispose(); } catch (_) {}
+    el.innerHTML = '';   // 清空可能的提示文字，恢复干净容器
+    chart = echarts.init(el);
+    monitorCharts[key] = chart;
   }
-  return monitorCharts[key];
+  return chart;
 }
 
 function monitorShowFallback(msg) {
@@ -12153,6 +12153,9 @@ function monitorShowFallback(msg) {
 }
 
 function initMonitor() {
+  const section = document.getElementById('monitor-section');
+  if (!section) return;
+  section.style.display = '';
   if (typeof echarts === 'undefined') {
     monitorShowFallback('ECharts 未加载<br>请联网或部署离线版以查看实时监控');
     return;
@@ -12243,7 +12246,28 @@ function renderMonitorCharts() {
   const TXT = cssVar('--text', '#e6edf3');
   const MUT = cssVar('--text-muted', '#8b949e');
   const BORD = cssVar('--border', '#30363d');
-  const times = hist.map(function (h) { return (h.ts || '').replace('T', ' ').slice(0, 19); });
+  const times = hist.map(function (h) { return (h.ts || '').slice(11, 19); }); // 只取 HH:mm:ss
+
+  const titleTP = document.getElementById('monitor-throughput-title');
+  const titleCN = document.getElementById('monitor-conn-title');
+  const titleLT = document.getElementById('monitor-latency-title');
+
+  // 深采检测：历史快照中是否出现过深采指标键
+  const DEEP_PREFIXES = ['rate_', 'threads_connected', 'numbackends', 'user_sessions',
+    'active_sessions', 'connections', 'total_sessions', 'threads_running',
+    'sessions_running', 'mssql_', 'ora_', 'dm_'];
+  function hasDeep() {
+    for (let i = 0; i < hist.length; i++) {
+      const m = hist[i].metrics || {};
+      for (const k in m) {
+        for (let p = 0; p < DEEP_PREFIXES.length; p++) {
+          if (k.indexOf(DEEP_PREFIXES[p]) === 0) return true;
+        }
+      }
+    }
+    return false;
+  }
+  const deep = hasDeep();
 
   function pick(keys, color) {
     for (let i = 0; i < keys.length; i++) {
@@ -12257,45 +12281,125 @@ function renderMonitorCharts() {
   }
   function multi(prefix, colors) {
     const out = []; let ci = 0;
-    const m0 = hist[0].metrics || {};
-    Object.keys(m0).forEach(function (k) {
-      if (k.indexOf(prefix) === 0) {
-        const data = hist.map(function (h) { return h.metrics[k]; });
-        if (data.some(function (v) { return v !== undefined && v !== null; })) {
-          const c = colors[ci % colors.length]; ci++;
-          out.push({ name: k, type: 'line', smooth: true, symbol: 'none', data: data, lineStyle: { width: 2, color: c }, itemStyle: { color: c } });
-        }
+    // 收集所有历史快照中出现过的、匹配 prefix 的键名（不只看第一个，
+    // 因为早期快照可能因采集异常而缺少深采字段，但后期快照有完整数据）
+    const allKeys = new Set();
+    hist.forEach(function (h) {
+      const m = h.metrics || {};
+      Object.keys(m).forEach(function (k) { if (k.indexOf(prefix) === 0) allKeys.add(k); });
+    });
+    allKeys.forEach(function (k) {
+      const data = hist.map(function (h) { return h.metrics[k]; });
+      if (data.some(function (v) { return v !== undefined && v !== null; })) {
+        const c = colors[ci % colors.length]; ci++;
+        out.push({ name: k, type: 'line', smooth: true, symbol: 'none', data: data, lineStyle: { width: 2, color: c }, itemStyle: { color: c } });
       }
     });
     return out;
   }
-  function opt(series, titleColor) {
-    return {
+  function opt(series, emptyHint, yAxis) {
+    const o = {
       backgroundColor: 'transparent',
-      tooltip: { trigger:'axis',backgroundColor:'rgba(13,17,23,.9)',borderColor:BORD,textStyle:{fontSize:11,color:TXT} },
-      legend: series.length > 1 ? { bottom:0, textStyle:{color:MUT,fontSize:9}, itemWidth:8, itemHeight:8 } : undefined,
-      grid: { left:42, right:14, top:18, bottom: series.length > 1 ? 28 : 22 },
-      xAxis:{type:'category',boundaryGap:false,data:times,axisLine:{lineStyle:{color:BORD}},axisTick:{show:false},axisLabel:{color:MUT,fontSize:9,hideOverlap:true} },
-      yAxis:{type:'value',splitLine:{lineStyle:{color:BORD,type:'dashed'}},axisLabel:{color:MUT,fontSize:10},axisTick:{show:false} },
-      series:series.map(function(s){return Object.assign({},s,{symbol:'circle',symbolSize:3,lineStyle:Object.assign({width:2},s.lineStyle||{})});})
+      tooltip: { trigger: 'axis', confine: true },
+      legend: series.length > 1 ? {
+        type: 'scroll', top: 2, left: 'center', textStyle: { color: MUT, fontSize: 9 },
+        itemWidth: 10, itemHeight: 8, itemGap: 8
+      } : undefined,
+      grid: { left: 46, right: 16, top: series.length > 1 ? 28 : 18, bottom: 24 },
+      xAxis: { type: 'category', boundaryGap: false, data: times,
+               axisLine: { lineStyle: { color: BORD } },
+               axisLabel: { color: MUT, fontSize: 9, hideOverlap: true,
+                            formatter: function(v) { return v.slice(0,5); } } }, // 只显示 HH:mm
+      yAxis: yAxis || { type: 'value', splitLine: { lineStyle: { color: BORD } }, axisLabel: { color: MUT, fontSize: 10 } },
+      series: series
     };
+    // 无数据时用 ECharts 自身的 title 显示提示，绝不碰 innerHTML（避免破坏 canvas）
+    if (emptyHint) {
+      o.title = {
+        text: emptyHint, left: 'center', top: 'middle',
+        textStyle: { color: MUT, fontSize: 13, fontWeight: 'normal' }
+      };
+    }
+    return o;
   }
 
-  const tp = multi('rate_', ['#3b82f6', '#22c55e', '#f59e0b', '#a855f7']);
-  if (!tp.length) { const f = pick(['rate_queries', 'rate_xact_commit', 'rate_ora_user_commits'], '#3b82f6'); if (f) tp.push(f); }
-  ensureMonChart('throughput', 'echart-mon-throughput').setOption(opt(tp));
+  // 恢复默认标题（切换实例时重置，非深采分支会再次覆盖）
+  if (titleTP) titleTP.textContent = '⚡ 吞吐（QPS / TPS）';
+  if (titleCN) titleCN.textContent = '🔗 连接数';
+  if (titleLT) titleLT.textContent = '⏱️ 响应延迟 (ms)';
 
-  const conn = [pick(['threads_connected','numbackends','user_sessions','active_sessions','connections'],'#22c55e'),
-                pick(['threads_running'],'#f59e0b')].filter(Boolean);
-  ensureMonChart('conn', 'echart-mon-conn').setOption(opt(conn));
+  if (deep) {
+    // ── 深采实例：三图保持原逻辑 ──
+    const tp = multi('rate_', ['#3b82f6', '#22c55e', '#f59e0b', '#a855f7']);
+    if (!tp.length) { const f = pick(['rate_queries', 'rate_xact_commit', 'rate_ora_user_commits',
+                                      'mssql_batch_requests', 'mssql_sql_compilations'], '#3b82f6'); if (f) tp.push(f); }
+    ensureMonChart('throughput', 'echart-mon-throughput').setOption(opt(tp, !tp.length ? '该实例类型暂不支持深采' : null), { notMerge: true });
 
+    const conn = [pick(['threads_connected', 'numbackends', 'user_sessions', 'active_sessions',
+                         'connections', 'total_sessions'], '#22c55e'),
+                  pick(['threads_running', 'sessions_running'], '#f59e0b')].filter(Boolean);
+    ensureMonChart('conn', 'echart-mon-conn').setOption(opt(conn, !conn.length ? '该实例类型暂不支持深采' : null), { notMerge: true });
+
+    const lat = pick(['latency_ms'], '#f85149');
+    ensureMonChart('latency', 'echart-mon-latency').setOption(opt(lat ? [lat] : [], !lat ? '该实例暂无延迟数据' : null), { notMerge: true });
+    return;
+  }
+
+  // ── 非深采实例：用「连通性画像」替代空图，避免留白难看 ──
+  const avail = hist.map(function (h) { return ((h.metrics && h.metrics.available) ? 1 : 0); });
+  const upCount = avail.filter(function (v) { return v === 1; }).length;
+  const ratePct = hist.length ? Math.round(upCount / hist.length * 100) : 0;
+  if (titleTP) titleTP.textContent = '📶 端口可用性 · 可用率 ' + ratePct + '%';
+  if (titleCN) titleCN.textContent = '🩺 连通性诊断';
+
+  // 1) 端口可用性时间线（可达=1 / 不可达=0 阶梯面积）
+  const availSeries = [{
+    name: '端口可达', type: 'line', step: 'middle', smooth: false, symbol: 'none', data: avail,
+    lineStyle: { width: 2, color: '#3fb950' }, itemStyle: { color: '#3fb950' },
+    areaStyle: { color: 'rgba(63,185,80,0.18)' }
+  }];
+  const availY = { type: 'value', min: 0, max: 1, interval: 1,
+    splitLine: { lineStyle: { color: BORD } },
+    axisLabel: { color: MUT, fontSize: 10, formatter: function (v) { return v === 1 ? '可达' : '不可达'; } } };
+  const availOpt = opt(availSeries, null, availY);
+  availOpt.tooltip.formatter = function (ps) {
+    if (!ps || !ps.length) return '';
+    const p = ps[0];
+    return p.axisValue + '<br/>端口状态：<b style="color:#3fb950">' + (p.data === 1 ? '可达' : '不可达') + '</b>';
+  };
+  ensureMonChart('throughput', 'echart-mon-throughput').setOption(availOpt, { notMerge: true });
+
+  // 2) 连通性诊断：可用率仪表 + 原因说明
+  const latest = (hist[hist.length - 1].metrics) || {};
+  let reason = '该实例类型暂不支持深采，仅展示 TCP 连通性';
+  if (latest.status === 'cooldown') reason = '采集退避中（连续失败已自动熔断）';
+  else if (latest.error) reason = '深采失败：' + String(latest.error).slice(0, 56);
+  else if (latest.available === false) reason = '端口不可达，请检查网络 / 防火墙';
+  const rateColor = ratePct >= 90 ? '#3fb950' : (ratePct >= 60 ? '#d29922' : '#f85149');
+  const diagOpt = {
+    backgroundColor: 'transparent',
+    series: [{
+      type: 'gauge', startAngle: 210, endAngle: -30, radius: '70%', center: ['50%', '43%'],
+      min: 0, max: 100, splitNumber: 5,
+      progress: { show: true, width: 12, itemStyle: { color: rateColor } },
+      axisLine: { lineStyle: { width: 12, color: [[1, '#21262d']] } },
+      axisTick: { show: false }, splitLine: { show: false }, axisLabel: { show: false },
+      pointer: { show: false }, anchor: { show: false },
+      title: { show: true, offsetCenter: [0, '34%'], color: MUT, fontSize: 10 },
+      detail: { valueAnimation: true, offsetCenter: [0, '-2%'], formatter: '{value}%', color: TXT, fontSize: 26, fontWeight: 'bold' },
+      data: [{ value: ratePct, name: '端口可用率' }]
+    }],
+    graphic: [{
+      type: 'text', left: 'center', top: '75%',
+      style: { text: reason, fill: MUT, fontSize: 10, textAlign: 'center', width: 230 }
+    }]
+  };
+  ensureMonChart('conn', 'echart-mon-conn').setOption(diagOpt, { notMerge: true });
+
+  // 3) 延迟图（所有实例都有 TCP 延迟数据）
   const lat = pick(['latency_ms'], '#f85149');
-  ensureMonChart('latency', 'echart-mon-latency').setOption(opt(lat ? [lat] : []));
+  ensureMonChart('latency', 'echart-mon-latency').setOption(opt(lat ? [lat] : [], !lat ? '该实例暂无延迟数据' : null), { notMerge: true });
 }
-
-window.addEventListener('resize', function () {
-  Object.values(monitorCharts).forEach(function (c) { if (c) c.resize(); });
-});
 
 // ─── 一键修复建议功能 ───────────────────────────────────────
 
