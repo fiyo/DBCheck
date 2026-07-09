@@ -15,6 +15,8 @@ data_dirs = [
     'web_templates', 'i18n', 'templates',
     'rag', 'pro', 'pro_data',
     'drivers',
+    'plugins',          # oracle_jdbc 等插件由 plugin_loader 动态加载，需随包复制
+    'user_management',  # RBAC 蓝图模板(html)与初始化库(schema)需随包复制
 ]
 
 # JSON config files
@@ -22,6 +24,7 @@ data_files = [
     'dbc_config.json',
     'scheduler_jobs.json',
     'version.json',
+    'dbcheck-quotes.json',  # web_ui.py 读取的协议/格言文案
 ]
 
 # Build datas list with absolute paths
