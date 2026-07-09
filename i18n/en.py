@@ -2508,7 +2508,7 @@ EN = {
     "webui.scheduler_db_name": "Database Name",
 
     # ── Other ──
-    "webui.pro_license_free": "Open source & free, no instance limit",
+    "webui.pro_license_free": "Proprietary software · activation required",
     "webui.ds_manual_input": "-- Manual input --",
     "webui.scheduler_job_name": "Job Name",
     "webui.placeholder_job_name": "Job name (for report naming)",

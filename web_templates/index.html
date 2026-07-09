@@ -5659,7 +5659,7 @@ function formatBytes(bytes) {
               <span style="font-size:24px;" id="pro-edition-icon">🏠</span>
               <div>
                 <div style="font-weight:500;" id="pro-edition-name" data-i18n="webui.pro_edition_name">社区版</div>
-                <div style="font-size:12px;color:var(--text-muted);" id="pro-license-detail" data-i18n="webui.pro_license_free">开源免费，无实例限制</div>
+                <div style="font-size:12px;color:var(--text-muted);" id="pro-license-detail" data-i18n="webui.pro_license_free">专有软件 · 需授权激活</div>
               </div>
             </div>
           </div>
@@ -17189,11 +17189,11 @@ async function deleteBackupHistory(recordId) {
     <!-- Body -->
     <div class="about-body">
       <p class="about-desc" data-i18n="webui.about_desc">
-        DBCheck 是一款开源数据库智能巡检工具，支持 MySQL、PostgreSQL、Oracle、SQL Server、达梦（DM）、TiDB、IvorySQL、YashanDB、GBase 等主流数据库的健康巡检与 AI 诊断。
+        DBCheck 专业版是一款商业数据库智能巡检工具，支持 MySQL、PostgreSQL、Oracle、SQL Server、达梦（DM）、TiDB、IvorySQL、YashanDB、GBase 等主流数据库的健康巡检与 AI 诊断。
       </p>
       <div class="about-meta">
         <span class="about-meta-item">作者：Jack Ge</span>
-        <span class="about-meta-item">协议：MIT License</span>
+        <span class="about-meta-item">协议：专有软件许可（Proprietary Software License）</span>
         <span class="about-meta-item">官网：<a href="https://dbcheck.top" target="_blank">dbcheck.top</a></span>
       </div>
 
@@ -17209,7 +17209,7 @@ async function deleteBackupHistory(recordId) {
         <span class="about-db-chip"><img src="/yashandb.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'" style="width:16px;height:16px;object-fit:contain"><span class="db-emoji" style="display:none;">🗻</span> YashanDB</span>
       </div>
 
-      <!-- 君子协定（Base64 encoded to prevent static search） -->
+      <!-- 商业授权协议（Base64 encoded to prevent static search） -->
       <div class="about-agreement" id="agreement-container">
         <div class="about-agreement-title" id="agreement-title"></div>
         <div class="about-agreement-text" id="agreement-zh" lang="zh"></div>
@@ -17246,13 +17246,13 @@ document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') closeAboutModal();
 });
 
-// ─── 君子协定内容解密 ───
+// ─── 商业授权协议内容解密 ───
 (function(){
   try {
     var _a=[
-      "4pqg77iPIOWQm+WtkOWNj+Wumu+8iEdlbnRsZW1hbidzIEFncmVlbWVudO+8iQ==",
-      "5q+P5bm0IDxzdHJvbmc+NeaciDE55pel6IezNeaciDIx5pelPC9zdHJvbmc+77yMREJDaGVjayDnlYzpnaLlsIblvLrliLbku6U8c3Ryb25nPueBsOW6puaooeW8jzwvc3Ryb25nPuaYvuekuu+8jOS4lOeUqOaIt+aXoOazleWIh+aNouS4u+mimOOAgjxici8+6K+35bCK6YeN6L+Z5LiA6K6+6K6h77yM5LiN6KaB5bCd6K+V5L+u5pS55oiW57uV6L+H54Gw5bqm5qih5byP44CC",
-      "RXZlcnkgeWVhciBmcm9tIDxzdHJvbmc+TWF5IDE5IHRvIE1heSAyMTwvc3Ryb25nPiwgdGhlIERCQ2hlY2sgaW50ZXJmYWNlIHdpbGwgYmUgZm9yY2VkIHRvIDxzdHJvbmc+Z3JheXNjYWxlIG1vZGU8L3N0cm9uZz4gYW5kIHVzZXJzIGNhbm5vdCBzd2l0Y2ggdGhlbWVzLjxici8+UGxlYXNlIHJlc3BlY3QgdGhpcyBkZXNpZ24gYW5kIGRvIG5vdCBhdHRlbXB0IHRvIG1vZGlmeSBvciBieXBhc3MgdGhlIGdyYXlzY2FsZSBtb2RlIGR1cmluZyB0aGlzIHBlcmlvZCBlYWNoIHllYXIu"
+      "5LiT5pyJ6L2v5Lu2IMK3IOWVhuS4muaOiOadg++8iFByb3ByaWV0YXJ5IFNvZnR3YXJlIMK3IENvbW1lcmNpYWwgTGljZW5zZe+8iQ==",
+      "5pys6L2v5Lu25Li6PHN0cm9uZz7kuJPmnInllYbkuJrova/ku7Y8L3N0cm9uZz7vvIzniYjmnYPlvZIgZml5b++8iEphY2sgR2XvvInmiYDmnInvvIzkv53nlZnkuIDliIfmnYPliKnjgII8YnIvPuacque7j+iRl+S9nOadg+S6uuS5pumdouaOiOadg++8jOS7u+S9leS6uuS4jeW+l+WkjeWItuOAgeS/ruaUueOAgeWPjee8luivkeOAgeWPjeaxh+e8luOAgeWIhuWPkeOAgeWHuuenn+OAgei9rOiuuOWPr+aIlueUqOS6juS7u+S9leWVhuS4muWGjeWIhuWPkeOAgjxici8+5q+P5bm0IDxzdHJvbmc+NeaciDE55pel6IezNeaciDIx5pelPC9zdHJvbmc+77yM55WM6Z2i5bCG5by65Yi25LulPHN0cm9uZz7ngbDluqbmqKHlvI88L3N0cm9uZz7mmL7npLrkuJTml6Dms5XliIfmjaLkuLvpopjvvIzor7flsIrph43ov5nkuIDorr7orqHjgII=",
+      "VGhpcyBzb2Z0d2FyZSBpcyBhIDxzdHJvbmc+cHJvcHJpZXRhcnkgY29tbWVyY2lhbCBwcm9kdWN0PC9zdHJvbmc+IG93bmVkIGJ5IGZpeW8gKEphY2sgR2UpLiBBbGwgcmlnaHRzIHJlc2VydmVkLjxici8+Tm8gY29weWluZywgbW9kaWZpY2F0aW9uLCBkZWNvbXBpbGluZywgZGlzYXNzZW1ibHksIGRpc3RyaWJ1dGlvbiwgc3VibGljZW5zaW5nLCBvciBjb21tZXJjaWFsIHJlZGlzdHJpYnV0aW9uIGlzIHBlcm1pdHRlZCB3aXRob3V0IHByaW9yIHdyaXR0ZW4gYXV0aG9yaXphdGlvbi48YnIvPkV2ZXJ5IHllYXIgZnJvbSA8c3Ryb25nPk1heSAxOSB0byBNYXkgMjE8L3N0cm9uZz4sIHRoZSBpbnRlcmZhY2UgaXMgZm9yY2VkIGludG8gPHN0cm9uZz5ncmF5c2NhbGUgbW9kZTwvc3Ryb25nPiBhbmQgdGhlbWUgc3dpdGNoaW5nIGlzIGRpc2FibGVkOyBwbGVhc2UgcmVzcGVjdCB0aGlzIGRlc2lnbi4="
     ];
     var _d=function(s){var b=atob(s);var l=b.length;var a=new Uint8Array(l);for(var i=0;i<l;i++)a[i]=b.charCodeAt(i);return new TextDecoder('utf-8').decode(a);};
     var t=document.getElementById('agreement-title');

@@ -1,8 +1,8 @@
-# DBCheck — 开源智能数据库巡检工具
+# DBCheck 专业版 — 商业数据库智能巡检工具
 
 ![logo](snapshot/dbcheck_logo_info.png)
 
-DBCheck 是一款开源、跨平台的数据库自动化健康巡检工具，支持 **10 种主流关系型数据库**，通过执行预定义的巡检 SQL 并采集系统资源，自动生成标准化的 Word 巡检报告。同时提供 SQL 编辑器、远程终端、可配置巡检章节、配置基线管理、历史趋势分析、AI 智能诊断、索引健康分析、慢查询深度分析、服务器巡检、分享链接、数据脱敏导出等高级功能。
+DBCheck 专业版是一款商业、跨平台的数据库自动化健康巡检工具，支持 **10 种主流关系型数据库**，通过执行预定义的巡检 SQL 并采集系统资源，自动生成标准化的 Word 巡检报告。同时提供 SQL 编辑器、远程终端、可配置巡检章节、配置基线管理、历史趋势分析、AI 智能诊断、索引健康分析、慢查询深度分析、服务器巡检、分享链接、数据脱敏导出等高级功能。
 
 > **注意**：本文及 DBCheck 软件中包含第三方的软件名称、logo、商标、徽章等均为第三方公司或机构所有，本文以及 DBCheck 软件中展示仅表示本软件支持对接相应的数据库或平台，并不暗示与其有任何关联或合作。
 
@@ -11,7 +11,7 @@ DBCheck 是一款开源、跨平台的数据库自动化健康巡检工具，支
 > Language: [English](./README.md) | 语言：[中文](./README_zh.md)
 
 [![Version](https://img.shields.io/badge/版本-v26.7.8.1-blue.svg)]()
-[![License](https://img.shields.io/badge/开源协议-MIT-green.svg)]()
+[![License](https://img.shields.io/badge/License-Proprietary-red.svg)]()
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)]()
 [![AI](https://img.shields.io/badge/AI-Ollama+OpenAI-orange.svg)]()
 [![RAG](https://img.shields.io/badge/知识库增强-RAG-red.svg)]()
@@ -456,7 +456,7 @@ A：内置阈值基于通用最佳实践，请结合实际业务评估。
 
 > ❤️ 感谢每一位支持者的认可与鼓励。
 >
-> DBCheck 始终坚持开源、免费、自由使用。赞助完全出于自愿，仅用于支持项目的长期维护与持续发展。
+> DBCheck 专业版为专有商业软件，保留一切权利。未经著作权人书面授权，不得复制、修改、反编译、分发或用于任何商业再分发。
 >
 > 如果项目曾帮助过您，欢迎支持；如果您选择不赞助，也完全没有关系。一个 Star、一条建议、一次 Bug 反馈，甚至一句鼓励的话，都是推动项目前进的动力。
 >

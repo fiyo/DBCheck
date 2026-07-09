@@ -3,7 +3,7 @@
 # Copyright (c) 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
 #
 # This file is part of DBCheck, an open-source database health inspection tool.
-# DBCheck is released under the MIT License with Attribution Requirements.
+# DBCheck Professional — 专有商业软件，保留一切权利（Proprietary Software, All Rights Reserved）.
 # See LICENSE for full license text.
 #
 """DBCheck 中文翻译数据"""

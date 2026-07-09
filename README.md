@@ -11,7 +11,7 @@ DBCheck is an open-source, cross-platform database health inspection tool suppor
 > Language: [English](./README.md) | 语言：[中文](./README_zh.md)
 
 [![Version](https://img.shields.io/badge/Version-v26.7.8.1-blue.svg)]()
-[![License](https://img.shields.io/badge/License-MIT-green.svg)]()
+[![License](https://img.shields.io/badge/License-Proprietary-red.svg)]()
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)]()
 [![AI](https://img.shields.io/badge/AI-Ollama+OpenAI-orange.svg)]()
 [![RAG](https://img.shields.io/badge/RAG-Knowledge_Base-red.svg)]()
@@ -456,7 +456,7 @@ This project references the following works:
 
 > ❤️ Thank you for supporting DBCheck.
 >
-> DBCheck is and will remain open source and free to use. Donations are entirely optional and help cover the time, infrastructure, and ongoing effort required to maintain and improve the project.
+> DBCheck Professional is proprietary commercial software. All rights reserved. No copying, modification, decompiling, or distribution is permitted without prior written authorization.
 >
 > If you find DBCheck useful, your support is appreciated. If not, that's completely okay too. A GitHub Star, bug report, feature suggestion, code contribution, or simply sharing the project with others is equally valuable.
 >

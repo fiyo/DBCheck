@@ -3,7 +3,7 @@
 # Copyright (c) 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
 #
 # This file is part of DBCheck, an open-source database health inspection tool.
-# DBCheck is released under the MIT License with Attribution Requirements.
+# DBCheck Professional — 专有商业软件，保留一切权利（Proprietary Software, All Rights Reserved）.
 # See LICENSE for full license text.
 #
 
@@ -280,9 +280,9 @@ def _inject_grayscale(response):
 def _verify_agreement_integrity():
     import hashlib, base64, re, os, json, datetime
     _H = {
-        "d5cbb593f58f167b793a94da5d7d2b162adbf0767de32b652b994688d34cad99",
-        "eda53f92f375cbee00318c40d7ad21122489a025ad971dc9f9f4a98350269d23",
-        "14865503b1fcd6fce70215ab57b3fb719d10b0bb271de4b469f9c3894190b8f3",
+        "529f397bf4e575409a55973abb5241995bdc68d1b92ddab675353aebc1113211",
+        "99ba9245b30f43d72c29f6b4ab6b108f0b3849394e2c884a3b8ef93762dd120e",
+        "3196cf07f6d8379855d0884ab440afb56d8f5aa0a0e18e82390d9c62f073b0af",
     }
     _KEY = "x9K#pL2mQvR7tBnW"
     _C = "mqPrzMjDEoX80Lem/q3SzZ6ay8XFx9fl4VYWdTcqCzQTGaK69Km4zbT73d/a7Irv1d7Rp5PMvorr3LeIwaT58p+4+8bK6tTF8JPuuJfC47HlmK2PzqSQxrXJ/NHg+4jf7t7smJnVlo7R9LqYw6fe3ZG+xsb+09bQzZ7SspPY6r/Wh6ON0aiN8Lbjy9jIzojL1N/Es5foiInq87aK6KrD8Z+d8czMwNrQ/pLpgZD547L3lq2O06mK1bnJwt/Vzo3X+g=="
