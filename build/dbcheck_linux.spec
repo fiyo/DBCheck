@@ -24,6 +24,7 @@ data_files = [
     'dbc_config.json',
     'scheduler_jobs.json',
     'version.json',
+    'builtin_registry.json',  # 插件市场回退数据（plugin_market.py）
     'dbcheck-quotes.json',  # web_ui.py 读取的协议/格言文案
 ]
 
