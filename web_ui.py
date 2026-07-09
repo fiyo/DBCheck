@@ -166,9 +166,15 @@ def _sync_delete_trend_for_report(filename: str):
     except Exception:
         pass
 
-# Werkzeug 3.x 移除了 threading 模式支持，改用 gevent。
-# gevent 已在 requirements.txt 中，打包时自动包含。
-socketio = SocketIO(cors_allowed_origins='*', async_mode='threading')
+# Werkzeug 3.x 移除了 threading 模式支持，改用 gevent（见 requirements.txt）。
+# 打包时 gevent 已通过 build/dbcheck_windows.spec 的 hiddenimports 包含；
+# dev 环境若未安装 gevent 则回退 threading，保证本地也能跑。
+try:
+    import gevent  # noqa: F401
+    _socketio_async_mode = 'gevent'
+except ImportError:
+    _socketio_async_mode = 'threading'
+socketio = SocketIO(cors_allowed_origins='*', async_mode=_socketio_async_mode)
 
 # ── 本地模块 ──────────────────────────────────────────────
 try:
