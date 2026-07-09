@@ -33,7 +33,7 @@ if _script_dir not in sys.path:
     sys.path.insert(0, _script_dir)
 
 from flask import Flask, request, jsonify, render_template, Response, send_file
-from version import __version__
+from version import __version__, EDITION
 from flask_socketio import SocketIO, emit, join_room, leave_room
 import socket
 from i18n import t as _t
@@ -340,6 +340,10 @@ def _verify_agreement_integrity():
 # ── REST API v1 ─────────────────────────────────────────────
 from api_v1 import api_v1, _ADMIN_TOKEN
 app.register_blueprint(api_v1)
+
+# 专业版：协同诊断中枢
+from intelligence.views import intelligence_bp
+app.register_blueprint(intelligence_bp)
 
 def get_admin_token():
     return _ADMIN_TOKEN
@@ -967,10 +971,17 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None):
         # Pro巡检记录（失败不影响前端结果展示）
         try:
             from pro import get_instance_manager
-            import hashlib
-            raw = f"{cfg['instance_prefix']}-{db_info['ip']}-{db_info['port']}".encode()
-            instance_id = hashlib.md5(raw).hexdigest()[:12]
             im = get_instance_manager()
+            # 优先使用数据源ID，便于后续按数据源做协同诊断与历史查询；
+            # 兼容旧版手动输入模式（无 datasource_id）时退回到 hash(ip:port)
+            task_record = tasks.get(task_id, {})
+            datasource_id = task_record.get('datasource_id')
+            if datasource_id:
+                instance_id = datasource_id
+            else:
+                import hashlib
+                raw = f"{cfg['instance_prefix']}-{db_info['ip']}-{db_info['port']}".encode()
+                instance_id = hashlib.md5(raw).hexdigest()[:12]
             im.record_inspection(
                 instance_id=instance_id,
                 instance_name=label_name,
@@ -980,6 +991,7 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None):
                 risk_level=risk_level,
                 report_path=ofile,
                 duration=0,
+                host=db_info.get('ip', ''),
                 auto_analyze=auto_analyze if auto_analyze else []
             )
         except Exception as e:
@@ -1616,7 +1628,7 @@ def index():
         pro_available = True
     except Exception:
         pass
-    return render_template('index.html', version=__version__, lang=lang, i18n_data=i18n_data,
+    return render_template('index.html', version=__version__, edition=EDITION, lang=lang, i18n_data=i18n_data,
                            pro_available=pro_available,
                            admin_token=get_admin_token(),
                            user_role=user_role)

@@ -66,6 +66,8 @@ def init_seed_data():
         ('monitor-slow',     '慢查询监控',       0, 51),
         ('monitor-conn',     '连接池监控',       0, 52),
         ('ai',               'AI助手',          0, 53),
+        ('intelligence',     '智能诊断中心',     0, 53),
+        ('diag-history',     '诊断历史',         0, 53),
         ('oracle-client',    'Oracle客户端',     0, 54),
         ('notifier',         '通知管理',         0, 55),
         ('apikey',           'API密钥',         0, 56),

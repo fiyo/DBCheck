@@ -41,7 +41,7 @@ def main():
         "echo   DBCheck Database Inspection Tool\r\n"
         "echo ==========================================\r\n"
         "echo Starting Web UI server...\r\n"
-        "echo Open browser: http://localhost:5000\r\n"
+        "echo Open browser: http://localhost:5003\r\n"
         "echo Press Ctrl+C to stop.\r\n"
         "echo ==========================================\r\n"
         '\r\n'
@@ -58,7 +58,7 @@ def main():
         "echo \"  DBCheck Database Inspection Tool\"\n"
         "echo ==========================================\n"
         "echo \"Starting Web UI server...\"\n"
-        "echo \"Open browser: http://localhost:5000\"\n"
+        "echo \"Open browser: http://localhost:5003\"\n"
         "exec ./dbcheck.exe web\n"
     )
     with open(os.path.join(dst, "start.sh"), "w", encoding="utf-8") as f:
@@ -70,7 +70,7 @@ def main():
         "=============================\r\n"
         "\r\n"
         "To start: double-click start.bat\r\n"
-        "Then open http://localhost:5000 in your browser.\r\n"
+        "Then open http://localhost:5003 in your browser.\r\n"
         "\r\n"
         "Version: " + version + "\r\n"
     )

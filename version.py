@@ -11,3 +11,6 @@ DBCheck 版本信息
 """
 
 __version__ = 'v26.7.8.1'
+
+# 发行版本：professional 为专业版（含协同诊断中枢等增强能力）
+EDITION = 'professional'

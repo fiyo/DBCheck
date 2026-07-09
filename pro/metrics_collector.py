@@ -238,6 +238,7 @@ class MetricsCollector:
         self.interval = interval
         self.running = False
         self._last = {}        # instance_id -> (prev_counter_metrics, prev_ts)
+        self._last_host = {}   # instance_id -> (prev_host_metrics, prev_ts)
         self._fail = {}        # instance_id -> 连续失败计数
         self._cooldown = {}    # instance_id -> 退避截止时间戳
         self._lock = threading.Lock()
@@ -678,6 +679,103 @@ class MetricsCollector:
                             pass
         self._last[inst_id] = (dict(metrics), now)
 
+    # ── 宿主机资源（eBPF 级真实资源，对标 DBdoctor「数据底座」）──
+    def _collect_host(self) -> dict:
+        """采集宿主机真实资源：CPU 指令/IO 等待拆解、内存、交换、磁盘 IO。
+
+        仅依赖 psutil（已在 requirements.txt 声明）。采集失败时返回空字典，
+        不影响数据库层指标。生产环境（Linux）可拿到与 eBPF 同级的细粒度资源视图。
+        """
+        try:
+            import psutil
+        except Exception:
+            return {}
+        m: dict = {}
+        # CPU 时间拆解（user / system / iowait / idle）
+        try:
+            ct = psutil.cpu_times_percent(interval=None)
+            user = float(getattr(ct, 'user', 0) or 0)
+            system = float(getattr(ct, 'system', 0) or 0)
+            iowait = float(getattr(ct, 'iowait', 0) or 0)
+            idle = float(getattr(ct, 'idle', 0) or 0)
+            m['host_cpu_user'] = round(user, 1)
+            m['host_cpu_system'] = round(system, 1)
+            m['host_cpu_iowait'] = round(iowait, 1)
+            m['host_cpu_idle'] = round(idle, 1)
+            m['host_cpu'] = round(100.0 - idle, 1)
+        except Exception:
+            pass
+        # 内存 / 交换
+        try:
+            vm = psutil.virtual_memory()
+            m['host_mem'] = round(float(vm.percent), 1)
+            m['host_mem_used_gb'] = round(vm.used / (1024 ** 3), 1)
+            m['host_mem_total_gb'] = round(vm.total / (1024 ** 3), 1)
+            sm = psutil.swap_memory()
+            m['host_swap_pct'] = round(float(sm.percent), 1)
+        except Exception:
+            pass
+        # 系统负载（Unix 可用）
+        try:
+            la = psutil.getloadavg()
+            m['host_load1'] = round(float(la[0]), 2)
+            m['host_load5'] = round(float(la[1]), 2)
+            m['host_load15'] = round(float(la[2]), 2)
+        except Exception:
+            pass
+        # 磁盘 IO 计数器（累计值，速率在 _compute_host_rates 差分）
+        try:
+            d = psutil.disk_io_counters()
+            if d:
+                m['host_disk_read_bytes'] = int(getattr(d, 'read_bytes', 0) or 0)
+                m['host_disk_write_bytes'] = int(getattr(d, 'write_bytes', 0) or 0)
+                m['host_disk_read_count'] = int(getattr(d, 'read_count', 0) or 0)
+                m['host_disk_write_count'] = int(getattr(d, 'write_count', 0) or 0)
+                m['host_disk_read_ms'] = int(getattr(d, 'read_time', 0) or 0)
+                m['host_disk_write_ms'] = int(getattr(d, 'write_time', 0) or 0)
+        except Exception:
+            pass
+        return m
+
+    def _compute_host_rates(self, inst_id: str, snapshot: dict, host: dict):
+        """对宿主机磁盘 IO 计数器做差分，得到吞吐（MB/s）与 await（ms/op）。"""
+        prev = self._last_host.get(inst_id)
+        now = time.time()
+        if prev:
+            prev_metrics, prev_ts = prev
+            dt = now - prev_ts
+            if dt > 0:
+                rb = (host.get('host_disk_read_bytes', 0)
+                      - prev_metrics.get('host_disk_read_bytes', 0))
+                wb = (host.get('host_disk_write_bytes', 0)
+                      - prev_metrics.get('host_disk_write_bytes', 0))
+                rms = (host.get('host_disk_read_ms', 0)
+                       - prev_metrics.get('host_disk_read_ms', 0))
+                wms = (host.get('host_disk_write_ms', 0)
+                       - prev_metrics.get('host_disk_write_ms', 0))
+                rc = (host.get('host_disk_read_count', 0)
+                      - prev_metrics.get('host_disk_read_count', 0))
+                wc = (host.get('host_disk_write_count', 0)
+                      - prev_metrics.get('host_disk_write_count', 0))
+                snapshot['host_disk_read_mb_s'] = round(
+                    max(0.0, rb / dt) / (1024 ** 2), 3)
+                snapshot['host_disk_write_mb_s'] = round(
+                    max(0.0, wb / dt) / (1024 ** 2), 3)
+                total_ms = max(0.0, rms + wms)
+                total_ops = max(1, rc + wc)
+                snapshot['host_disk_await_ms'] = round(total_ms / total_ops, 2)
+        self._last_host[inst_id] = (dict(host), now)
+
+    def _attach_host(self, snapshot: dict, inst_id: str):
+        """挂载宿主机资源指标（与数据库可用性无关，连接失败时也采集）。"""
+        try:
+            host = self._collect_host()
+            if host:
+                snapshot.update(host)
+                self._compute_host_rates(inst_id, snapshot, host)
+        except Exception:
+            pass
+
     # ── 断路器 ──
     def _in_cooldown(self, inst_id: str) -> bool:
         until = self._cooldown.get(inst_id)
@@ -715,6 +813,8 @@ class MetricsCollector:
         snapshot['latency_ms'] = latency
         if not up:
             self._on_fail(inst_id)
+            # 数据库不可达仍采集宿主机资源，保证监控哨兵有真实数据底座
+            self._attach_host(snapshot, inst_id)
             return snapshot
 
         conn = None
@@ -733,6 +833,7 @@ class MetricsCollector:
                 except Exception:
                     pass
         self._on_success(inst_id)
+        self._attach_host(snapshot, inst_id)
         return snapshot
 
     # ── 一轮采集（被调度器调用）──
