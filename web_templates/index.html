@@ -4666,7 +4666,7 @@ function formatBytes(bytes) {
       <span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span> <span data-i18n="webui.nav_scheduler">定时巡检</span>
     </div>
     <div class="nav-item" onclick="showPage('dm8-offline')" id="nav-dm8-offline">
-      <span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5"/><path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"/></svg></span> <span>达梦离线存储检查</span>
+      <span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5"/><path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"/></svg></span> <span data-i18n="webui.nav_dm8_offline">达梦离线存储检查</span>
     </div>
     {% if edition == 'professional' %}
     <div class="nav-item" onclick="showPage('intelligence')" id="nav-intelligence">
@@ -4717,7 +4717,7 @@ function formatBytes(bytes) {
       <span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3Z"/></svg></span> <span data-i18n="webui.rag_nav">RAG 知识库</span>
     </div>
     <div class="nav-item" onclick="showPage('plugin-market')" id="nav-plugin-market">
-      <span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></span> <span>插件市场</span>
+      <span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></span> <span data-i18n="webui.nav_plugin_market">插件市场</span>
     </div>
 
     <!-- ── 工具 ── -->
@@ -4751,7 +4751,7 @@ function formatBytes(bytes) {
       <span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/></svg></span> <span data-i18n="webui.nav_apikey">API Key 管理</span>
     </div>
     <div class="nav-item" onclick="showPage('shares')" id="nav-shares">
-      <span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span> <span>分享管理</span>
+      <span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span> <span data-i18n="webui.nav_shares">分享管理</span>
     </div>
     <div class="nav-item" onclick="showPage('license')" id="nav-license" style="display:none;">
       <span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg></span> <span data-i18n="webui.nav_license">许可证</span>
@@ -4945,6 +4945,24 @@ function formatBytes(bytes) {
             <div class="health-chart-card">
               <div class="health-chart-title" id="monitor-latency-title">⏱️ 响应延迟 (ms)</div>
               <div class="health-chart-box" id="echart-mon-latency"></div>
+            </div>
+          </div>
+
+          <!-- 宿主资源（实例感知：SSH 远端 eBPF/psutil，或中心机本机降级） -->
+          <div class="host-resource-block" id="host-resource-block">
+            <div class="host-resource-head" style="display:flex;align-items:center;gap:10px;margin:16px 0 4px;">
+              <div class="health-chart-title" id="host-res-title" data-i18n="monitor.host_title">🖥️ 宿主资源</div>
+              <span class="host-source-badge" id="host-source-badge" style="font-size:11px;padding:2px 9px;border-radius:10px;border:1px solid #8b949e;color:#8b949e;background:rgba(139,148,158,.12);">—</span>
+            </div>
+            <div class="host-resource-body" style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;">
+              <div class="health-chart-card host-chart-card" style="flex:1;min-width:320px;">
+                <div class="health-chart-box" id="echart-host-res" style="height:210px;"></div>
+              </div>
+              <div class="health-chart-card host-chart-card" id="host-ebpf-card" style="flex:1;min-width:320px;display:none;">
+                <div class="health-chart-title" id="host-ebpf-title" data-i18n="monitor.host_ebpf_title">⚡ eBPF 内核级指标</div>
+                <div class="health-chart-box" id="echart-host-ebpf" style="height:210px;"></div>
+                <div class="host-top-procs" id="host-top-procs"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -5768,10 +5786,10 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
       <!-- ══ Page: Share Management ══ -->
       <div class="page" id="page-shares">
         <div class="card">
-          <div class="card-title"><span>🔗</span> <span>分享管理</span></div>
-          <div style="color:var(--text-muted);font-size:13px;margin-bottom:16px">管理已生成的巡检报告分享链接，可以查看访问次数和删除不需要的链接。</div>
+          <div class="card-title"><span data-i18n="webui.shares_title">🔗 分享管理</span></div>
+          <div style="color:var(--text-muted);font-size:13px;margin-bottom:16px" data-i18n="webui.shares_desc">管理已生成的巡检报告分享链接，可以查看访问次数和删除不需要的链接。</div>
           <div id="shares-list" style="min-height:100px">
-            <div style="text-align:center;color:var(--text-muted);padding:32px">加载中...</div>
+            <div style="text-align:center;color:var(--text-muted);padding:32px" data-i18n="webui.common_loading">加载中...</div>
           </div>
         </div>
       </div>
@@ -6336,16 +6354,16 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
         <div class="card" style="margin-bottom:12px;">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
             <div>
-              <h2 style="margin:0;font-size:18px;">🧩 插件市场</h2>
+              <h2 style="margin:0;font-size:18px;" data-i18n="webui.plugin_market_title">🧩 插件市场</h2>
               <p style="margin:4px 0 0 0;font-size:12px;color:var(--text-muted);">
-                浏览社区插件，一键安装扩展你的 DBCheck
-                &nbsp;<a href="#" onclick="loadMarketPlugins(true)" style="font-size:11px;">🔄 刷新</a>
+                <span data-i18n="webui.plugin_market_subtitle">浏览社区插件，一键安装扩展你的 DBCheck</span>
+                &nbsp;<a href="#" onclick="loadMarketPlugins(true)" style="font-size:11px;" data-i18n="webui.plugin_market_refresh">🔄 刷新</a>
               </p>
             </div>
             <div style="display:flex;gap:8px;align-items:center;">
-              <input id="market-search" placeholder="🔍 搜索插件..." style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;width:180px;background:var(--surface2);color:var(--text);" oninput="filterMarketPlugins()">
+              <input id="market-search" placeholder="🔍 搜索插件..." data-i18n="webui.plugin_market_search" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;width:180px;background:var(--surface2);color:var(--text);" oninput="filterMarketPlugins()">
               <select id="market-category" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface2);color:var(--text);" onchange="filterMarketPlugins()">
-                <option value="">全部</option>
+                <option value="" data-i18n="webui.plugin_market_category_all">全部</option>
               </select>
             </div>
           </div>
@@ -6375,16 +6393,16 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
 
         <!-- 已安装插件 -->
         <div class="card" style="margin-bottom:12px;" id="market-installed-card">
-          <h3 style="margin:0 0 8px 0;font-size:14px;">📦 已安装 <a href="#" onclick="reloadPlugins();return false;" style="font-size:11px;font-weight:normal;margin-left:8px;" title="重扫 plugins/ 目录，加载新放入的插件（无需重启）">🔄 刷新</a></h3>
+          <h3 style="margin:0 0 8px 0;font-size:14px;" data-i18n="webui.plugin_market_installed">📦 已安装 <a href="#" onclick="reloadPlugins();return false;" style="font-size:11px;font-weight:normal;margin-left:8px;" title="重扫 plugins/ 目录，加载新放入的插件（无需重启）" data-i18n="webui.plugin_market_refresh">🔄 刷新</a></h3>
           <div id="market-installed-list" style="display:flex;flex-wrap:wrap;gap:8px;">
-            <span style="color:var(--text-muted);font-size:12px;">加载中...</span>
+            <span style="color:var(--text-muted);font-size:12px;" data-i18n="webui.plugin_market_loading">加载中...</span>
           </div>
         </div>
 
         <!-- 市场插件列表 -->
         <div class="card">
-          <h3 style="margin:0 0 8px 0;font-size:14px;">🛒 市场</h3>
-          <div id="market-plugins-loading" style="text-align:center;padding:24px;color:var(--text-muted);">加载中...</div>
+          <h3 style="margin:0 0 8px 0;font-size:14px;" data-i18n="webui.plugin_market_market">🛒 市场</h3>
+          <div id="market-plugins-loading" style="text-align:center;padding:24px;color:var(--text-muted);" data-i18n="webui.plugin_market_loading">加载中...</div>
           <div id="market-plugins-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;"></div>
         </div>
       </div><!-- /page-plugin-market -->
@@ -6433,8 +6451,8 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
       <div class="page" id="page-dm8-offline" style="display:none;">
         <div class="card" style="margin-bottom:12px;">
           <div style="margin-bottom:16px;">
-            <h2 style="margin:0 0 4px 0;font-size:18px;">💿 DM8 离线存储健康检查</h2>
-            <p style="margin:0;font-size:12px;color:var(--text-muted);">
+            <h2 style="margin:0 0 4px 0;font-size:18px;" data-i18n="webui.dm8_offline_title">💿 DM8 离线存储健康检查</h2>
+            <p style="margin:0;font-size:12px;color:var(--text-muted);" data-i18n="webui.dm8_offline_desc">
               当 DM8 数据库实例无法启动时，直接扫描底层数据文件目录，检查文件完整性和存储健康状况。
               适用于灾备评估、数据恢复前的预检。
             </p>
@@ -6444,11 +6462,11 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
           <div style="display:flex;gap:8px;margin-bottom:16px;">
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 16px;border:1px solid var(--border);border-radius:8px;font-size:13px;" id="dm8-mode-local-label">
               <input type="radio" name="dm8-offline-mode" value="local" checked onchange="dm8OfflineToggleMode('local')">
-              <span>🖥️ 本地检查</span>
+              <span data-i18n="dm8_offline.local_mode">🖥️ 本地检查</span>
             </label>
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 16px;border:1px solid var(--border);border-radius:8px;font-size:13px;" id="dm8-mode-remote-label">
               <input type="radio" name="dm8-offline-mode" value="remote" onchange="dm8OfflineToggleMode('remote')">
-              <span>🌐 SSH 远程检查</span>
+              <span data-i18n="dm8_offline.remote_mode">🌐 SSH 远程检查</span>
             </label>
           </div>
 
@@ -6456,24 +6474,24 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
           <div id="dm8-offline-ssh-config" style="display:none;margin-bottom:16px;padding:14px;background:var(--surface2);border-radius:10px;">
             <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;">
               <div>
-                <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">SSH 主机地址</label>
+                <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;" data-i18n="dm8_offline.ssh_host">SSH 主机地址</label>
                 <input id="dm8-ssh-host" type="text" placeholder="192.168.1.100" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--surface);color:var(--text);">
               </div>
               <div>
-                <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">SSH 端口</label>
+                <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;" data-i18n="dm8_offline.ssh_port">SSH 端口</label>
                 <input id="dm8-ssh-port" type="text" value="22" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--surface);color:var(--text);">
               </div>
               <div>
-                <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">SSH 用户名</label>
+                <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;" data-i18n="dm8_offline.ssh_user">SSH 用户名</label>
                 <input id="dm8-ssh-user" type="text" value="root" placeholder="root" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--surface);color:var(--text);">
               </div>
               <div>
-                <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">SSH 密码</label>
+                <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;" data-i18n="dm8_offline.ssh_password">SSH 密码</label>
                 <input id="dm8-ssh-password" type="password" placeholder="留空则使用密钥" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--surface);color:var(--text);">
               </div>
             </div>
             <div style="margin-top:12px;">
-              <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">SSH 私钥文件路径（可选）</label>
+              <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;" data-i18n="dm8_offline.ssh_key">SSH 私钥文件路径（可选）</label>
               <input id="dm8-ssh-key" type="text" placeholder="/home/user/.ssh/id_rsa" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--surface);color:var(--text);">
             </div>
           </div>
@@ -6482,23 +6500,23 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
           <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;">
             <div style="flex:1;min-width:300px;">
               <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">
-                <span id="dm8-dir-label">DM8 数据文件目录</span>
+                <span id="dm8-dir-label" data-i18n="dm8_offline.data_dir">DM8 数据文件目录</span>
               </label>
               <input id="dm8-offline-dir" type="text" placeholder="/opt/dmdbms/data/DAMENG" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--surface2);color:var(--text);">
             </div>
             <div>
-              <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">页大小</label>
+              <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;" data-i18n="dm8_offline.page_size">页大小</label>
               <select id="dm8-offline-ps" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--surface2);color:var(--text);">
-                <option value="0">自动检测</option>
-                <option value="4096">4 KB</option>
-                <option value="8192" selected>8 KB (默认)</option>
-                <option value="16384">16 KB</option>
-                <option value="32768">32 KB</option>
+                <option value="0" data-i18n="dm8_offline.ps_auto">自动检测</option>
+                <option value="4096" data-i18n="dm8_offline.ps_4k">4 KB</option>
+                <option value="8192" selected data-i18n="dm8_offline.ps_8k">8 KB (默认)</option>
+                <option value="16384" data-i18n="dm8_offline.ps_16k">16 KB</option>
+                <option value="32768" data-i18n="dm8_offline.ps_32k">32 KB</option>
               </select>
             </div>
             <div>
               <button class="btn btn-primary" onclick="dm8OfflineCheck()" id="btn-dm8-offline-run" style="padding:8px 20px;">
-                ▶ 开始检查
+                <span data-i18n="dm8_offline.start">▶ 开始检查</span>
               </button>
             </div>
           </div>
@@ -6521,44 +6539,44 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
               <div style="flex:1;min-width:200px;">
                 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;">
                   <div style="padding:8px 12px;background:var(--surface2);border-radius:8px;">
-                    <div style="font-size:11px;color:var(--text-muted);">数据文件</div>
+                    <div style="font-size:11px;color:var(--text-muted);" data-i18n="dm8_offline.stat_files">数据文件</div>
                     <div id="dm8-stat-files" style="font-size:18px;font-weight:600;">--</div>
                   </div>
                   <div style="padding:8px 12px;background:var(--surface2);border-radius:8px;">
-                    <div style="font-size:11px;color:var(--text-muted);">总数据量</div>
+                    <div style="font-size:11px;color:var(--text-muted);" data-i18n="dm8_offline.stat_size">总数据量</div>
                     <div id="dm8-stat-size" style="font-size:18px;font-weight:600;">--</div>
                   </div>
                   <div style="padding:8px 12px;background:var(--surface2);border-radius:8px;">
-                    <div style="font-size:11px;color:var(--text-muted);">总页数</div>
+                    <div style="font-size:11px;color:var(--text-muted);" data-i18n="dm8_offline.stat_pages">总页数</div>
                     <div id="dm8-stat-pages" style="font-size:18px;font-weight:600;">--</div>
                   </div>
                   <div style="padding:8px 12px;background:var(--surface2);border-radius:8px;">
-                    <div style="font-size:11px;color:var(--text-muted);">检查耗时</div>
+                    <div style="font-size:11px;color:var(--text-muted);" data-i18n="dm8_offline.stat_time">检查耗时</div>
                     <div id="dm8-stat-time" style="font-size:18px;font-weight:600;">--</div>
                   </div>
                   <div style="padding:8px 12px;background:var(--surface2);border-radius:8px;">
-                    <div style="font-size:11px;color:var(--text-muted);">检查模式</div>
+                    <div style="font-size:11px;color:var(--text-muted);" data-i18n="dm8_offline.stat_mode">检查模式</div>
                     <div id="dm8-stat-mode" style="font-size:18px;font-weight:600;">--</div>
                   </div>
                 </div>
                 <div style="display:flex;gap:8px;margin-top:8px;">
                   <div style="padding:4px 10px;background:rgba(239,68,68,0.1);border-radius:6px;font-size:12px;">
-                    <span style="color:#ef4444;">●</span> 严重: <span id="dm8-stat-fatal">0</span>
+                    <span style="color:#ef4444;">●</span> <span data-i18n="dm8_offline.sev_fatal">严重</span>: <span id="dm8-stat-fatal">0</span>
                   </div>
                   <div style="padding:4px 10px;background:rgba(249,115,22,0.1);border-radius:6px;font-size:12px;">
-                    <span style="color:#f97316;">●</span> 错误: <span id="dm8-stat-error">0</span>
+                    <span style="color:#f97316;">●</span> <span data-i18n="dm8_offline.sev_error">错误</span>: <span id="dm8-stat-error">0</span>
                   </div>
                   <div style="padding:4px 10px;background:rgba(234,179,8,0.1);border-radius:6px;font-size:12px;">
-                    <span style="color:#eab308;">●</span> 警告: <span id="dm8-stat-warn">0</span>
+                    <span style="color:#eab308;">●</span> <span data-i18n="dm8_offline.sev_warn">警告</span>: <span id="dm8-stat-warn">0</span>
                   </div>
                   <div style="padding:4px 10px;background:rgba(59,130,246,0.1);border-radius:6px;font-size:12px;">
-                    <span style="color:#3b82f6;">●</span> 信息: <span id="dm8-stat-info">0</span>
+                    <span style="color:#3b82f6;">●</span> <span data-i18n="dm8_offline.sev_info">信息</span>: <span id="dm8-stat-info">0</span>
                   </div>
                 </div>
               </div>
               <div>
                 <button class="btn btn-sm" onclick="dm8OfflineDownloadReport()" id="btn-dm8-report" style="padding:6px 14px;font-size:13px;">
-                  📄 下载 Word 报告
+                  <span data-i18n="dm8_offline.download_report">📄 下载 Word 报告</span>
                 </button>
               </div>
             </div>
@@ -6568,16 +6586,16 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
           <div class="card">
             <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:12px;">
               <button class="dm8-tab-btn active" onclick="dm8SwitchTab('diagnostics')" style="padding:8px 16px;border:none;background:none;font-size:13px;font-weight:600;color:var(--text);cursor:pointer;border-bottom:2px solid var(--accent,#3b82f6);">
-                诊断详情
+                <span data-i18n="dm8_offline.tab_diagnostics">诊断详情</span>
               </button>
               <button class="dm8-tab-btn" onclick="dm8SwitchTab('files')" style="padding:8px 16px;border:none;background:none;font-size:13px;font-weight:600;color:var(--text-muted);cursor:pointer;">
-                数据文件
+                <span data-i18n="dm8_offline.tab_files">数据文件</span>
               </button>
               <button class="dm8-tab-btn" onclick="dm8SwitchTab('control')" style="padding:8px 16px;border:none;background:none;font-size:13px;font-weight:600;color:var(--text-muted);cursor:pointer;">
-                控制文件
+                <span data-i18n="dm8_offline.tab_control">控制文件</span>
               </button>
               <button class="dm8-tab-btn" onclick="dm8SwitchTab('corrupt')" style="padding:8px 16px;border:none;background:none;font-size:13px;font-weight:600;color:var(--text-muted);cursor:pointer;">
-                数据块损坏
+                <span data-i18n="dm8_offline.tab_corrupt">数据块损坏</span>
               </button>
             </div>
 
@@ -6586,10 +6604,10 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
               <table style="width:100%;border-collapse:collapse;font-size:13px;">
                 <thead>
                   <tr style="border-bottom:1px solid var(--border);">
-                    <th style="padding:8px 10px;text-align:left;width:80px;">级别</th>
-                    <th style="padding:8px 10px;text-align:left;width:200px;">诊断码</th>
-                    <th style="padding:8px 10px;text-align:left;">描述</th>
-                    <th style="padding:8px 10px;text-align:left;width:150px;">文件</th>
+                    <th style="padding:8px 10px;text-align:left;width:80px;" data-i18n="dm8_offline.th_level">级别</th>
+                    <th style="padding:8px 10px;text-align:left;width:200px;" data-i18n="dm8_offline.th_code">诊断码</th>
+                    <th style="padding:8px 10px;text-align:left;" data-i18n="dm8_offline.th_desc">描述</th>
+                    <th style="padding:8px 10px;text-align:left;width:150px;" data-i18n="dm8_offline.th_file">文件</th>
                   </tr>
                 </thead>
                 <tbody id="dm8-diag-body"></tbody>
@@ -6601,12 +6619,12 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
               <table style="width:100%;border-collapse:collapse;font-size:13px;">
                 <thead>
                   <tr style="border-bottom:1px solid var(--border);">
-                    <th style="padding:8px 10px;text-align:left;">文件名</th>
-                    <th style="padding:8px 10px;text-align:right;width:100px;">大小</th>
-                    <th style="padding:8px 10px;text-align:right;width:80px;">页数</th>
-                    <th style="padding:8px 10px;text-align:right;width:80px;">零页</th>
-                    <th style="padding:8px 10px;text-align:right;width:80px;">尾部字节</th>
-                    <th style="padding:8px 10px;text-align:center;width:60px;">状态</th>
+                    <th style="padding:8px 10px;text-align:left;" data-i18n="dm8_offline.th_filename">文件名</th>
+                    <th style="padding:8px 10px;text-align:right;width:100px;" data-i18n="dm8_offline.th_size">大小</th>
+                    <th style="padding:8px 10px;text-align:right;width:80px;" data-i18n="dm8_offline.th_pages">页数</th>
+                    <th style="padding:8px 10px;text-align:right;width:80px;" data-i18n="dm8_offline.th_zero_pages">零页</th>
+                    <th style="padding:8px 10px;text-align:right;width:80px;" data-i18n="dm8_offline.th_tail_bytes">尾部字节</th>
+                    <th style="padding:8px 10px;text-align:center;width:60px;" data-i18n="dm8_offline.th_status">状态</th>
                   </tr>
                 </thead>
                 <tbody id="dm8-files-body"></tbody>
@@ -6625,11 +6643,11 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
               <table style="width:100%;border-collapse:collapse;font-size:13px;">
                 <thead>
                   <tr style="border-bottom:1px solid var(--border);">
-                    <th style="padding:8px 10px;text-align:left;">数据文件</th>
-                    <th style="padding:8px 10px;text-align:right;width:90px;">物理页号</th>
-                    <th style="padding:8px 10px;text-align:right;width:140px;">文件偏移</th>
-                    <th style="padding:8px 10px;text-align:left;width:110px;">损坏类型</th>
-                    <th style="padding:8px 10px;text-align:left;">所属表空间</th>
+                    <th style="padding:8px 10px;text-align:left;" data-i18n="dm8_offline.th_file">数据文件</th>
+                    <th style="padding:8px 10px;text-align:right;width:90px;" data-i18n="dm8_offline.th_phys_page">物理页号</th>
+                    <th style="padding:8px 10px;text-align:right;width:140px;" data-i18n="dm8_offline.th_offset">文件偏移</th>
+                    <th style="padding:8px 10px;text-align:left;width:110px;" data-i18n="dm8_offline.th_corrupt_type">损坏类型</th>
+                    <th style="padding:8px 10px;text-align:left;" data-i18n="dm8_offline.th_tablespace">所属表空间</th>
                   </tr>
                 </thead>
                 <tbody id="dm8-corrupt-body"></tbody>
@@ -7395,9 +7413,11 @@ function applyI18N() {
     'server-thresholds': ['服务器阈值配置', '配置服务器健康评分阈值'],
     'monitor-slow':     ['实时慢查询',     '定时拉取各数据源 Top SQL'],
     'monitor-conn':     ['活跃连接监控',   '实时查看各数据源连接数'],
-    'dm8-offline':      ['DM8 离线存储检查', '扫描 DM8 数据文件目录，检查存储完整性'],
-    'intelligence':     ['智能诊断中心', '多专业能力协同，主动发现、定位与处置数据库风险'],
-    'diag-history':     ['诊断历史', '回看历次协同诊断结果，查看完整报告并回填工单'],
+    'dm8-offline':      [i18n('webui.nav_dm8_offline') || '达梦离线存储检查', i18n('webui.dm8_offline_desc_short') || '扫描 DM8 数据文件目录，检查存储完整性'],
+    'intelligence':     [i18n('webui.nav_intelligence') || '智能诊断中心', '多专业能力协同，主动发现、定位与处置数据库风险'],
+    'diag-history':     [i18n('webui.nav_diag_history') || '诊断历史', '回看历次协同诊断结果，查看完整报告并回填工单'],
+    'shares':           [i18n('webui.shares_title') || '🔗 分享管理', i18n('webui.shares_desc') || '管理已生成的巡检报告分享链接'],
+    'plugin-market':    [i18n('webui.plugin_market_title') || '插件市场', ''],
     };
     const _t = _titles[pageName];
     if (_t) {
@@ -7528,13 +7548,13 @@ function dm8OfflineCheck() {
   var dir = document.getElementById('dm8-offline-dir').value.trim();
   var ps = parseInt(document.getElementById('dm8-offline-ps').value) || 0;
   var mode = document.querySelector('input[name="dm8-offline-mode"]:checked').value;
-  if (!dir) { dm8OfflineShowHint('请输入 DM8 数据文件目录路径', 'error'); return; }
+  if (!dir) { dm8OfflineShowHint(i18n('dm8_offline.hint_dir_path') || '请输入 DM8 数据文件目录路径', 'error'); return; }
 
   var postData = {db_dir: dir, page_size: ps, host_type: mode};
 
   if (mode === 'remote') {
     var sshHost = document.getElementById('dm8-ssh-host').value.trim();
-    if (!sshHost) { dm8OfflineShowHint('请填写 SSH 主机地址', 'error'); return; }
+    if (!sshHost) { dm8OfflineShowHint(i18n('dm8_offline.hint_ssh_host') || '请填写 SSH 主机地址', 'error'); return; }
     postData.ssh_host = sshHost;
     postData.ssh_port = parseInt(document.getElementById('dm8-ssh-port').value) || 22;
     postData.ssh_user = document.getElementById('dm8-ssh-user').value.trim() || 'root';
@@ -7543,11 +7563,11 @@ function dm8OfflineCheck() {
   }
 
   var btn = document.getElementById('btn-dm8-offline-run');
-  btn.disabled = true; btn.textContent = '⏳ 检查中...';
+  btn.disabled = true; btn.textContent = '⏳ ' + (i18n('dm8_offline.checking') || '检查中...');
   document.getElementById('dm8-offline-result').style.display = 'none';
   dm8OfflineShowHint(mode === 'remote'
-    ? '正在通过 SSH 连接远程服务器并扫描数据文件...'
-    : '正在扫描目录并分析数据文件...', 'info');
+    ? (i18n('dm8_offline.scanning_remote') || '正在通过 SSH 连接远程服务器并扫描数据文件...')
+    : (i18n('dm8_offline.scanning_local') || '正在扫描目录并分析数据文件...'), 'info');
 
   fetch('/api/dm8_offline/check', {
     method: 'POST',
@@ -7557,16 +7577,16 @@ function dm8OfflineCheck() {
   .then(r => r.json())
   .then(d => {
     if (!d.ok) {
-      btn.disabled = false; btn.textContent = '▶ 开始检查';
-      dm8OfflineShowHint(d.msg || '启动检查失败', 'error');
+      btn.disabled = false; btn.textContent = i18n('dm8_offline.start') || '▶ 开始检查';
+      dm8OfflineShowHint(d.msg || (i18n('dm8_offline.start_fail') || '启动检查失败'), 'error');
       return;
     }
     dm8OfflineTaskId = d.task_id;
     dm8OfflinePollStatus();
   })
   .catch(err => {
-    btn.disabled = false; btn.textContent = '▶ 开始检查';
-    dm8OfflineShowHint('请求失败: ' + err, 'error');
+    btn.disabled = false; btn.textContent = i18n('dm8_offline.start') || '▶ 开始检查';
+    dm8OfflineShowHint((i18n('dm8_offline.request_fail') || '请求失败') + ': ' + err, 'error');
   });
 }
 
@@ -7579,15 +7599,15 @@ function dm8OfflinePollStatus() {
     if (d.status === 'done') {
       dm8OfflineStopPolling();
       var btn = document.getElementById('btn-dm8-offline-run');
-      btn.disabled = false; btn.textContent = '▶ 开始检查';
+      btn.disabled = false; btn.textContent = i18n('dm8_offline.start') || '▶ 开始检查';
       dm8OfflineResultData = d.result;
       dm8OfflineRender(d.result);
-      dm8OfflineShowHint('检查完成', 'success');
+      dm8OfflineShowHint(i18n('dm8_offline.done') || '检查完成', 'success');
     } else if (d.status === 'error') {
       dm8OfflineStopPolling();
       btn = document.getElementById('btn-dm8-offline-run');
-      btn.disabled = false; btn.textContent = '▶ 开始检查';
-      dm8OfflineShowHint('检查失败: ' + (d.error || '未知错误'), 'error');
+      btn.disabled = false; btn.textContent = i18n('dm8_offline.start') || '▶ 开始检查';
+      dm8OfflineShowHint((i18n('dm8_offline.failed') || '检查失败') + ': ' + (d.error || (i18n('dm8_offline.unknown') || '未知错误')), 'error');
     } else {
       dm8OfflinePollTimer = setTimeout(dm8OfflinePollStatus, 1000);
     }
@@ -7631,7 +7651,7 @@ function dm8OfflineRender(r) {
   document.getElementById('dm8-stat-pages').textContent = r.scan_stats.total_pages_scanned;
   document.getElementById('dm8-stat-time').textContent = r.scan_stats.duration + 's';
   document.getElementById('dm8-stat-mode').textContent = r.mode === 'remote'
-    ? (r.ssh_host || '远程') : '本地';
+    ? (r.ssh_host || (i18n('dm8_offline.mode_remote') || '远程')) : (i18n('dm8_offline.mode_local') || '本地');
   var ds = r.diag_stats || {};
   document.getElementById('dm8-stat-fatal').textContent = ds.fatal || 0;
   document.getElementById('dm8-stat-error').textContent = ds.error || 0;
@@ -7641,10 +7661,10 @@ function dm8OfflineRender(r) {
   // 诊断列表
   var diagBody = document.getElementById('dm8-diag-body');
   diagBody.innerHTML = '';
-  var sevMap = {fatal:{label:'严重',color:'#ef4444',bg:'rgba(239,68,68,0.08)'},
-                error:{label:'错误',color:'#f97316',bg:'rgba(249,115,22,0.08)'},
-                warning:{label:'警告',color:'#eab308',bg:'rgba(234,179,8,0.08)'},
-                info:{label:'信息',color:'#3b82f6',bg:'rgba(59,130,246,0.08)'}};
+  var sevMap = {fatal:{label:(i18n('dm8_offline.sev_fatal') || '严重'),color:'#ef4444',bg:'rgba(239,68,68,0.08)'},
+                error:{label:(i18n('dm8_offline.sev_error') || '错误'),color:'#f97316',bg:'rgba(249,115,22,0.08)'},
+                warning:{label:(i18n('dm8_offline.sev_warn') || '警告'),color:'#eab308',bg:'rgba(234,179,8,0.08)'},
+                info:{label:(i18n('dm8_offline.sev_info') || '信息'),color:'#3b82f6',bg:'rgba(59,130,246,0.08)'}};
   (r.diagnostics || []).forEach(function(d) {
     var s = sevMap[d.severity] || sevMap.info;
     var tr = document.createElement('tr');
@@ -7656,7 +7676,7 @@ function dm8OfflineRender(r) {
     diagBody.appendChild(tr);
   });
   if (!r.diagnostics || r.diagnostics.length === 0) {
-    diagBody.innerHTML = '<tr><td colspan="4" style="padding:20px;text-align:center;color:var(--text-muted);">未发现任何问题</td></tr>';
+    diagBody.innerHTML = '<tr><td colspan="4" style="padding:20px;text-align:center;color:var(--text-muted);">' + (i18n('dm8_offline.no_issue') || '未发现任何问题') + '</td></tr>';
   }
 
   // 数据文件列表
@@ -7687,13 +7707,13 @@ function dm8OfflineRender(r) {
       c.data_files.forEach(function(ref) { html += '<li style="font-family:monospace;">' + ref + '</li>'; });
       html += '</ul>';
     } else {
-      html += '<div style="font-size:12px;color:var(--text-muted);">未提取到文件引用</div>';
+      html += '<div style="font-size:12px;color:var(--text-muted);">' + (i18n('dm8_offline.no_ref') || '未提取到文件引用') + '</div>';
     }
     div.innerHTML = html;
     ctrlBody.appendChild(div);
   });
   if (!r.control_files || r.control_files.length === 0) {
-    ctrlBody.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);">未找到控制文件</div>';
+    ctrlBody.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);">' + (i18n('dm8_offline.no_control') || '未找到控制文件') + '</div>';
   }
 
   // 数据块损坏分析
@@ -7701,10 +7721,10 @@ function dm8OfflineRender(r) {
   var sumEl = document.getElementById('dm8-corrupt-summary');
   sumEl.innerHTML = '';
   var cstats = [
-    {label:'可疑坏块', val:csummary.total, color:'#ef4444'},
-    {label:'全零页',   val:csummary.zero, color:'#ef4444'},
-    {label:'异常填充', val:csummary.constant_fill, color:'#f59e0b'},
-    {label:'截断页',   val:csummary.truncated, color:'#dc2626'}
+    {label:(i18n('dm8_offline.stat_suspect') || '可疑坏块'), val:csummary.total, color:'#ef4444'},
+    {label:(i18n('dm8_offline.stat_zero') || '全零页'),   val:csummary.zero, color:'#ef4444'},
+    {label:(i18n('dm8_offline.stat_fill') || '异常填充'), val:csummary.constant_fill, color:'#f59e0b'},
+    {label:(i18n('dm8_offline.stat_trunc') || '截断页'),   val:csummary.truncated, color:'#dc2626'}
   ];
   cstats.forEach(function(s) {
     var d = document.createElement('div');
@@ -7716,14 +7736,14 @@ function dm8OfflineRender(r) {
 
   var tipEl = document.getElementById('dm8-corrupt-tip');
   tipEl.textContent = csummary.total > 0
-    ? '离线场景无法 100% 确认损坏，建议数据库实例启动后进一步核实。'
-    : '未发现可疑坏块。';
+    ? (i18n('dm8_offline.tip_verify') || '离线场景无法 100% 确认损坏，建议数据库实例启动后进一步核实。')
+    : (i18n('dm8_offline.tip_ok') || '未发现可疑坏块。');
 
   var corruptBody = document.getElementById('dm8-corrupt-body');
   corruptBody.innerHTML = '';
   var blocks = r.corrupt_blocks || [];
   var showBlocks = blocks.slice(0, 500);
-  var typeLabels = {ZERO_PAGE:'全零页', CONSTANT_FILL:'异常填充页', TRUNCATED:'截断页'};
+  var typeLabels = {ZERO_PAGE:(i18n('dm8_offline.type_zero') || '全零页'), CONSTANT_FILL:(i18n('dm8_offline.type_fill') || '异常填充页'), TRUNCATED:(i18n('dm8_offline.type_trunc') || '截断页')};
   var typeColors = {ZERO_PAGE:'#ef4444', CONSTANT_FILL:'#f59e0b', TRUNCATED:'#dc2626'};
   showBlocks.forEach(function(b) {
     var color = typeColors[b.type] || '#808080';
@@ -7734,14 +7754,14 @@ function dm8OfflineRender(r) {
       + '<td style="padding:8px 10px;text-align:right;">' + (b.page_no != null ? b.page_no : '') + '</td>'
       + '<td style="padding:8px 10px;text-align:right;font-family:monospace;">' + (b.file_offset != null ? b.file_offset : '') + '</td>'
       + '<td style="padding:8px 10px;"><span style="padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600;color:#fff;background:' + color + ';">' + label + '</span></td>'
-      + '<td style="padding:8px 10px;font-size:12px;color:var(--text-muted);">' + (b.tablespace || '未知') + '</td>';
+      + '<td style="padding:8px 10px;font-size:12px;color:var(--text-muted);">' + (b.tablespace || (i18n('dm8_offline.unknown_label') || '未知')) + '</td>';
     corruptBody.appendChild(tr);
   });
   if (blocks.length === 0) {
-    corruptBody.innerHTML = '<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--text-muted);">未发现可疑坏块</td></tr>';
+    corruptBody.innerHTML = '<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--text-muted);">' + (i18n('dm8_offline.no_suspect') || '未发现可疑坏块') + '</td></tr>';
   } else if (blocks.length > showBlocks.length) {
     var mt = document.createElement('tr');
-    mt.innerHTML = '<td colspan="5" style="padding:10px;text-align:center;color:var(--text-muted);font-size:12px;">仅展示前 ' + showBlocks.length + ' 个坏块，共 ' + blocks.length + ' 个，完整清单见下载的 Word 报告</td>';
+    mt.innerHTML = '<td colspan="5" style="padding:10px;text-align:center;color:var(--text-muted);font-size:12px;">' + (i18n('dm8_offline.more_blocks') || '仅展示前 {shown} 个坏块，共 {total} 个，完整清单见下载的 Word 报告').replace('{shown}', showBlocks.length).replace('{total}', blocks.length) + '</td>';
     corruptBody.appendChild(mt);
   }
 }
@@ -7807,7 +7827,7 @@ function showPage(name) {
     'inspection-config': [i18n('webui.nav_inspection_config') || '巡检配置管理', '管理数据库巡检模板、章节和 SQL 查询'],
     'baseline-config': [i18n('baseline.management_title') || '基线配置管理', i18n('baseline.management_desc') || '配置和管理数据库基线检查参数'],
     'server-thresholds': [i18n('server_thresholds.title') || '服务器阈值配置', i18n('server_thresholds.desc') || '配置服务器健康评分阈值'],
-    shares: ['🔗 分享管理', '管理已生成的巡检报告分享链接'],
+    shares: [i18n('webui.shares_title') || '🔗 分享管理', i18n('webui.shares_desc') || '管理已生成的巡检报告分享链接'],
     'monitor-slow': [i18n('monitor.slow_title') || '实时慢查询', i18n('monitor.slow_desc') || '定时拉取各数据源 Top SQL'],
     'monitor-conn': [i18n('monitor.conn_title') || '活跃连接监控', i18n('monitor.conn_desc') || '实时查看各数据源连接数'],
     'data-management': [i18n('webui.data_management_title') || '数据管理', i18n('webui.data_management_desc') || '管理 DBCheck 自身数据文件'],
@@ -7815,7 +7835,7 @@ function showPage(name) {
     'oracle-client': [i18n('webui.oracle_client_title') || '数据库驱动设置', ''],
     'plugin-market': [i18n('webui.plugin_market_title') || '插件市场', ''],
     'rag': [i18n('webui.rag_page_title') || 'RAG 知识库', ''],
-    'dm8-offline': ['💿 DM8 离线存储检查', '扫描 DM8 数据文件目录，检查存储完整性'],
+    'dm8-offline': [i18n('webui.dm8_offline_title') || '💿 DM8 离线存储健康检查', i18n('webui.dm8_offline_desc_short') || '扫描 DM8 数据文件目录，检查存储完整性'],
     'intelligence': [i18n('webui.nav_intelligence') || '智能诊断中心', i18n('intelligence.subtitle') || '多专业能力协同，主动发现、定位与处置数据库风险。'],
     'diag-history': [i18n('webui.nav_diag_history') || '诊断历史', i18n('diag_history.subtitle') || '回看历次协同诊断结果，查看完整报告并回填工单。'],
   };
@@ -8030,25 +8050,25 @@ async function dmCheckUpgrade() {
 // ─── 分享管理 ─────────────────────────────────────
 async function loadShares() {
   const listEl = document.getElementById('shares-list');
-  listEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:32px">加载中...</div>';
+  listEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:32px">' + (i18n('webui.common_loading') || '加载中...') + '</div>';
   try {
     const res = await fetch('/api/shares');
     const data = await res.json();
     if (!data.ok || !data.shares || data.shares.length === 0) {
-      listEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:48px">暂无分享链接</div>';
+      listEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:48px">' + (i18n('shares.empty') || '暂无分享链接') + '</div>';
       return;
     }
     const typeIcon = t => t === 'server_inspect' ? '🖥️' : '🗄️';
-    const typeLabel = t => t === 'server_inspect' ? '服务器巡检' : '数据库巡检';
+    const typeLabel = t => t === 'server_inspect' ? (i18n('shares.type_server') || '服务器巡检') : (i18n('shares.type_db') || '数据库巡检');
     listEl.innerHTML = `
       <table style="width:100%;border-collapse:collapse;font-size:13px">
         <thead>
           <tr style="border-bottom:1px solid var(--border)">
-            <th style="text-align:left;padding:10px 12px;color:var(--text-muted);font-weight:500">类型</th>
-            <th style="text-align:left;padding:10px 12px;color:var(--text-muted);font-weight:500">标题</th>
-            <th style="text-align:center;padding:10px 12px;color:var(--text-muted);font-weight:500">访问次数</th>
-            <th style="text-align:left;padding:10px 12px;color:var(--text-muted);font-weight:500">创建时间</th>
-            <th style="text-align:center;padding:10px 12px;color:var(--text-muted);font-weight:500">操作</th>
+            <th style="text-align:left;padding:10px 12px;color:var(--text-muted);font-weight:500">${i18n('shares.col_type') || '类型'}</th>
+            <th style="text-align:left;padding:10px 12px;color:var(--text-muted);font-weight:500">${i18n('shares.col_title') || '标题'}</th>
+            <th style="text-align:center;padding:10px 12px;color:var(--text-muted);font-weight:500">${i18n('shares.access_count') || '访问次数'}</th>
+            <th style="text-align:left;padding:10px 12px;color:var(--text-muted);font-weight:500">${i18n('shares.col_created') || '创建时间'}</th>
+            <th style="text-align:center;padding:10px 12px;color:var(--text-muted);font-weight:500">${i18n('shares.col_actions') || '操作'}</th>
           </tr>
         </thead>
         <tbody>
@@ -8061,15 +8081,15 @@ async function loadShares() {
               <td style="padding:10px 12px;text-align:center">${s.access_count || 0}</td>
               <td style="padding:10px 12px;color:var(--text-muted)">${s.created_at || '-'}</td>
               <td style="padding:10px 12px;text-align:center">
-                <button class="btn btn-ghost" style="font-size:12px;padding:4px 10px" onclick="copyShareLink('${s.id}')">📋 复制</button>
-                <button class="btn btn-danger" style="font-size:12px;padding:4px 10px" onclick="deleteShareItem('${s.id}')">🗑️ 删除</button>
+                <button class="btn btn-ghost" style="font-size:12px;padding:4px 10px" onclick="copyShareLink('${s.id}')">📋 ${i18n('shares.copy') || '复制链接'}</button>
+                <button class="btn btn-danger" style="font-size:12px;padding:4px 10px" onclick="deleteShareItem('${s.id}')">🗑️ ${i18n('shares.delete') || '删除'}</button>
               </td>
             </tr>
           `).join('')}
         </tbody>
       </table>`;
   } catch(e) {
-    listEl.innerHTML = `<div style="text-align:center;color:var(--error);padding:32px">加载失败: ${escHtml(e.message)}</div>`;
+    listEl.innerHTML = `<div style="text-align:center;color:var(--error);padding:32px">${i18n('shares.load_fail') || '加载分享列表失败'}: ${escHtml(e.message)}</div>`;
   }
 }
 
@@ -8077,7 +8097,7 @@ function copyShareLink(shareId) {
   const url = window.location.origin + '/share/' + shareId;
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(url).then(() => {
-      toastSuccess('链接已复制');
+      toastSuccess(i18n('shares.copy_ok') || '链接已复制');
     }).catch(() => {
       showShareLinkDialog(url);
     });
@@ -8087,7 +8107,7 @@ function copyShareLink(shareId) {
 }
 
 async function deleteShareItem(shareId) {
-  const confirmed = await showConfirmDialog('确认删除', '确定删除这条分享链接？删除后将无法访问。');
+  const confirmed = await showConfirmDialog(i18n('shares.confirm_title') || '确认删除', i18n('shares.confirm_delete') || '确定删除该分享链接？');
   if (!confirmed) return;
   try {
     const res = await fetch('/api/share/' + shareId, {method: 'DELETE'});
@@ -8095,9 +8115,9 @@ async function deleteShareItem(shareId) {
     if (data.ok) {
       const row = document.getElementById('share-row-' + shareId);
       if (row) row.remove();
-      toastSuccess('已删除');
+      toastSuccess(i18n('shares.deleted') || '已删除');
     } else {
-      toastError(data.msg || '删除失败');
+      toastError(data.msg || (i18n('shares.delete_fail') || '删除失败'));
     }
   } catch(e) {
     toastError('请求失败: ' + e.message);
@@ -12946,6 +12966,8 @@ function renderMonitorCharts() {
   const id = monitorCurrentId;
   const hist = monitorHistory[id] || [];
   if (!hist.length) { monitorShowFallback('等待采集数据…'); return; }
+  // 宿主资源面板（eBPF 内核级 / psutil 用户态，实例感知），与深采与否无关
+  renderHostPanel();
 
   const TXT = cssVar('--text', '#e6edf3');
   const MUT = cssVar('--text-muted', '#8b949e');
@@ -13103,6 +13125,142 @@ function renderMonitorCharts() {
   // 3) 延迟图（所有实例都有 TCP 延迟数据）
   const lat = pick(['latency_ms'], '#f85149');
   ensureMonChart('latency', 'echart-mon-latency').setOption(opt(lat ? [lat] : [], !lat ? '该实例暂无延迟数据' : null), { notMerge: true });
+}
+
+// 宿主资源面板：渲染实例感知的宿主机 CPU/内存/Swap/负载 + eBPF 内核级指标与 Top 进程归因
+let hostResChart = null, hostEbpfChart = null;
+function renderHostPanel() {
+  const id = monitorCurrentId;
+  const hist = monitorHistory[id] || [];
+  const block = document.getElementById('host-resource-block');
+  if (!block || typeof echarts === 'undefined') return;
+  const latest = (hist[hist.length - 1] || {}).metrics || {};
+  const TXT = cssVar('--text', '#e6edf3');
+  const MUT = cssVar('--text-muted', '#8b949e');
+  const BORD = cssVar('--border', '#30363d');
+  const times = hist.map(function (h) { return (h.ts || '').slice(11, 19); });
+
+  // ── 数据源徽标 ──
+  const badge = document.getElementById('host-source-badge');
+  const src = latest.host_collector_source;
+  if (badge) {
+    let txt, bg, fg;
+    if (src === 'ebpf') { txt = i18n('monitor.host_src_ebpf') || '内核级 eBPF'; bg = 'rgba(63,185,80,.18)'; fg = '#3fb950'; }
+    else if (src === 'psutil') { txt = i18n('monitor.host_src_psutil') || 'psutil 用户态'; bg = 'rgba(59,130,246,.18)'; fg = '#3b82f6'; }
+    else if (src === 'unavailable') { txt = i18n('monitor.host_src_unavailable') || '宿主资源不可用'; bg = 'rgba(139,148,158,.18)'; fg = '#8b949e'; }
+    else { txt = i18n('monitor.host_src_none') || '暂无宿主数据'; bg = 'rgba(139,148,158,.12)'; fg = '#8b949e'; }
+    badge.textContent = txt;
+    badge.style.background = bg; badge.style.color = fg; badge.style.border = '1px solid ' + fg;
+  }
+
+  // ── 基础资源图：CPU% / 内存% / Swap% / Load1 ──
+  const baseDef = [
+    { key: 'host_cpu', name: 'CPU %', color: '#3b82f6' },
+    { key: 'host_mem', name: '内存 %', color: '#22c55e' },
+    { key: 'host_swap_pct', name: 'Swap %', color: '#f85149' },
+    { key: 'host_load1', name: 'Load1', color: '#f59e0b' }
+  ];
+  const baseSeries = baseDef.map(function (d) {
+    const data = hist.map(function (h) {
+      const v = (h.metrics || {})[d.key];
+      return (typeof v === 'number') ? v : null;
+    });
+    return { name: d.name, type: 'line', smooth: true, symbol: 'none', connectNulls: true,
+             data: data, lineStyle: { width: 2, color: d.color }, itemStyle: { color: d.color } };
+  }).filter(function (s) { return s.data.some(function (v) { return v !== null; }); });
+
+  const elRes = document.getElementById('echart-host-res');
+  if (!baseSeries.length) {
+    if (hostResChart) { try { hostResChart.dispose(); } catch (_) {} hostResChart = null; }
+    if (elRes) elRes.innerHTML = '<div class="health-chart-fallback">' + (i18n('monitor.host_no_data') || '暂无宿主资源数据') + '</div>';
+  } else {
+    if (!hostResChart) hostResChart = echarts.init(elRes);
+    hostResChart.setOption({
+      backgroundColor: 'transparent',
+      tooltip: { trigger: 'axis', confine: true },
+      legend: { type: 'scroll', top: 2, left: 'center', textStyle: { color: MUT, fontSize: 9 }, itemWidth: 10, itemHeight: 8, itemGap: 8 },
+      grid: { left: 44, right: 16, top: 28, bottom: 24 },
+      xAxis: { type: 'category', boundaryGap: false, data: times, axisLine: { lineStyle: { color: BORD } },
+               axisLabel: { color: MUT, fontSize: 9, hideOverlap: true, formatter: function (v) { return v.slice(0, 5); } } },
+      yAxis: { type: 'value', splitLine: { lineStyle: { color: BORD } }, axisLabel: { color: MUT, fontSize: 10 } },
+      series: baseSeries
+    }, { notMerge: true });
+  }
+
+  // ── eBPF 内核级专属：IO p99 时延(µs) + IOPS ──
+  const hasEbpf = hist.some(function (h) {
+    const m = h.metrics || {};
+    return typeof m.host_disk_latency_us_p99 === 'number' || typeof m.host_disk_iops === 'number';
+  });
+  const ebpfCard = document.getElementById('host-ebpf-card');
+  if (ebpfCard) ebpfCard.style.display = hasEbpf ? '' : 'none';
+  if (hasEbpf) {
+    const eDef = [
+      { key: 'host_disk_latency_us_p99', name: 'IO p99 (µs)', color: '#a855f7', axis: 0 },
+      { key: 'host_disk_iops', name: 'IOPS', color: '#22d3ee', axis: 1 }
+    ];
+    const eSeries = eDef.map(function (d) {
+      const data = hist.map(function (h) {
+        const v = (h.metrics || {})[d.key];
+        return (typeof v === 'number') ? v : null;
+      });
+      return { name: d.name, type: 'line', smooth: true, symbol: 'none', connectNulls: true, yAxisIndex: d.axis,
+               data: data, lineStyle: { width: 2, color: d.color }, itemStyle: { color: d.color } };
+    }).filter(function (s) { return s.data.some(function (v) { return v !== null; }); });
+    const elE = document.getElementById('echart-host-ebpf');
+    if (!hostEbpfChart) hostEbpfChart = echarts.init(elE);
+    hostEbpfChart.setOption({
+      backgroundColor: 'transparent',
+      tooltip: { trigger: 'axis', confine: true },
+      legend: { type: 'scroll', top: 2, left: 'center', textStyle: { color: MUT, fontSize: 9 }, itemWidth: 10, itemHeight: 8, itemGap: 8 },
+      grid: { left: 52, right: 52, top: 28, bottom: 24 },
+      xAxis: { type: 'category', boundaryGap: false, data: times, axisLine: { lineStyle: { color: BORD } },
+               axisLabel: { color: MUT, fontSize: 9, hideOverlap: true, formatter: function (v) { return v.slice(0, 5); } } },
+      yAxis: [
+        { type: 'value', name: 'µs', splitLine: { lineStyle: { color: BORD } }, axisLabel: { color: MUT, fontSize: 10 } },
+        { type: 'value', name: 'IOPS', splitLine: { show: false }, axisLabel: { color: MUT, fontSize: 10 } }
+      ],
+      series: eSeries
+    }, { notMerge: true });
+    renderHostTopProcs(latest);
+  } else {
+    const tp = document.getElementById('host-top-procs');
+    if (tp) tp.innerHTML = '';
+  }
+}
+
+// 渲染 eBPF 的按进程资源归因表（磁盘 IO / CPU）
+function renderHostTopProcs(latest) {
+  const box = document.getElementById('host-top-procs');
+  if (!box) return;
+  const dio = latest.host_disk_top_io_procs || [];
+  const cpu = latest.host_cpu_top_procs || [];
+  let html = '';
+  if (dio.length) {
+    html += '<div style="font-size:11px;color:var(--text-muted);margin:6px 0 2px;">' + (i18n('monitor.host_top_io') || '磁盘 IO 归因 Top 进程') + '</div>';
+    html += '<table style="width:100%;border-collapse:collapse;font-size:11px;color:var(--text);">'
+          + '<thead><tr style="color:var(--text-muted);text-align:left;">'
+          + '<th style="padding:2px 6px;">PID</th><th style="padding:2px 6px;">' + (i18n('monitor.proc') || '进程') + '</th>'
+          + '<th style="padding:2px 6px;">IO</th><th style="padding:2px 6px;">ms</th></tr></thead><tbody>';
+    dio.slice(0, 5).forEach(function (p) {
+      html += '<tr><td style="padding:2px 6px;">' + (p.pid || '-') + '</td><td style="padding:2px 6px;">' + escapeHtml(p.comm || '-') + '</td>'
+            + '<td style="padding:2px 6px;">' + (p.ios || 0) + '</td><td style="padding:2px 6px;">' + (p.ms || 0) + '</td></tr>';
+    });
+    html += '</tbody></table>';
+  }
+  if (cpu.length) {
+    html += '<div style="font-size:11px;color:var(--text-muted);margin:8px 0 2px;">' + (i18n('monitor.host_top_cpu') || 'CPU 归因 Top 进程') + '</div>';
+    html += '<table style="width:100%;border-collapse:collapse;font-size:11px;color:var(--text);">'
+          + '<thead><tr style="color:var(--text-muted);text-align:left;">'
+          + '<th style="padding:2px 6px;">PID</th><th style="padding:2px 6px;">' + (i18n('monitor.proc') || '进程') + '</th>'
+          + '<th style="padding:2px 6px;">samples</th><th style="padding:2px 6px;">ms</th></tr></thead><tbody>';
+    cpu.slice(0, 5).forEach(function (p) {
+      html += '<tr><td style="padding:2px 6px;">' + (p.pid || '-') + '</td><td style="padding:2px 6px;">' + escapeHtml(p.comm || '-') + '</td>'
+            + '<td style="padding:2px 6px;">' + (p.samples || 0) + '</td><td style="padding:2px 6px;">' + (p.ms || 0) + '</td></tr>';
+    });
+    html += '</tbody></table>';
+  }
+  box.innerHTML = html;
 }
 
 // ─── 一键修复建议功能 ───────────────────────────────────────
@@ -18725,25 +18883,25 @@ function mkdirRemote() {
       const url = '/api/v1/market/registry' + (force ? '?force=1' : '');
       const r = await fetch(url);
       const d = await r.json();
-      if (!d.ok) { if(loading) loading.textContent = '加载失败: ' + (d.error||'未知'); return; }
+      if (!d.ok) { if(loading) loading.textContent = (i18n('plugin_market.load_fail') || '加载失败') + ': ' + (d.error||'未知'); return; }
       if (loading) loading.style.display = 'none';
       renderMarketPlugins(d.plugins || []);
       loadInstalledPlugins();
       loadMarketCategories();
     } catch(e) {
-      if (loading) loading.textContent = '加载失败: ' + e.message;
+      if (loading) loading.textContent = (i18n('plugin_market.load_fail') || '加载失败') + ': ' + e.message;
     }
   }
 
   function renderMarketPlugins(plugins) {
     const grid = document.getElementById('market-plugins-grid');
     if (!grid) return;
-    if (!plugins.length) { grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:24px;color:var(--text-muted);">市场暂无插件，成为第一个发布者 🚀</div>'; return; }
+    if (!plugins.length) { grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:24px;color:var(--text-muted);">' + (i18n('plugin_market.empty') || '暂无可用插件') + ' 🚀</div>'; return; }
     
     // 分类标签映射
     const categoryTags = {
-      'db': '<span style="background:#e3f2fd;color:#1565c0;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;">📊 数据库</span>',
-      'rule': '<span style="background:#fff3e0;color:#e65100;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;">📋 规则</span>',
+      'db': '<span style="background:#e3f2fd;color:#1565c0;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;">' + (i18n('plugin_market.badge_db') || '📊 数据库') + '</span>',
+      'rule': '<span style="background:#fff3e0;color:#e65100;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;">' + (i18n('plugin_market.badge_rule') || '📋 规则') + '</span>',
     };
     
     grid.innerHTML = plugins.map(p => {
@@ -18751,29 +18909,29 @@ function mkdirRemote() {
       
       // 官方/社区/已验证 标签
       const badge = p.author_type === 'official'
-        ? '<span style="background:#e8f5e9;color:#2e7d32;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;">✅ 官方</span>'
+        ? '<span style="background:#e8f5e9;color:#2e7d32;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;">' + (i18n('plugin_market.badge_official') || '✅ 官方') + '</span>'
         : (p.verified
-          ? '<span style="background:#e3f2fd;color:#1565c0;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;">✅ 已验证</span>'
-          : '<span style="background:#fff3e0;color:#e65100;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;">👤 社区</span>');
+          ? '<span style="background:#e3f2fd;color:#1565c0;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;">' + (i18n('plugin_market.badge_verified') || '✅ 已验证') + '</span>'
+          : '<span style="background:#fff3e0;color:#e65100;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;">' + (i18n('plugin_market.badge_community') || '👤 社区') + '</span>');
       
       // 分类标签
       const catTag = categoryTags[p.category] || '';
       
       // 精选标签
       const featuredTag = p.featured 
-        ? '<span style="background:#fce4ec;color:#c62828;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;">🔥 精选</span>'
+        ? '<span style="background:#fce4ec;color:#c62828;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;">' + (i18n('plugin_market.badge_featured') || '🔥 精选') + '</span>'
         : '';
       
       // 来源标签（市场列表需要区分线上/本地）
       const sourceTag = p.source === 'local'
-        ? '<span style="background:#f3e5f5;color:#7b1fa2;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;">📁 本地</span>'
+        ? '<span style="background:#f3e5f5;color:#7b1fa2;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;">' + (i18n('plugin_market.badge_local') || '📁 本地') + '</span>'
         : (p.installed
           ? ''
-          : '<span style="background:#e8f5e9;color:#2e7d32;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;">🌐 线上</span>');
+          : '<span style="background:#e8f5e9;color:#2e7d32;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;">' + (i18n('plugin_market.badge_online') || '🌐 线上') + '</span>');
         
       const btn = p.installed
-        ? '<button class="btn btn-sm" style="background:var(--surface2);padding:4px 12px;" onclick="uninstallPlugin(\''+p.id+'\')">已安装 · 卸载</button>'
-        : '<button class="btn btn-sm btn-primary" style="padding:4px 12px;" onclick="installPlugin(\''+p.id+'\')">安装</button>';
+        ? '<button class="btn btn-sm" style="background:var(--surface2);padding:4px 12px;" onclick="uninstallPlugin(\''+p.id+'\')">' + (i18n('plugin_market.installed') || '已安装') + ' · ' + (i18n('plugin_market.uninstall') || '卸载') + '</button>'
+        : '<button class="btn btn-sm btn-primary" style="padding:4px 12px;" onclick="installPlugin(\''+p.id+'\')">' + (i18n('plugin_market.install') || '安装') + '</button>';
       return '<div style="background:var(--surface2);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:6px;">'+
         '<div style="font-size:14px;font-weight:600;">'+escHtml(p.name||p.id)+badge+catTag+featuredTag+'</div>'+
         '<div style="font-size:11px;color:var(--text-muted);flex:1;">'+escHtml(p.description||'')+'</div>'+
@@ -18789,14 +18947,14 @@ function mkdirRemote() {
     try {
       const r = await fetch('/api/v1/plugins');
       const d = await r.json();
-      if (!d.ok) { el.innerHTML = '<span style="color:var(--text-muted);font-size:12px;">加载失败</span>'; return; }
+      if (!d.ok) { el.innerHTML = '<span style="color:var(--text-muted);font-size:12px;">' + (i18n('plugin_market.load_fail') || '加载失败') + '</span>'; return; }
       const p = d.plugins||[];
-      if (!p.length) { el.innerHTML = '<span style="color:var(--text-muted);font-size:12px;">暂无已安装插件</span>'; return; }
+      if (!p.length) { el.innerHTML = '<span style="color:var(--text-muted);font-size:12px;">' + (i18n('plugin_market.installed_empty') || '暂无已安装插件') + '</span>'; return; }
       
       // 分类标签（已安装不区分本地/线上，都在本地了）
       const categoryTag = (cat) => cat === 'db'
-        ? '<span style="background:#e3f2fd;color:#1565c0;font-size:9px;padding:0 4px;border-radius:3px;margin-left:4px;">📊 数据库</span>'
-        : (cat === 'rule' ? '<span style="background:#fff3e0;color:#e65100;font-size:9px;padding:0 4px;border-radius:3px;margin-left:4px;">📋 规则</span>' : '');
+        ? '<span style="background:#e3f2fd;color:#1565c0;font-size:9px;padding:0 4px;border-radius:3px;margin-left:4px;">' + (i18n('plugin_market.badge_db') || '📊 数据库') + '</span>'
+        : (cat === 'rule' ? '<span style="background:#fff3e0;color:#e65100;font-size:9px;padding:0 4px;border-radius:3px;margin-left:4px;">' + (i18n('plugin_market.badge_rule') || '📋 规则') + '</span>' : '');
 
       el.innerHTML = p.map(pp =>
         '<span style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:4px 10px;font-size:12px;display:inline-flex;align-items:center;gap:6px;">'+
@@ -18804,7 +18962,7 @@ function mkdirRemote() {
         categoryTag(pp.category||'')+
         '<a href="#" onclick="uninstallPlugin(\''+pp.id+'\')" style="color:#c62828;font-size:10px;text-decoration:none;" title="卸载">✕</a></span>'
       ).join('');
-    } catch(e) { el.innerHTML = '<span style="color:var(--text-muted);font-size:12px;">错误</span>'; }
+    } catch(e) { el.innerHTML = '<span style="color:var(--text-muted);font-size:12px;">' + (i18n('plugin_market.err') || '错误') + '</span>'; }
   }
 
   async function loadMarketCategories() {
@@ -18815,7 +18973,7 @@ function mkdirRemote() {
       const sel = document.getElementById('market-category');
       if (!sel) return;
       const cur = sel.value;
-      sel.innerHTML = '<option value="">全部</option>';
+      sel.innerHTML = '<option value="">' + (i18n('webui.plugin_market_category_all') || '全部') + '</option>';
       (d.categories||[]).forEach(c => {
         sel.innerHTML += '<option value="'+c.id+'">'+c.name+' ('+c.count+')</option>';
       });
@@ -18834,29 +18992,37 @@ function mkdirRemote() {
     try {
       const r = await fetch(url);
       const d = await r.json();
-      if (d.ok) renderMarketPlugins(d.plugins||[]);
+      if (d.ok) {
+      const ps = d.plugins || [];
+      if (ps.length === 0) {
+        const grid = document.getElementById('market-plugins-grid');
+        if (grid) grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:24px;color:var(--text-muted);">' + (i18n('plugin_market.search_empty') || '没有匹配的插件') + '</div>';
+      } else {
+        renderMarketPlugins(ps);
+      }
+    }
     } catch(e) {}
   }
 
   async function installPlugin(pluginId) {
     const btn = event.target;
-    if (btn) { btn.disabled = true; btn.textContent = '安装中...'; }
+    if (btn) { btn.disabled = true; btn.textContent = i18n('plugin_market.installing') || '安装中...'; }
     try {
       const r = await fetch('/api/v1/market/install', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({plugin_id:pluginId})
       });
       const d = await r.json();
-      if (d.ok) { toastSuccess(d.message||'安装成功'); loadMarketPlugins(); }
-      else { toastError(d.message||'安装失败'); if(btn){btn.disabled=false;btn.textContent='安装';} }
+      if (d.ok) { toastSuccess(d.message||(i18n('plugin_market.install_ok') || '安装成功')); loadMarketPlugins(); }
+      else { toastError(d.message||(i18n('plugin_market.install_fail') || '安装失败')); if(btn){btn.disabled=false;btn.textContent=i18n('plugin_market.install')||'安装';} }
     } catch(e) {
-      toastError('安装失败: '+e.message);
-      if(btn){btn.disabled=false;btn.textContent='安装';}
+      toastError((i18n('plugin_market.install_fail') || '安装失败') + ': ' + e.message);
+      if(btn){btn.disabled=false;btn.textContent=i18n('plugin_market.install')||'安装';}
     }
   }
 
   async function uninstallPlugin(pluginId) {
-    const confirmed = await showConfirmDialog('卸载插件', `确定卸载插件「${pluginId}」？\n（仅禁用，原始文件将保留）`);
+    const confirmed = await showConfirmDialog(i18n('plugin_market.uninstall') || '卸载', (i18n('plugin_market.uninstall_confirm') || '确定卸载插件？').replace('{name}', pluginId));
     if (!confirmed) return;
     try {
       const r = await fetch('/api/v1/market/uninstall', {
@@ -18864,18 +19030,18 @@ function mkdirRemote() {
         body: JSON.stringify({plugin_id:pluginId})
       });
       const d = await r.json();
-      if (d.ok) { toastSuccess(d.message||'已卸载'); loadMarketPlugins(); loadInstalledPlugins(); }
-      else toastError(d.message||'卸载失败');
-    } catch(e) { toastError('卸载失败: '+e.message); }
+      if (d.ok) { toastSuccess(d.message||(i18n('plugin_market.uninstalled') || '已卸载')); loadMarketPlugins(); loadInstalledPlugins(); }
+      else toastError(d.message||(i18n('plugin_market.uninstall_fail') || '卸载失败'));
+    } catch(e) { toastError((i18n('plugin_market.uninstall_fail') || '卸载失败') + ': ' + e.message); }
   }
 
   async function reloadPlugins() {
     try {
       const r = await fetch('/api/v1/plugins/reload', { method: 'POST' });
       const d = await r.json();
-      if (d.ok) { toastSuccess('已重载 ' + d.loaded + ' 个插件'); loadMarketPlugins(); }
-      else toastError(d.error || '重载失败');
-    }     catch(e) { toastError('重载失败: ' + e.message); }
+      if (d.ok) { toastSuccess((i18n('plugin_market.reloaded') || '已重载 {n} 个插件').replace('{n}', d.loaded || 0)); loadMarketPlugins(); }
+      else toastError(d.error || (i18n('plugin_market.reload_fail') || '重载失败'));
+    }     catch(e) { toastError((i18n('plugin_market.reload_fail') || '重载失败') + ': ' + e.message); }
   }
 
   // ═══ 用户管理内嵌模态框 ═══

@@ -679,62 +679,145 @@ class MetricsCollector:
                             pass
         self._last[inst_id] = (dict(metrics), now)
 
-    # ── 宿主机资源（eBPF 级真实资源，对标 DBdoctor「数据底座」）──
-    def _collect_host(self) -> dict:
-        """采集宿主机真实资源：CPU 指令/IO 等待拆解、内存、交换、磁盘 IO。
+    # ── 宿主机资源（eBPF 级真实资源）──
+    def _attach_host(self, snapshot: dict, inst_id: str, inst: dict):
+        """挂载宿主机资源指标（与数据库可用性无关，连接失败时也采集）。
 
-        仅依赖 psutil（已在 requirements.txt 声明）。采集失败时返回空字典，
-        不影响数据库层指标。生产环境（Linux）可拿到与 eBPF 同级的细粒度资源视图。
+        实例感知：若实例配置了 SSH，则 SSH 到目标数据库服务器采集其真实
+        宿主资源（含可选 eBPF 内核级指标）；否则回退中心机本机 psutil。
+        二者均由 pro.remote_host_collector 统一产出，host_collector_source
+        标记本次实际数据源（ebpf / psutil / unavailable）。
         """
+        try:
+            host = self._collect_host(inst)
+            if host:
+                snapshot.update(host)
+                self._compute_host_rates(inst_id, snapshot, host)
+        except Exception:
+            pass
+
+    def _collect_host(self, inst: dict) -> dict:
+        """采集目标机的宿主资源：优先 SSH 远端，否则本机 psutil 降级。"""
+        ssh = self._resolve_ssh(inst)
+        if ssh:
+            try:
+                remote = self._collect_host_via_ssh(ssh)
+                if remote:
+                    return remote
+            except Exception:
+                # 远端失败：退本机（同机场景）或空，不影响数据库层指标
+                pass
+        return self._collect_host_local()
+
+    def _resolve_ssh(self, inst: dict):
+        """解析实例的 SSH 配置；未启用或缺失主机则返回 None。"""
+        if not inst.get('ssh_enabled'):
+            return None
+        host = (inst.get('ssh_host') or '').strip()
+        if not host:
+            return None
+        return {
+            'host': host,
+            'port': int(inst.get('ssh_port') or 22),
+            'user': inst.get('ssh_user') or '',
+            'password': inst.get('ssh_password') or '',
+            'key_file': inst.get('ssh_key_file') or '',
+        }
+
+    def _remote_script_src(self) -> str:
+        """读取远端采集脚本源码（缓存），用于 SSH 内联执行。"""
+        src = getattr(self, '_rhs_src', None)
+        if src is None:
+            p = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                             'remote_host_collector.py')
+            try:
+                with open(p, 'r', encoding='utf-8') as f:
+                    src = f.read()
+            except Exception:
+                src = ''
+            self._rhs_src = src
+        return src
+
+    def _collect_host_via_ssh(self, ssh: dict) -> dict:
+        """SSH 到目标机，内联执行远端采集脚本，解析 JSON 返回。
+
+        目标机无需部署 DBCheck，只需 python3 + psutil（eBPF 再加 bcc）。
+        脚本整份经 stdin 喂给远端解释器，避免目标机落地文件。
+        """
+        import paramiko
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        kwargs = {
+            'hostname': ssh['host'],
+            'port': int(ssh['port']),
+            'username': ssh['user'],
+            'timeout': 15,
+            'look_for_keys': False,
+            'allow_agent': False,
+        }
+        if ssh['key_file'] and os.path.isfile(ssh['key_file']):
+            try:
+                pkey = paramiko.RSAKey.from_private_key_file(ssh['key_file'])
+                kwargs['pkey'] = pkey
+            except Exception:
+                try:
+                    pkey = paramiko.Ed25519Key.from_private_key_file(ssh['key_file'])
+                    kwargs['pkey'] = pkey
+                except Exception:
+                    pass
+        if 'pkey' not in kwargs and ssh['password']:
+            kwargs['password'] = ssh['password']
+        client.connect(**kwargs)
+        try:
+            src = self._remote_script_src()
+            # 内联执行：把脚本整份经 stdin 喂给远端 python3，避免目标机落地文件
+            # 分隔符用极特殊串，确保不会出现在 remote_host_collector.py 正文内
+            cmd = ("(command -v python3 >/dev/null 2>&1 && PY=python3 || PY=python); "
+                   "$PY - --window 0.5 <<'___DBCH_RHC_EOF___\n%s\n___DBCH_RHC_EOF___" % src)
+            stdin, stdout, stderr = client.exec_command(cmd, timeout=60)
+            raw = stdout.read().decode('utf-8', errors='ignore').strip()
+            stdout.channel.recv_exit_status()
+            if not raw:
+                return {}
+            try:
+                data = json.loads(raw)
+            except Exception:
+                return {}
+            return data if isinstance(data, dict) else {}
+        finally:
+            try:
+                client.close()
+            except Exception:
+                pass
+
+    def _collect_host_local(self) -> dict:
+        """中心机本机采集（同机场景或无 SSH 时降级）。"""
+        try:
+            from pro import remote_host_collector as rh
+            return rh.collect_host(use_ebpf=True, window=0.5)
+        except Exception:
+            # 极端：连 remote_host_collector 都 import 失败，用内置 psutil 兜底
+            return self._collect_host_psutil_fallback()
+
+    def _collect_host_psutil_fallback(self) -> dict:
+        """remote_host_collector 不可用时的内置 psutil 兜底。"""
         try:
             import psutil
         except Exception:
-            return {}
+            return {'host_collector_source': 'unavailable'}
         m: dict = {}
-        # CPU 时间拆解（user / system / iowait / idle）
         try:
             ct = psutil.cpu_times_percent(interval=None)
-            user = float(getattr(ct, 'user', 0) or 0)
-            system = float(getattr(ct, 'system', 0) or 0)
-            iowait = float(getattr(ct, 'iowait', 0) or 0)
-            idle = float(getattr(ct, 'idle', 0) or 0)
-            m['host_cpu_user'] = round(user, 1)
-            m['host_cpu_system'] = round(system, 1)
-            m['host_cpu_iowait'] = round(iowait, 1)
-            m['host_cpu_idle'] = round(idle, 1)
-            m['host_cpu'] = round(100.0 - idle, 1)
+            m['host_cpu'] = round(100.0 - float(getattr(ct, 'idle', 100) or 100), 1)
+            m['host_cpu_iowait'] = round(float(getattr(ct, 'iowait', 0) or 0), 1)
         except Exception:
             pass
-        # 内存 / 交换
         try:
             vm = psutil.virtual_memory()
             m['host_mem'] = round(float(vm.percent), 1)
-            m['host_mem_used_gb'] = round(vm.used / (1024 ** 3), 1)
-            m['host_mem_total_gb'] = round(vm.total / (1024 ** 3), 1)
-            sm = psutil.swap_memory()
-            m['host_swap_pct'] = round(float(sm.percent), 1)
         except Exception:
             pass
-        # 系统负载（Unix 可用）
-        try:
-            la = psutil.getloadavg()
-            m['host_load1'] = round(float(la[0]), 2)
-            m['host_load5'] = round(float(la[1]), 2)
-            m['host_load15'] = round(float(la[2]), 2)
-        except Exception:
-            pass
-        # 磁盘 IO 计数器（累计值，速率在 _compute_host_rates 差分）
-        try:
-            d = psutil.disk_io_counters()
-            if d:
-                m['host_disk_read_bytes'] = int(getattr(d, 'read_bytes', 0) or 0)
-                m['host_disk_write_bytes'] = int(getattr(d, 'write_bytes', 0) or 0)
-                m['host_disk_read_count'] = int(getattr(d, 'read_count', 0) or 0)
-                m['host_disk_write_count'] = int(getattr(d, 'write_count', 0) or 0)
-                m['host_disk_read_ms'] = int(getattr(d, 'read_time', 0) or 0)
-                m['host_disk_write_ms'] = int(getattr(d, 'write_time', 0) or 0)
-        except Exception:
-            pass
+        m['host_collector_source'] = 'psutil'
         return m
 
     def _compute_host_rates(self, inst_id: str, snapshot: dict, host: dict):
@@ -765,16 +848,6 @@ class MetricsCollector:
                 total_ops = max(1, rc + wc)
                 snapshot['host_disk_await_ms'] = round(total_ms / total_ops, 2)
         self._last_host[inst_id] = (dict(host), now)
-
-    def _attach_host(self, snapshot: dict, inst_id: str):
-        """挂载宿主机资源指标（与数据库可用性无关，连接失败时也采集）。"""
-        try:
-            host = self._collect_host()
-            if host:
-                snapshot.update(host)
-                self._compute_host_rates(inst_id, snapshot, host)
-        except Exception:
-            pass
 
     # ── 断路器 ──
     def _in_cooldown(self, inst_id: str) -> bool:
@@ -814,7 +887,7 @@ class MetricsCollector:
         if not up:
             self._on_fail(inst_id)
             # 数据库不可达仍采集宿主机资源，保证监控哨兵有真实数据底座
-            self._attach_host(snapshot, inst_id)
+            self._attach_host(snapshot, inst_id, inst)
             return snapshot
 
         conn = None
@@ -833,7 +906,7 @@ class MetricsCollector:
                 except Exception:
                     pass
         self._on_success(inst_id)
-        self._attach_host(snapshot, inst_id)
+        self._attach_host(snapshot, inst_id, inst)
         return snapshot
 
     # ── 一轮采集（被调度器调用）──

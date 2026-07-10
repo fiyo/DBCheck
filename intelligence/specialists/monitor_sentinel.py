@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """运行监控哨兵：第一时间发现实时监控异常。
 
-指标底座分两层（对标 DBdoctor「数据底座」）：
+指标底座分两层：
   1. 宿主机真实资源（eBPF 级近似）：CPU 指令/IO 等待拆解、内存、交换、磁盘 IO 吞吐与时延；
   2. 数据库层细粒度指标：连接/活跃线程、慢查询速率、主从延迟、死锁、缓冲命中、事务回滚、QPS/TPS。
 
@@ -39,7 +39,14 @@ CHECKS = [
          suggestion="检查 redo/undo 与批量写入，评估存储带宽与 WAL 配置。"),
     dict(key="host_disk_await_ms", kind="host", label="磁盘 IO 时延", unit="ms",
          thr=10.0, crit=30.0, title="磁盘 IO 响应时延偏高",
-         suggestion="存储层出现拥塞，建议排查 IO 调度策略与底层磁盘健康状态。"),
+         suggestion="存储层出现拥塞，建议排查 IO 调度策略与底层磁盘健康状态。",
+         attr_key="host_disk_top_io_procs"),
+    # eBPF 内核级真实时延（块设备服务时间 p99，微秒）；精度高于 psutil 聚合 await
+    dict(key="host_disk_latency_us_p99", kind="host", label="磁盘 IO 时延(p99)", unit="µs",
+         thr=5000.0, crit=20000.0, title="磁盘 IO 时延 p99 偏高（内核级实测）",
+         suggestion="eBPF 内核级实测块设备服务时间 p99 偏高；定位 host_disk_top_io_procs 中的高 IO 进程"
+                    "（多为数据库物理读/写），优化其 IO 模式或升级存储。",
+         attr_key="host_disk_top_io_procs"),
     # ══ 数据库连接与并发 ══
     dict(key="threads_connected", kind="db", label="MySQL 连接数", unit="",
          thr=400, crit=800, title="数据库连接数偏高",
@@ -165,6 +172,21 @@ class MonitorSentinel(Specialist):
             if instance_name:
                 detail = f"{instance_name} {detail}"
             tags = ["anomaly", chk["kind"], chk["key"]]
+            # eBPF 内核级归因：命中且存在按进程的资源 TOP 列表时，附加上下文
+            attr_key = chk.get("attr_key")
+            if attr_key:
+                procs = snap.get(attr_key)
+                if isinstance(procs, list) and procs:
+                    lines = []
+                    for p in procs[:5]:
+                        comm = p.get("comm", "?")
+                        pid = p.get("pid", "?")
+                        if attr_key == "host_disk_top_io_procs":
+                            lines.append(f"    - {comm}(pid {pid}): {p.get('ms', 0)} ms / {p.get('ios', 0)} IO")
+                        else:
+                            lines.append(f"    - {comm}(pid {pid}): {p.get('ms', 0)} ms / {p.get('samples', 0)} samples")
+                    if lines:
+                        detail = detail.rstrip() + "\n    归因 Top 进程：\n" + "\n".join(lines)
             out.append(
                 Finding(
                     source=self.id,
@@ -192,6 +214,14 @@ class MonitorSentinel(Specialist):
                     parts.append(f"{k}={v}")
             if parts:
                 detail += " 资源水位：" + "，".join(parts) + "。"
+            # 标注本次宿主采集数据源精度
+            src = snap.get("host_collector_source")
+            if src == "ebpf":
+                detail += " 宿主指标由 eBPF 内核级采集（块设备 IO 时延/进程归因精度更高）。"
+            elif src == "psutil":
+                detail += " 宿主指标由 psutil 用户态采集（无 eBPF，磁盘时延为聚合近似值）。"
+            elif src == "unavailable":
+                detail += " 宿主指标暂不可用（目标机未安装 psutil 或 SSH 不可达）。"
             out.append(
                 Finding(
                     source=self.id,
