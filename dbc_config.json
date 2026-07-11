@@ -2,8 +2,8 @@
     "language": "zh",
     "ai": {
         "backend": "ollama",
-        "online_enabled": false,
-        "api_key": "",
+        "online_enabled": true,
+        "api_key": "aaa",
         "api_url": "http://localhost:11434",
         "model": "qwen3:8b",
         "timeout": 600,
