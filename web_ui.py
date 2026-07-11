@@ -2507,7 +2507,6 @@ def api_test_ollama():
         return jsonify({'ok': False, 'msg': _t('webui.err_conn_failed').format(e=e)})
 
 
-@app.route('/api/test_openai', methods=['POST'])
 def _probe_openai_model(api_url, api_key, model):
     """退化探测：用用户填写的 model 向 /chat/completions 发一次最小请求，
     验证该模型是否真实可用（用于 /models 端点不可用或返回空时）。"""
