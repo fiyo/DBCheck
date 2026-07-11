@@ -56,9 +56,10 @@ plugins/enabled/*
 # Inspection database (auto-generated)
 data/inspection.db
 /inspection.db
-
+awr_uploads/*.*
 um_rbac.db
 test_*.py
 check_*.py
 fix_*.py
+test_*.py
 export_*.py
