@@ -1,7 +1,15 @@
 # Changelog
 
 ## v26.7.11.1 (2026-07-11)
-- 版本号维护更新：各源文件版本标识同步至 v26.7.11.1（不含功能变更）
+
+### 🐛 修复
+- **#28 AI 诊断测试连接 500**：主分支（main）「AI 诊断设置」页面点「测试连接」报 500（`TypeError: _probe_openai_model() missing 3 required positional arguments`）。根因为 `@app.route('/api/test_openai')` 装饰器误挂在辅助函数 `_probe_openai_model` 上，导致请求以无参方式命中该函数；移除误挂装饰器后恢复正常
+- **实时慢查询 / 活跃连接监控数据源下拉框空**：监控未启动时数据源下拉框不显示任何实例。移植 professional 分支已有的占位逻辑——监控未启动 / 无数据时从 `pro.instance_manager` 拉取「已启用且配置了主机地址」的实例，生成 `名称 (host:port)` 占位项，下拉框不再空白
+- **#29 添加 Oracle 数据源 DPY-3015**：添加 Oracle 数据源（thin 模式）连接老版本数据库报 `DPY-3015: password verifier type 0x939 is not supported by python-oracledb in thin mode`。根因为 oracledb thin→thick 回退判定只识别 `DPY-3010`、漏判 `DPY-3015`；在 `web_ui.py`（3 处）与 `pro/instance_manager.py`（1 处）扩展回退判定，命中后自动切 thick 模式（Oracle Instant Client）
+- **#26 插件市场安装 Oracle JDBC 插件回滚**：从插件市场安装 Oracle JDBC 插件提示「插件加载失败，已回滚」。根因为 `load_plugin()` 未将插件目录加入 `sys.path`，导致插件顶层 `from inspection_engine import ...` 导入失败且异常被吞；修复 `plugin_core.py`（加载前注入插件目录到 `sys.path` + 新增 `load_plugin_with_error()` 透出真实异常）与 `plugin_market.py`（4 处回滚点改用新接口并拼入真实异常信息）
+
+### 🔧 工程
+- 版本号同步：各源文件版本标识 v26.7.8.1 → v26.7.11.1（version.py / version.json / Dockerfile / skill `dbcheck` `_meta` + `_skillhub_meta` + `scripts/version.py` / README + README_zh 徽章 / CHANGELOG 顶段）
 
 ## v26.7.8.1 (2026-07-08)
 - **Oracle (JDBC) 插件路由修正**：`oracle_jdbc` 类型数据源的实时监控改为统一走插件 JDBC 连接（JPype + ojdbc8.jar），彻底不再走 python `oracledb`，避免 Oracle 11g 在无 Oracle 客户端环境下连接失败；监控深采逻辑 `_collect_oracle()` 原样复用（插件 `JdbcConnectionWrapper` 为 DB-API 2.0 兼容）
