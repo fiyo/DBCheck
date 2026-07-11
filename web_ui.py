@@ -1332,8 +1332,8 @@ def test_oracle_connection(host, port, user, password, service_name='ORCL', sysd
             conn = oracledb.connect(**kw)
         except Exception as e:
             err_str = str(e)
-            if 'DPY-3010' in err_str:
-                # thin mode 不支持 11g，尝试 thick mode
+            if 'DPY-3010' in err_str or 'DPY-3015' in err_str:
+                # thin mode 不支持 11g / 老密码验证器(0x939)，尝试 thick mode
                 _ok = False
                 try:
                     oracledb.init_oracle_client()
@@ -3838,17 +3838,41 @@ def api_monitor_slow_queries():
         data = engine.get_slow_queries()
         # 转换为列表格式方便前端展示
         items = []
-        for iid, d in data.items():
-            for row in d.get('data', []):
-                items.append({
-                    'instance_id': iid,
-                    'source': d.get('label', iid),
-                    'label': d.get('label', iid),
-                    'db_type': d.get('db_type', ''),
-                    'error': d.get('error'),
-                    'ts': d.get('ts', 0),
-                    **row,
-                })
+        if data:
+            for iid, d in data.items():
+                for row in d.get('data', []):
+                    items.append({
+                        'instance_id': iid,
+                        'source': d.get('label', iid),
+                        'label': d.get('label', iid),
+                        'db_type': d.get('db_type', ''),
+                        'error': d.get('error'),
+                        'ts': d.get('ts', 0),
+                        **row,
+                    })
+        else:
+            # 监控未启动/未采集：补占位项，使前端下拉框初始即可选全部数据源
+            try:
+                from pro import get_instance_manager
+                im = get_instance_manager()
+                for inst in im.get_all_instances(mask_password=True):
+                    if not inst.get('enabled', True):
+                        continue
+                    if not inst.get('host'):
+                        continue
+                    iid = inst.get('id')
+                    label = f"{inst.get('name', iid)} ({inst.get('host', '?')}:{inst.get('port', '?')})"
+                    items.append({
+                        'instance_id': iid,
+                        'source': label,
+                        'label': label,
+                        'db_type': inst.get('db_type', ''),
+                        'error': None,
+                        'ts': 0,
+                        'data': [],
+                    })
+            except Exception:
+                pass
         return jsonify({'ok': True, 'items': items, 'status': engine.get_status()})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)})
@@ -3861,21 +3885,50 @@ def api_monitor_connections():
         engine = get_monitor_engine()
         data = engine.get_connections()
         items = []
-        for iid, d in data.items():
-            items.append({
-                'instance_id': iid,
-                'source': d.get('label', iid),
-                'label': d.get('label', iid),
-                'db_type': d.get('db_type', ''),
-                'error': d.get('error'),
-                'ts': d.get('ts', 0),
-                'total': d.get('total', 0),
-                'max_conn': d.get('max_conn', 0),
-                'max_connections': d.get('max_conn', 0),
-                'usage_pct': d.get('usage_pct', 0),
-                'connections': d.get('connections', {}),
-                'sessions': d.get('data', []),
-            })
+        if data:
+            for iid, d in data.items():
+                items.append({
+                    'instance_id': iid,
+                    'source': d.get('label', iid),
+                    'label': d.get('label', iid),
+                    'db_type': d.get('db_type', ''),
+                    'error': d.get('error'),
+                    'ts': d.get('ts', 0),
+                    'total': d.get('total', 0),
+                    'max_conn': d.get('max_conn', 0),
+                    'max_connections': d.get('max_conn', 0),
+                    'usage_pct': d.get('usage_pct', 0),
+                    'connections': d.get('connections', {}),
+                    'sessions': d.get('data', []),
+                })
+        else:
+            # 监控未启动/未采集：补占位项，使前端下拉框初始即可选全部数据源
+            try:
+                from pro import get_instance_manager
+                im = get_instance_manager()
+                for inst in im.get_all_instances(mask_password=True):
+                    if not inst.get('enabled', True):
+                        continue
+                    if not inst.get('host'):
+                        continue
+                    iid = inst.get('id')
+                    label = f"{inst.get('name', iid)} ({inst.get('host', '?')}:{inst.get('port', '?')})"
+                    items.append({
+                        'instance_id': iid,
+                        'source': label,
+                        'label': label,
+                        'db_type': inst.get('db_type', ''),
+                        'error': None,
+                        'ts': 0,
+                        'total': 0,
+                        'max_conn': 0,
+                        'max_connections': 0,
+                        'usage_pct': 0,
+                        'connections': {},
+                        'sessions': [],
+                    })
+            except Exception:
+                pass
         return jsonify({'ok': True, 'items': items, 'status': engine.get_status()})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)})
@@ -4968,8 +5021,8 @@ def api_pro_datasources_test_conn():
                 conn = oracledb.connect(**params)
             except Exception as e:
                 err_msg = str(e)
-                if 'DPY-3010' in err_msg:
-                    # thin mode 不支持 Oracle 11g 及以下，尝试 thick mode
+                if 'DPY-3010' in err_msg or 'DPY-3015' in err_msg:
+                    # thin mode 不支持 Oracle 11g 及以下 / 老密码验证器(0x939)，尝试 thick mode
                     _thick_ok = False
                     # 1. 先尝试自动检测
                     try:
@@ -5126,9 +5179,9 @@ def _connect_oracle_thick_fallback(user, password, dsn, sysdba=False):
         return oracledb.connect(**params)
     except Exception as e:
         err_msg = str(e)
-        if 'DPY-3010' not in err_msg:
+        if 'DPY-3010' not in err_msg and 'DPY-3015' not in err_msg:
             raise
-        # thin mode 不支持 11g，尝试 thick mode
+        # thin mode 不支持 11g / 老密码验证器(0x939)，尝试 thick mode
         _thick_ok = False
         try:
             oracledb.init_oracle_client()

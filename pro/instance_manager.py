@@ -453,9 +453,9 @@ class InstanceManager:
                     conn = oracledb.connect(user=inst.user, password=password, dsn=dsn, mode=mode)
                 except Exception as e:
                     err_str = str(e)
-                    if 'DPY-3010' in err_str:
-                        print('[Oracle Thick Mode] DPY-3010 detected, attempting thick mode fallback...', flush=True)
-                        # thin mode 不支持 11g，尝试 thick mode
+                    if 'DPY-3010' in err_str or 'DPY-3015' in err_str:
+                        print('[Oracle Thick Mode] DPY-3010/3015 detected, attempting thick mode fallback...', flush=True)
+                        # thin mode 不支持 11g / 老密码验证器(0x939)，尝试 thick mode
                         _ok = False
                         try:
                             oracledb.init_oracle_client()

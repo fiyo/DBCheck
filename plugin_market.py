@@ -319,9 +319,9 @@ class PluginMarket:
                         shutil.copytree(s, d, dirs_exist_ok=True)
                     else:
                         shutil.copy2(s, d)
-                # 动态加载
-                from plugin_core import load_plugin, PluginRegistry
-                manifest = load_plugin(enabled_dir)
+                # 动态加载（同时捕获真实失败原因，便于向前端展示根因）
+                from plugin_core import load_plugin_with_error, PluginRegistry
+                manifest, load_err = load_plugin_with_error(enabled_dir)
                 if manifest:
                     logger.info(f"插件已启用（从 available/ 复制）: {plugin_id}")
                     
@@ -339,7 +339,10 @@ class PluginMarket:
                     return {'ok': True, 'message': f'插件 {plugin_id} 安装成功'}
                 else:
                     shutil.rmtree(enabled_dir, ignore_errors=True)
-                    return {'ok': False, 'message': '插件加载失败，已回滚'}
+                    err_msg = '插件加载失败，已回滚'
+                    if load_err:
+                        err_msg += f': {load_err}'
+                    return {'ok': False, 'message': err_msg}
             except Exception as e:
                 shutil.rmtree(enabled_dir, ignore_errors=True)
                 return {'ok': False, 'message': f'启用插件失败: {e}'}
@@ -410,9 +413,9 @@ class PluginMarket:
                 else:
                     shutil.copy2(s, d)
 
-            # 动态加载（先加载到 available/）
-            from plugin_core import load_plugin, PluginRegistry
-            manifest = load_plugin(target_dir)
+            # 动态加载（先加载到 available/，并捕获真实失败原因）
+            from plugin_core import load_plugin_with_error, PluginRegistry
+            manifest, load_err = load_plugin_with_error(target_dir)
             if manifest:
                 logger.info(f"插件安装成功（available/）: {plugin_id}")
                 # 自动启用：复制到 enabled/
@@ -426,7 +429,7 @@ class PluginMarket:
                         else:
                             shutil.copy2(s, d)
                     # 加载 enabled/ 中的插件
-                    manifest2 = load_plugin(enabled_dir)
+                    manifest2, load_err2 = load_plugin_with_error(enabled_dir)
                     if manifest2:
                         logger.info(f"插件已启用: {plugin_id}")
                         
@@ -444,14 +447,20 @@ class PluginMarket:
                         return {'ok': True, 'message': f'插件 {plugin.get("name", plugin_id)} 安装成功'}
                     else:
                         shutil.rmtree(enabled_dir, ignore_errors=True)
-                        return {'ok': True, 'message': f'插件 {plugin.get("name", plugin_id)} 安装成功（已安装但未启用）'}
+                        err_msg = f'插件 {plugin.get("name", plugin_id)} 安装成功（已安装但未启用）'
+                        if load_err2:
+                            err_msg += f': {load_err2}'
+                        return {'ok': True, 'message': err_msg}
                 except Exception as e:
                     logger.warning(f"插件启用失败: {e}")
                     return {'ok': True, 'message': f'插件 {plugin.get("name", plugin_id)} 安装成功（启用失败：{e}）'}
             else:
                 # 回滚
                 shutil.rmtree(target_dir, ignore_errors=True)
-                return {'ok': False, 'message': '插件加载失败，已回滚'}
+                err_msg = '插件加载失败，已回滚'
+                if load_err:
+                    err_msg += f': {load_err}'
+                return {'ok': False, 'message': err_msg}
         except Exception as e:
             shutil.rmtree(target_dir, ignore_errors=True)
             return {'ok': False, 'message': f'安装失败: {e}'}
@@ -512,9 +521,9 @@ class PluginMarket:
             else:
                 return {'ok': False, 'message': f'无效的本地路径: {source_path}'}
             
-            # 动态加载（先加载到 available/）
-            from plugin_core import load_plugin
-            manifest = load_plugin(target_dir)
+            # 动态加载（先加载到 available/，并捕获真实失败原因）
+            from plugin_core import load_plugin_with_error
+            manifest, load_err = load_plugin_with_error(target_dir)
             if manifest:
                 logger.info(f"插件安装成功（available/）: {plugin_id}")
                 # 自动启用：复制到 enabled/
@@ -528,7 +537,7 @@ class PluginMarket:
                             shutil.copytree(s, d, dirs_exist_ok=True)
                         else:
                             shutil.copy2(s, d)
-                    manifest2 = load_plugin(enabled_dir)
+                    manifest2, load_err2 = load_plugin_with_error(enabled_dir)
                     if manifest2:
                         logger.info(f"插件已启用: {plugin_id}")
                         
@@ -547,13 +556,19 @@ class PluginMarket:
                         return {'ok': True, 'message': f'插件 {plugin_id} 安装成功'}
                     else:
                         shutil.rmtree(enabled_dir, ignore_errors=True)
-                        return {'ok': True, 'message': f'插件 {plugin_id} 安装成功（已安装但未启用）'}
+                        err_msg = f'插件 {plugin_id} 安装成功（已安装但未启用）'
+                        if load_err2:
+                            err_msg += f': {load_err2}'
+                        return {'ok': True, 'message': err_msg}
                 except Exception as e:
                     logger.warning(f"插件启用失败: {e}")
                     return {'ok': True, 'message': f'插件 {plugin_id} 安装成功（启用失败：{e}）'}
             else:
                 shutil.rmtree(target_dir, ignore_errors=True)
-                return {'ok': False, 'message': '插件加载失败，已回滚'}
+                err_msg = '插件加载失败，已回滚'
+                if load_err:
+                    err_msg += f': {load_err}'
+                return {'ok': False, 'message': err_msg}
         except Exception as e:
             shutil.rmtree(target_dir, ignore_errors=True)
             return {'ok': False, 'message': f'本地安装失败: {e}'}
@@ -698,16 +713,19 @@ class PluginMarket:
                             else:
                                 shutil.copy2(s, d)
 
-                    # 动态加载
-                    from plugin_core import load_plugin
-                    manifest = load_plugin(target_dir)
+                    # 动态加载（并捕获真实失败原因）
+                    from plugin_core import load_plugin_with_error
+                    manifest, load_err = load_plugin_with_error(target_dir)
                     if manifest:
                         return {'ok': True, 'message': f'插件 {plugin_id} 安装成功（本地回退）'}
                     else:
                         shutil.rmtree(target_dir, ignore_errors=True)
                         enabled_dir = os.path.join(self._plugins_dir, 'enabled', plugin_id)
                         shutil.rmtree(enabled_dir, ignore_errors=True)
-                        return {'ok': False, 'message': '本地回退安装失败：插件加载失败'}
+                        err_msg = '本地回退安装失败：插件加载失败'
+                        if load_err:
+                            err_msg += f': {load_err}'
+                        return {'ok': False, 'message': err_msg}
                 except Exception as e:
                     shutil.rmtree(target_dir, ignore_errors=True)
                     enabled_dir = os.path.join(self._plugins_dir, 'enabled', plugin_id)

@@ -23,6 +23,11 @@ from functools import wraps
 
 logger = logging.getLogger('plugin')
 
+# 最近一次 load_plugin() 失败的真实原因（根因）。
+# load_plugin() 保持「只返回 manifest（None 表示失败）」的向后兼容契约，
+# 需要向用户/开发者展示根因时，请改用 load_plugin_with_error() 或读取本变量。
+_last_load_error: Optional[str] = None
+
 # ───────────────────────────────────────────────────────────────
 # 数据类
 # ───────────────────────────────────────────────────────────────
@@ -290,7 +295,14 @@ def find_plugins(plugins_dir: str = None) -> List[str]:
 
 
 def load_plugin(plugin_dir: str) -> Optional[Dict]:
-    """加载单个插件目录，返回 manifest 或 None"""
+    """加载单个插件目录，返回 manifest 或 None。
+
+    失败时返回 None，并通过模块级变量 _last_load_error 记录真实异常原因，
+    调用方可用 load_plugin_with_error() 一并取回。
+    """
+    global _last_load_error
+    _last_load_error = None
+
     manifest_path = os.path.join(plugin_dir, 'plugin.json')
     if not os.path.isfile(manifest_path):
         logger.warning(f"跳过 {plugin_dir}: 缺少 plugin.json")
@@ -300,6 +312,7 @@ def load_plugin(plugin_dir: str) -> Optional[Dict]:
         with open(manifest_path, 'r', encoding='utf-8') as f:
             manifest = json.load(f)
     except Exception as e:
+        _last_load_error = f"解析 plugin.json 失败: {type(e).__name__}: {e}"
         logger.warning(f"解析 plugin.json 失败: {e}")
         return None
 
@@ -334,6 +347,7 @@ def load_plugin(plugin_dir: str) -> Optional[Dict]:
     elif os.path.isfile(main_plugin_path):
         entry_file = main_plugin_path
     else:
+        _last_load_error = f"插件 {plugin_id} 缺少入口文件（__init__.py / main_plugin.py）"
         logger.warning(f"跳过 {plugin_id}: 缺少 __init__.py 或 main_plugin.py")
         return None
 
@@ -344,12 +358,41 @@ def load_plugin(plugin_dir: str) -> Optional[Dict]:
             entry_file
         )
         module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        # 将插件目录临时加入 sys.path，使其顶层 import 能正确解析同目录下的模块
+        # （例如 Oracle JDBC 插件自带的 inspection_engine.py），
+        # 不再依赖「项目根目录是否已被加入 sys.path」——之前正是因此导致安装时加载失败并回滚。
+        # 执行完毕后立即移除，避免污染全局 sys.path。
+        sys.path.insert(0, plugin_dir)
+        try:
+            spec.loader.exec_module(module)
+        finally:
+            if plugin_dir in sys.path:
+                sys.path.remove(plugin_dir)
     except Exception as e:
+        _last_load_error = f"插件 {plugin_id} 加载失败: {type(e).__name__}: {e}"
         logger.warning(f"加载插件 {plugin_id} 失败: {e}")
         return None
 
     return manifest
+
+
+def load_plugin_with_error(plugin_dir: str) -> tuple:
+    """
+    加载插件并返回 (manifest, error)，向后兼容 load_plugin()。
+
+    返回：
+        manifest: 成功时为插件清单 dict；失败时为 None
+        error:    成功时为 None；失败时为真实异常信息字符串
+                  （例如 "ModuleNotFoundError: No module named 'inspection_engine'"）
+
+    说明：load_plugin() 仍只返回 manifest（None 表示失败），现有
+        `if load_plugin(x):` 用法不受影响；本函数额外把失败根因带出来，
+        供调用方（如插件市场）向用户/开发者展示真实原因。
+    """
+    global _last_load_error
+    _last_load_error = None
+    manifest = load_plugin(plugin_dir)
+    return manifest, _last_load_error
 
 
 def load_plugins(plugins_dir: str = None) -> int:
