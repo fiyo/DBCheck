@@ -4928,8 +4928,6 @@ function formatBytes(bytes) {
             <select id="monitor-instance-select" onchange="onMonitorInstanceChange()">
               <option value="">请选择实例</option>
             </select>
-            <span class="monitor-dot" id="monitor-dot"></span>
-            <span id="monitor-status-text">—</span>
             <span class="monitor-latency" id="monitor-latency-text"></span>
             <span class="monitor-updated" id="monitor-updated-text"></span>
           </div>
@@ -5211,6 +5209,10 @@ function formatBytes(bytes) {
               <label data-i18n="webui.ssh_key">私钥文件路径</label>
               <input type="text" id="f-ssh-key" data-i18n="webui.placeholder_ssh_key" placeholder="/root/.ssh/id_rsa" />
             </div>
+          </div>
+          <div class="ssh-ebpf-hint" style="margin-top:12px;padding:10px 14px;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25);border-radius:10px;font-size:12px;color:var(--text-muted);line-height:1.6;">
+            <span style="color:#3b82f6;font-weight:600;">ℹ️ eBPF 内核级指标说明：</span>
+            <span data-i18n="webui.ssh_ebpf_hint">采集器默认走零依赖 Shell（/proc）方式，目标机无需安装 Python 即可获取 CPU、内存、磁盘等基础宿主指标。</span>
           </div>
           <div id="ssh-test-status" style="margin-top:12px"></div>
           <div class="btn-row">
@@ -5837,7 +5839,7 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
               <input type="text" id="ai-model" class="form-input" placeholder="gpt-4o-mini"/>
             </div>
             <div style="background:var(--surface2);border-radius:8px;padding:12px;font-size:12px;color:var(--text-muted);margin-bottom:8px" data-i18n="webui.ai_openai_tip">
-              💡 DeepSeek 用法：API URL 填 https://api.deepseek.com/v1，模型填 deepseek-chat，API Key 填 DeepSeek 的 key
+              💡 DeepSeek 用法：API URL 填 https://api.deepseek.com/v1，模型填 deepseek-v4-flash，API Key 填 DeepSeek 的 key
             </div>
             <div id="openai-test-result" style="font-size:11px;margin-top:4px;color:var(--text-muted)"></div>
             <button class="btn btn-ghost" onclick="testOpenAI()" style="font-size:12px;padding:7px 12px;margin-top:8px;" data-i18n="webui.ai_test_btn">🔗 测试连接</button>
@@ -12914,6 +12916,7 @@ async function loadMonitorSummary() {
     else if (monitorSummary.length) { sel.value = monitorSummary[0].instance_id; monitorCurrentId = monitorSummary[0].instance_id; }
     if (monitorCurrentId) loadMonitorHistory(monitorCurrentId);
     else monitorShowFallback('暂无被监控实例');
+    prefillMonitorFilterSources();
   } catch (e) { console.error('loadMonitorSummary failed:', e); }
 }
 
@@ -13147,10 +13150,14 @@ function renderHostPanel() {
     let txt, bg, fg;
     if (src === 'ebpf') { txt = i18n('monitor.host_src_ebpf') || '内核级 eBPF'; bg = 'rgba(63,185,80,.18)'; fg = '#3fb950'; }
     else if (src === 'psutil') { txt = i18n('monitor.host_src_psutil') || 'psutil 用户态'; bg = 'rgba(59,130,246,.18)'; fg = '#3b82f6'; }
+    else if (src === 'shell') { txt = i18n('monitor.host_src_shell') || 'Shell /proc 零依赖'; bg = 'rgba(59,130,246,.18)'; fg = '#3b82f6'; }
     else if (src === 'unavailable') { txt = i18n('monitor.host_src_unavailable') || '宿主资源不可用'; bg = 'rgba(139,148,158,.18)'; fg = '#8b949e'; }
     else { txt = i18n('monitor.host_src_none') || '暂无宿主数据'; bg = 'rgba(139,148,158,.12)'; fg = '#8b949e'; }
     badge.textContent = txt;
     badge.style.background = bg; badge.style.color = fg; badge.style.border = '1px solid ' + fg;
+    badge.title = (src === 'unavailable' && latest.host_error)
+      ? (i18n('monitor.host_src_unavailable') || '宿主资源不可用') + '：' + latest.host_error
+      : (txt || '');
   }
 
   // ── 基础资源图：CPU% / 内存% / Swap% / Load1 ──
@@ -13172,7 +13179,13 @@ function renderHostPanel() {
   const elRes = document.getElementById('echart-host-res');
   if (!baseSeries.length) {
     if (hostResChart) { try { hostResChart.dispose(); } catch (_) {} hostResChart = null; }
-    if (elRes) elRes.innerHTML = '<div class="health-chart-fallback">' + (i18n('monitor.host_no_data') || '暂无宿主资源数据') + '</div>';
+    if (elRes) {
+      let msg = i18n('monitor.host_no_data') || '暂无宿主资源数据';
+      if (src === 'unavailable' && latest.host_error) {
+        msg = (i18n('monitor.host_src_unavailable') || '宿主资源不可用') + '：' + escapeHtml(latest.host_error);
+      }
+      elRes.innerHTML = '<div class="health-chart-fallback">' + msg + '</div>';
+    }
   } else {
     if (!hostResChart) hostResChart = echarts.init(elRes);
     hostResChart.setOption({
@@ -15825,6 +15838,7 @@ async function deleteBackupHistory(recordId) {
   // ─── 实时监控：全局状态 ───────────────────────────────────
   let monitorSlowData = [];
   let monitorConnData = [];
+  let monitorAllSources = [];
   let monitorHistData = [];
   let monitorPollTimer = null;
 
@@ -16032,11 +16046,29 @@ async function deleteBackupHistory(recordId) {
     var sources = {};
     monitorSlowData.forEach(function(item) { sources[item.source] = true; });
     monitorConnData.forEach(function(item) { sources[item.source] = true; });
+    monitorAllSources.forEach(function(s) { if (s) sources[s] = true; });
     var keys = Object.keys(sources).sort();
     var opts = '<option value="">全部数据源</option>';
     keys.forEach(function(k) { opts += '<option value="' + k + '">' + k + '</option>'; });
     if (sel) { sel.innerHTML = opts; if (cur && sources[cur]) sel.value = cur; }
     if (selConn) { var curConn = selConn.value; selConn.innerHTML = opts; if (curConn && sources[curConn]) selConn.value = curConn; }
+  }
+
+  // 进页面即预拉取全部数据源（即使监控未启动），填充下拉框选项
+  async function prefillMonitorFilterSources() {
+    try {
+      const [r1, r2] = await Promise.all([
+        fetch('/api/monitor/slow-queries'),
+        fetch('/api/monitor/connections')
+      ]);
+      const d1 = await r1.json();
+      const d2 = await r2.json();
+      const set = {};
+      (d1.items || []).forEach(function(it) { if (it.source) set[it.source] = true; });
+      (d2.items || []).forEach(function(it) { if (it.source) set[it.source] = true; });
+      monitorAllSources = Object.keys(set).sort();
+      renderMonitorSlowFilterSources();
+    } catch (e) { console.error('prefillMonitorFilterSources failed', e); }
   }
 
   function exportSlowQueryCSV() {

@@ -30,8 +30,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import platform
+import signal
+import sys
+import threading
 import time
 from collections import defaultdict
 
@@ -371,11 +375,12 @@ def _collect_ebpf(window: float = 0.5) -> dict:
             pass
 
 
-def collect_host(use_ebpf: bool = True, window: float = 0.5) -> dict:
+def collect_host(use_ebpf: bool = False, window: float = 0.5) -> dict:
     """采集宿主机资源，返回可直接合并进 snapshot 的 dict。
 
     - psutil 基础指标始终尝试（目标机未装 psutil 则返回 unavailable）；
-    - use_ebpf 为真且环境满足（Linux + root + bcc）时叠加 eBPF 内核级指标，
+    - use_ebpf 默认 False（仅 psutil 用户态，安全、不向目标内核注入任何程序）；
+      仅当显式传入 True 且环境满足（Linux + root + bcc）时才叠加 eBPF 内核级指标，
       并据此把 host_collector_source 标记为 'ebpf'，否则为 'psutil'。
     """
     m = _collect_psutil()
@@ -400,11 +405,52 @@ def main():
                     help="eBPF 采集窗口（秒）")
     ap.add_argument("--no-ebpf", action="store_true",
                     help="禁用 eBPF，仅采集 psutil 基础指标")
+    ap.add_argument("--max-time", type=float, default=8.0,
+                    help="整个采集的硬上限（秒）；超时强制退出，防止远端进程卡死导致 SSH 会话在目标机侧永久悬挂")
     args = ap.parse_args()
+
+    # 硬超时看门狗：保证远端进程无论 eBPF 是否卡死都在有限时间内退出。
+    # 这是「目标机 sshd 被半开 SSH 连接撑满 / Connection closed」的诱因之一——
+    # 若远端脚本不退出，SSH 会话就永远挂着，后端崩溃时更会堆积死连接。
+    # 双保险：SIGALRM（Unix 最佳努力）+ threading.Timer（可靠，从独立线程 os._exit）。
+    max_time = max(0.5, float(args.max_time))
+    _watchdogs = []
+
+    def _force_exit():
+        try:
+            sys.stderr.write(json.dumps({"error": "collect_host timeout"}) + "\n")
+        except Exception:
+            pass
+        os._exit(1)
+
+    def _on_alarm(signum, frame):
+        _force_exit()
+
+    if hasattr(signal, "SIGALRM"):
+        try:
+            signal.signal(signal.SIGALRM, _on_alarm)
+            signal.alarm(int(math.ceil(max_time)))
+        except Exception:
+            pass
+    _t = threading.Timer(max_time, _force_exit)
+    _t.daemon = True
+    _t.start()
+    _watchdogs.append(_t)
+
     try:
         out = collect_host(use_ebpf=not args.no_ebpf, window=args.window)
     except Exception:
         out = {}
+    finally:
+        try:
+            signal.alarm(0)
+        except Exception:
+            pass
+        for _w in _watchdogs:
+            try:
+                _w.cancel()
+            except Exception:
+                pass
     # stdout 仅输出一行 JSON，便于中心机解析（错误信息走 stderr）
     print(json.dumps(out, ensure_ascii=False))
 

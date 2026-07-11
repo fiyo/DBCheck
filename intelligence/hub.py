@@ -144,8 +144,12 @@ def _auto_analyze_to_risks(auto_analyze: Any) -> List[Dict[str, Any]]:
             continue
         title = t(item.get("col1", ""), default=item.get("col1", ""))
         level = t(item.get("col4", "") or item.get("col2", ""), default=item.get("col2", ""))
-        fix = t(item.get("col3", ""), default=item.get("col3", ""))
-        detail = item.get("detail") or ""
+        # 方案 B：诊断分析（col3）与处置建议（fix）分离。
+        # fix 优先取独立的处置建议字段，退化取 col3（诊断分析）；
+        # detail 优先取 detail 字段，退化取 col3（诊断分析），确保
+        # 诊断结果页与处置方案页展示的内容不再完全雷同。
+        fix = t(item.get("fix") or item.get("col3", ""), default=item.get("col3", ""))
+        detail = t(item.get("detail") or item.get("col3", ""), default=item.get("col3", ""))
         if title or detail or fix:
             risks.append(
                 {

@@ -387,11 +387,13 @@ def smart_analyze_mysql(context: dict) -> list:
 
         # AI 诊断结果（如有）
         ai_diag = sq_result.get('ai_diagnosis', '')
+        ai_rec = sq_result.get('ai_recommend', '')
         if ai_diag:
-            # 将 AI 诊断结果注入到 issues 中（标记为 AI 生成）
+            # col3 = 诊断分析（诊断结果页展示）；fix = 处置建议（处置方案页展示）
             issues.append({
                 'col1': 'AI 慢查询诊断', 'col2': 'AI 建议',
-                'col3': ai_diag[:500],  # 限制长度避免过长
+                'col3': ai_diag,
+                'fix': ai_rec,
                 'col4': '参考', 'col5': 'AI (Ollama)',
                 'fix_sql': ''
             })
@@ -758,10 +760,12 @@ def smart_analyze_pg(context: dict) -> list:
             })
 
         ai_diag = sq_result.get('ai_diagnosis', '')
+        ai_rec = sq_result.get('ai_recommend', '')
         if ai_diag:
             issues.append({
                 'col1': 'AI 慢查询诊断', 'col2': 'AI 建议',
-                'col3': ai_diag[:500],
+                'col3': ai_diag,
+                'fix': ai_rec,
                 'col4': '参考', 'col5': 'AI (Ollama)',
                 'fix_sql': ''
             })
@@ -1731,7 +1735,12 @@ Format requirement (output Markdown directly, no prefixes like "Here are"):
             'prompt': prompt,
             'stream': False,
             'think': False,
-            'options': {'temperature': 0.3}
+            'options': {
+                'temperature': 0.3,
+                # 扩大上下文窗口与最大生成 token，避免慢查询/综合分析类长输出被截断
+                'num_ctx': 8192,
+                'num_predict': 4096,
+            }
         }).encode('utf-8')
         req = urllib.request.Request(url, data=payload, method='POST')
         req.add_header('Content-Type', 'application/json')
@@ -1763,6 +1772,8 @@ Format requirement (output Markdown directly, no prefixes like "Here are"):
                 {'role': 'user', 'content': prompt}
             ],
             'temperature': 0.3,
+            # 确保长诊断（慢查询 Top 5、整体路线图等）不被截断
+            'max_tokens': 4096,
         }).encode('utf-8')
 
         req = urllib.request.Request(url, data=payload, method='POST')

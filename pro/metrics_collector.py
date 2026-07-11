@@ -32,6 +32,44 @@ CIRCUIT_FAIL_THRESHOLD = 5     # 连续失败多少次进入退避
 CIRCUIT_COOLDOWN = 60          # 退避时长（秒）
 CONNECT_TIMEOUT = 3            # 连接超时（秒）
 
+# ── SSH 并发护栏（全局共享，防止把目标机 sshd 打满）─────────────
+# 同一主机同时仅允许 1 个 SSH 连接（即使被注册成多个实例，也不会在一轮 tick 内
+# 并发去连它）；进程内 SSH 连接总数设上限（含实时监控 / 巡检 / 手动测试共享），
+# 避免叠加时瞬时压垮 sshd 的 MaxStartups，表现为 Connection closed / banner EOFError。
+_SSH_GLOBAL_SEM = threading.Semaphore(4)
+_ssh_host_locks = {}
+_ssh_host_locks_guard = threading.Lock()
+
+def _get_ssh_host_lock(host: str) -> threading.Lock:
+    with _ssh_host_locks_guard:
+        lk = _ssh_host_locks.get(host)
+        if lk is None:
+            lk = threading.Lock()
+            _ssh_host_locks[host] = lk
+        return lk
+
+def _is_self_host(host: str) -> bool:
+    """判断 ssh_host 是否指向中心机自身（允许本地实例误配 SSH 时回退本机采集）。"""
+    h = (host or '').strip().lower()
+    if h in ('localhost', '127.0.0.1', '::1', '0.0.0.0', '::'):
+        return True
+    try:
+        local = socket.gethostname().lower()
+        if h == local:
+            return True
+        addrs = set()
+        for info in socket.getaddrinfo(socket.gethostname(), None):
+            addrs.add(info[4][0])
+        if h in addrs:
+            return True
+    except Exception:
+        pass
+    return False
+
+def _host_unavailable(reason: str) -> dict:
+    """构造“宿主资源不可用”的结果 dict，携带原因，便于前端直接展示。"""
+    return {'host_collector_source': 'unavailable', 'host_error': str(reason or '未知原因')}
+
 # 计数器型指标（用于差分算速率）——按 db_type 分派
 COUNTER_KEYS = {
     'mysql': {'queries', 'bytes_received', 'bytes_sent', 'connections',
@@ -697,16 +735,49 @@ class MetricsCollector:
             pass
 
     def _collect_host(self, inst: dict) -> dict:
-        """采集目标机的宿主资源：优先 SSH 远端，否则本机 psutil 降级。"""
+        """采集目标机的宿主资源。
+
+        - 配置了 SSH → 走远端采集；若远端失败/无数据，返回 {}（该目标显示
+          “宿主资源不可用”），**绝不回退到中心机本机数据**（否则会把中心机指标
+          误标成目标机的，造成“错机器”误导）。
+        - 未配置 SSH（监控中心机自身）→ 本机 psutil 采集。
+
+        并发保护（修复“目标机 sshd 被监控的连接打满 / Connection closed /
+        Error reading SSH protocol banner / EOFError”）：
+          - 每目标主机一把锁：同一台机器同一时刻只会有 1 个 SSH 连接（哪怕被注册成
+            多个实例，也不会在一轮 tick 内并发去连它）；
+          - 全局 SSH 信号量：限制 DBCheck 进程内同时存在的 SSH 连接总数，避免监控 +
+            手动测试 + 巡检任务叠加时瞬时压垮 sshd 的 MaxStartups。
+        """
         ssh = self._resolve_ssh(inst)
         if ssh:
+            host_lock = _get_ssh_host_lock(ssh['host'])
+            if not _SSH_GLOBAL_SEM.acquire(timeout=5):
+                # 全局 SSH 槽位紧张，本轮跳过，避免再给 sshd 加压（下轮重试）
+                print(f"[metrics] SSH 采集跳过 {ssh['host']}: 全局 SSH 槽位紧张", flush=True)
+                return _host_unavailable('全局 SSH 槽位紧张，本轮跳过（下轮重试）')
             try:
-                remote = self._collect_host_via_ssh(ssh)
-                if remote:
+                with host_lock:
+                    try:
+                        remote = self._collect_host_via_ssh(ssh, inst)
+                    except Exception as e:
+                        remote = _host_unavailable('采集异常: %s' % e)
+                        print(f"[metrics] SSH 采集异常 {ssh['host']}: {e}", flush=True)
+                # remote 可能是：真实数据 / {'host_collector_source':'unavailable','host_error':...}
+                if remote and remote.get('host_collector_source') != 'unavailable':
                     return remote
-            except Exception:
-                # 远端失败：退本机（同机场景）或空，不影响数据库层指标
-                pass
+                # 远端失败/无数据：同机实例（ssh_host 指向中心机自身）误配 SSH 时，
+                # 合法回退本机采集（本就同机，不会“错机器”）；其余情况把失败原因
+                # 直接带进 snapshot，前端显示“宿主资源不可用：原因”，不再静默成
+                # 无意义的“暂无宿主数据”。
+                if _is_self_host(ssh['host']):
+                    print(f"[metrics] SSH 远端无数据，{ssh['host']} 判定为本机 → 回退本机采集", flush=True)
+                    return self._collect_host_local()
+                reason = (remote or {}).get('host_error') or 'SSH 远端无数据（连接失败或目标无产出）'
+                print(f"[metrics] {ssh['host']} 宿主采集不可用: {reason}", flush=True)
+                return _host_unavailable(reason)
+            finally:
+                _SSH_GLOBAL_SEM.release()
         return self._collect_host_local()
 
     def _resolve_ssh(self, inst: dict):
@@ -725,7 +796,7 @@ class MetricsCollector:
         }
 
     def _remote_script_src(self) -> str:
-        """读取远端采集脚本源码（缓存），用于 SSH 内联执行。"""
+        """读取远端 Python 采集脚本源码（缓存），用于 SSH 内联执行。"""
         src = getattr(self, '_rhs_src', None)
         if src is None:
             p = os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -738,20 +809,43 @@ class MetricsCollector:
             self._rhs_src = src
         return src
 
-    def _collect_host_via_ssh(self, ssh: dict) -> dict:
+    def _remote_shell_src(self) -> str:
+        """读取纯 Shell(/proc) 远端采集脚本源码（缓存），用于 SSH 内联执行（目标机零依赖）。"""
+        src = getattr(self, '_rhs_sh_src', None)
+        if src is None:
+            p = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                             'remote_host_shell.sh')
+            try:
+                with open(p, 'r', encoding='utf-8') as f:
+                    src = f.read()
+            except Exception:
+                src = ''
+            self._rhs_sh_src = src
+        return src
+
+    def _collect_host_via_ssh(self, ssh: dict, inst: dict = None, max_retries: int = 2) -> dict:
         """SSH 到目标机，内联执行远端采集脚本，解析 JSON 返回。
 
-        目标机无需部署 DBCheck，只需 python3 + psutil（eBPF 再加 bcc）。
-        脚本整份经 stdin 喂给远端解释器，避免目标机落地文件。
+        目标机默认零依赖（纯 Shell 读 /proc，无需 Python/psutil）；仅 eBPF 内核级
+        路径才需要 python3 + bcc。脚本整份经 stdin 喂给远端解释器，避免目标机落地文件。
+
+        健壮性（修复「后端崩溃后目标机 sshd 被半开连接撑满 / Connection closed /
+        Error reading SSH protocol banner / EOFError」）：
+          - client.connect() 放进 try/finally，**任何握手失败都保证 client.close()**；
+          - 开启 SSH/TCP keepalive，让目标 sshd 快速探活回收死连接；
+          - 对 stdout 做有界读取（单次 recv 超时），远端脚本卡死也不永久阻塞；
+          - 远端命令默认 --no-ebpf --max-time，绝不默认往目标内核注入 eBPF 程序；
+          - 对「握手阶段被 sshd 丢弃」（banner EOF / EOFError / 超时）做有限退避重试，
+            这是 sshd 的 MaxStartups 瞬时拥塞所致，退避后通常自愈，避免误判为「无数据」。
         """
         import paramiko
-        client = paramiko.SSHClient()
-        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         kwargs = {
             'hostname': ssh['host'],
             'port': int(ssh['port']),
             'username': ssh['user'],
             'timeout': 15,
+            'banner_timeout': 10,
+            'auth_timeout': 15,
             'look_for_keys': False,
             'allow_agent': False,
         }
@@ -767,34 +861,124 @@ class MetricsCollector:
                     pass
         if 'pkey' not in kwargs and ssh['password']:
             kwargs['password'] = ssh['password']
-        client.connect(**kwargs)
-        try:
-            src = self._remote_script_src()
-            # 内联执行：把脚本整份经 stdin 喂给远端 python3，避免目标机落地文件
-            # 分隔符用极特殊串，确保不会出现在 remote_host_collector.py 正文内
-            cmd = ("(command -v python3 >/dev/null 2>&1 && PY=python3 || PY=python); "
-                   "$PY - --window 0.5 <<'___DBCH_RHC_EOF___\n%s\n___DBCH_RHC_EOF___" % src)
-            stdin, stdout, stderr = client.exec_command(cmd, timeout=60)
-            raw = stdout.read().decode('utf-8', errors='ignore').strip()
-            stdout.channel.recv_exit_status()
-            if not raw:
-                return {}
+        # 默认走纯 Shell(/proc) 采集：目标机零依赖（无需 Python/psutil）。
+        # 仅当实例显式 host_ebpf=True 且目标机装有 Python 时，才走 Python+eBPF 路径。
+        enable_ebpf = bool(inst.get('host_ebpf')) if inst else False
+        py_src = self._remote_script_src()
+        sh_src = self._remote_shell_src()
+        ebpf_flag = '1' if enable_ebpf else '0'
+
+        last_err = None
+        for attempt in range(max_retries):
+            client = paramiko.SSHClient()
+            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             try:
-                data = json.loads(raw)
-            except Exception:
-                return {}
-            return data if isinstance(data, dict) else {}
-        finally:
-            try:
-                client.close()
-            except Exception:
-                pass
+                client.connect(**kwargs)   # 连接阶段也在 try 内，失败必关
+                tp = client.get_transport()
+                if tp:
+                    try:
+                        tp.set_keepalive(15)
+                    except Exception:
+                        pass
+                # bootstrap（纯 POSIX、无 heredoc）：只做解释器探测与转发。
+                # 原实现把整份远端脚本作为「内嵌 heredoc」塞进一条长 cmd，在不同登录
+                # shell（bash/dash/tcsh）下行为脆弱、脚本常整段不执行 → 无 stdout；
+                # 且从不读 stderr，远端真实报错完全不可见。现改为「bootstrap 探解释器 +
+                # 经 stdin 喂脚本」（这正是 "$SHBIN" -s / python - 已期望的：从 stdin 读脚本），
+                # 并同时读取 stderr 以拿到真实诊断信息。脚本正文自带 %（如 shell 的 printf
+                # '%s'），仍用字符串相加而非 % 拼接，避免误当格式化符。
+                bootstrap = (
+                    "SHBIN=$(command -v bash 2>/dev/null || command -v sh 2>/dev/null || true); "
+                    "PYBIN=$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true); "
+                    "if [ -n \"$PYBIN\" ] && [ \"" + ebpf_flag + "\" = \"1\" ]; then "
+                    "  \"$PYBIN\" - --window 0.5 --max-time 8; "
+                    "elif [ -n \"$SHBIN\" ]; then "
+                    "  \"$SHBIN\" -s; "
+                    "else "
+                    "  echo 'DBCheck: no bash/sh/python interpreter found on target'; exit 3; "
+                    "fi"
+                )
+                # 按 ebpf_flag 选择要经 stdin 喂给远端的脚本（bootstrap 已按同标志选解释器）。
+                script_to_run = py_src if (ebpf_flag == '1') else sh_src
+                stdin, stdout, stderr = client.exec_command(bootstrap, timeout=20)
+                try:
+                    stdin.write(script_to_run)
+                except Exception:
+                    pass
+                try:
+                    # 关键：关闭写端，远端脚本才会读到 EOF 并结束。
+                    # 不要用 stdin.close()——部分 paramiko 版本 close() 不会 shutdown_write，
+                    # 导致远端 sh -s 永远读不到 EOF 而挂起 / 无输出（本 bug 的真实诱因之一）。
+                    stdin.channel.shutdown_write()
+                except Exception:
+                    pass
+                raw = b''
+                err = b''
+                ch = stdout.channel
+                try:
+                    ch.settimeout(12)
+                except Exception:
+                    pass
+                # 先收 stdout（直到 EOF）
+                try:
+                    while True:
+                        chunk = ch.recv(4096)
+                        if not chunk:
+                            break
+                        raw += chunk
+                except Exception:
+                    pass
+                # 再收 stderr（独立通道，带超时），拿到远端真实报错而非瞎猜
+                try:
+                    stderr.channel.settimeout(5)
+                    while True:
+                        e = stderr.channel.recv(4096)
+                        if not e:
+                            break
+                        err += e
+                except Exception:
+                    pass
+                raw = raw.decode('utf-8', errors='ignore').strip()
+                err_txt = err.decode('utf-8', errors='ignore').strip()
+                if not raw:
+                    print(f"[metrics] SSH 远端 {ssh['host']} 无任何 stdout 输出（远端脚本未产出 JSON）", flush=True)
+                    if err_txt:
+                        return _host_unavailable('远端脚本执行失败: ' + err_txt[:200])
+                    return _host_unavailable('远端脚本未产出任何 JSON（bash/sh 缺失或脚本未执行）')
+                try:
+                    data = json.loads(raw)
+                except Exception:
+                    detail = raw[:80]
+                    if err_txt:
+                        detail += ' | stderr: ' + err_txt[:80]
+                    return _host_unavailable('远端输出非合法 JSON: %s' % detail)
+                return data if isinstance(data, dict) else _host_unavailable('远端输出非 JSON 对象')
+            except Exception as e:
+                last_err = e
+                msg = str(e)
+                # sshd MaxStartups 打满 / 瞬时拥塞：握手阶段即被丢（banner EOF），
+                # 属瞬时错误，退避重试一次通常可自愈；否则本轮放弃，交由下次 tick 再试。
+                transient = ('Error reading SSH protocol banner' in msg
+                             or 'EOFError' in msg or 'EOF' in msg
+                             or 'timed out' in msg.lower())
+                if not transient or attempt >= max_retries - 1:
+                    kind = '瞬时重试耗尽（sshd 瞬时拥塞）' if transient else '非瞬时错误'
+                    print(f"[metrics] SSH 采集失败 {ssh['host']}: {msg}（{kind}）", flush=True)
+                    return _host_unavailable('SSH 采集失败: %s（%s）' % (msg, kind))
+                time.sleep(2)
+                continue
+            finally:
+                try:
+                    client.close()
+                except Exception:
+                    pass
+        return _host_unavailable('SSH 采集重试后仍未成功')
 
     def _collect_host_local(self) -> dict:
-        """中心机本机采集（同机场景或无 SSH 时降级）。"""
+        """中心机本机采集（同机场景或无 SSH 时降级）。默认仅 psutil，不自动加载 eBPF。"""
         try:
             from pro import remote_host_collector as rh
-            return rh.collect_host(use_ebpf=True, window=0.5)
+            return rh.collect_host(use_ebpf=False, window=0.5)
         except Exception:
             # 极端：连 remote_host_collector 都 import 失败，用内置 psutil 兜底
             return self._collect_host_psutil_fallback()
@@ -914,10 +1098,18 @@ class MetricsCollector:
         try:
             from pro import get_instance_manager
             im = get_instance_manager()
-            # 注意：采集器在服务端运行，需要真实密码才能建立数据库连接，
-            # 因此不能用 mask_password=True（会把密码替换为 ****）。
-            # 参考 scheduler.py / monitor_engine.py 的做法：使用 False 或 get_instance_decrypted()。
-            raw_instances = im.get_all_instances(mask_password=False)
+            # 采集器在服务端运行，需要明文密码才能建立数据库连接与 SSH 跳板。
+            # get_all_instances() 返回的是加密存储值，必须逐实例经 get_instance_decrypted()
+            # 解密后才能用于连接——否则 DB/SSH 认证会用密文而 Authentication failed。
+            # （参照 monitor_engine._connect_and_query 的既有正确做法。）
+            raw_instances = []
+            for meta in im.get_all_instances(mask_password=False):
+                iid = meta.get('id')
+                if not iid:
+                    continue
+                dec = im.get_instance_decrypted(iid)
+                if dec:
+                    raw_instances.append(dec)
         except Exception as e:
             return [{'error': 'collector tick failed: %s' % str(e)[:200]}]
 

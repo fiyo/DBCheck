@@ -82,7 +82,7 @@ class RootCauseExpert(Specialist):
                     "step": step,
                     "focus": label,
                     "evidence": evidence,
-                    "actions": [i.suggestion for i in items if i.suggestion][:3],
+                    "actions": [i.suggestion for i in items if i.suggestion][:6],
                 }
             )
             step += 1

@@ -218,8 +218,11 @@ class MonitorSentinel(Specialist):
             src = snap.get("host_collector_source")
             if src == "ebpf":
                 detail += " 宿主指标由 eBPF 内核级采集（块设备 IO 时延/进程归因精度更高）。"
-            elif src == "psutil":
-                detail += " 宿主指标由 psutil 用户态采集（无 eBPF，磁盘时延为聚合近似值）。"
+            elif src in ("psutil", "shell"):
+                if src == "shell":
+                    detail += " 宿主指标由 Shell(/proc) 零依赖采集（无 eBPF，磁盘时延为聚合近似值）。"
+                else:
+                    detail += " 宿主指标由 psutil 用户态采集（无 eBPF，磁盘时延为聚合近似值）。"
             elif src == "unavailable":
                 detail += " 宿主指标暂不可用（目标机未安装 psutil 或 SSH 不可达）。"
             out.append(
