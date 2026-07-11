@@ -276,7 +276,7 @@ python web_ui.py                # Configure in AI Settings page after launching
 
 Built-in interactive SQL editor in Web UI, supporting all 10 database types with syntax highlighting, result tables, and friendly error messages.
 
-### Homepage Live Monitoring (实时监控采集器)
+### Homepage Live Monitoring
 
 The homepage "📡 Real-time Monitoring" panel shows live ECharts charts per instance, auto-refreshed every 30s via flask-socketio push (introduced in v2.10.0):
 
