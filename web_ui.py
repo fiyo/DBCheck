@@ -1862,9 +1862,6 @@ def api_ai_config():
         ai_cfg.setdefault('online_backend', 'openai')
         ai_cfg.setdefault('online_api_url', 'https://api.openai.com/v1')
         ai_cfg.setdefault('online_model', 'gpt-4o-mini')
-        # 脱敏：不返回真实 api_key
-        if ai_cfg.get('api_key'):
-            ai_cfg['api_key'] = '***' if ai_cfg['api_key'] else ''
         return jsonify(ai_cfg)
     return jsonify({
         'enabled': False, 'backend': 'disabled', 'model': '',
@@ -2511,8 +2508,49 @@ def api_test_ollama():
 
 
 @app.route('/api/test_openai', methods=['POST'])
+def _probe_openai_model(api_url, api_key, model):
+    """退化探测：用用户填写的 model 向 /chat/completions 发一次最小请求，
+    验证该模型是否真实可用（用于 /models 端点不可用或返回空时）。"""
+    import urllib.request, json as _json
+    chat_url = api_url + '/chat/completions'
+    payload = _json.dumps({
+        'model': model,
+        'messages': [{'role': 'user', 'content': 'hi'}],
+        'max_tokens': 1,
+        'stream': False,
+    }).encode('utf-8')
+    req = urllib.request.Request(chat_url, data=payload, headers={
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {api_key}'
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            body = resp.read().decode('utf-8', errors='ignore')
+            try:
+                result = _json.loads(body)
+            except _json.JSONDecodeError:
+                result = {}
+            if isinstance(result, dict) and result.get('choices'):
+                return jsonify({'ok': True, 'msg': _t('webui.ai_test_ok')})
+            return jsonify({'ok': False, 'msg': (_t('webui.ai_test_fail') or '测试失败') + ': 模型 "%s" 未返回有效响应' % model})
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode('utf-8', errors='replace')[:300]
+        err_lower = err_body.lower()
+        # 模型不存在类错误：404/400 + 响应体含 model not found / does not exist 等
+        is_model_err = (e.code in (404, 400)) and (
+            'model' in err_lower and ('not found' in err_lower or 'does not exist' in err_lower or '无此模型' in err_lower)
+        )
+        if is_model_err:
+            return jsonify({'ok': False, 'msg': '模型 "%s" 不可用或不存在: %s' % (model, err_body[:150])})
+        return jsonify({'ok': False, 'msg': 'HTTP %d: %s' % (e.code, err_body)})
+    except Exception as e:
+        return jsonify({'ok': False, 'msg': _t('webui.err_conn_failed').format(e=e)})
+
+
+@app.route('/api/test_openai', methods=['POST'])
 def api_test_openai():
-    """测试 OpenAI / 兼容 API 连接（OpenAI、DeepSeek、Azure 等）"""
+    """测试 OpenAI / 兼容 API 连接（OpenAI、DeepSeek、Azure 等），
+    并校验用户填写的 model 是否真实存在于可用模型中。"""
     import urllib.request, json as _json
     data = request.json or {}
     api_url = (data.get('api_url') or 'https://api.openai.com/v1').rstrip('/')
@@ -2522,7 +2560,7 @@ def api_test_openai():
     if not api_key:
         return jsonify({'ok': False, 'msg': _t('webui.ai_err_no_key')})
 
-    # 先用 /models 端点验证 API Key 是否有效
+    # 先用 /models 端点验证 API Key 是否有效，并校验用户填写的 model
     test_url = api_url + '/models'
     try:
         req = urllib.request.Request(test_url, headers={
@@ -2535,15 +2573,19 @@ def api_test_openai():
                 result = _json.loads(body)
                 models = result.get('data', [])
                 if isinstance(models, list) and len(models) > 0:
-                    model_ids = [m.get('id', '') for m in models[:5]]
-                    return jsonify({'ok': True, 'msg': _t('webui.ai_test_ok') + '，可用模型: ' + ', '.join(model_ids)})
-                return jsonify({'ok': True, 'msg': _t('webui.ai_test_ok')})
+                    model_ids = [m.get('id', '') for m in models]
+                    if model in model_ids:
+                        return jsonify({'ok': True, 'msg': _t('webui.ai_test_ok') + '，可用模型: ' + ', '.join(model_ids[:5])})
+                    # 模型不在可用列表中 → 明确失败，不再误报"连接成功"
+                    return jsonify({'ok': False, 'msg': '模型名称 "%s" 不在可用模型列表中，可用模型示例: %s' % (model, ', '.join(model_ids[:5]))})
+                # /models 返回空列表，退化到真实 chat 探测
+                return _probe_openai_model(api_url, api_key, model)
             except _json.JSONDecodeError:
-                # /models 返回非标准格式时，尝试最简 chat 请求
-                return jsonify({'ok': True, 'msg': _t('webui.ai_test_ok')})
+                # /models 返回非标准格式，退化到真实 chat 探测
+                return _probe_openai_model(api_url, api_key, model)
     except urllib.error.HTTPError as e:
-        body = e.read().decode('utf-8', errors='replace')[:300]
-        return jsonify({'ok': False, 'msg': f'HTTP {e.code}: {body}'})
+        # /models 调用失败（如某些兼容网关无此端点），退化到真实 chat 探测
+        return _probe_openai_model(api_url, api_key, model)
     except Exception as e:
         return jsonify({'ok': False, 'msg': _t('webui.err_conn_failed').format(e=e)})
 

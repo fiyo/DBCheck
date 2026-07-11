@@ -390,7 +390,7 @@ ZI = {
     "webui.ai_error_title": "AI 诊断暂时无法完成",
     "webui.ai_expand": "展开",
     "webui.ai_ollama_tip": "完全本地运行，无需 API Key，数据不出本机。先安装 Ollama 并拉取模型：ollama pull qwen2.5:7b",
-    "webui.ai_openai_tip": "DeepSeek 用法：API URL 填 https://api.deepseek.com/v1，模型填 deepseek-chat，API Key 填 DeepSeek 的 key。",
+    "webui.ai_openai_tip": "DeepSeek 用法：API URL 填 https://api.deepseek.com/v1，模型填 deepseek-v4-flash，API Key 填 DeepSeek 的 key。",
     "webui.ai_warn_note": "注意：AI 诊断仅发送指标数值，不发送密码等敏感信息。",
     "webui.btn_download_report": "⬇ 下载报告",
     "webui.desensitize_label": "🔒 脱敏导出报告",

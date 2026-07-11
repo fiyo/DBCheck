@@ -365,7 +365,7 @@ EN = {
     "webui.ai_error_title": "AI diagnosis is temporarily unavailable",
     "webui.ai_expand": "Expand",
     "webui.ai_ollama_tip": "Fully local operation, no API key needed. Install Ollama first: ollama pull qwen2.5:7b",
-    "webui.ai_openai_tip": "DeepSeek: Set API URL to https://api.deepseek.com/v1, model to deepseek-chat, and enter your DeepSeek API key.",
+    "webui.ai_openai_tip": "DeepSeek: Set API URL to https://api.deepseek.com/v1, model to deepseek-v4-flash, and enter your DeepSeek API key.",
     "webui.ai_warn_note": "Note: AI diagnosis only sends metric values, not passwords or sensitive information.",
     "webui.btn_download_report": "⬇ Download Report",
     "webui.desensitize_label": "🔒 Desensitize Report",
