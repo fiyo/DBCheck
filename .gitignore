@@ -7,6 +7,11 @@ __pycache__/
 *.orig
 copyright_registration/
 *.docx
+# 顶层与插件 Word 模板（*.docx 全局忽略，但模板需纳入版本库）
+!templates/
+!templates/*.docx
+!plugins/available/oracle_jdbc/templates/
+!plugins/available/oracle_jdbc/templates/*.docx
 *.pdf
 PUBLISH*.md
 test_dm_*.py

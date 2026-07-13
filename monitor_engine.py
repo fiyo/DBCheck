@@ -413,7 +413,10 @@ class MonitorEngine:
             )
 
         elif db_type == 'yashandb':
-            import yasdb
+            try:
+                import yasdb
+            except ImportError:
+                raise RuntimeError("YashanDB 驱动未安装，请先安装 yasdb 驱动后再使用崖山数据库监控。")
             return yasdb.connect(host=host, port=port, user=user, password=password)
 
         else:

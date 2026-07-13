@@ -17,6 +17,7 @@ data_dirs = [
     'drivers',
     'plugins',          # oracle_jdbc 等插件由 plugin_loader 动态加载，需随包复制
     'user_management',  # RBAC 蓝图模板(html)与初始化库(schema)需随包复制
+    'db',               # user_management_schema.sql 建表脚本需随包复制
 ]
 
 # JSON config files
@@ -38,16 +39,14 @@ a = Analysis(
     binaries=[],
     datas=datas,
     hiddenimports=[
-        'flask', 'flask_cors',
+        'flask',
         'pymysql', 'pymysql.constants', 'pymysql.constants.CLIENT',
         'psycopg2', 'psycopg2._psycopg',
         'oracledb',
         'pyodbc',
-        'dmpython', 'dmpython.exceptions',
-        'yasdb',
         'paramiko', 'paramiko.transport', 'paramiko.auth_handler',
         'jinja2', 'jinja2.ext',
-        'python_docx', 'docx',
+        'docx',
         'openpyxl',
         'psutil', 'psutil._psutil_linux', 'psutil._linux',
         'charset_normalizer', 'charset_normalizer.md__mypyc',
@@ -59,19 +58,18 @@ a = Analysis(
         'markupsafe', 'markupsafe._speedups',
         'werkzeug', 'werkzeug._internal', 'werkzeug.utils', 'werkzeug.wrappers',
         'itsdangerous',
-        'click', 'click._compat', 'click._bashcomplete',
+        'click', 'click._compat',
         'blinker',
         'cffi', 'cffi.api', 'cffi.backend_ctypes',
         'six',
         'idna',
         'urllib3', 'urllib3.util', 'urllib3.util.ssl_',
         'et_xmlfile', 'et_xmlfile.xmlfile',
-        'defusedxml', 'defusedxml.ElementTree',
         'yaml', 'yaml.composer', 'yaml.constructor', 'yaml.cyaml',
         'dotenv',
         'asyncio',
         'gevent', 'gevent.monkey', 'gevent.socket', 'gevent.pywsgi',
-        'gevent.wsgi', 'gevent.http', 'gevent.local', 'gevent.hub',
+        'gevent.local', 'gevent.hub',
         'gevent.server', 'gevent._greenlet_primitives',
         'greenlet',
         'engineio.async_drivers.gevent',
