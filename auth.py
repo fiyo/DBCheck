@@ -24,8 +24,11 @@ from datetime import datetime
 from functools import wraps
 from flask import session, request, jsonify, redirect
 
-# RBAC 数据库路径（项目目录，跟着项目走）
-_BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# RBAC 数据库路径（项目根目录）
+# dev 下 auth.py 位于仓库根，dirname(__file__) 即仓库根；
+# 打包后 auth.py 位于 <dist>/_internal/auth.py，dirname(__file__) 即 <dist>/_internal（数据随包复制于此），
+# 与 user_management/models/db_manager.py 解析出的路径一致。
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UM_RBAC_DB_PATH = os.path.join(_BASE_DIR, 'user_management', 'db', 'um_rbac.db')
 USERS_DB_PATH   = os.path.join(_BASE_DIR, 'user_management', 'db', 'users.db')
 os.makedirs(os.path.dirname(UM_RBAC_DB_PATH), exist_ok=True)
