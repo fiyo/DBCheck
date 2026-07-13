@@ -63,3 +63,4 @@ check_*.py
 fix_*.py
 test_*.py
 export_*.py
+*.md
