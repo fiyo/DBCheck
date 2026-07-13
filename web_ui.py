@@ -7311,7 +7311,11 @@ def _stream_inspection_response(data, message, session_id, chat_context):
                 names_str = '、'.join(candidates)
                 yield f"data: {json.dumps({'type': 'inspect_ask', 'message': f'未找到「{db_name}」，可用的{db_type.upper()}数据源有：{names_str}。', 'candidates': candidates, 'db_type': db_type}, ensure_ascii=False)}\n\n"
                 return
-        yield f"data: {json.dumps({'type': 'error', 'message': '[WARN] 无法确定巡检目标。请指定数据源名称（如"巡检 MySQL-01 的连接数"）或在上下文中选择数据源。'}, ensure_ascii=False)}\n\n"
+        _warn = {
+            'type': 'error',
+            'message': '[WARN] 无法确定巡检目标。请指定数据源名称（如"巡检 MySQL-01 的连接数"）或在上下文中选择数据源。',
+        }
+        yield f"data: {json.dumps(_warn, ensure_ascii=False)}\n\n"
         return
 
     # 3. 执行简单查询或启动巡检任务
