@@ -44,7 +44,6 @@ a = Analysis(
         'psycopg2', 'psycopg2._psycopg',
         'oracledb',
         'pyodbc',
-        'yasdb',
         'paramiko', 'paramiko.transport', 'paramiko.auth_handler',
         'jinja2', 'jinja2.ext',
         'docx',

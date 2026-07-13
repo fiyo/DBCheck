@@ -76,14 +76,9 @@ def saveDoc(context, ofile, ifile, inspector_name, **kwargs):
     return CompatWrapper(context, ofile, inspector, inspector_name)
 
 
-# 崖山 YashanDB 驱动
-try:
-    import yasdb as yashandb_driver
-    YASHANDB_DRIVER = 'yasdb'
-except ImportError:
-    print(_t("yashandb_driver_missing"))
-    print("  pip install yasdb")
-    sys.exit(1)
+# 崖山 YashanDB 驱动（懒加载：缺失时由 connect() 友好报错，而非进程退出）
+# 与 main_dm.py 的达梦驱动处理保持一致——可选驱动，未安装即静默跳过。
+YASHANDB_DRIVER = None
 
 
 class YashanDbInspector(BaseInspectionEngine):
@@ -104,6 +99,12 @@ class YashanDbInspector(BaseInspectionEngine):
         yasdb.connect(host='...', port=1688, user='sys', password='...')
         注意：yasdb.connect() 不需要 database 参数
         """
+        try:
+            import yasdb as yashandb_driver
+        except ImportError:
+            err = _t("yashandb_driver_missing") + " 请执行: pip install yasdb"
+            print(err)
+            return False, err
         try:
             self.conn = yashandb_driver.connect(
                 host=self.host,
