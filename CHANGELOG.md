@@ -1,5 +1,15 @@
 # Changelog
 
+## v26.7.13.1 (2026-07-13)
+
+### 🐛 修复
+- **打包后 RBAC 初始化失败 `no such table: um_user`**：干净机器首次运行打包程序报 RBAC 用户初始化失败。根因为打包 spec 的 `data_dirs` 缺 `db`（建表脚本 `db/user_management_schema.sql` 未随包），且 `auth.py` 用双层 `dirname(__file__)` 解析路径在打包后错位；修复 `build/*.spec` 加入 `db` 目录、`auth.py` 改为单层 `dirname(__file__)`，与 `db_manager` 解析一致
+
+### 🔧 工程
+- **PyInstaller 打包噪音清理**：移除 spec 中无效/错误 hidden-import（`flask_cors`、`dmpython`、`python_docx`（保留 `docx`）、`click._bashcomplete`、`defusedxml`、`gevent.wsgi`/`gevent.http`）；`build/runtime-hook-gevent.py` 删除 gevent 1.4+ 已移除的 `gevent.wsgi`/`gevent.http` 哑弹导入
+- **yasdb 驱动改为可选懒加载**：对齐 `main_dm.py` 的达梦驱动处理——`main_yashandb.py` 移除模块级 `import yasdb` + `sys.exit(1)`（会终止整个 web 进程），改为 `connect()` 内懒加载、缺失时友好报错；`monitor_engine.py` 监控路径 `import yasdb` 加 `try/except` 保护；spec 移除 `'yasdb'`
+- 版本号同步：各源文件版本标识 v26.7.11.1 → v26.7.13.1（version.py / version.json / Dockerfile / skill `dbcheck` `_meta` + `_skillhub_meta` + `scripts/version.py` / README + README_zh 徽章 / CHANGELOG 顶段）
+
 ## v26.7.11.1 (2026-07-11)
 
 ### 🐛 修复
