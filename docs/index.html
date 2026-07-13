@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DBCheck · 开源数据库智能巡检与实时监控平台</title>
-  <meta name="description" content="DBCheck v26.7.8.1 是一款开源、跨平台、支持 11 种主流与国产数据库的智能巡检与实时监控平台。内置 160+ 增强规则、实时监控大屏、本地 AI 诊断与一键报告，让数据库运维可知、可控、可防。">
+  <meta name="description" content="DBCheck v26.7.13.1 是一款开源、跨平台、支持 11 种主流与国产数据库的智能巡检与实时监控平台。内置 160+ 增强规则、实时监控大屏、本地 AI 诊断与一键报告，让数据库运维可知、可控、可防。">
   <meta name="keywords" content="数据库巡检, 数据库监控, 信创, 国产化替代, DBA工具, Kingbase, 达梦, Oracle, MySQL, PostgreSQL, 开源, 数据库可观测性">
   <meta name="author" content="Jack Ge (fiyo)">
   <meta name="robots" content="index, follow">
 
   <!-- Open Graph -->
   <meta property="og:title" content="DBCheck · 开源数据库巡检与实时监控平台">
-  <meta property="og:description" content="开源跨平台数据库智能巡检与实时监控平台 v26.7.8.1，本地 AI 诊断、数据不出网。">
+  <meta property="og:description" content="开源跨平台数据库智能巡检与实时监控平台 v26.7.13.1，本地 AI 诊断、数据不出网。">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://fiyo.github.io/DBCheck">
   <meta property="og:image" content="https://fiyo.github.io/DBCheck/dbcheck_logo_banner.png">
@@ -407,6 +407,8 @@
     .bm.pro .bmk{color:#b45309;background:rgba(245,158,11,.14);display:inline-block;padding:4px 11px;border-radius:999px}
     #professional .fcard::before{background:linear-gradient(90deg,var(--gold),var(--pro-purple));opacity:.45}
     #professional .fcard:hover::before{opacity:1}
+    .pro-flow .flow-cap{max-width:760px;margin:14px auto 0;font-size:.88rem;line-height:1.7;color:var(--text-2);text-align:center}
+    .pro-flow .flow-cap strong{color:var(--primary-2)}
 
     /* ---------- VERSION COMPARE TABLE ---------- */
     .cmp-wrap{max-width:940px;margin:0 auto;background:var(--surface);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.7);border-radius:var(--radius);padding:8px 24px 18px;box-shadow:var(--shadow);overflow:hidden}
@@ -527,7 +529,7 @@
   <section class="hero">
     <div class="hero-inner">
       <div class="hero-copy">
-        <div class="hero-badge"><span class="pulse"></span> 社区版 · 开源 MIT 协议 · <span id="verBadge">v26.7.8.1</span></div>
+        <div class="hero-badge"><span class="pulse"></span> 社区版 · 开源 MIT 协议 · <span id="verBadge">v26.7.13.1</span></div>
         <h1>让数据库运维<br><span class="gradient-text">可知 · 可控 · 可防</span></h1>
         <p class="sub">DBCheck 是一款<strong>开源、跨平台</strong>、支持 <strong>11 种</strong>主流与国产数据库的智能巡检与实时监控平台。内置 160+ 增强规则、实时监控大屏、本地 AI 诊断与一键报告，把 DBA 的重复劳动变成一键流程。</p>
         <div class="hero-tags">
@@ -868,6 +870,118 @@
         </div>
       </div>
 
+      <!-- AI DBA 团队：五位诊断专员 -->
+      <div class="sec-head reveal" style="margin-top:66px">
+        <div class="sec-tag pro"><i class="fas fa-users"></i> 五位诊断专员 · AI DBA 团队</div>
+        <h2>不是黑箱，是一支<span class="hl-gold">各司其职</span>的 DBA 团队</h2>
+        <p>协同诊断中枢把「一句目标 + 一个数据源」拆给五位专精的<strong>诊断专员</strong>。他们在<span class="gradient-text">共享上下文（黑板）</span>上串行接力、彼此印证，最终汇成带根因与处置顺序的诊断报告——既专业，又透明。</p>
+      </div>
+
+      <!-- 协同流程示意 -->
+      <div class="pro-flow reveal" style="margin:26px 0 6px;background:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.7);border-radius:22px;padding:18px 14px;backdrop-filter:blur(10px)">
+        <svg viewBox="0 0 820 340" width="100%" role="img" aria-label="五位诊断专员在共享上下文黑板上串行协同的流程示意">
+          <defs>
+            <linearGradient id="bb2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1e1b4b"/><stop offset="1" stop-color="#312e81"/></linearGradient>
+            <linearGradient id="out2" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#e0a93b"/><stop offset="1" stop-color="#7c3aed"/></linearGradient>
+            <marker id="ah" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#94a3b8"/></marker>
+            <marker id="ahg" markerWidth="7" markerHeight="7" refX="5" refY="2.5" orient="auto"><path d="M0,0 L5,2.5 L0,5 Z" fill="#e0a93b"/></marker>
+            <marker id="ahp" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#7c3aed"/></marker>
+          </defs>
+
+          <!-- 横向流程：输入 + 五位专员 -->
+          <g font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="700" text-anchor="middle">
+            <rect x="16" y="50" width="96" height="56" rx="14" fill="rgba(255,255,255,.92)" stroke="#e0a93b" stroke-width="1.8"/>
+            <text x="64" y="82" fill="#1e293b">目标</text>
+            <text x="64" y="98" font-size="11" font-weight="500" fill="#64748b">+ 数据源</text>
+
+            <rect x="140" y="50" width="96" height="56" rx="14" fill="rgba(255,255,255,.92)" stroke="#e0a93b" stroke-width="1.8"/>
+            <text x="188" y="79" fill="#1e293b" font-size="12">运行监控</text>
+            <text x="188" y="95" fill="#1e293b" font-size="12">哨兵</text>
+
+            <rect x="264" y="50" width="96" height="56" rx="14" fill="rgba(255,255,255,.92)" stroke="#7c3aed" stroke-width="1.8"/>
+            <text x="312" y="79" fill="#1e293b" font-size="12">深度巡检</text>
+            <text x="312" y="95" fill="#1e293b" font-size="12">分析</text>
+
+            <rect x="388" y="50" width="96" height="56" rx="14" fill="rgba(255,255,255,.92)" stroke="#64748b" stroke-width="1.8"/>
+            <text x="436" y="79" fill="#1e293b" font-size="12">根因</text>
+            <text x="436" y="95" fill="#1e293b" font-size="12">定位</text>
+
+            <rect x="512" y="50" width="96" height="56" rx="14" fill="rgba(255,255,255,.92)" stroke="#e0a93b" stroke-width="1.8"/>
+            <text x="560" y="79" fill="#1e293b" font-size="12">SQL</text>
+            <text x="560" y="95" fill="#1e293b" font-size="12">治理</text>
+
+            <rect x="636" y="50" width="96" height="56" rx="14" fill="rgba(255,255,255,.92)" stroke="#7c3aed" stroke-width="1.8"/>
+            <text x="684" y="79" fill="#1e293b" font-size="12">锁等待</text>
+            <text x="684" y="95" fill="#1e293b" font-size="12">分析</text>
+          </g>
+
+          <!-- 节点间串联箭头 -->
+          <g stroke="#94a3b8" stroke-width="2" fill="none" marker-end="url(#ah)">
+            <line x1="112" y1="78" x2="138" y2="78"/>
+            <line x1="236" y1="78" x2="262" y2="78"/>
+            <line x1="360" y1="78" x2="386" y2="78"/>
+            <line x1="484" y1="78" x2="510" y2="78"/>
+            <line x1="608" y1="78" x2="634" y2="78"/>
+          </g>
+
+          <!-- 写入黑板 -->
+          <g stroke="#e0a93b" stroke-width="1.6" stroke-dasharray="4 5" fill="none" opacity=".7" marker-end="url(#ahg)">
+            <line x1="64" y1="106" x2="64" y2="168"/>
+            <line x1="188" y1="106" x2="188" y2="168"/>
+            <line x1="312" y1="106" x2="312" y2="168"/>
+            <line x1="436" y1="106" x2="436" y2="168"/>
+            <line x1="560" y1="106" x2="560" y2="168"/>
+            <line x1="684" y1="106" x2="684" y2="168"/>
+          </g>
+
+          <!-- 黑板（共享上下文） -->
+          <rect x="16" y="170" width="788" height="70" rx="18" fill="url(#bb2)" stroke="#e0a93b" stroke-width="2"/>
+          <text x="410" y="200" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="15" font-weight="800" fill="#fff">共享上下文（黑板）</text>
+          <text x="410" y="224" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="12" fill="#cbd5e1">五位专员的结论在同一空间接力 —— 不层层失真、不压缩、不黑箱</text>
+
+          <!-- 输出 -->
+          <line x1="410" y1="240" x2="410" y2="262" stroke="#7c3aed" stroke-width="2.4" marker-end="url(#ahp)"/>
+          <rect x="262" y="264" width="296" height="60" rx="16" fill="url(#out2)"/>
+          <text x="410" y="290" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="700" fill="#fff">处置方案 · 代价评估 · 工单</text>
+          <text x="410" y="310" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="11" fill="#f1e7d0">异常发现 + 根因推断 + 可执行顺序</text>
+        </svg>
+        <p class="flow-cap">串行协同：协同诊断中枢依次调度五位专员，单专员异常不中断整体；每位专员把结论写入黑板，下一位在其上接力，并由<strong>方案代价验证</strong>给出「先易后难」的执行顺序与维护窗口提示。全程 SSE 流式展示「现在谁在研判」。</p>
+      </div>
+
+      <!-- 五位专员详卡 -->
+      <div class="grid-3 stagger" style="margin-top:30px">
+        <div class="fcard glow reveal">
+          <div class="fic"><i class="fas fa-bell"></i></div>
+          <h3>运行监控哨兵</h3>
+          <p>持续盯防连接数、活跃会话、QPS/TPS、缓冲命中率、复制延迟等实时指标与告警阈值；第一时间发现异常波动、连接风暴、资源打满，把「现在有问题 + 初步信号」写入黑板，触发后续深度研判。</p>
+          <span class="tag">实时哨兵</span>
+        </div>
+        <div class="fcard glow reveal">
+          <div class="fic"><i class="fas fa-magnifying-glass"></i></div>
+          <h3>深度巡检分析</h3>
+          <p>在 160+ 巡检规则命中与深采指标之上做二次关联，把零散风险串联成「风险画像」；区分偶发抖动与结构性隐患，指出最该优先处理的问题类别，为根因定位提供结构化线索。</p>
+          <span class="tag">风险画像</span>
+        </div>
+        <div class="fcard glow reveal">
+          <div class="fic"><i class="fas fa-bullseye"></i></div>
+          <h3>根因定位</h3>
+          <p>对异常做因果推断，区分「表象」与「根因」，给出可信度与完整证据链；不只治标，更解释「为什么会这样」，把根因结论落到黑板，供治理专员制定处置。</p>
+          <span class="tag">因果推断</span>
+        </div>
+        <div class="fcard glow reveal">
+          <div class="fic"><i class="fas fa-database"></i></div>
+          <h3>SQL 治理</h3>
+          <p>审查慢 SQL、全表扫描、缺失/冗余索引、危险 DDL、隐式类型转换等；给出改写建议与索引方案，并评估执行代价与回滚风险，把「怎么改」落成可执行 SQL。</p>
+          <span class="tag">索引与改写</span>
+        </div>
+        <div class="fcard glow reveal">
+          <div class="fic"><i class="fas fa-link"></i></div>
+          <h3>锁等待分析</h3>
+          <p>剖析锁等待链与阻塞会话，定位「谁阻塞了谁、卡在哪把锁」；给出 Kill / 重试 / 事务拆分 / 索引优化等处置顺序，在高并发争用场景快速止血。</p>
+          <span class="tag">阻塞止血</span>
+        </div>
+      </div>
+
       <!-- professional capability grid -->
       <div class="grid-3 stagger" style="margin-top:52px">
         <div class="fcard glow reveal"><div class="fic"><i class="fas fa-microchip"></i></div><h3>eBPF 内核级采集</h3><p>块设备服务时间 p50/p95/p99 微秒级百分位、按进程 IO / CPU 归因，精度高于 psutil，擅长暴露长尾抖动。<strong>默认关闭、仅 opt-in</strong>，绝不在生产默认注入内核程序。</p></div>
@@ -1143,7 +1257,7 @@ python web_ui.py</pre>
       'use strict';
       var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-      // ---- version badge (from version.json, fallback v26.7.8.1) ----
+      // ---- version badge (from version.json, fallback v26.7.13.1) ----
       fetch('version.json').then(function(r){return r.json();}).then(function(d){ if(d&&d.version){ var el=document.getElementById('verBadge'); if(el) el.textContent=d.version; } }).catch(function(){});
 
       // ---- mobile menu ----
