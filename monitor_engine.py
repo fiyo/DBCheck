@@ -355,7 +355,8 @@ class MonitorEngine:
         port = int(inst['port'])
         user = inst['user']
 
-        if db_type == 'mysql':
+        if db_type in ('mysql', 'mariadb'):
+            # MariaDB 与 MySQL 协议/参数高度兼容，复用同款 pymysql 连接逻辑
             import pymysql
             return pymysql.connect(
                 host=host, port=port, user=user, password=password,

@@ -1682,6 +1682,33 @@ def init_default_baselines(db_path: str = None):
             {'param_name': 'max_allowed_packet', 'query_sql': "SHOW VARIABLES LIKE 'max_allowed_packet'", 'operator': '>=', 'expected_value': '67108864', 'risk_level': 'LOW', 'description_zh': '最大包大小应 >= 64MB', 'description_en': 'Max allowed packet should be >= 64MB'},
         ],
         # ═══════════════════════════════════════════
+        # MariaDB（与 MySQL 协议兼容，复用 MySQL 基线 + 专有参数）
+        # ═══════════════════════════════════════════
+        'mariadb': [
+            # ── 安全 ──
+            {'param_name': 'validate_password.policy', 'query_sql': "SHOW VARIABLES LIKE 'validate_password.policy'", 'operator': '>=', 'expected_value': 'MEDIUM', 'risk_level': 'HIGH', 'description_zh': '密码策略应 >= MEDIUM', 'description_en': 'Password policy should be >= MEDIUM'},
+            {'param_name': 'max_connect_errors', 'query_sql': "SHOW VARIABLES LIKE 'max_connect_errors'", 'operator': '>=', 'expected_value': '100', 'risk_level': 'MEDIUM', 'description_zh': '最大连接错误数应 >= 100，防止暴力破解', 'description_en': 'Max connect errors should be >= 100'},
+            {'param_name': 'local_infile', 'query_sql': "SHOW VARIABLES LIKE 'local_infile'", 'operator': '=', 'expected_value': 'OFF', 'risk_level': 'HIGH', 'description_zh': 'local_infile 应关闭（防止 SQL 注入加载本地文件）', 'description_en': 'local_infile should be OFF to prevent local file injection'},
+            {'param_name': 'sql_mode', 'query_sql': "SHOW VARIABLES LIKE 'sql_mode'", 'operator': 'LIKE', 'expected_value': 'STRICT_TRANS_TABLES', 'risk_level': 'MEDIUM', 'description_zh': 'sql_mode 应包含 STRICT_TRANS_TABLES', 'description_en': 'sql_mode should contain STRICT_TRANS_TABLES'},
+            {'param_name': 'log_error', 'query_sql': "SHOW VARIABLES LIKE 'log_error'", 'operator': '!=', 'expected_value': '', 'risk_level': 'LOW', 'description_zh': '应配置错误日志路径', 'description_en': 'Error log path should be configured'},
+            # ── 性能 ──
+            {'param_name': 'max_connections', 'query_sql': "SHOW VARIABLES LIKE 'max_connections'", 'operator': '>=', 'expected_value': '500', 'risk_level': 'MEDIUM', 'description_zh': '最大连接数应 >= 500', 'description_en': 'Max connections should be >= 500'},
+            {'param_name': 'innodb_buffer_pool_size', 'query_sql': "SHOW VARIABLES LIKE 'innodb_buffer_pool_size'", 'operator': '>=', 'expected_value': '1073741824', 'risk_level': 'MEDIUM', 'description_zh': 'InnoDB 缓冲池大小应 >= 1GB', 'description_en': 'InnoDB buffer pool size should be >= 1GB'},
+            {'param_name': 'innodb_log_file_size', 'query_sql': "SHOW VARIABLES LIKE 'innodb_log_file_size'", 'operator': '>=', 'expected_value': '268435456', 'risk_level': 'LOW', 'description_zh': 'InnoDB 日志文件大小应 >= 256MB', 'description_en': 'InnoDB log file size should be >= 256MB'},
+            {'param_name': 'query_cache_size', 'query_sql': "SHOW VARIABLES LIKE 'query_cache_size'", 'operator': '<=', 'expected_value': '0', 'risk_level': 'LOW', 'description_zh': 'MariaDB 查询缓存应关闭（0）', 'description_en': 'Query cache should be disabled (0)'},
+            {'param_name': 'aria_pagecache_buffer_size', 'query_sql': "SHOW VARIABLES LIKE 'aria_pagecache_buffer_size'", 'operator': '>=', 'expected_value': '134217728', 'risk_level': 'MEDIUM', 'description_zh': 'Aria 存储引擎页缓存大小应 >= 128MB', 'description_en': 'Aria page cache buffer size should be >= 128MB'},
+            {'param_name': 'thread_pool_size', 'query_sql': "SHOW VARIABLES LIKE 'thread_pool_size'", 'operator': '>=', 'expected_value': '4', 'risk_level': 'LOW', 'description_zh': '线程池大小应 >= 4（若启用线程池）', 'description_en': 'Thread pool size should be >= 4 if thread pool enabled'},
+            # ── 高可用 ──
+            {'param_name': 'sync_binlog', 'query_sql': "SHOW VARIABLES LIKE 'sync_binlog'", 'operator': '>=', 'expected_value': '1', 'risk_level': 'HIGH', 'description_zh': 'sync_binlog 应 >= 1（保证 binlog 落盘）', 'description_en': 'sync_binlog should be >= 1 for data safety'},
+            {'param_name': 'innodb_flush_log_at_trx_commit', 'query_sql': "SHOW VARIABLES LIKE 'innodb_flush_log_at_trx_commit'", 'operator': '>=', 'expected_value': '1', 'risk_level': 'HIGH', 'description_zh': '事务提交时刷盘策略应 >= 1', 'description_en': 'InnoDB flush log at trx commit should be >= 1'},
+            {'param_name': 'wsrep_on', 'query_sql': "SHOW VARIABLES LIKE 'wsrep_on'", 'operator': '=', 'expected_value': 'ON', 'risk_level': 'LOW', 'description_zh': 'Galera 集群应启用 wsrep（高可用）', 'description_en': 'Galera cluster wsrep should be ON for high availability'},
+            {'param_name': 'wsrep_cluster_address', 'query_sql': "SHOW VARIABLES LIKE 'wsrep_cluster_address'", 'operator': '!=', 'expected_value': '', 'risk_level': 'LOW', 'description_zh': 'Galera 集群地址应非空（高可用）', 'description_en': 'Galera cluster address should not be empty for high availability'},
+            # ── 运维 ──
+            {'param_name': 'expire_logs_days', 'query_sql': "SHOW VARIABLES LIKE 'expire_logs_days'", 'operator': '>=', 'expected_value': '7', 'risk_level': 'LOW', 'description_zh': 'binlog 保留天数应 >= 7 天', 'description_en': 'Binlog expiration should be >= 7 days'},
+            {'param_name': 'max_allowed_packet', 'query_sql': "SHOW VARIABLES LIKE 'max_allowed_packet'", 'operator': '>=', 'expected_value': '67108864', 'risk_level': 'LOW', 'description_zh': '最大包大小应 >= 64MB', 'description_en': 'Max allowed packet should be >= 64MB'},
+            {'param_name': 'query_cache_type', 'query_sql': "SHOW VARIABLES LIKE 'query_cache_type'", 'operator': '=', 'expected_value': 'OFF', 'risk_level': 'LOW', 'description_zh': 'query_cache_type 应关闭（MariaDB 旧版查询缓存建议关闭）', 'description_en': 'query_cache_type should be OFF (MariaDB legacy query cache should be disabled)'},
+        ],
+        # ═══════════════════════════════════════════
         # PostgreSQL
         # ═══════════════════════════════════════════
         'postgresql': [

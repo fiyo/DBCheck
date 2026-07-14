@@ -294,6 +294,7 @@ LIMIT 50
 
 SLOW_QUERY_TEMPLATES = {
     'mysql': MYSQL_SLOW_QUERY_SQL,
+    'mariadb': MYSQL_SLOW_QUERY_SQL,  # MariaDB 与 MySQL 协议兼容，复用 MySQL 慢查询 SQL
     'postgresql': PG_SLOW_QUERY_SQL,
     'pg': PG_SLOW_QUERY_SQL,
     'ivorysql': PG_SLOW_QUERY_SQL,
@@ -305,6 +306,7 @@ SLOW_QUERY_TEMPLATES = {
 
 SLOW_QUERY_FALLBACK_TEMPLATES = {
     'mysql': MYSQL_SLOW_QUERY_FALLBACK_SQL,
+    'mariadb': MYSQL_SLOW_QUERY_FALLBACK_SQL,  # 复用 MySQL fallback（processlist 替代 performance_schema）
     'postgresql': PG_SLOW_QUERY_FALLBACK_SQL,
     'pg': PG_SLOW_QUERY_FALLBACK_SQL,
     'ivorysql': PG_SLOW_QUERY_FALLBACK_SQL,
@@ -313,6 +315,7 @@ SLOW_QUERY_FALLBACK_TEMPLATES = {
 
 CONNECTION_TEMPLATES = {
     'mysql': MYSQL_CONNECTION_SQL,
+    'mariadb': MYSQL_CONNECTION_SQL,  # 复用 MySQL 活跃连接 SQL（information_schema.processlist）
     'postgresql': PG_CONNECTION_SQL,
     'pg': PG_CONNECTION_SQL,
     'ivorysql': PG_CONNECTION_SQL,
@@ -325,6 +328,7 @@ CONNECTION_TEMPLATES = {
 # 各数据库最大连接数默认值（用于计算使用率）
 MAX_CONNECTION_DEFAULTS = {
     'mysql': 151,
+    'mariadb': 151,  # 与 MySQL 一致的默认上限
     'postgresql': 100,
     'pg': 100,
     'ivorysql': 100,
@@ -337,6 +341,7 @@ MAX_CONNECTION_DEFAULTS = {
 # 获取最大连接数的 SQL
 MAX_CONN_QUERY_SQL = {
     'mysql': "SELECT @@global.max_connections AS max_conn",
+    'mariadb': "SELECT @@global.max_connections AS max_conn",  # 复用 MySQL 查询
     'postgresql': "SELECT setting::int AS max_conn FROM pg_settings WHERE name = 'max_connections'",
     'pg': "SELECT setting::int AS max_conn FROM pg_settings WHERE name = 'max_connections'",
     'ivorysql': "SELECT setting::int AS max_conn FROM pg_settings WHERE name = 'max_connections'",

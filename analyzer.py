@@ -2254,6 +2254,194 @@ def smart_analyze_gbase(context: dict) -> list:
 #  5. 综合分析入口（供 main_mysql.py / main_pg.py 调用）
 # ═══════════════════════════════════════════════════════
 
+
+def smart_analyze_mariadb_extras(context: dict, conn=None) -> list:
+    """
+    MariaDB 专有参数/特性补充检查（低风险探测，不覆盖 MySQL 主规则结果）。
+
+    设计原则：
+    - 仅做「探测是否启用」式检查：先查询再判断，未启用的特性不产出任何项。
+    - 所有检查项等级统一为「提示/低」，避免干扰主规则（smart_analyze_mysql）的风险评级。
+    - 容错：无可用连接（conn 为空且 context 中无连接）时返回空列表，不抛异常。
+
+    检查项（每一项均先查询再判断，不启用则不产出）：
+    1. Aria 存储引擎状态 + aria_* 相关变量（如 aria_pagecache_buffer_size）
+    2. 线程池 thread_pool（SHOW VARIABLES LIKE 'thread_pool_size' 存在且 >0 才检查）
+    3. TokuDB / Spider 引擎（information_schema.engines 中存在才检查）
+    4. query_cache 已移除残留（MariaDB 11.0+ 移除，旧配置变量被引用则告警）
+    5. wsrep / Galera 集群状态（仅当 SHOW VARIABLES LIKE 'wsrep%' 返回非空才检查）
+
+    :param context: checkdb() 返回的上下文（兼容性参数，预留）
+    :param conn: 可选，MariaDB 连接对象；若为空则尝试从 context 中取
+                 ('conn' / '_conn' / 'connection')。
+    :return: 风险项列表，结构同 smart_analyze_mysql 的 issue 字典
+             (col1/col2/col3/col4/col5/fix_sql)
+    """
+    extras = []
+
+    # 解析连接：优先用显式传入的 conn，否则从 context 中尝试获取
+    if conn is None:
+        conn = context.get('conn') or context.get('_conn') or context.get('connection')
+    if conn is None:
+        # 无可用连接，无法探测，直接返回空（不报错）
+        return extras
+
+    def _query(sql):
+        """执行查询并返回 list[dict]；出错返回空列表。"""
+        try:
+            cur = conn.cursor()
+            cur.execute(sql)
+            rows = cur.fetchall()
+            cols = [d[0] for d in cur.description] if cur.description else []
+            cur.close()
+            return [dict(zip(cols, row)) for row in rows]
+        except Exception:
+            return []
+
+    def _var_like(pattern):
+        """SHOW VARIABLES LIKE pattern，返回 [(Variable_name, Value), ...]"""
+        try:
+            cur = conn.cursor()
+            cur.execute("SHOW VARIABLES LIKE %s", (pattern,))
+            rows = cur.fetchall()
+            cur.close()
+            return rows
+        except Exception:
+            return []
+
+    def _var_value(pattern):
+        rows = _var_like(pattern)
+        if rows and len(rows[0]) >= 2:
+            return rows[0][1]
+        return None
+
+    # ── 1. Aria 存储引擎状态 ──
+    try:
+        aria_enabled = _var_value('aria_enabled')
+        # Aria 默认内置于 MariaDB（aria_enabled 通常为 ON），仅当启用且配置了
+        # 独立缓冲时才给出优化建议，否则不产出。
+        if str(aria_enabled).upper() in ('ON', '1', 'TRUE'):
+            aria_pcache = _var_value('aria_pagecache_buffer_size')
+            extras.append({
+                'col1': 'Aria 存储引擎已启用',
+                'col2': '低风险',
+                'col3': ('MariaDB 内置 Aria 存储引擎处于启用状态（aria_enabled=ON）。'
+                         '若实例大量使用 Aria 表，建议按需调大 aria_pagecache_buffer_size'
+                         '（当前值：%s），以提升 Aria 索引缓存命中率。' % (aria_pcache,)),
+                'col4': '低',
+                'col5': 'DBA',
+                'fix_sql': "SET GLOBAL aria_pagecache_buffer_size = <size>;  -- 需结合实例内存评估",
+            })
+    except Exception:
+        pass
+
+    # ── 2. 线程池（Thread Pool）──
+    try:
+        tp_size = _var_value('thread_pool_size')
+        if tp_size is not None and str(tp_size).isdigit() and int(tp_size) > 0:
+            extras.append({
+                'col1': '线程池已启用 (thread_pool_size>0)',
+                'col2': '低风险',
+                'col3': ('检测到线程池已启用（thread_pool_size=%s）。线程池适合高并发短连接'
+                         '场景，建议结合业务并发量评估 thread_pool_size 与 thread_pool_oversubscribe'
+                         ' 是否合理，避免连接被长时间阻塞。' % (tp_size,)),
+                'col4': '低',
+                'col5': 'DBA',
+                'fix_sql': "SET GLOBAL thread_pool_size = <n>;  -- 通常建议接近 CPU 核数",
+            })
+    except Exception:
+        pass
+
+    # ── 3. TokuDB / Spider 引擎 ──
+    try:
+        engines = _query("SELECT ENGINE, SUPPORT FROM information_schema.engines")
+        engine_map = {str(e.get('ENGINE', '')).upper(): str(e.get('SUPPORT', '')).upper() for e in engines}
+        for eng in ('TOKUDB', 'SPIDER'):
+            sup = engine_map.get(eng)
+            if sup and sup != 'NO':
+                extras.append({
+                    'col1': '%s 引擎可用' % eng,
+                    'col2': '低风险',
+                    'col3': ('检测到 %s 存储引擎可用（SUPPORT=%s）。该引擎为特性扩展，'
+                             '若未实际使用请确认是否必要，避免引入额外维护与版本升级兼容性风险。' % (eng, sup)),
+                    'col4': '低',
+                    'col5': 'DBA',
+                    'fix_sql': '',
+                })
+    except Exception:
+        pass
+
+    # ── 4. query_cache 已移除残留（MariaDB 11.0+ 已彻底移除）──
+    try:
+        # 11.0+ 已移除 query_cache_*；仍能查到旧变量，说明版本较旧或存在误用引用
+        qc_rows = _var_like('query_cache%')
+        if qc_rows:
+            qc_info = '; '.join('%s=%s' % (r[0], r[1]) for r in qc_rows if len(r) >= 2)
+            extras.append({
+                'col1': 'query_cache 旧配置仍存在',
+                'col2': '低风险',
+                'col3': ('探测到 query_cache 相关变量（%s）。MariaDB 10.1.7 起 query cache 默认禁用，'
+                         '11.0+ 已彻底移除；若实例仍大量依赖 query cache 配置，'
+                         '升级到 11.0+ 时会失效，建议评估移除。' % (qc_info,)),
+                'col4': '低',
+                'col5': 'DBA',
+                'fix_sql': "SET GLOBAL query_cache_type = 0;  -- 如未使用，建议关闭/移除相关配置",
+            })
+    except Exception:
+        pass
+
+    # ── 5. wsrep / Galera 集群状态 ──
+    try:
+        wsrep_rows = _var_like('wsrep%')
+        if wsrep_rows:
+            # 集群已启用：仅当 wsrep 相关变量非空/非 OFF 时检查健康
+            wsrep_on = _var_value('wsrep_on')
+            wsrep_ready = _var_value('wsrep_ready')
+            cluster_size = _var_value('wsrep_cluster_size')
+            notes = []
+            if str(wsrep_on).upper() == 'ON':
+                notes.append('wsrep_on=ON')
+            if wsrep_ready is not None and str(wsrep_ready).upper() != 'ON':
+                notes.append('wsrep_ready=%s（非 ON，集群可能未就绪）' % wsrep_ready)
+            if cluster_size is not None and str(cluster_size).isdigit() and int(cluster_size) < 2:
+                notes.append('wsrep_cluster_size=%s（单节点，存在脑裂/可用性风险）' % cluster_size)
+            detail = '；'.join(notes) if notes else 'wsrep 变量存在，集群相关参数已加载'
+            extras.append({
+                'col1': 'Galera 集群 (wsrep) 已启用',
+                'col2': '低风险',
+                'col3': ('检测到 wsrep/Galera 集群相关变量（集群大小=%s）。%s。'
+                         '建议关注 wsrep_cluster_size、wsrep_ready、wsrep_local_state_comment'
+                         ' 等集群健康指标，确保节点同步正常。' % (cluster_size, detail)),
+                'col4': '低',
+                'col5': 'DBA',
+                'fix_sql': '',
+            })
+    except Exception:
+        pass
+
+    return extras
+
+
+def smart_analyze_mariadb(context: dict) -> list:
+    """
+    MariaDB 智能分析入口（供 web_ui.py 按名调用）。
+
+    MariaDB 与 MySQL 协议/参数高度兼容，直接复用 MySQL 风险分析主规则，
+    并叠加 MariaDB 专有参数补充检查（低风险探测，无实时连接时不产出）。
+
+    :param context: checkdb()/巡检返回的上下文
+    :return: 风险项列表（col1/col2/col3/col4/col5/fix_sql）
+    """
+    issues = smart_analyze_mysql(context)
+    try:
+        extras = smart_analyze_mariadb_extras(context)
+        if extras:
+            issues = issues + extras
+    except Exception as e:  # 补充检查异常不影响主规则
+        print(f"[WARN] smart_analyze_mariadb extras failed: {e}")
+    return issues
+
+
 def run_full_analysis(db_type: str, host: str, port, label: str,
                       context: dict, base_dir: str,
                       ai_backend: str = None, ai_key: str = None,
@@ -2278,6 +2466,11 @@ def run_full_analysis(db_type: str, host: str, port, label: str,
     # 1. 增强智能分析
     if db_type == 'mysql':
         issues = smart_analyze_mysql(context)
+    elif db_type == 'mariadb':
+        # MariaDB 与 MySQL 协议/参数高度兼容，直接复用 MySQL 风险分析主规则（不另起平行逻辑）
+        issues = smart_analyze_mysql(context)
+        # MariaDB 专有参数补充检查（低风险探测），结果挂到 result['mariadb_extras']
+        mariadb_extras = smart_analyze_mariadb_extras(context)
     elif db_type == 'pg':
         issues = smart_analyze_pg(context)
     elif db_type == 'oracle':
@@ -2312,9 +2505,13 @@ def run_full_analysis(db_type: str, host: str, port, label: str,
         print(f"🤖 正在调用 AI 诊断（{advisor.backend} / {advisor.model}）...")
         ai_advice = advisor.diagnose(db_type, label, context, issues)
 
-    return {
+    result = {
         'issues': issues,
         'ai_advice': ai_advice,
         'trend': trend,
         'comparison': comparison,
     }
+    # MariaDB 专有参数检查作为补充信息挂到 mariadb_extras，不覆盖 MySQL 主规则结果
+    if db_type == 'mariadb':
+        result['mariadb_extras'] = mariadb_extras
+    return result

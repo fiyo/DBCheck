@@ -33,10 +33,11 @@ EN = {
     "cli.inspect_menu_line8": "⛩️  8 │ YashanDB (2.0+)",
     "cli.inspect_menu_line9": "🟣  9 │ KingbaseES (V8+ / PG-compatible)",
     "cli.inspect_menu_line10": "🗄  10 │ GBase 8s (Domestic transactional DB)",
-    "cli.inspect_menu_line11": "📋  11 │ Batch Template Generator",
+    "cli.inspect_menu_line11": "🐬  11 │ MariaDB (10.0+ / MySQL compatible)",
+    "cli.inspect_menu_line12": "📋  12 │ Batch Template Generator",
     "cli.inspect_menu_line0": "❌  0 │ Back to main menu",
-    "cli.inspect_menu_prompt": "Choose (1-11, 0 exit): ",
-    "cli.inspect_menu_invalid": "❌ Invalid choice. Please enter 0-11.",
+    "cli.inspect_menu_prompt": "Choose (1-12, 0 exit): ",
+    "cli.inspect_menu_invalid": "❌ Invalid choice. Please enter 0-12.",
 
     # Inspection start prompts
     "cli.main_menu_mysql_starting": "Starting MySQL inspection...",
@@ -48,6 +49,7 @@ EN = {
     "cli.main_menu_ivorysql_starting": "Starting IvorySQL inspection...",
     "cli.main_menu_yashandb_starting": "Starting YashanDB inspection...",
     "cli.main_menu_gbase_starting": "Starting GBase 8s inspection...",
+    "cli.main_menu_mariadb_starting": "Starting MariaDB inspection...",
 
     "cli.template_dm": "DM8 Batch Inspection Template (xlsx)",
 
@@ -275,6 +277,7 @@ EN = {
 
     # Web UI log messages
     "webui.log_start": "[{ts}] [{db_type}] Starting inspection...",
+    "webui.log_mariadb_start": "[{ts}] [MariaDB] Starting inspection...",
     "webui.log_mysql_start": "[{ts}] [MySQL] Starting inspection...",
     "webui.log_pg_start": "[{ts}] [PostgreSQL] Starting inspection...",
     "webui.log_kingbase_start": "[{ts}] [KingbaseES] Starting inspection...",
@@ -293,6 +296,7 @@ EN = {
     "webui.log_report_done": "[{ts}] ✅ Report generated: {fname}",
     "webui.log_inspection_done": "Inspection complete: {ver}",
     "webui.log_oracle_done": "Oracle full inspection complete",
+    "webui.err_mariadb_module": "MariaDB module not installed",
     "webui.err_mysql_module": "MySQL module not installed",
     "webui.err_pg_module": "PostgreSQL module not installed",
     "webui.err_kingbase_module": "KingbaseES module not installed",
@@ -1736,6 +1740,7 @@ EN = {
     "webui.err_template_create": "Failed to create report template",
     "webui.err_report_generate": "Failed to generate report file",
     "webui.log_report_ok": "Report generated: {fname}",
+    "webui.mariadb_report_filename": "MariaDBInspection_{ip}_{name}_{ts}",
     "webui.mysql_report_filename": "MySQLInspection_{ip}_{name}_{ts}",
     "webui.pg_report_filename": "PostgreSQLInspection_{ip}_{name}_{ts}",
     "webui.kingbase_report_filename": "KingbaseESInspection_{ip}_{name}_{ts}",

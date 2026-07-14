@@ -3788,6 +3788,7 @@ def init_default_templates(db_path: str = None, force: bool = False):
     # 格式: (db_type, template_name_zh, template_name_en, chapters, version, is_default, is_preset)
     db_types = [
         ('mysql',     'MySQL 默认巡检模板',        'MySQL Default Inspection Template',        MYSQL_DEFAULT_CHAPTERS,        'v1', 1, 1),
+        ('mariadb',   'MariaDB 默认巡检模板',      'MariaDB Default Inspection Template',      MYSQL_DEFAULT_CHAPTERS,       'v1', 1, 1),  # MariaDB 复用 MySQL 章节 SQL（协议兼容）
         ('postgresql', 'PostgreSQL 默认巡检模板',   'PostgreSQL Default Inspection Template',   POSTGRESQL_DEFAULT_CHAPTERS,   'v1', 1, 1),
         ('oracle',     'Oracle 默认巡检模板',        'Oracle Default Inspection Template',         ORACLE_DEFAULT_CHAPTERS,         'v1', 1, 1),
         ('oracle',     'Oracle 11g 巡检模板',        'Oracle 11g Inspection Template',             ORACLE_11G_CHAPTERS,             '11g', 0, 1),

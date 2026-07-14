@@ -1161,6 +1161,7 @@ def get_slow_query_analyzer(db_type: str) -> BaseSlowQueryAnalyzer:
     """
     TABLE = {
         'mysql':     MySQLSlowQueryAnalyzer,
+        'mariadb':   MySQLSlowQueryAnalyzer,  # MariaDB 复用 MySQL 慢查询分析器（协议兼容）
         'pg':        PGSlowQueryAnalyzer,
         'oracle':    OracleSlowQueryAnalyzer,
         'sqlserver': SQLServerSlowQueryAnalyzer,

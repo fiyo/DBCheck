@@ -587,15 +587,15 @@ async function executeFixSql(taskId, sql) {
 
 /* ─── DB Type Selector ─── */
 .type-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
 }
 .type-card {
   border: 1.5px solid var(--border);
   border-radius: var(--radius);
-  padding: 20px 24px;
+  padding: 12px 14px;
   cursor: pointer;
   transition: all var(--trans);
-  display: flex; flex-direction: column; gap: 8px;
+  display: flex; flex-direction: column; gap: 6px;
 }
 .type-card:hover {
   border-color: var(--accent2);
@@ -606,13 +606,13 @@ async function executeFixSql(taskId, sql) {
   background: rgba(56,139,253,.08);
 }
 .type-card .tc-logo {
-  font-size: 28px; line-height: 1;
+  font-size: 22px; line-height: 1;
 }
 .type-card .tc-name {
-  font-size: 15px; font-weight: 600;
+  font-size: 13px; font-weight: 600;
 }
 .type-card .tc-name-row {
-  font-size: 15px; font-weight: 600;
+  font-size: 13px; font-weight: 600;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -630,7 +630,7 @@ async function executeFixSql(taskId, sql) {
   text-transform: uppercase;
 }
 .type-card .tc-desc {
-  font-size: 12px; color: var(--text-muted); line-height: 1.5;
+  font-size: 11px; color: var(--text-muted); line-height: 1.35;
 }
 .type-card .tc-check {
   width: 18px; height: 18px; border-radius: 50%;
@@ -3545,7 +3545,7 @@ function formatBytes(bytes) {
               return;
             }
             listEl.innerHTML = list.map(ds => {
-              const dbIcons = {mysql:'🐬', pg:'🐘', oracle:'🔴', oracle_jdbc:'🔴', dm:'🟡', sqlserver:'🟠', tidb:'🟢', ivorysql:'🐘', kingbase:'🐘', gbase:'🟢'};
+              const dbIcons = {mysql:'🐬', mariadb:'🐬', pg:'🐘', oracle:'🔴', oracle_jdbc:'🔴', dm:'🟡', sqlserver:'🟠', tidb:'🟢', ivorysql:'🐘', kingbase:'🐘', gbase:'🟢'};
               const icon = dbIcons[ds.db_type] || '🗄️';
               const tagClass = 'tag-' + (ds.db_type === 'oracle' || ds.db_type === 'oracle_jdbc' ? 'oracle' : ds.db_type === 'sqlserver' ? 'sqlserver' : ds.db_type);
               const groupLabel = ds.group || 'default';
@@ -3785,8 +3785,8 @@ function formatBytes(bytes) {
         // 优先从 data 属性读取（插件类型），其次用硬编码映射
         const defaultPort = opt?.getAttribute('data-port') || '';
         const defaultUser = opt?.getAttribute('data-user') || '';
-        const portMap = {mysql:3306, pg:5432, dm:5236, oracle:1521, oracle_jdbc:1521, sqlserver:1433, tidb:4000, ivorysql:5432, yashandb:1688, kingbase:54321, gbase:9088};
-        const userMap = {mysql:'root', pg:'postgres', dm:'SYSDBA', oracle:'system', oracle_jdbc:'system', sqlserver:'sa', tidb:'root', ivorysql:'postgres', yashandb:'sys', kingbase:'kingbase', gbase:'gbasedbt'};
+        const portMap = {mysql:3306, mariadb:3306, pg:5432, dm:5236, oracle:1521, oracle_jdbc:1521, sqlserver:1433, tidb:4000, ivorysql:5432, yashandb:1688, kingbase:54321, gbase:9088};
+        const userMap = {mysql:'root', mariadb:'root', pg:'postgres', dm:'SYSDBA', oracle:'system', oracle_jdbc:'system', sqlserver:'sa', tidb:'root', ivorysql:'postgres', yashandb:'sys', kingbase:'kingbase', gbase:'gbasedbt'};
         document.getElementById('ds-port').value = (defaultPort && parseInt(defaultPort)) || portMap[dbType] || 3306;
         const userEl = document.getElementById('ds-user');
         if (dbType !== _currentDbType || !userEl.value) {
@@ -4492,6 +4492,10 @@ function formatBytes(bytes) {
               <div class="db-icon-item" title="GBase">
                 <img src="/gbase.png" alt="GBase" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="db-icon-fallback" style="display:none;">⛰️</span>
                 <span class="db-icon-label">GBase</span>
+              </div>
+              <div class="db-icon-item" title="MariaDB">
+                <img src="/mysql.png" alt="MariaDB" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="db-icon-fallback" style="display:none;">🐬</span>
+                <span class="db-icon-label">MariaDB</span>
               </div>
             </div>
           </div>
@@ -5206,7 +5210,7 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
   -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" \
   -d '{"db_type":"oracle","host":"192.168.1.200","port":1521,"service_name":"ORCL","user":"system","password":"****","ssh":{"host":"10.0.0.1","user":"oracle","password":"ssh_pass"}}'</pre>
               <div style="margin-top:12px;color:var(--text-muted);font-size:11px;">
-                <b>支持的 db_type</b>：mysql, pg, oracle, dm, sqlserver, tidb, ivorysql, yashandb &nbsp;|&nbsp;
+                <b>支持的 db_type</b>：mysql, mariadb, pg, oracle, dm, sqlserver, tidb, ivorysql, yashandb &nbsp;|&nbsp;
                 <b>可选参数</b>：database, sysdba, inspector, timeout
               </div>
               <div style="margin-top:8px;padding:8px 10px;background:var(--warn);border-radius:4px;font-size:11px;color:var(--text);">
@@ -18306,7 +18310,7 @@ function mkdirRemote() {
       card.onclick = () => selectDbType(dbType.value);
 
       const iconHtml = dbType.icon
-        ? `<img src="${dbType.icon}" alt="${dbType.label}" style="height:36px;width:auto;">`
+        ? `<img src="${dbType.icon}" alt="${dbType.label}" style="height:28px;width:auto;">`
         : '🗄️';
       const pluginBadge = dbType.is_plugin ? ' <span class="beta-tag">Plugin</span>' : '';
 

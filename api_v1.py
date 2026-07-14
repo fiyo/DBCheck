@@ -126,7 +126,7 @@ def _get_valid_db_types():
     用于 db_type 参数校验
     """
     # 内置数据库类型
-    built_in = ['mysql', 'pg', 'postgresql', 'oracle', 'dm', 'sqlserver', 'tidb', 'ivorysql', 'yashandb', 'kingbase', 'gbase']
+    built_in = ['mysql', 'mariadb', 'pg', 'postgresql', 'oracle', 'dm', 'sqlserver', 'tidb', 'ivorysql', 'yashandb', 'kingbase', 'gbase']
     valid = set(built_in)
     
     # 添加插件数据库类型
@@ -353,11 +353,11 @@ def _parse_iso(iso_str):
 
 
 def _default_port(db_type):
-    return {'mysql': 3306, 'pg': 5432, 'oracle': 1521, 'oracle_jdbc': 1521, 'dm': 5236, 'sqlserver': 1433, 'tidb': 4000, 'ivorysql': 5432, 'yashandb': 1688, 'kingbase': 54321, 'gbase': 5258}.get(db_type, 3306)
+    return {'mysql': 3306, 'mariadb': 3306, 'pg': 5432, 'oracle': 1521, 'oracle_jdbc': 1521, 'dm': 5236, 'sqlserver': 1433, 'tidb': 4000, 'ivorysql': 5432, 'yashandb': 1688, 'kingbase': 54321, 'gbase': 5258}.get(db_type, 3306)
 
 
 def _default_user(db_type):
-    return {'mysql': 'root', 'pg': 'postgres', 'oracle': 'system', 'oracle_jdbc': 'system', 'dm': 'SYSDBA', 'sqlserver': 'sa', 'tidb': 'root', 'ivorysql': 'postgres', 'yashandb': 'sys', 'kingbase': 'kingbase', 'gbase': 'gbasedbt'}.get(db_type, 'root')
+    return {'mysql': 'root', 'mariadb': 'root', 'pg': 'postgres', 'oracle': 'system', 'oracle_jdbc': 'system', 'dm': 'SYSDBA', 'sqlserver': 'sa', 'tidb': 'root', 'ivorysql': 'postgres', 'yashandb': 'sys', 'kingbase': 'kingbase', 'gbase': 'gbasedbt'}.get(db_type, 'root')
 
 
 # ── 查询任务状态 ──────────────────────────────────────────────
@@ -478,6 +478,7 @@ def _execute_inspect(db_type, host, port, user, password, inspector, body, ssh):
     # 根据数据库类型路由
     runner_map = {
         'mysql': ri.run_mysql,
+        'mariadb': ri.run_mariadb,  # MariaDB 复用 MySQL 连接逻辑（pymysql），仅模板/标识不同
         'pg': ri.run_pg,
         'oracle': ri.run_oracle_full,
         'dm': ri.run_dm,
