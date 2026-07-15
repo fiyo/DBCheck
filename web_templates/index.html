@@ -770,6 +770,32 @@ select option { background: var(--surface2); }
   border: 1px solid rgba(248,81,73,.3);
 }
 
+/* ── 插件市场：标签 / 状态 / 按钮 视觉分级 ── */
+.mkt-tag {
+  display:inline-flex; align-items:center;
+  font-size:10px; line-height:1.6; font-weight:500;
+  padding:0 0 0 5px; margin-left:4px;
+  border-left:2px solid currentColor;   /* 左侧竖线，颜色=文字色，明显非圆角矩形 */
+  border-radius:0;                       /* 不要圆角 */
+  background:transparent !important;     /* 不要底色块 */
+  white-space:nowrap;
+}
+.mkt-status {
+  display:inline-block; font-size:10px; line-height:1.6; padding:2px 8px;
+  border-radius:5px; white-space:nowrap; font-weight:600;
+  background:#2e7d32; color:#fff; /* 实心绿，明显是状态 */
+}
+.mkt-btn {
+  display:inline-flex; align-items:center; justify-content:center; gap:4px;
+  font-size:11px; font-weight:600; padding:4px 14px; border-radius:7px;
+  cursor:pointer; border:1px solid transparent; transition:all var(--trans);
+  white-space:nowrap;
+}
+.mkt-btn-install { background:#1565c0; color:#fff; }
+.mkt-btn-install:hover { background:#0d47a1; }
+.mkt-btn-uninstall { background:#fff; color:#c62828; border-color:#ef9a9a; }
+.mkt-btn-uninstall:hover { background:#c62828; color:#fff; border-color:#c62828; }
+
 /* ─── Status Banner ─── */
 .status-banner {
   display: flex; align-items: center; gap: 10px;
@@ -8450,9 +8476,9 @@ function pollStatus() {
             <div class="health-ring-wrap">
               <svg viewBox="0 0 120 120">
                 <circle class="ring-bg" cx="60" cy="60" r="45" />
-                <circle class="ring-fg" id="health-ring-fg" cx="60" cy="60" r="45" />
+                <circle class="ring-fg" id="analyze-ring-fg" cx="60" cy="60" r="45" />
               </svg>
-              <span class="health-ring-text" id="health-ring-text">-</span>
+              <span class="health-ring-text" id="analyze-ring-text">-</span>
             </div>
             <div class="result-info">
               <h3>${i18n('webui.analyze_issues').replace('{}', issues.length)}</h3>
@@ -8586,6 +8612,20 @@ function pollStatus() {
           ${aiHtml}`;
         document.getElementById('done-btns').style.display = '';
         if (typeof animateHealthRing === 'function') animateHealthRing(data.health_score || 0);
+
+        // 更新智能分析圆环（问题数量），避免与健康评分圆环 id 冲突
+        (function() {
+          const analyzeFg = document.getElementById('analyze-ring-fg');
+          const analyzeTxt = document.getElementById('analyze-ring-text');
+          if (analyzeFg && analyzeTxt) {
+            const r = 45;
+            const circumference = 2 * Math.PI * r;
+            analyzeFg.style.strokeDasharray = circumference;
+            analyzeFg.style.strokeDashoffset = 0; // 满环
+            analyzeFg.style.stroke = '#22c55e'; // 绿色
+            analyzeTxt.textContent = issues.length;
+          }
+        })();
       } else if (status === 'error') {
         st.textContent = i18n('webui.status_error');
         sp.style.display = 'none';
@@ -18055,47 +18095,82 @@ function mkdirRemote() {
     const grid = document.getElementById('market-plugins-grid');
     if (!grid) return;
     if (!plugins.length) { grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:24px;color:var(--text-muted);">市场暂无插件，成为第一个发布者 🚀</div>'; return; }
-    
-    // 分类标签映射
+
+    // 分类标签映射（字号 10px，与标签行统一）
     const categoryTags = {
-      'db': '<span style="background:#e3f2fd;color:#1565c0;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;">📊 数据库</span>',
-      'rule': '<span style="background:#fff3e0;color:#e65100;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;">📋 规则</span>',
+      'db': '<span class="mkt-tag" style="color:#1565c0;">📊 数据库</span>',
+      'rule': '<span class="mkt-tag" style="color:#e65100;">📋 规则</span>',
     };
-    
+
     grid.innerHTML = plugins.map(p => {
       const stars = '⭐'.repeat(Math.min(5, Math.round(p.rating||0)));
-      
+      // 防御：author 后端已规整为字符串，这里再做一次兜底（对象取 name，否则空串）
+      const authorName = (typeof p.author === 'string') ? p.author
+        : (p.author && typeof p.author === 'object' && p.author.name) ? p.author.name : '';
+
       // 官方/社区/已验证 标签
       const badge = p.author_type === 'official'
-        ? '<span style="background:#e8f5e9;color:#2e7d32;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;">✅ 官方</span>'
+        ? '<span class="mkt-tag" style="color:#2e7d32;">✅ 官方</span>'
         : (p.verified
-          ? '<span style="background:#e3f2fd;color:#1565c0;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;">✅ 已验证</span>'
-          : '<span style="background:#fff3e0;color:#e65100;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;">👤 社区</span>');
-      
+          ? '<span class="mkt-tag" style="color:#1565c0;">✅ 已验证</span>'
+          : '<span class="mkt-tag" style="color:#e65100;">👤 社区</span>');
+
       // 分类标签
       const catTag = categoryTags[p.category] || '';
-      
+
+      // 类型标签（基于可靠字段 p.type，而非不可靠的 p.category）
+      // 规则插件 = 橙色/暖色；巡检插件 = 蓝色/冷色；其他/缺失不显示，避免混乱
+      const typeTag = p.type === 'rule'
+        ? '<span class="mkt-tag" style="color:#e65100;">📋 规则</span>'
+        : (p.type === 'inspection'
+          ? '<span class="mkt-tag" style="color:#1565c0;">🔍 巡检</span>'
+          : '');
+
+      // 左侧色条（强化视觉区分：规则=橙、巡检=蓝）
+      const typeBorder = p.type === 'rule'
+        ? 'border-left:4px solid #e65100;'
+        : (p.type === 'inspection' ? 'border-left:4px solid #1565c0;' : '');
+
       // 精选标签
-      const featuredTag = p.featured 
-        ? '<span style="background:#fce4ec;color:#c62828;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;">🔥 精选</span>'
+      const featuredTag = p.featured
+        ? '<span class="mkt-tag" style="color:#c62828;">🔥 精选</span>'
         : '';
-      
-      // 来源标签（市场列表需要区分线上/本地）
-      const sourceTag = p.source === 'local'
-        ? '<span style="background:#f3e5f5;color:#7b1fa2;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;">📁 本地</span>'
-        : (p.installed
-          ? ''
-          : '<span style="background:#e8f5e9;color:#2e7d32;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:4px;">🌐 线上</span>');
-        
-      const btn = p.installed
-        ? '<button class="btn btn-sm" style="background:var(--surface2);padding:4px 12px;" onclick="uninstallPlugin(\''+p.id+'\')">已安装 · 卸载</button>'
-        : '<button class="btn btn-sm btn-primary" style="padding:4px 12px;" onclick="installPlugin(\''+p.id+'\')">安装</button>';
-      return '<div style="background:var(--surface2);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:6px;">'+
-        '<div style="font-size:14px;font-weight:600;">'+escHtml(p.name||p.id)+badge+catTag+featuredTag+'</div>'+
-        '<div style="font-size:11px;color:var(--text-muted);flex:1;">'+escHtml(p.description||'')+'</div>'+
-        '<div style="display:flex;align-items:center;justify-content:space-between;font-size:11px;">'+
-        '<span>'+stars+' <span style="color:var(--text-muted);">'+ (p.downloads||0) +'↓</span></span>'+
-        '<span style="color:var(--text-muted);">'+escHtml(p.author||'')+'</span> '+sourceTag+' '+btn+'</div></div>';
+
+      // UI 调整：标签下移 — 标签行（名称下方，字号 10px，行内排列）
+      const tagRow = badge + catTag + typeTag + featuredTag;
+
+      // UI 调整：来源标签逻辑修正（registry 里 file:// 插件改为 'registered'，不再显示"本地"）
+      //  local  → 📁 本地；online → 🌐 线上；registered → 不显示（与官方/社区标签区分）
+      let sourceTag = '';
+      if (p.source === 'local') {
+        sourceTag = '<span class="mkt-tag" style="color:#7b1fa2;">📁 本地</span>';
+      } else if (p.source === 'online') {
+        sourceTag = '<span class="mkt-tag" style="color:#2e7d32;">🌐 线上</span>';
+      }
+
+      // UI 调整：按钮样式优化 — 不再用"已安装 · 卸载"二合一文案
+      let btn;
+      if (p.installed) {
+        // 已安装：绿色实心状态徽标（明显是"状态"，区别于浅底标签）+ 独立"卸载"按钮
+        btn = '<span class="mkt-status">✓ 已安装</span>' +
+              '<button class="mkt-btn mkt-btn-uninstall" onclick="uninstallPlugin(\''+p.id+'\')">卸载</button>';
+      } else {
+        // 未安装：蓝色实心主按钮（有 hover 反馈）
+        btn = '<button class="mkt-btn mkt-btn-install" onclick="installPlugin(\''+p.id+'\')">安装</button>';
+      }
+
+      return '<div style="background:var(--surface2);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;'+typeBorder+'">'+
+        // 第一行：仅插件名称（加粗）
+        '<div style="font-size:15px;font-weight:700;">'+escHtml(p.name||p.id)+'</div>'+
+        // 第二行：标签行（移至名称下方，字号 10px）
+        '<div style="font-size:10px;line-height:1.7;">'+tagRow+'</div>'+
+        // 第三行：描述（flex:1 让卡片高度统一）
+        '<div style="font-size:12px;color:var(--text-muted);flex:1;line-height:1.5;">'+escHtml(p.description||'')+'</div>'+
+        // 第四行：星级/下载量（左） + 作者（中） + 来源 + 按钮（右）
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;">'+
+        '<span style="color:var(--text-muted);white-space:nowrap;">'+stars+' '+(p.downloads||0)+'↓</span>'+
+        '<span style="color:var(--text-muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+escHtml(authorName||'')+'</span>'+
+        '<span style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;">'+sourceTag+btn+'</span></div></div>';
     }).join('');
   }
 
@@ -18111,14 +18186,20 @@ function mkdirRemote() {
       
       // 分类标签（已安装不区分本地/线上，都在本地了）
       const categoryTag = (cat) => cat === 'db'
-        ? '<span style="background:#e3f2fd;color:#1565c0;font-size:9px;padding:0 4px;border-radius:3px;margin-left:4px;">📊 数据库</span>'
-        : (cat === 'rule' ? '<span style="background:#fff3e0;color:#e65100;font-size:9px;padding:0 4px;border-radius:3px;margin-left:4px;">📋 规则</span>' : '');
+        ? '<span class="mkt-tag" style="color:#1565c0;">📊 数据库</span>'
+        : (cat === 'rule' ? '<span class="mkt-tag" style="color:#e65100;">📋 规则</span>' : '');
+
+      // 类型标签（基于可靠字段 pp.type）：规则=橙、巡检=蓝
+      const installedTypeTag = (t) => t === 'rule'
+        ? '<span class="mkt-tag" style="color:#e65100;">📋 规则</span>'
+        : (t === 'inspection' ? '<span class="mkt-tag" style="color:#1565c0;">🔍 巡检</span>' : '');
 
       el.innerHTML = p.map(pp =>
         '<span style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:4px 10px;font-size:12px;display:inline-flex;align-items:center;gap:6px;">'+
         '🧩 '+escHtml(pp.name||pp.id)+' <span style="color:var(--text-muted);">v'+(pp.version||'?')+'</span> '+
-        categoryTag(pp.category||'')+
-        '<a href="#" onclick="uninstallPlugin(\''+pp.id+'\')" style="color:#c62828;font-size:10px;text-decoration:none;" title="卸载">✕</a></span>'
+        categoryTag(pp.category||'')+installedTypeTag(pp.type)+
+        // UI 调整：已安装卡片只保留"卸载"按钮（列表标题已是"已安装"，不再重复"已安装"标签）
+        '<button class="mkt-btn mkt-btn-uninstall" onclick="uninstallPlugin(\''+pp.id+'\')">卸载</button></span>'
       ).join('');
     } catch(e) { el.innerHTML = '<span style="color:var(--text-muted);font-size:12px;">错误</span>'; }
   }
