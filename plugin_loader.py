@@ -10,6 +10,9 @@ import importlib.util
 from pathlib import Path
 from typing import Dict, List, Optional, Type, Any
 
+# 双类型支持：类型分类器（巡检插件 / 规则插件），两套加载器共用同一判定逻辑
+from plugin_type import detect_plugin_type, PluginType
+
 # 插件目录
 PLUGIN_DIR = Path(__file__).parent / "plugins"
 ENABLED_DIR = PLUGIN_DIR / "enabled"
@@ -98,28 +101,39 @@ def enable_plugin(plugin_name: str, auto_init: bool = True) -> bool:
     """
     src = AVAILABLE_DIR / plugin_name
     dst = ENABLED_DIR / plugin_name
-    
+
+    # 读取清单判定插件类型：规则插件跳过模板/基线初始化（用户硬约束）
+    ptype = PluginType.INSPECTION
+    src_json = src / "plugin.json"
+    if src_json.exists():
+        try:
+            with open(src_json, 'r', encoding='utf-8') as f:
+                ptype = detect_plugin_type(json.load(f))
+        except Exception:
+            pass
+    _is_rule = (ptype == PluginType.RULE)
+
     if not src.exists():
         print(f"[Plugin] 插件不存在: {plugin_name}")
         return False
-    
+
     if dst.exists():
         print(f"[Plugin] 插件已启用: {plugin_name}")
-        if auto_init:
-            # 即使已启用，也尝试初始化（幂等）
+        if auto_init and not _is_rule:
+            # 即使已启用，也尝试初始化（幂等）；规则插件跳过模板/基线
             _init_plugin_data(dst, auto_init=auto_init)
         return True, f"插件已启用: {plugin_name}"
-    
+
     try:
         # Windows 下创建符号链接需要管理员权限，所以直接复制
         import shutil
         shutil.copytree(src, dst)
         print(f"[Plugin] 已启用插件: {plugin_name}")
-        
-        # 自动初始化模板和基线数据
-        if auto_init:
+
+        # 自动初始化模板和基线数据（规则插件跳过）
+        if auto_init and not _is_rule:
             _init_plugin_data(dst, auto_init=auto_init)
-        
+
         return True, f"插件启用成功: {plugin_name}"
     except Exception as e:
         print(f"[Plugin] 启用插件失败: {plugin_name}, 错误: {e}")
@@ -346,12 +360,28 @@ def disable_plugin(plugin_name: str) -> bool:
         是否成功
     """
     dst = ENABLED_DIR / plugin_name
-    
+
     if not dst.exists():
         print(f"[Plugin] 插件未启用: {plugin_name}")
         return True
-    
+
     try:
+        # 类型分叉：规则插件需从 PluginRegistry 注销（无模板/基线可清理，仅 rmtree）
+        ptype = PluginType.INSPECTION
+        dst_json = dst / "plugin.json"
+        if dst_json.exists():
+            try:
+                with open(dst_json, 'r', encoding='utf-8') as f:
+                    ptype = detect_plugin_type(json.load(f))
+            except Exception:
+                pass
+        if ptype == PluginType.RULE:
+            try:
+                from plugin_core import unload_plugin as _core_unload_plugin
+                _core_unload_plugin(str(dst))
+            except Exception as e:
+                print(f"[Plugin] 规则插件注销失败: {plugin_name}, 错误: {e}")
+
         import shutil
         shutil.rmtree(dst)
         print(f"[Plugin] 已禁用插件: {plugin_name}")
@@ -386,7 +416,19 @@ def load_enabled_plugins() -> Dict[str, Type[Any]]:
         try:
             with open(plugin_json, 'r', encoding='utf-8') as f:
                 meta = json.load(f)
-            
+
+            # 类型分叉：规则插件不再要求 main_plugin.py，委托 plugin_core 加载并注册
+            if detect_plugin_type(meta) == PluginType.RULE:
+                try:
+                    from plugin_core import load_plugin as _core_load_plugin
+                    _core_load_plugin(str(plugin_dir))
+                    print(f"[Plugin] 已加载规则插件: {meta.get('name', plugin_dir.name)}")
+                except Exception as e:
+                    print(f"[Plugin] 规则插件加载失败: {plugin_dir.name}, 错误: {e}")
+                # 规则插件不经 _plugin_classes（按 entry 注册进 PluginRegistry），直接跳过
+                continue
+
+            # ── 以下为巡检插件原有逻辑（完全不变）──
             # 支持多数据库类型
             db_types = meta.get('db_types', [meta.get('db_type')])
             main_file = meta.get('main_file', 'main_plugin.py')

@@ -5285,14 +5285,6 @@ def api_ds_databases(ds_id):
             cur.execute("SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname")
             databases = [r[0] for r in cur.fetchall()]
             conn.close()
-        elif db_type == 'tidb':
-            import pymysql
-            conn = pymysql.connect(host=host, port=port, user=user, password=pwd,
-                                   connect_timeout=timeout, charset='utf8mb4')
-            cur = conn.cursor()
-            cur.execute("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA ORDER BY SCHEMA_NAME")
-            databases = [r[0] for r in cur.fetchall()]
-            conn.close()
         elif db_type == 'gbase':
             # GBase 8s 使用 JDBC 连接（jaydebeapi）
             import jaydebeapi, os
@@ -5420,22 +5412,6 @@ def api_ds_objects(ds_id):
                 "ORDER BY schemaname, viewname"
             )
             views = [r[0] + '.' + r[1] if r[0] != 'public' else r[1] for r in cur.fetchall()]
-            conn.close()
-        elif db_type == 'tidb':
-            import pymysql
-            conn = pymysql.connect(host=host, port=port, user=user, password=pwd,
-                                   database=database, connect_timeout=timeout, charset='utf8mb4')
-            cur = conn.cursor()
-            cur.execute(
-                "SELECT TABLE_NAME, TABLE_TYPE FROM INFORMATION_SCHEMA.TABLES "
-                "WHERE TABLE_SCHEMA=%s ORDER BY TABLE_NAME",
-                (database,)
-            )
-            for row in cur.fetchall():
-                if row[1] == 'BASE TABLE':
-                    tables.append(row[0])
-                elif row[1] == 'VIEW':
-                    views.append(row[0])
             conn.close()
         elif db_type == 'gbase':
             # GBase 8s 使用 JDBC 连接（jaydebeapi）
@@ -6353,7 +6329,7 @@ def api_inspection_execute_sql():
                     result.append(p)
             return result
 
-        if db_type == 'mysql' or db_type == 'tidb':
+        if db_type in ('mysql', 'tidb', 'mariadb'):
             import pymysql
             conn = pymysql.connect(
                 host=db_info.get('host', ''),
@@ -8650,11 +8626,17 @@ if __name__ == '__main__':
     
     _setup_driver_paths()
     # ── 初始化插件系统 ──
+    # 主加载器切换为 plugin_core.load_plugins()（双类型支持）：
+    # 规则插件按 entry 载 __init__.py 并 register() 注册进 PluginRegistry；
+    # 巡检插件保持原路径。仅加载 enabled 目录，避免把 available 中的未启用插件注册进来。
     try:
-        from plugin_loader import load_enabled_plugins
-        plugins = load_enabled_plugins()
-        if plugins:
-            print(f"[插件] 已加载 {len(plugins)} 个插件: {list(plugins.keys())}")
+        from plugin_core import load_plugins
+        _enabled_dir = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), 'plugins', 'enabled'
+        )
+        loaded_count = load_plugins(_enabled_dir)
+        if loaded_count:
+            print(f"[插件] 已加载 {loaded_count} 个插件（规则插件经 PluginRegistry 注册）")
     except Exception as e:
         print(f"[插件] 初始化跳过: {e}")
     port = 5003

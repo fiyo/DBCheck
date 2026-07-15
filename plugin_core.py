@@ -21,6 +21,10 @@ from typing import List, Dict, Any, Optional, Callable
 from dataclasses import dataclass, field
 from functools import wraps
 
+# 类型分类器（双类型支持）：巡检插件 / 规则插件
+# plugin_type 仅依赖 enum/typing，无反向依赖，可安全在模块顶层导入。
+from plugin_type import PluginType, detect_plugin_type
+
 logger = logging.getLogger('plugin')
 
 # 最近一次 load_plugin() 失败的真实原因（根因）。
@@ -363,6 +367,10 @@ def load_plugin(plugin_dir: str) -> Optional[Dict]:
         # 不再依赖「项目根目录是否已被加入 sys.path」——之前正是因此导致安装时加载失败并回滚。
         # 执行完毕后立即移除，避免污染全局 sys.path。
         sys.path.insert(0, plugin_dir)
+        # 快照导入前的注册表键集合，用于判定「本次 import 是否触发了 register()」
+        # （插件的注册 id 可能 ≠ manifest 的 name，如 oracle_jdbc 的 id='oracle_jdbc'、
+        # 而 plugin.json name='Oracle (JDBC)'，因此不能以 plugin_id 是否存在来判定）。
+        registered_before = set(PluginRegistry._all_plugins.keys())
         try:
             spec.loader.exec_module(module)
         finally:
@@ -372,6 +380,34 @@ def load_plugin(plugin_dir: str) -> Optional[Dict]:
         _last_load_error = f"插件 {plugin_id} 加载失败: {type(e).__name__}: {e}"
         logger.warning(f"加载插件 {plugin_id} 失败: {e}")
         return None
+
+    # 同步插件类型到注册表：register() 在模块导入时写入 _all_plugins 的默认值
+    # 为 "inspection"，此处按 detect_plugin_type(manifest) 覆盖/补充正确的 type 字段，
+    # 使 api_v1 列表读取 manifest.get('type') 时与 plugin.json 声明一致。
+    try:
+        ptype_str = detect_plugin_type(manifest).value
+        # 计算本次 import 新注册的 id（真实注册键，可能 ≠ manifest name），统一同步 type，
+        # 避免 id≠name 的插件产生键为 manifest name 的幽灵记录。
+        new_ids = set(PluginRegistry._all_plugins.keys()) - registered_before
+        if new_ids:
+            for rid in new_ids:
+                PluginRegistry._all_plugins[rid]['type'] = ptype_str
+        else:
+            # 模块未主动 register()（极少数情况）：按 manifest name 补充记录，保证列表可见
+            db_types = manifest.get('db_types')
+            if not db_types and manifest.get('db_type'):
+                db_types = [manifest['db_type']]
+            PluginRegistry._all_plugins[plugin_id] = {
+                'id': plugin_id,
+                'name': manifest.get('name', plugin_id),
+                'version': manifest.get('version', '0.1.0'),
+                'type': ptype_str,
+                'db_types': db_types or [],
+                'author': manifest.get('author', ''),
+                'description': manifest.get('description', ''),
+            }
+    except Exception as e:
+        logger.warning(f"插件 {plugin_id} 类型同步失败: {e}")
 
     return manifest
 
@@ -404,6 +440,44 @@ def load_plugins(plugins_dir: str = None) -> int:
             count += 1
     logger.info(f"插件加载完成: {count}/{len(dirs)} 成功")
     return count
+
+
+def unload_plugin(plugin_dir: str) -> bool:
+    """
+    卸载单个插件（按 plugin.json 的 name 作为 plugin_id）：
+        1. 从 PluginRegistry 注销（_inspections / _notifiers / _all_plugins）
+        2. （预留）规则引擎移除钩子：本期无 YAML 规则源接入（T4 推迟），
+           若有 rules/*.yaml 未来由 pro/rule_engine 的 unload_plugin_rules 处理，
+           此处保持最小改动，不引入破坏性逻辑。
+
+    供卸载路径（api_v1 DELETE /plugins/<id>、plugin_market.uninstall、plugin_loader.disable_plugin）
+    复用，统一注销出口。
+
+    Args:
+        plugin_dir: 已启用插件目录的绝对路径
+
+    Returns:
+        是否成功（缺少 plugin.json 视为失败）
+    """
+    manifest_path = os.path.join(plugin_dir, 'plugin.json')
+    if not os.path.isfile(manifest_path):
+        logger.warning(f"unload_plugin 跳过: 缺少 plugin.json ({plugin_dir})")
+        return False
+
+    try:
+        with open(manifest_path, 'r', encoding='utf-8') as f:
+            manifest = json.load(f)
+    except Exception as e:
+        logger.warning(f"unload_plugin 解析 plugin.json 失败: {e}")
+        return False
+
+    plugin_id = manifest.get('name', os.path.basename(plugin_dir))
+    PluginRegistry.unregister(plugin_id)
+
+    # 规则移除占位：本期规则插件仅经 register() 入 PluginRegistry（路径 a），
+    # 无 YAML 规则源（路径 b 推迟），故无需额外清理 RuleEngine。
+    logger.info(f"插件卸载: 已注销 {plugin_id}")
+    return True
 
 
 # ───────────────────────────────────────────────────────────────
