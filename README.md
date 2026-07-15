@@ -29,6 +29,7 @@ DBCheck is an open-source, cross-platform database health inspection tool suppor
 | Database | Driver | Default Port | Notes |
 |----------|--------|:---:|-------|
 | MySQL | pymysql | 3306 | 5.6 / 5.7 / 8.0+ |
+| MariaDB | pymysql (MySQL protocol) | 3306 | 10.3+ |
 | PostgreSQL | psycopg2 | 5432 | 10+ |
 | Oracle | oracledb (pure Python, no client needed) | 1521 | 11g R2 / 12c / 19c / 21c+ |
 | Oracle (JDBC) | JDBC (JPype1 + ojdbc) | 1521 | 11g / 12c / 19c / 21c+，完整移植 Oracle 11g 巡检模板 |
