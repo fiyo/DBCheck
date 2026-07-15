@@ -29,6 +29,7 @@ DBCheck 专业版是一款商业、跨平台的数据库自动化健康巡检工
 | 数据库 | 驱动方式 | 默认端口 | 说明 |
 |--------|---------|:---:|------|
 | MySQL | pymysql | 3306 | 5.6 / 5.7 / 8.0+ |
+| MariaDB | pymysql（MySQL 协议） | 3306 | 10.3+ |
 | PostgreSQL | psycopg2 | 5432 | 10+ |
 | Oracle | oracledb（纯 Python，无需客户端） | 1521 | 11g R2 / 12c / 19c / 21c+ |
 | Oracle (JDBC) | JDBC（JPype1 + ojdbc） | 1521 | 11g / 12c / 19c / 21c+，完整移植 Oracle 11g 巡检模板 |
