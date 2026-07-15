@@ -1,5 +1,10 @@
 # Changelog
 
+## v26.7.15.1 (2026-07-15)
+- **版本号统一**：各源文件版本标识 v26.7.13.1 → v26.7.15.1（version.py / version.json / Dockerfile / skill `dbcheck` `_meta` + `_skillhub_meta` + `scripts/version.py` / README + README_zh 徽章 / CHANGELOG 顶段）
+- **专业版 README 更新**：新增「专业版专属能力」详节与「社区版 vs 专业版 · 核心能力对比」表；标题/简介校正为 Professional / Commercial 以匹配专有版性质
+- 同步 main 的 MariaDB 原生巡检支持、插件双类型模型（巡检/规则）、插件市场 UI 优化与巡检结果页修复（详见 main 分支发版说明）
+
 ## v26.7.13.1 (2026-07-13)
 - **同步 main 分支通用修复至 professional**：
   - 修复 `web_ui.py` 巡检目标识别中嵌套引号 f-string 在 Python ≤3.11 下的 SyntaxError
