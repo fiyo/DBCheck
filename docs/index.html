@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DBCheck · 开源数据库智能巡检与实时监控平台</title>
-  <meta name="description" content="DBCheck v26.7.15.1 是一款开源、跨平台、支持 11 种主流与国产数据库的智能巡检与实时监控平台。内置 160+ 增强规则、实时监控大屏、本地 AI 诊断与一键报告，让数据库运维可知、可控、可防。">
+  <meta name="description" content="DBCheck v26.7.15.1 是一款开源、跨平台、支持 12 种主流与国产数据库的智能巡检与实时监控平台。内置 160+ 增强规则、实时监控大屏、本地 AI 诊断与一键报告，让数据库运维可知、可控、可防。">
   <meta name="keywords" content="数据库巡检, 数据库监控, 信创, 国产化替代, DBA工具, Kingbase, 达梦, Oracle, MySQL, PostgreSQL, 开源, 数据库可观测性">
   <meta name="author" content="Jack Ge (fiyo)">
   <meta name="robots" content="index, follow">
@@ -531,7 +531,7 @@
       <div class="hero-copy">
         <div class="hero-badge"><span class="pulse"></span> 社区版 · 开源 MIT 协议 · <span id="verBadge">v26.7.15.1</span></div>
         <h1>让数据库运维<br><span class="gradient-text">可知 · 可控 · 可防</span></h1>
-        <p class="sub">DBCheck 是一款<strong>开源、跨平台</strong>、支持 <strong>11 种</strong>主流与国产数据库的智能巡检与实时监控平台。内置 160+ 增强规则、实时监控大屏、本地 AI 诊断与一键报告，把 DBA 的重复劳动变成一键流程。</p>
+        <p class="sub">DBCheck 是一款<strong>开源、跨平台</strong>、支持 <strong>12 种</strong>主流与国产数据库的智能巡检与实时监控平台。内置 160+ 增强规则、实时监控大屏、本地 AI 诊断与一键报告，把 DBA 的重复劳动变成一键流程。</p>
         <div class="hero-tags">
           <span>🌐 Web 界面</span>
           <span>🔒 私有化部署</span>
@@ -765,7 +765,7 @@
         <!-- 0 智能巡检 -->
         <div class="feat-pane active" role="tabpanel" data-cat="0">
           <ul class="feat-list">
-            <li class="feat-item glow"><span class="fic-mini"><i class="fas fa-database"></i></span><div class="fi-text"><h3>数据库巡检</h3><p>覆盖 11 种数据库，160+ 增强规则，自动生成专业 Word 报告，支持自由配置巡检章节。</p></div></li>
+            <li class="feat-item glow"><span class="fic-mini"><i class="fas fa-database"></i></span><div class="fi-text"><h3>数据库巡检</h3><p>覆盖 12 种数据库，160+ 增强规则，自动生成专业 Word 报告，支持自由配置巡检章节。</p></div></li>
             <li class="feat-item glow"><span class="fic-mini"><i class="fas fa-table-list"></i></span><div class="fi-text"><h3>逐库深度覆盖</h3><p>基本信息、会话连接、内存缓存、表空间、SGA/PGA、Redo、归档备份、安全审计、Top SQL、复制/Data Guard、RAC、锁与阻塞等多维度检查。</p></div></li>
             <li class="feat-item glow"><span class="fic-mini"><i class="fas fa-triangle-exclamation"></i></span><div class="fi-text"><h3>智能风险分析</h3><p>自动识别风险，每条附<strong>可执行修复 SQL</strong>，支持一键执行；危险操作二次确认 + 全程日志。</p></div></li>
             <li class="feat-item glow"><span class="fic-mini"><i class="fas fa-sliders"></i></span><div class="fi-text"><h3>配置基线管理</h3><p>可视化编辑各库推荐值（MySQL 22 / PG 21 / Oracle 12 / DM8 7 … 项参数），偏离即告警。</p></div></li>
@@ -1057,10 +1057,11 @@ python web_ui.py</pre>
       <div class="sec-head reveal">
         <div class="sec-tag"><i class="fas fa-server"></i> 广泛兼容</div>
         <h2>一套工具，纳管你的全部数据库</h2>
-        <p>11 种主流与国产数据库统一接入，正是信创混合架构下的现实需求。</p>
+        <p>12 种主流与国产数据库统一接入，正是信创混合架构下的现实需求。</p>
       </div>
       <div class="dbchips reveal">
         <span class="dbchip"><img src="mysql_logo.png" onerror="this.replaceWith(document.createTextNode('🐬'))" alt=""> MySQL</span>
+        <span class="dbchip"><i class="fas fa-database"></i> MariaDB</span>
         <span class="dbchip"><img src="tidb.png" alt=""> TiDB</span>
         <span class="dbchip"><img src="postgresql.png" onerror="this.replaceWith(document.createTextNode('🐘'))" alt=""> PostgreSQL</span>
         <span class="dbchip"><i class="fas fa-database"></i> IvorySQL</span>
@@ -1151,7 +1152,7 @@ python web_ui.py</pre>
           <div class="price">MIT 开源</div>
           <ul>
             <li><i class="fas fa-check"></i> 全量巡检与实时监控能力</li>
-            <li><i class="fas fa-check"></i> 11 种数据库适配</li>
+            <li><i class="fas fa-check"></i> 12 种数据库适配</li>
             <li><i class="fas fa-check"></i> 本地 AI 诊断 / 报告导出</li>
             <li><i class="fas fa-check"></i> 插件系统与 REST API</li>
           </ul>
