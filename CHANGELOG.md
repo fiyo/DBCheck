@@ -1,5 +1,12 @@
 # Changelog
 
+## v26.7.15.1 (2026-07-15)
+- **版本号统一**：各源文件版本标识 v26.7.13.1 → v26.7.15.1（version.py / version.json / Dockerfile / skill `dbcheck` `_meta` + `_skillhub_meta` + `scripts/version.py` / README + README_zh 徽章 / CHANGELOG 顶段）
+- **新增 MariaDB 原生巡检支持**：新增 `mariadb` 类型（连接复用 MySQL 框架 `pymysql`），含基线数据 18 条、规则 28+ 条（5 条 MariaDB 专有：Aria/线程池/galera wsrep/query_cache）、`main_mariadb.py` 巡检实现与 Word 模板，监控/基线/索引/慢查询复用 MySQL 逻辑
+- **插件双类型模型**：新增巡检/规则两类插件，`plugin_type.py` 单一判定源、`plugin_core.load_plugins` 启动加载器；规则插件安装/卸载不再初始化模板/基线/规则引擎；修复 `id≠name` 幽灵项
+- **插件市场 UI 优化**：来源标签（社区/数据库/巡检/规则）移至插件名下方、本地标签按线上注册状态判定、去除已安装列表冗余标签、按钮与标签三层视觉分级、标签改为非矩形形态、修巡检结果页智能分析圆环 id 冲突
+- **专业版 README 对比章节**：社区版 README 新增「DBCheck 专业版」导向与核心能力对比表
+
 ## v26.7.13.1 (2026-07-13)
 
 ### 🐛 修复
