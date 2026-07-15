@@ -215,6 +215,36 @@ class MariaDBInspector(BaseInspectionEngine):
         if 'repl_channels' in sql_dict:
             sql_dict['repl_channels'] = "SHOW SLAVE STATUS;"
 
+        # 7.2/7.3/7.4 复制状态：MariaDB 用 SHOW SLAVE STATUS（MySQL 8.0 才用 REPLICA）。
+        # seed 里曾误带客户端指令 \G，已去除；此处再显式覆盖一次，确保 mariadb 不依赖重新 seed。
+        if 'replication_lag' in sql_dict:
+            sql_dict['replication_lag'] = "SHOW SLAVE STATUS;"
+        if 'slave_io_running' in sql_dict:
+            sql_dict['slave_io_running'] = "SHOW SLAVE STATUS;"
+        if 'slave_status' in sql_dict:
+            sql_dict['slave_status'] = "SHOW SLAVE STATUS;"
+        # 7.1 主库 Binlog 位置：MariaDB 10.5.2+ 起 SHOW MASTER STATUS 改名 SHOW BINLOG STATUS（旧名为别名）。
+        # binlog 未启用时该命令本就返回空；此时给出友好提示而非「数据缺失」，避免误判为 bug。
+        if 'master_status' in sql_dict:
+            if self._resolve_binlog_enabled():
+                sql_dict['master_status'] = "SHOW BINLOG STATUS;"
+            else:
+                sql_dict['master_status'] = (
+                    "SELECT '二进制日志未启用（log_bin=OFF），无 Binlog 位点可展示' AS 说明;"
+                )
+        # 9.1 缓冲池实例数：MariaDB 10.5.1+ 移除多缓冲池实例，innodb_buffer_pool_instances 变量不再暴露。
+        # 改用 information_schema.INNODB_BUFFER_POOL_STATS 取真实单缓冲池统计（POOL_ID 恒为 0）。
+        _bps = self._resolve_buffer_pool_stats()
+        if 'buffer_pool_instances' in sql_dict:
+            sql_dict['buffer_pool_instances'] = (
+                "SELECT POOL_ID AS pool_id, POOL_SIZE AS pool_size_pages, "
+                "FREE_BUFFERS AS free_buffers, DATABASE_PAGES AS database_pages, "
+                "OLD_DATABASE_PAGES AS old_database_pages "
+                "FROM information_schema.INNODB_BUFFER_POOL_STATS;"
+                if _bps else
+                "SELECT 'NO_MULTI_INSTANCE' AS note WHERE 1=0;"
+            )
+
     def _resolve_innodb_table(self, modern, legacy):
         """解析 MariaDB 的 information_schema InnoDB 表名。
 
@@ -268,6 +298,60 @@ class MariaDBInspector(BaseInspectionEngine):
             except Exception:
                 pass
             return False
+
+    def _resolve_buffer_pool_stats(self):
+        """探测 MariaDB 的 information_schema.INNODB_BUFFER_POOL_STATS 是否可查。
+
+        MariaDB 10.5+ 为单缓冲池（多实例已移除），该表存在且 POOL_ID=0。
+        用真实 SELECT 探测，连接为 None 时返回 False。
+        """
+        conn = getattr(self, 'conn', None)
+        if conn is None:
+            return False
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT 1 FROM information_schema.INNODB_BUFFER_POOL_STATS LIMIT 0")
+            cur.fetchall()
+            cur.close()
+            return True
+        except Exception:
+            try:
+                cur.close()
+            except Exception:
+                pass
+            return False
+
+    def _resolve_binlog_enabled(self):
+        """探测 MariaDB 是否启用了二进制日志（log_bin）。
+
+        7.1 主库 Binlog 位置章节在 binlog 未启用时本就无数据。
+        此处用真实 SELECT @@log_bin 探测；连接为 None 时保守返回 True
+        （让 _customize_queries 走 SHOW BINLOG STATUS，空结果按现有逻辑呈现）。
+        """
+        conn = getattr(self, 'conn', None)
+        if conn is None:
+            return True
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT @@log_bin")
+            row = cur.fetchone()
+            cur.close()
+            if row is None:
+                return True
+            val = row[0]
+            if isinstance(val, (bytes, bytearray)):
+                val = val.decode()
+            # @@log_bin 返回整数 1/0（布尔变量经 @@ 读取即 1/0；'ON'/'OFF' 仅出现在
+            # SHOW VARIABLES 的展示中）。同时兼容字符串 'ON'/'OFF'/'TRUE'/'FALSE' 表示，
+            # 避免一律比对 'ON' 导致 query 成功时永远返回 False。
+            s = str(val).strip().upper()
+            return s in ('ON', '1', 'TRUE') or (s.isdigit() and int(s) != 0)
+        except Exception:
+            try:
+                cur.close()
+            except Exception:
+                pass
+            return True
 
 
 # ── 保留原有 API 兼容性（供 web_ui.py / run_inspection.py 旧代码调用）────────

@@ -5267,7 +5267,7 @@ def api_ds_databases(ds_id):
 
     try:
         databases = []
-        if db_type == 'mysql':
+        if db_type in ('mysql', 'tidb', 'mariadb'):
             import pymysql
             conn = pymysql.connect(host=host, port=port, user=user, password=pwd,
                                    connect_timeout=timeout, charset='utf8mb4')
@@ -5386,7 +5386,7 @@ def api_ds_objects(ds_id):
 
     try:
         tables, views = [], []
-        if db_type == 'mysql':
+        if db_type in ('mysql', 'tidb', 'mariadb'):
             import pymysql
             conn = pymysql.connect(host=host, port=port, user=user, password=pwd,
                                    database=database, connect_timeout=timeout, charset='utf8mb4')
@@ -5661,7 +5661,7 @@ def api_execute_sql():
     try:
         conn = None
         cursor = None
-        if db_type == 'mysql' or db_type == 'tidb':
+        if db_type in ('mysql', 'tidb', 'mariadb'):
             import pymysql
             db_name = database or 'INFORMATION_SCHEMA'
             conn = pymysql.connect(
