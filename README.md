@@ -138,6 +138,37 @@ python web_ui.py         # Web interface
 
 ---
 
+## DBCheck Professional Edition
+
+DBCheck also ships a **Professional edition** built for mid-to-large production environments that need deep observability and root-cause localization — going beyond "what's at risk" to answer "why" and "what to fix first".
+
+**Core capability comparison (Community vs Professional):**
+
+| Capability | Community | Professional |
+|------------|:---------:|:-----------:|
+| Multi-database inspection | ✅ | ✅ |
+| Real-time monitoring + health dashboard | ✅ | ✅ |
+| AI smart diagnostics | ✅ | ✅ |
+| Plugin system | ✅ | ✅ |
+| Enterprise RBAC | ✅ | ✅ |
+| eBPF kernel-level host collection | — | ✅ (opt-in) |
+| SSH secure host collection | — | ✅ |
+| Collaborative diagnosis hub (5 specialists + shared context) | — | ✅ |
+| Remediation cost optimizer | — | ✅ |
+| Ticket closed-loop | — | ✅ |
+| Diagnosis history | — | ✅ |
+| Unified observability view | — | ✅ |
+
+Professional-exclusive highlights:
+- **Collaborative diagnosis hub** — a team of five specialists (monitoring sentinel, deep-inspection analyst, root-cause analyst, SQL-governance specialist, lock-wait analyst) work on a shared context board, streaming progress via SSE and producing root-cause inference plus an executable, cost-ranked remediation plan.
+- **eBPF kernel-level collection** — block-device service-time percentiles (p50 / p95 / p99), per-process I/O and CPU attribution; opt-in only, safe-degrades to psutil.
+- **SSH secure collection** — agentless shell-based collection with concurrency guards, a hard timeout watchdog, and Fernet-encrypted credentials.
+- **Unified observability** — host metrics, DB metrics, and inspection risks on one evidence chain.
+
+> The Community edition focuses on *discovering risks*; the Professional edition further explains *why* and *what to do first*. For Professional licensing, visit [dbcheck.top](https://dbcheck.top) or contact the author.
+
+---
+
 ## 🔌 Plugin System
 
 DBCheck v2.8.0 introduces a fully independent plugin architecture. Plugins can now manage their own lifecycle and data, enabling true extensibility.
