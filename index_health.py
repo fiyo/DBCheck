@@ -1007,6 +1007,9 @@ def get_index_health(db_type, conn, days_threshold=90):
     """
     if db_type == 'mysql':
         return analyze_mysql_indexes(conn, days_threshold)
+    elif db_type == 'mariadb':
+        # MariaDB 与 MySQL 协议/参数高度兼容，直接复用 MySQL 索引健康分析
+        return analyze_mysql_indexes(conn, days_threshold)
     elif db_type == 'pg':
         return analyze_pg_indexes(conn, days_threshold)
     elif db_type == 'oracle':

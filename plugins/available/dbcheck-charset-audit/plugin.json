@@ -1,5 +1,6 @@
 {
   "name": "dbcheck-charset-audit",
+  "type": "rule",
   "version": "1.0.0",
   "title": "字符集与排序规则审计",
   "description": "官方插件：全面检测各数据库非标准字符集和排序规则，支持 MySQL/TiDB/PostgreSQL/Oracle/DM8/SQL Server/YashanDB/Kingbase/IvorySQL/GBase 8s 共 10 种数据库，评估跨平台兼容性和多语言支持风险",

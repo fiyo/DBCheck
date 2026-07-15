@@ -7,6 +7,18 @@
   - 清理 PyInstaller `hiddenimports` 无效/错误条目：`flask_cors`、`dmpython`、`python_docx`(保留 `docx`)、`click._bashcomplete`、`defusedxml`、`gevent.wsgi`/`gevent.http`；`runtime-hook-gevent.py` 移除 gevent 1.4+ 已删除子模块导入（哑弹）
   - `yasdb` 驱动改为可选懒加载（缺失时友好报错，不再 `sys.exit` 终止 web 进程）；`monitor_engine.py` 监控路径 `import yasdb` 加 `try/except ImportError` 保护
   - `.gitignore` 增加 `templates/` Word 模板白名单，模板文件纳入版本库
+- 同步 main 的 MariaDB / 双类型支持与多项修复（详见下记历史版本说明）
+
+## v26.7.11.1 (2026-07-11)
+
+### 🐛 修复
+- **#28 AI 诊断测试连接 500**：主分支（main）「AI 诊断设置」页面点「测试连接」报 500（`TypeError: _probe_openai_model() missing 3 required positional arguments`）。根因为 `@app.route('/api/test_openai')` 装饰器误挂在辅助函数 `_probe_openai_model` 上，移除误挂装饰器后恢复正常
+- **实时慢查询 / 活跃连接监控数据源下拉框空**：移植 professional 分支已有的占位逻辑，下拉框不再空白
+- **#29 添加 Oracle 数据源 DPY-3015**：扩展 oracledb thin→thick 回退判定（命中 `DPY-3015`），自动切 thick 模式（Oracle Instant Client）
+- **#26 插件市场安装 Oracle JDBC 插件回滚**：修复 `load_plugin()` 未将插件目录加入 `sys.path`，改用 `load_plugin_with_error()` 透出真实异常
+
+### 🔧 工程
+- 版本号同步：各源文件版本标识 v26.7.11.1 → v26.7.13.1
 
 ## v26.7.8.1 (2026-07-08)
 - **Oracle (JDBC) 插件路由修正**：`oracle_jdbc` 类型数据源的实时监控改为统一走插件 JDBC 连接（JPype + ojdbc8.jar），彻底不再走 python `oracledb`，避免 Oracle 11g 在无 Oracle 客户端环境下连接失败；监控深采逻辑 `_collect_oracle()` 原样复用（插件 `JdbcConnectionWrapper` 为 DB-API 2.0 兼容）

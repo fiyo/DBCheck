@@ -524,9 +524,9 @@ class BaseInspectionEngine:
         except Exception as e:
             print(self._t(f'{self.db_type}_query_loop_fail', default='dm8_query_loop_fail').format(e=e))
 
-        # MySQL: 从 cache_hit_ratio / cache_hit_requests 计算缓冲池命中率
-        # SHOW GLOBAL STATUS LIKE 返回 Variable_name / Value 两列（所有 MySQL 版本兼容）
-        if self.db_type == 'mysql':
+        # MySQL / MariaDB: 从 cache_hit_ratio / cache_hit_requests 计算缓冲池命中率
+        # SHOW GLOBAL STATUS LIKE 返回 Variable_name / Value 两列（所有 MySQL / MariaDB 版本兼容）
+        if self.db_type in ('mysql', 'mariadb'):
             def _get_show_status_value(data):
                 """从 SHOW GLOBAL STATUS 结果提取 Value"""
                 if not data or not isinstance(data, list):
@@ -611,7 +611,20 @@ class BaseInspectionEngine:
                     'col5': 'DBA/系统管理员',
                     'fix_sql': ''
                 })
-        
+
+        # MariaDB 专有参数补充检查（Aria / 线程池 / TokuDB / Spider / query_cache / Galera）
+        # 复用 analyzer.smart_analyze_mariadb_extras，需传入实时连接 self.conn；
+        # 仅做「探测是否启用」式低风险检查，未启用特性不产出，不影响主规则结果。
+        if self.db_type == 'mariadb' and self.conn:
+            try:
+                from analyzer import smart_analyze_mariadb_extras
+                _mariadb_extras = smart_analyze_mariadb_extras(self.context, self.conn)
+                if _mariadb_extras:
+                    self.context['auto_analyze'].extend(_mariadb_extras)
+                    print("  ℹ️ MariaDB 专有参数检查完成，补充 %d 项低风险建议" % len(_mariadb_extras))
+            except Exception:
+                pass
+
         # 更新整体健康状态
         if health['status'] in ('严重',):
             self.context.update({"health_status": "需紧急处理"})
@@ -1147,7 +1160,7 @@ class BaseInspectionEngine:
         doc = Document()
         
         db_type_display = {
-            'dm8': 'DM8', 'mysql': 'MySQL', 'postgresql': 'PostgreSQL',
+            'dm8': 'DM8', 'mysql': 'MySQL', 'mariadb': 'MariaDB', 'postgresql': 'PostgreSQL',
             'oracle': 'Oracle', 'sqlserver': 'SQL Server',
             'tidb': 'TiDB', 'ivorysql': 'IvorySQL'
         }.get(self.db_type, self.db_type.upper())
@@ -1912,7 +1925,7 @@ class BaseInspectionEngine:
             # 封面标题（根据语言）
             is_zh = self._lang == 'zh'
             db_type_display = {
-                'dm8': 'DM8', 'mysql': 'MySQL', 'postgresql': 'PostgreSQL',
+                'dm8': 'DM8', 'mysql': 'MySQL', 'mariadb': 'MariaDB', 'postgresql': 'PostgreSQL',
                 'oracle': 'Oracle', 'sqlserver': 'SQL Server',
                 'tidb': 'TiDB', 'ivorysql': 'IvorySQL'
             }.get(self.db_type, self.db_type.upper())

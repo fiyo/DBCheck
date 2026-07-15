@@ -28,9 +28,13 @@ import hashlib
 import secrets
 import threading
 import traceback
+import logging
 import sqlite3
 from datetime import datetime
 from flask import Blueprint, request, jsonify
+
+# ── 日志 ─────────────────────────────────────────────────────
+logger = logging.getLogger(__name__)
 
 # ── API 密钥管理 ─────────────────────────────────────────────
 
@@ -126,7 +130,7 @@ def _get_valid_db_types():
     用于 db_type 参数校验
     """
     # 内置数据库类型
-    built_in = ['mysql', 'pg', 'postgresql', 'oracle', 'dm', 'sqlserver', 'tidb', 'ivorysql', 'yashandb', 'kingbase', 'gbase']
+    built_in = ['mysql', 'mariadb', 'pg', 'postgresql', 'oracle', 'dm', 'sqlserver', 'tidb', 'ivorysql', 'yashandb', 'kingbase', 'gbase']
     valid = set(built_in)
     
     # 添加插件数据库类型
@@ -353,11 +357,11 @@ def _parse_iso(iso_str):
 
 
 def _default_port(db_type):
-    return {'mysql': 3306, 'pg': 5432, 'oracle': 1521, 'oracle_jdbc': 1521, 'dm': 5236, 'sqlserver': 1433, 'tidb': 4000, 'ivorysql': 5432, 'yashandb': 1688, 'kingbase': 54321, 'gbase': 5258}.get(db_type, 3306)
+    return {'mysql': 3306, 'mariadb': 3306, 'pg': 5432, 'oracle': 1521, 'oracle_jdbc': 1521, 'dm': 5236, 'sqlserver': 1433, 'tidb': 4000, 'ivorysql': 5432, 'yashandb': 1688, 'kingbase': 54321, 'gbase': 5258}.get(db_type, 3306)
 
 
 def _default_user(db_type):
-    return {'mysql': 'root', 'pg': 'postgres', 'oracle': 'system', 'oracle_jdbc': 'system', 'dm': 'SYSDBA', 'sqlserver': 'sa', 'tidb': 'root', 'ivorysql': 'postgres', 'yashandb': 'sys', 'kingbase': 'kingbase', 'gbase': 'gbasedbt'}.get(db_type, 'root')
+    return {'mysql': 'root', 'mariadb': 'root', 'pg': 'postgres', 'oracle': 'system', 'oracle_jdbc': 'system', 'dm': 'SYSDBA', 'sqlserver': 'sa', 'tidb': 'root', 'ivorysql': 'postgres', 'yashandb': 'sys', 'kingbase': 'kingbase', 'gbase': 'gbasedbt'}.get(db_type, 'root')
 
 
 # ── 查询任务状态 ──────────────────────────────────────────────
@@ -478,6 +482,7 @@ def _execute_inspect(db_type, host, port, user, password, inspector, body, ssh):
     # 根据数据库类型路由
     runner_map = {
         'mysql': ri.run_mysql,
+        'mariadb': ri.run_mariadb,  # MariaDB 复用 MySQL 连接逻辑（pymysql），仅模板/标识不同
         'pg': ri.run_pg,
         'oracle': ri.run_oracle_full,
         'dm': ri.run_dm,
@@ -690,6 +695,90 @@ def admin_get_token():
     return jsonify({'ok': True, 'token': _ADMIN_TOKEN})
 
 
+# ── 插件类型可靠补全工具 ──────────────────────────────────────
+
+def _ensure_plugin_type(p: dict, base_dir: str) -> str:
+    """
+    确保插件记录拥有可靠的 type 字段（'inspection' | 'rule'）。
+
+    前端插件市场与已安装列表依赖该字段做视觉区分（规则 vs 巡检），
+    而 registry.json / 旧插件可能缺失 type，故在此统一兜底。
+
+    判定优先级：
+        1. 当前记录已有的 type（来自 registry.json 或 PluginRegistry 内存注册）
+        2. PluginRegistry._all_plugins[p['id']].get('type')（内存兜底，更稳健）
+        3. plugins/enabled/<id>/plugin.json 或 plugins/available/<id>/plugin.json 的 type
+        4. detect_plugin_type(manifest) 推断（来自 plugin_type 模块）
+    兜底返回 'inspection'（向前兼容，与 plugin_type.detect_plugin_type 一致）。
+    """
+    if not isinstance(p, dict):
+        return 'inspection'
+    pid = p.get('id', '')
+
+    # 1. 当前记录已有的 type
+    existing = p.get('type')
+    if existing in ('inspection', 'rule'):
+        return existing
+
+    # 2. 内存注册表兜底（list_plugins 场景下 p 即 _all_plugins 条目，再显式取一次更稳健）
+    try:
+        from plugin_core import PluginRegistry
+        reg = PluginRegistry._all_plugins.get(pid, {})
+        if isinstance(reg, dict):
+            reg_type = reg.get('type')
+            if reg_type in ('inspection', 'rule'):
+                return reg_type
+    except Exception:
+        pass
+
+    # 3 & 4. 读取本地 plugin.json 并推断
+    try:
+        from plugin_type import detect_plugin_type
+    except Exception:
+        detect_plugin_type = None
+    for sub in ('enabled', 'available'):
+        plugin_json_path = os.path.join(base_dir, 'plugins', sub, pid, 'plugin.json')
+        if os.path.isfile(plugin_json_path):
+            try:
+                with open(plugin_json_path, 'r', encoding='utf-8') as f:
+                    manifest = json.load(f)
+                declared = manifest.get('type')
+                if declared in ('inspection', 'rule'):
+                    return declared
+                if detect_plugin_type is not None:
+                    inferred = detect_plugin_type(manifest)
+                    return inferred.value if hasattr(inferred, 'value') else str(inferred)
+                return 'inspection'
+            except Exception:
+                continue
+    return 'inspection'
+
+
+def _normalize_author(author) -> str:
+    """
+    将插件 author 字段统一规整为字符串。
+
+    registry.json / plugin.json 中 author 既可能是字符串（如 "DBCheck Team"），
+    也可能是对象（如 {"name": "DBCheck Team", "email": "...", "url": "..."}）。
+    若直接把对象返回前端，渲染会变成 "[object Object]"，故在此统一规整。
+
+    规整规则：字符串原样返回；字典优先取 name，否则取 email；其他用 str() 兜底。
+    """
+    if author is None:
+        return ''
+    if isinstance(author, str):
+        return author.strip()
+    if isinstance(author, dict):
+        name = (author.get('name') or '').strip()
+        if name:
+            return name
+        email = (author.get('email') or '').strip()
+        if email:
+            return email
+        return str(author)
+    return str(author)
+
+
 # ── 插件系统 API ─────────────────────────────────────────────
 
 @api_v1.route('/plugins', methods=['GET'])
@@ -698,16 +787,19 @@ def api_list_plugins():
     try:
         import os
         from plugin_core import PluginRegistry
-        
+
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+
         # 1. 获取已注册的插件（通过 plugin_core 注册的）
         registered_plugins = PluginRegistry.list_all()
         for p in registered_plugins:
             p['source'] = 'market'  # 默认为市场安装
-        
+            # 确保 type 可靠（registry 内存 / plugin.json / 推断），不破坏 category 字段
+            p['type'] = _ensure_plugin_type(p, base_dir)
+
         registered_ids = {p.get('id') for p in registered_plugins}
-        
+
         # 2. 扫描 plugins/enabled/ 目录，查找已启用但未通过 plugin_core 注册的插件
-        base_dir = os.path.dirname(os.path.abspath(__file__))
         enabled_dir = os.path.join(base_dir, 'plugins', 'enabled')
         available_dir = os.path.join(base_dir, 'plugins', 'available')
         
@@ -728,7 +820,7 @@ def api_list_plugins():
                                 'type': manifest.get('type', 'unknown'),
                                 'category': manifest.get('category', 'db'),  # 从 plugin.json 读取分类
                                 'description': manifest.get('description', ''),
-                                'author': manifest.get('author', ''),
+                                'author': _normalize_author(manifest.get('author')),
                                 'db_types': manifest.get('db_types', []),
                                 'source': 'local',  # 标记为本地安装
                             })
@@ -739,6 +831,10 @@ def api_list_plugins():
         # 3. 不再扫描 available 目录
         #    available/ 只存放插件原始文件（类似"安装包"），不应显示为"已安装"
         #    只有 enabled/ 中的插件才是真正已安装/已启用的
+
+        # 兜底：确保扫描 enabled/ 追加的本地插件也拥有可靠的 type
+        for p in registered_plugins:
+            p['type'] = _ensure_plugin_type(p, base_dir)
 
         return jsonify({'ok': True, 'plugins': registered_plugins, 'total': len(registered_plugins)})
     except Exception as e:
@@ -859,15 +955,23 @@ def api_market_registry():
                 market_names_norm.add(_normalize_plugin_name(pname))
 
             # ── 核心来源判断：根据 download 字段 ──
+            # UI 调整：来源标签逻辑修正
+            # http(s) → 真正的线上发布（online）
+            # file:// / 空 / 其他 → 在 registry 中注册的内置插件（registered），不再标"本地"
+            # 只有扫描本地目录且不在 registry 中的插件才标 local（见 local_only_plugins）
             dl = p.get('download', '')
             if dl and (dl.startswith('http://') or dl.startswith('https://')):
                 # https?:// → 真正的线上发布
                 p['source'] = 'online'
             else:
-                # file:// / 空 / 其他 → 本地（内置兜底或测试用）
-                p['source'] = 'local'
+                # file:// / 空 / 其他 → 已注册/内置（不在线上发布），前端不显示"本地"
+                p['source'] = 'registered'
 
+            # UI 调整：author 可能是对象，规整为字符串避免前端渲染成 [object Object]
+            p['author'] = _normalize_author(p.get('author', ''))
             p['installed'] = pid in local_installed_ids
+            # 确保 type 可靠（registry.json / plugin.json / 推断），不破坏 category 字段
+            p['type'] = _ensure_plugin_type(p, base_dir_fs)
 
         # 2. 扫描本地 plugins 目录，找出不在市场 registry 中的插件
         local_only_plugins = []
@@ -929,7 +1033,7 @@ def api_market_registry():
                         'name': manifest.get('name', item),
                         'version': manifest.get('version', 'unknown'),
                         'description': manifest.get('description', ''),
-                        'author': manifest.get('author', ''),
+                        'author': _normalize_author(manifest.get('author')),
                         'category': manifest.get('category', 'db'),
                         'type': manifest.get('type', 'unknown'),
                         'db_types': manifest.get('db_types', []),
@@ -942,6 +1046,10 @@ def api_market_registry():
                     })
                 except Exception as e:
                     logger.warning(f"读取本地插件 {item} 的 plugin.json 失败: {e}")
+
+        # 确保 local_only_plugins 的 type 可靠（inspection / rule 之一）
+        for p in local_only_plugins:
+            p['type'] = _ensure_plugin_type(p, base_dir)
 
         # 3. 合并
         all_plugins = market_plugins + local_only_plugins

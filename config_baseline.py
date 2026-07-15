@@ -456,15 +456,37 @@ def _calc_long_query_time(conn):
 
 
 def _get_mysql_version(conn):
-    """获取 MySQL 主版本号（5 或 8）"""
+    """获取 MySQL / MariaDB 主版本号（归一化为 5 或 8，供基线规则做差异化）。
+
+    - 纯 MySQL：直接取主版本号（5 / 8）。
+    - MariaDB：版本串形如 '10.6.12-MariaDB'。MariaDB 10.6+ 与 MySQL 8.0 在配置
+      参数上更接近（如 binlog_expire_logs_seconds），按 8.x 规则；
+      MariaDB 10.0~10.5 及 5.x 按 5.x 规则。
+    注意：无论真实版本如何，这里只归一化为 5 或 8，不会因版本串含 'MariaDB'
+    而无法解析（如 '10.6.12-MariaDB'）导致基线崩溃。
+    """
     try:
         cursor = conn.cursor()
         cursor.execute("SELECT VERSION();")
         row = cursor.fetchone()
         cursor.close()
         if row:
-            ver_str = str(row[0])
-            return int(ver_str.split('.')[0])
+            ver_str = str(row[0]).strip()
+            # MariaDB 版本串处理
+            if 'mariadb' in ver_str.lower():
+                parts = ver_str.split('.')
+                try:
+                    major = int(parts[0])
+                    minor = int(parts[1]) if len(parts) > 1 else 0
+                except (ValueError, IndexError):
+                    return 5  # 解析失败，保守按 5.x
+                # MariaDB 10.6+ 视为 8.x 规则；更早（含 10.0~10.5、5.x）视为 5.x
+                return 8 if (major >= 10 and minor >= 6) else 5
+            # 纯 MySQL
+            try:
+                return int(ver_str.split('.')[0])
+            except (ValueError, IndexError):
+                return 5
     except Exception:
         pass
     return 5  # 保守默认
@@ -1774,6 +1796,9 @@ def get_config_baseline(db_type, conn):
         配置基线报告字典
     """
     if db_type == 'mysql':
+        return check_mysql_config_baseline(conn)
+    elif db_type == 'mariadb':
+        # MariaDB 与 MySQL 协议/参数高度兼容，直接复用 MySQL 配置基线检查（含 5.x/8.x 差异化）
         return check_mysql_config_baseline(conn)
     elif db_type in ('pg', 'postgresql'):
         return check_pg_config_baseline(conn)

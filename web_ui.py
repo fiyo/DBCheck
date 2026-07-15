@@ -573,6 +573,23 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None):
             label_default='unknown',
             db_name_default='mysql',
         ),
+        'mariadb': dict(
+            module_name='main_mariadb',
+            connect_test=test_mysql_connection,
+            connect_test_args=lambda info: [info['ip'], info['port'], info['user'], info['password']],
+            getdata_args=lambda info: ([info['ip'], info['port'], info['user'], info['password']],
+                                       {'ssh_info': {}, 'template_id': template_id}),
+            conn_attr='conn_db2',
+            smart_analyze='smart_analyze_mariadb',
+            filename_key='webui.mariadb_report_filename',
+            history_db_type='mariadb',
+            instance_prefix='mariadb',
+            error_task_name='MariaDB',
+            log_start_key='webui.log_mariadb_start',
+            err_module_key='webui.err_mariadb_module',
+            label_default='MariaDB',
+            db_name_default='mysql',
+        ),
         'pg': dict(
             module_name='main_pg',
             connect_test=test_pg_connection,
@@ -736,6 +753,14 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None):
         ),
     }
 
+    emit = socketio.emit
+    task = tasks.get(task_id)
+    def _emit(event, data):
+        msg = data.get('msg', '')
+        if msg and task is not None:
+            task.setdefault('log', []).append(msg)
+        emit(event, data, room=task_id)
+
     cfg = task_configs.get(db_type)
     if not cfg:
         # 尝试从插件系统加载配置
@@ -758,16 +783,13 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None):
             print(f"[WebUI] 加载插件配置失败: {e}")
         
         if not cfg:
-            socketio.emit('error', {'msg': '不支持的数据库类型: ' + db_type}, room=task_id)
+            err_msg = f'不支持的数据库类型: {db_type}'
+            if task:
+                task['status'] = 'error'
+                task['error_msg'] = err_msg
+            _emit('error', {'msg': err_msg})
+            _emit('done', {'msg': err_msg, 'task_id': task_id})
             return
-
-    emit = socketio.emit
-    task = tasks.get(task_id)
-    def _emit(event, data):
-        msg = data.get('msg', '')
-        if msg and task is not None:
-            task.setdefault('log', []).append(msg)
-        emit(event, data, room=task_id)
 
     _emit('log', {'msg': _t(cfg['log_start_key']).format(ts=_ts())})
     _emit('inspection_step', {'step': 0, 'msg': _t('webui.log_connecting').format(ts=_ts(), host=db_info['ip'], port=db_info['port'])})
@@ -1344,8 +1366,8 @@ def test_oracle_connection(host, port, user, password, service_name='ORCL', sysd
             conn = oracledb.connect(**kw)
         except Exception as e:
             err_str = str(e)
-            if 'DPY-3010' in err_str:
-                # thin mode 不支持 11g，尝试 thick mode
+            if 'DPY-3010' in err_str or 'DPY-3015' in err_str:
+                # thin mode 不支持 11g / 老密码验证器(0x939)，尝试 thick mode
                 _ok = False
                 try:
                     oracledb.init_oracle_client()
@@ -2426,6 +2448,9 @@ def api_test_db():
 
     result = {'ok': False, 'msg': ''}
     if db_type == 'mysql':
+        ok, msg = test_mysql_connection(data['host'], data['port'], data['user'], data['password'], data.get('database'))
+        result = {'ok': ok, 'msg': msg}
+    elif db_type == 'mariadb':
         ok, msg = test_mysql_connection(data['host'], data['port'], data['user'], data['password'], data.get('database'))
         result = {'ok': ok, 'msg': msg}
     elif db_type == 'pg':
@@ -4839,11 +4864,13 @@ def api_db_types():
         'yashandb': '/yashandb.png',
         'kingbase': '/kingbase.png',
         'gbase': '/gbase.png',
+        'mariadb': '/mysql.png',  # MariaDB 复用 MySQL 图标（协议兼容）
     }
     
     built_in_descriptions = {
         'oracle': '适用于 Oracle 12c/19c/21c 实例，通过 oracledb 或 cx_Oracle 连接',
         'mysql': '适用于 MySQL 5.7+/8.0+ 实例，通过 PyMySQL 连接',
+        'mariadb': '适用于 MariaDB 10.0+ 实例（MySQL 兼容），通过 PyMySQL 连接',
         'pg': '适用于 PostgreSQL 10+ 实例，通过 psycopg2 连接',
         'dm': '适用于 DM8 实例，通过 dmPython 连接',
         'sqlserver': '适用于 SQL Server 2012+ 实例，通过 pyodbc 连接',
@@ -4866,12 +4893,14 @@ def api_db_types():
         'yashandb': '🏔️',
         'kingbase': '🔵',
         'gbase': '🟤',
+        'mariadb': '🐬',  # MariaDB 复用 MySQL emoji（协议兼容）
     }
     
     # 定义内置数据库类型配置
     task_configs = {
         'oracle': {'label': 'Oracle', 'port': 1521, 'user': 'system'},
         'mysql': {'label': 'MySQL', 'port': 3306, 'user': 'root'},
+        'mariadb': {'label': 'MariaDB', 'port': 3306, 'user': 'root'},
         'pg': {'label': 'PostgreSQL', 'port': 5432, 'user': 'postgres'},
         'dm': {'label': 'DM8', 'port': 5236, 'user': 'SYSDBA'},
         'sqlserver': {'label': 'SQL Server', 'port': 1433, 'user': 'sa'},
@@ -4899,7 +4928,7 @@ def api_db_types():
         from plugin_loader import discover_plugins
         plugins = discover_plugins()
         for plugin in plugins:
-            if plugin.get('enabled'):
+            if plugin.get('enabled') and plugin.get('db_type'):
                 # 从插件 manifest 读取自定义端口和用户名
                 result.append({
                     'value': plugin.get('db_type'),
@@ -4989,7 +5018,7 @@ def api_pro_datasources_test_conn():
         if not host:
             return jsonify({'ok': False, 'error': '请输入主机地址'})
 
-        if db_type == 'mysql' or db_type == 'tidb':
+        if db_type in ('mysql', 'tidb', 'mariadb'):
             import pymysql
             conn = pymysql.connect(host=host, port=port, user=user, password=password, connect_timeout=10)
             conn.close()
@@ -5035,8 +5064,8 @@ def api_pro_datasources_test_conn():
                 conn = oracledb.connect(**params)
             except Exception as e:
                 err_msg = str(e)
-                if 'DPY-3010' in err_msg:
-                    # thin mode 不支持 Oracle 11g 及以下，尝试 thick mode
+                if 'DPY-3010' in err_msg or 'DPY-3015' in err_msg:
+                    # thin mode 不支持 Oracle 11g 及以下 / 老密码验证器(0x939)，尝试 thick mode
                     _thick_ok = False
                     # 1. 先尝试自动检测
                     try:
@@ -5193,9 +5222,9 @@ def _connect_oracle_thick_fallback(user, password, dsn, sysdba=False):
         return oracledb.connect(**params)
     except Exception as e:
         err_msg = str(e)
-        if 'DPY-3010' not in err_msg:
+        if 'DPY-3010' not in err_msg and 'DPY-3015' not in err_msg:
             raise
-        # thin mode 不支持 11g，尝试 thick mode
+        # thin mode 不支持 11g / 老密码验证器(0x939)，尝试 thick mode
         _thick_ok = False
         try:
             oracledb.init_oracle_client()
@@ -5252,7 +5281,7 @@ def api_ds_databases(ds_id):
 
     try:
         databases = []
-        if db_type == 'mysql':
+        if db_type in ('mysql', 'tidb', 'mariadb'):
             import pymysql
             conn = pymysql.connect(host=host, port=port, user=user, password=pwd,
                                    connect_timeout=timeout, charset='utf8mb4')
@@ -5268,14 +5297,6 @@ def api_ds_databases(ds_id):
                                     dbname=_pg_default_db, connect_timeout=timeout)
             cur = conn.cursor()
             cur.execute("SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname")
-            databases = [r[0] for r in cur.fetchall()]
-            conn.close()
-        elif db_type == 'tidb':
-            import pymysql
-            conn = pymysql.connect(host=host, port=port, user=user, password=pwd,
-                                   connect_timeout=timeout, charset='utf8mb4')
-            cur = conn.cursor()
-            cur.execute("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA ORDER BY SCHEMA_NAME")
             databases = [r[0] for r in cur.fetchall()]
             conn.close()
         elif db_type == 'gbase':
@@ -5371,7 +5392,7 @@ def api_ds_objects(ds_id):
 
     try:
         tables, views = [], []
-        if db_type == 'mysql':
+        if db_type in ('mysql', 'tidb', 'mariadb'):
             import pymysql
             conn = pymysql.connect(host=host, port=port, user=user, password=pwd,
                                    database=database, connect_timeout=timeout, charset='utf8mb4')
@@ -5405,22 +5426,6 @@ def api_ds_objects(ds_id):
                 "ORDER BY schemaname, viewname"
             )
             views = [r[0] + '.' + r[1] if r[0] != 'public' else r[1] for r in cur.fetchall()]
-            conn.close()
-        elif db_type == 'tidb':
-            import pymysql
-            conn = pymysql.connect(host=host, port=port, user=user, password=pwd,
-                                   database=database, connect_timeout=timeout, charset='utf8mb4')
-            cur = conn.cursor()
-            cur.execute(
-                "SELECT TABLE_NAME, TABLE_TYPE FROM INFORMATION_SCHEMA.TABLES "
-                "WHERE TABLE_SCHEMA=%s ORDER BY TABLE_NAME",
-                (database,)
-            )
-            for row in cur.fetchall():
-                if row[1] == 'BASE TABLE':
-                    tables.append(row[0])
-                elif row[1] == 'VIEW':
-                    views.append(row[0])
             conn.close()
         elif db_type == 'gbase':
             # GBase 8s 使用 JDBC 连接（jaydebeapi）
@@ -5646,7 +5651,7 @@ def api_execute_sql():
     try:
         conn = None
         cursor = None
-        if db_type == 'mysql' or db_type == 'tidb':
+        if db_type in ('mysql', 'tidb', 'mariadb'):
             import pymysql
             db_name = database or 'INFORMATION_SCHEMA'
             conn = pymysql.connect(
@@ -6338,7 +6343,7 @@ def api_inspection_execute_sql():
                     result.append(p)
             return result
 
-        if db_type == 'mysql' or db_type == 'tidb':
+        if db_type in ('mysql', 'tidb', 'mariadb'):
             import pymysql
             conn = pymysql.connect(
                 host=db_info.get('host', ''),
@@ -8333,7 +8338,7 @@ def api_home_stats():
             result['rule_builtin_count'] = len(engine.builtin_rules)
             result['rule_custom_count'] = len(engine.custom_rules)
             # 按 db_type 统计
-            db_types = ['mysql', 'postgresql', 'pg', 'oracle', 'dm8', 'dm', 'sqlserver', 'tidb', 'ivorysql', 'yashandb', 'kingbase']
+            db_types = ['mysql', 'mariadb', 'postgresql', 'pg', 'oracle', 'dm8', 'dm', 'sqlserver', 'tidb', 'ivorysql', 'yashandb', 'kingbase']
             rule_by_db = {}
             for dt in db_types:
                 rules_for_db = engine.list_rules(db_type=dt)
@@ -8635,11 +8640,17 @@ if __name__ == '__main__':
     
     _setup_driver_paths()
     # ── 初始化插件系统 ──
+    # 主加载器切换为 plugin_core.load_plugins()（双类型支持）：
+    # 规则插件按 entry 载 __init__.py 并 register() 注册进 PluginRegistry；
+    # 巡检插件保持原路径。仅加载 enabled 目录，避免把 available 中的未启用插件注册进来。
     try:
-        from plugin_loader import load_enabled_plugins
-        plugins = load_enabled_plugins()
-        if plugins:
-            print(f"[插件] 已加载 {len(plugins)} 个插件: {list(plugins.keys())}")
+        from plugin_core import load_plugins
+        _enabled_dir = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), 'plugins', 'enabled'
+        )
+        loaded_count = load_plugins(_enabled_dir)
+        if loaded_count:
+            print(f"[插件] 已加载 {loaded_count} 个插件（规则插件经 PluginRegistry 注册）")
     except Exception as e:
         print(f"[插件] 初始化跳过: {e}")
     port = 5003

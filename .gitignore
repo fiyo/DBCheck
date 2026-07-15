@@ -61,9 +61,19 @@ plugins/enabled/*
 # Inspection database (auto-generated)
 data/inspection.db
 /inspection.db
-
+awr_uploads/*.*
 um_rbac.db
 test_*.py
 check_*.py
 fix_*.py
+test_*.py
 export_*.py
+*.md
+
+# --- 白名单：运行时必需的 Word 报告模板需纳入版本控制 ---
+# 顶层 templates/ 与各数据库类型的 Word 巡检报告模板（被上方 *.docx 全局忽略误伤）
+!templates/
+!templates/*.docx
+# oracle_jdbc 插件源（available）所需的同名模板；启用时复制到 enabled 运行态
+!plugins/available/oracle_jdbc/templates/
+!plugins/available/oracle_jdbc/templates/*.docx

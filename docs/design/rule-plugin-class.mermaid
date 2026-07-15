@@ -1,0 +1,48 @@
+classDiagram
+    class PluginType {
+        <<enumeration>>
+        INSPECTION
+        RULE
+    }
+    class PluginMeta {
+        +str name
+        +str version
+        +PluginType ptype
+        +str entry
+        +str main_file
+        +List~str~ db_types
+        +dict capabilities
+        +str plugin_dir
+        +str plugin_id
+    }
+    class InspectionPlugin {
+        <<ABC>>
+        +str id
+        +str name
+        +List~str~ db_types
+        +get_queries() List~InspectionQuery~
+        +analyze(context) List~RiskItem~
+        +on_install(db_path)
+        +on_unload()
+    }
+    class PluginRegistry {
+        -Dict _inspections
+        -Dict _notifiers
+        -Dict _all_plugins
+        +register_inspection(p)
+        +unregister(plugin_id)
+        +get_inspections_for_db(db_type) List
+    }
+    class RuleEngine {
+        -List builtin_rules
+        -List custom_rules
+        +analyze(db_type, context) List
+        +load_plugin_rules(plugin_dir)
+        +unload_plugin_rules(plugin_id)
+        +reload()
+    }
+    PluginType <.. PluginMeta : classifies
+    PluginMeta ..> InspectionPlugin : rule 插件提供
+    InspectionPlugin ..> PluginRegistry : register()
+    PluginMeta ..> RuleEngine : rule 插件可附带 YAML
+    note for PluginMeta "type 缺省→INSPECTION（向前兼容兜底）"

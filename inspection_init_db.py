@@ -138,8 +138,7 @@ MYSQL_DEFAULT_CHAPTERS = [
                        ROUND(SUM(data_length) / 1024 / 1024, 2) AS data_mb,
                        ROUND(SUM(index_length) / 1024 / 1024, 2) AS index_mb,
                        COUNT(*) AS table_count
-                FROM information_schema.TABLES
-                WHERE table_schema NOT IN ('information_schema','mysql','performance_schema','sys')
+                FROM information_schema.TABLES 
                 GROUP BY table_schema
                 ORDER BY total_mb DESC;
             """,
@@ -148,8 +147,7 @@ MYSQL_DEFAULT_CHAPTERS = [
                 SELECT table_schema AS database_name, table_name,
                        ROUND((data_length + index_length) / 1024 / 1024, 2) AS size_mb,
                        table_rows
-                FROM information_schema.TABLES
-                WHERE table_schema NOT IN ('information_schema','mysql','performance_schema','sys')
+                FROM information_schema.TABLES 
                 ORDER BY (data_length + index_length) DESC
                 LIMIT 20;
             """,
@@ -191,13 +189,13 @@ MYSQL_DEFAULT_CHAPTERS = [
         'chapter_title_en': 'Replication Status',
         'description': '主从复制状态检查',
         'queries': [
-            {'key': 'slave_status',    'sql': "SHOW SLAVE STATUS\\G",
+            {'key': 'slave_status',    'sql': "SHOW SLAVE STATUS",
              'desc_zh': '从库复制状态',           'desc_en': 'Slave replication status'},
             {'key': 'master_status',    'sql': "SHOW MASTER STATUS;",
              'desc_zh': '主库 Binlog 位置',      'desc_en': 'Master binlog position'},
-            {'key': 'slave_io_running', 'sql': "SHOW SLAVE STATUS\\G",
+            {'key': 'slave_io_running', 'sql': "SHOW SLAVE STATUS",
              'desc_zh': '复制 IO 线程状态',       'desc_en': 'Replication IO thread status'},
-            {'key': 'replication_lag',  'sql': "SHOW SLAVE STATUS\\G",
+            {'key': 'replication_lag',  'sql': "SHOW SLAVE STATUS",
              'desc_zh': '复制延迟（Seconds_Behind_Master）', 'desc_en': 'Replication lag'},
         ]
     },
@@ -228,7 +226,7 @@ MYSQL_DEFAULT_CHAPTERS = [
                 ORDER BY trx_started;
             """,
              'desc_zh': '运行超过 60 秒的长事务', 'desc_en': 'Long transactions > 60s'},
-            {'key': 'innodb_deadlock', 'sql': "SHOW ENGINE INNODB STATUS\\G",
+            {'key': 'innodb_deadlock', 'sql': "SHOW ENGINE INNODB STATUS",
              'desc_zh': 'InnoDB 引擎状态（含死锁信息）', 'desc_en': 'InnoDB engine status'},
         ]
     },
@@ -334,9 +332,9 @@ MYSQL_DEFAULT_CHAPTERS = [
         'chapter_title_en': 'Replication Lag',
         'description': '主从复制延迟详细分析',
         'queries': [
-            {'key': 'repl_lag_detail', 'sql': "SHOW SLAVE STATUS\\G",
+            {'key': 'repl_lag_detail', 'sql': "SHOW SLAVE STATUS",
              'desc_zh': '复制延迟详细信息',            'desc_en': 'Replication lag details'},
-            {'key': 'repl_channels',  'sql': "SHOW REPLICA STATUS\\G",
+            {'key': 'repl_channels',  'sql': "SHOW REPLICA STATUS",
              'desc_zh': '复制通道状态（MySQL 8.0+）', 'desc_en': 'Replica status (MySQL 8.0+)'},
         ]
     },
@@ -382,7 +380,7 @@ MYSQL_DEFAULT_CHAPTERS = [
         'queries': [
             {'key': 'engine_status', 'sql': "SHOW ENGINES;",
              'desc_zh': '支持的存储引擎',           'desc_en': 'Supported storage engines'},
-            {'key': 'innodb_status', 'sql': "SHOW ENGINE INNODB STATUS\\G",
+            {'key': 'innodb_status', 'sql': "SHOW ENGINE INNODB STATUS",
              'desc_zh': 'InnoDB 引擎详细状态',    'desc_en': 'InnoDB engine detailed status'},
         ]
     },
@@ -3788,6 +3786,7 @@ def init_default_templates(db_path: str = None, force: bool = False):
     # 格式: (db_type, template_name_zh, template_name_en, chapters, version, is_default, is_preset)
     db_types = [
         ('mysql',     'MySQL 默认巡检模板',        'MySQL Default Inspection Template',        MYSQL_DEFAULT_CHAPTERS,        'v1', 1, 1),
+        ('mariadb',   'MariaDB 默认巡检模板',      'MariaDB Default Inspection Template',      MYSQL_DEFAULT_CHAPTERS,       'v1', 1, 1),  # MariaDB 复用 MySQL 章节 SQL（协议兼容）
         ('postgresql', 'PostgreSQL 默认巡检模板',   'PostgreSQL Default Inspection Template',   POSTGRESQL_DEFAULT_CHAPTERS,   'v1', 1, 1),
         ('oracle',     'Oracle 默认巡检模板',        'Oracle Default Inspection Template',         ORACLE_DEFAULT_CHAPTERS,         'v1', 1, 1),
         ('oracle',     'Oracle 11g 巡检模板',        'Oracle 11g Inspection Template',             ORACLE_11G_CHAPTERS,             '11g', 0, 1),

@@ -664,3 +664,78 @@ dbcheck plugin pack ./    # 生成 my-plugin-1.0.0.zip
 
 > **下一步**：确认此设计方案后，先实现第一阶段 `InspectionPlugin` 基类 + 插件注册表 + 巡检引擎集成，快速跑通一个 demo 插件。  
 > 联系：Jack Ge &nbsp;|&nbsp; GitHub: [fiyo/DBCheck](https://github.com/fiyo/DBCheck)
+
+---
+
+## 9. 插件双类型模型（inspection / rule）
+
+> 本节约与 `docs/design/rule-plugin-architecture.md` 配套，补充「巡检插件 / 规则插件」双类型模型与 `plugin.json` 顶层 `type` 字段规范。启动加载器、启用/卸载路径均已按 `type` 分叉实现。
+
+### 9.1 两类插件的定义与入口差异
+
+| 维度 | 巡检插件 `inspection` | 规则插件 `rule` |
+|------|----------------------|-----------------|
+| 主入口 | `main_file`（默认 `main_plugin.py`） | `entry`（默认 `__init__.py`） |
+| 类约定 | `*Inspector`（继承 `BaseInspectionEngine`）**或** `InspectionPlugin` + `register()` | `InspectionPlugin` 子类 + 模块级 `register(...)` |
+| 数据库键 | `db_type` / `db_types` | `db_types`（写在类属性里） |
+| 模板/基线 | 可选 `sql_templates.json` / `baselines.json` | 不需要 |
+| 规则 YAML | 不需要 | 可选 `rules/*.yaml`（本期 T4 未接入） |
+| 注册出口 | `register()` → `PluginRegistry`（若用新框架） | `register()` → `PluginRegistry` |
+
+> 说明：两条加载路径并存——旧版 `plugin_loader.load_enabled_plugins()` 仅处理巡检插件（按 `*Inspector` 注册 `_plugin_classes`），规则插件一律委托新版 `plugin_core.load_plugin()`；启动期主加载器已切换为 `plugin_core.load_plugins()`（仅扫描 `plugins/enabled/`）。
+
+### 9.2 顶层 `type` 字段规范
+
+在 `plugin.json` 顶层新增 `type` 字段，作为**加载 / 生命周期模型的唯一判据**：
+
+```jsonc
+{
+  "name": "oracle_jdbc",
+  "type": "inspection",          // 巡检插件（可省略，缺省兜底）
+  "main_file": "main_plugin.py",
+  "db_type": "oracle_jdbc"
+}
+```
+
+```jsonc
+{
+  "name": "dbcheck-charset-audit",
+  "type": "rule",                // 规则插件（必须显式声明）
+  "entry": "__init__.py",
+  "capabilities": { "inspections": ["charset_audit"] }
+}
+```
+
+**规范要点**：
+
+1. 取值：`"inspection"` 或 `"rule"`，缺省（字段不存在）一律兜底为 `inspection`。
+2. **向前兼容**：旧巡检插件（如 `oracle_jdbc`）不写 `type` → 兜底 `inspection` → 加载 / 启用 / 卸载行为完全不变。
+3. **强制约束**：所有「规则插件」必须显式声明 `"type": "rule"`，否则会被兜底误判为 `inspection` 而再次触发旧加载器报错。
+
+### 9.3 类型判定规则（`detect_plugin_type`）
+
+判定逻辑集中在 `plugin_type.py` 的 `detect_plugin_type(meta)`，两套加载器共用：
+
+1. `meta["type"] == "rule"` → **RULE**
+2. `meta["type"] == "inspection"` → **INSPECTION**
+3. `type` 缺省时按结构推断：
+   - 有 `main_file` 或 `db_type`/`db_types` 且**无** `entry` → **INSPECTION**
+   - 有 `entry`（如 `__init__.py`）且**无** `db_type` → **RULE**
+   - 兜底 → **INSPECTION**
+
+### 9.4 启用 / 卸载动作差异（用户硬约束）
+
+| 动作 | 巡检插件 `inspection` | 规则插件 `rule` |
+|------|----------------------|-----------------|
+| **启用 enable** | 复制 + 初始化模板 + 初始化基线 + `register()` | 复制 + **跳过**模板/基线 + `register()` |
+| **卸载 disable** | 注销 + 清理模板/基线（由 plugin_market/api_v1 处理）+ 删目录 | 注销（PluginRegistry）+ **跳过**模板/基线清理 + 删目录 |
+| **启动加载** | 要求 `main_file` + `*Inspector` | 按 `entry` 载 `__init__.py`，`register()` 进 `PluginRegistry`；不要求 `main_plugin.py` |
+
+> **硬约束**：规则插件的启用 / 卸载**不得**执行模板、基线、规则引擎的初始化 / 重置动作。
+
+### 9.5 向后兼容检查清单
+
+- [x] 旧巡检插件缺 `type` → 兜底 `inspection`，路径不变。
+- [x] `api_v1` 列表读取 `manifest.get('type')` 与 `plugin_core` 注册记录一致（`load_plugin` 同步 `type`）。
+- [x] 启动主加载器切换为 `plugin_core.load_plugins()`，仅加载 `enabled/` 目录，未启用插件不被注册。
+- [x] 不引入任何新第三方依赖。

@@ -109,6 +109,12 @@ def _run_mysql():
     main_mysql.main()
 
 
+def _run_mariadb():
+    """启动 MariaDB 数据库巡检（复用 MySQL 连接逻辑，仅模块/模板标识不同）"""
+    import main_mariadb
+    main_mariadb.main()
+
+
 def _run_pg():
     import main_pg
     main_pg.main()
@@ -176,7 +182,8 @@ def _run_inspect_menu():
         print(f"  {MAGENTA}8{RESET}. {t('cli.inspect_menu_line8')}")
         print(f"  {YELLOW}9{RESET}. {t('cli.inspect_menu_line9')}")
         print(f"  {GREEN}10{RESET}. {t('cli.inspect_menu_line10')}")
-        print(f"  {DIM}11{RESET}. {t('cli.inspect_menu_line11')}")
+        print(f"  {CYAN}11{RESET}. {t('cli.inspect_menu_line11')}")
+        print(f"  {ORANGE}12{RESET}. {t('cli.inspect_menu_line12')}")
         print(f"  {DIM}0{RESET}. {t('cli.inspect_menu_line0')}")
         print(f"{DIM}{'='*50}{RESET}")
         choice = input(t("cli.inspect_menu_prompt")).strip()
@@ -212,6 +219,9 @@ def _run_inspect_menu():
             print(f"\n{t('cli.main_menu_gbase_starting')}\n")
             _run_gbase()
         elif choice == '11':
+            print(f"\n{t('cli.main_menu_mariadb_starting')}\n")
+            _run_mariadb()
+        elif choice == '12':
             _run_template_menu()
         elif choice in ('0', ''):
             break
