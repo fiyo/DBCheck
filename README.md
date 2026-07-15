@@ -1,8 +1,8 @@
-# DBCheck — Open-Source Intelligent Database Inspection Tool
+# DBCheck Professional — Commercial Intelligent Database Inspection Tool
 
 ![logo](snapshot/dbcheck_logo_info.png)
 
-DBCheck is an open-source, cross-platform database health inspection tool supporting **10 mainstream relational databases**. It automatically generates standardized Word inspection reports by executing predefined SQL checks and collecting system resources. Advanced features include a SQL editor, remote terminal, configurable inspection chapters, configuration baseline management, historical trend analysis, AI-powered smart diagnostics, index health analysis, in-depth slow query analysis, server inspection, shareable links, and masked data export.
+DBCheck Professional is a commercial, cross-platform database health inspection tool supporting **10 mainstream relational databases**. It automatically generates standardized Word inspection reports by executing predefined SQL checks and collecting system resources. Advanced features include a SQL editor, remote terminal, configurable inspection chapters, configuration baseline management, historical trend analysis, AI-powered smart diagnostics, index health analysis, in-depth slow query analysis, server inspection, shareable links, and masked data export.
 
 > **Note:** The software names, logos, trademarks, badges, etc. of third parties contained in this article and DBCheck software are the property of the third-party companies or organizations. The display of these items in this article and DBCheck software only indicates that the software supports connection to the corresponding database or platform, and does not imply any affiliation or cooperation with them.
 
@@ -135,6 +135,71 @@ python web_ui.py         # Web interface
 | 💿 DM8 Offline Storage Check | Inspect DM8 storage health offline (no running instance); scan data files and locate bad blocks (full-zero / constant-fill / truncated) |
 | 📝 SQL Editor | Built-in Web UI SQL editor with syntax highlighting, result table, execution history |
 | 🖥️ Remote Terminal | SSH-based, multi-tab, fullscreen mode |
+
+---
+
+## Professional-Only Capabilities
+
+> Identified by `EDITION='professional'` in `version.py`; dedicated entries (e.g. the Diagnosis Center) render only in the Professional build.
+
+The Professional edition goes beyond *discovering risks* to answer *why* and *what to fix first*. On top of all community capabilities above, it adds:
+
+### Collaborative Diagnosis Hub (Smart Diagnosis Center)
+Hand a single goal plus one data source to a team of five specialized **diagnostic specialists** who collaborate on a **shared context (blackboard)** and produce: anomalies found, root-cause inference, executable remediation plans, plus cost evaluation and tickets.
+
+| Specialist | Responsibility |
+|------------|----------------|
+| Monitoring Sentinel | Watches real host resources and fine-grained DB metrics; raises early warnings on CPU / IO / memory / connection / lock / replication anomalies |
+| Deep-Inspection Analyst | Runs the inspection engine on the target in real time; extracts config / capacity / performance risks with severity |
+| Root-Cause Analyst | Correlates monitoring anomalies with inspection risks, clusters and infers root cause, gives the remediation thread |
+| SQL-Governance Specialist | For slow / high-cost SQL, suggests rewrites, indexes, and change reviews |
+| Lock-Wait Analyst | For lock waits / blocks, traces the holding session and wait chain, suggests unblocking actions |
+
+- **Shared context (blackboard)** — all intermediate conclusions, findings, and plans live in one space; specialists read/write directly, no lossy relay.
+- **Dynamic planning** — monitoring, deep-inspection, and root-cause are always on; SQL-governance and lock analysis join early when relevant phenomena appear.
+- **Fault tolerance** — one specialist failing doesn't abort the diagnosis; the error is noted in context and collaboration continues.
+- **Streaming collaboration** — the hub schedules specialists one by one and emits progress events; the Web UI shows "who is analyzing now" via SSE in real time.
+- **Cost Optimizer** — ranks each remediation by cost / benefit / feasibility, recommends an *easy-before-hard* order, and flags whether a step needs a maintenance window or can be auto-executed.
+- **Ticket closed-loop** — one-click create tickets tracked through `待处理 / 处理中 / 已解决 / 已关闭 / 已取消`, with execution feedback written back — a diagnosis → dispatch → fix → feedback loop.
+- **Diagnosis history** — every collaborative diagnosis is persisted (local SQLite) with a diagnosis number (`diag_no`); filterable by data source, viewable in full, and one-click linkable to a ticket.
+
+### eBPF Kernel-Level Host Collection
+When the target Linux host has **Python3 + bcc + root**, eBPF yields kernel metrics user-space tools can't reach:
+- **Block-device service-time percentiles (p50 / p95 / p99, µs)** via kprobes on `blk_account_io_start` / `blk_account_io_done` — more accurate than psutil's `await`, great at exposing long-tail jitter.
+- **Per-process I/O attribution** — records pid / command at I/O start, correlates at completion; outputs Top I/O processes.
+- **Per-process CPU attribution** — based on `sched:sched_switch`, computes on-CPU time; outputs Top CPU processes, distinguishing "truly busy" from "waiting on I/O".
+
+Safety by design: **opt-in only** (default off, never injects eBPF into production by default), transparent `host_collector_source` tagging (`ebpf` / `psutil` / `unavailable`), full degrade-to-psutil on any failure, and a zero-dependency Shell (`/proc`) fallback when no Python / psutil exists.
+
+### SSH Secure Host Collection
+For hosts where you don't want an agent:
+- **Agentless, no Python required** — a pure Shell (`/proc`) collection script is injected over SSH; the eBPF path engages only if Python3 + bcc is present.
+- **Safety guards** — a global concurrency semaphore (4) limits total SSH; one lock per host (at most 1 connection at a time); `set_keepalive(15)`; bounded channel reads (`settimeout(12)`); a hard 8s timeout watchdog (SIGALRM + thread `os._exit`) so a stuck eBPF never hangs the session; transient errors retry with backoff (max 2), auth failures don't retry.
+- **Credential safety** — instance passwords are **Fernet-encrypted at rest**, decrypted only at collection time; ciphertext is never sent to the remote or the DB as plaintext.
+
+### Unified Observability View
+The Professional edition unifies **host resources (eBPF / psutil / SSH) + DB fine-grained metrics + inspection risks** on one analysis plane. In one collaborative diagnosis you can see both "disk p99 latency spiked" and "the slow SQL and lock waits in that window" — root cause becomes a connected evidence chain, not isolated numbers.
+
+---
+
+## Community vs Professional — Core Capability Comparison
+
+| Capability | Community | Professional |
+|------------|:---------:|:-----------:|
+| Multi-database inspection | ✅ | ✅ |
+| Real-time monitoring + health dashboard | ✅ | ✅ |
+| AI smart diagnostics | ✅ | ✅ |
+| Plugin system | ✅ | ✅ |
+| Enterprise RBAC | ✅ | ✅ |
+| eBPF kernel-level host collection | — | ✅ (opt-in) |
+| SSH secure host collection | — | ✅ |
+| Collaborative diagnosis hub (5 specialists + shared context) | — | ✅ |
+| Remediation cost optimizer | — | ✅ |
+| Ticket closed-loop | — | ✅ |
+| Diagnosis history | — | ✅ |
+| Unified observability view | — | ✅ |
+
+> The Community edition focuses on *discovering risks*; the Professional edition further explains *why* and *what to do first*.
 
 ---
 
