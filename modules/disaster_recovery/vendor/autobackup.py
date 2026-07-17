@@ -2,6 +2,17 @@
 """
 autobackup - 定时自动备份工具
 支持 MySQL、PostgreSQL 数据库及文件目录备份。
+
+This file is a **modified** copy of autobackup (https://github.com/MMCISAGOODMAN/autobackup),
+version 1.1.0, licensed under the MIT License.
+Copyright (c) 2026 MMCISAGOODMAN
+
+DBCheck modifications (see NOTICE for the full MIT license text):
+  - Password encryption/decryption reuse DBCheck's own crypto
+    (pro.instance_manager._encrypt_pwd / _decrypt_pwd, key from the .db_key Fernet);
+    AUTOBACKUP_KEY is only a fallback for standalone CLI / legacy data.
+  - An empty MySQL database name falls back to `mysqldump --all-databases`
+    (back up the whole instance) instead of being passed as a positional arg.
 """
 
 from __future__ import annotations
