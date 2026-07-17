@@ -1101,3 +1101,19 @@ def api_market_uninstall():
         return jsonify(result)
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+# ── 容灾备份模块（autobackup 引擎，in-process）─────────────────
+def register_disaster_recovery(app) -> None:
+    """注册容灾备份 REST 蓝图并拉起后台调度器。
+
+    由 web_ui.py 在 app 创建后调用。任何异常都不应阻断主程序启动，
+    因此 web_ui 端已用 try/except 包裹此调用。
+    """
+    from modules.disaster_recovery import routes, scheduler_hook
+
+    app.register_blueprint(routes.bp_dr)
+    try:
+        scheduler_hook.start_scheduler()
+    except Exception as exc:  # pragma: no cover - 调度失败不应阻断启动
+        print(f"  [WARN] 容灾备份调度器启动失败: {exc}")

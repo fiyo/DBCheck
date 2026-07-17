@@ -4761,6 +4761,15 @@ function formatBytes(bytes) {
       <span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4H10a4 4 0 0 1-4-4V8Z"/></svg></span> <span data-i18n="webui.nav_monitor_conn">活跃连接监控</span>
     </div>
 
+    <!-- ── 容灾备份 ── -->
+    <div class="nav-section" data-i18n="webui.nav_section_dr">容灾备份</div>
+    <div class="nav-item" onclick="showPage('disaster-recovery')" id="nav-disaster-recovery">
+      <span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 8v4"/><path d="m10 10 2-2 2 2"/></svg></span> <span data-i18n="webui.nav_disaster_recovery">容灾备份</span>
+    </div>
+    <div class="nav-item" onclick="showPage('data-management')" id="nav-data-management">
+      <span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="5" rx="1"/><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9"/><path d="M10 13h4"/></svg></span> <span data-i18n="webui.nav_data_management">DBCheck 备份</span>
+    </div>
+
     <!-- ── 系统 ── -->
     <div class="nav-section" data-i18n="webui.nav_section_system">系统</div>
     <div class="nav-item" onclick="showPage('ai')" id="nav-ai">
@@ -4781,9 +4790,6 @@ function formatBytes(bytes) {
     </div>
     <div class="nav-item" onclick="showPage('license')" id="nav-license" style="display:none;">
       <span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg></span> <span data-i18n="webui.nav_license">许可证</span>
-    </div>
-    <div class="nav-item" onclick="showPage('data-management')" id="nav-data-management">
-      <span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="5" rx="1"/><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9"/><path d="M10 13h4"/></svg></span> <span data-i18n="webui.nav_data_management">数据管理</span>
     </div>
     <div class="nav-item" onclick="showAboutModal()" id="nav-about">
       <span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span> <span data-i18n="webui.nav_about">关于 DBCheck</span>
@@ -5694,6 +5700,120 @@ function formatBytes(bytes) {
               <tbody id="backup-history-tbody"><tr><td colspan="7" style="text-align:center;color:var(--text-muted)">选择实例后加载</td></tr></tbody>
             </table>
           </div>
+        </div>
+      </div>
+
+      <!-- ══ Page: Disaster Recovery ══ -->
+      <div class="page" id="page-disaster-recovery" style="display:none;">
+        <div class="page-toolbar" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
+          <h2 style="font-size:18px;margin:0;" data-i18n="webui.nav_disaster_recovery">容灾备份</h2>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-ghost" onclick="loadDisasterRecovery()">🔄 <span data-i18n="dr.refresh">刷新</span></button>
+            <button class="btn btn-primary" onclick="drOpenCreate()">＋ <span data-i18n="dr.new_plan">新建计划</span></button>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:16px;">
+          <div style="display:flex;gap:24px;flex-wrap:wrap;font-size:14px;align-items:center;">
+            <div><span style="color:var(--text-muted)" data-i18n="dr.scheduler_status">调度器:</span> <span class="badge" id="dr-scheduler-status" style="background:var(--warn);color:#fff;">-</span></div>
+            <div><span style="color:var(--text-muted)" data-i18n="dr.plans_title">计划数:</span> <b id="dr-plan-count">0</b></div>
+            <div><span style="color:var(--text-muted)" data-i18n="dr.engine_version">引擎版本:</span> <b id="dr-engine-version">-</b></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:16px;font-size:13px;color:var(--text-muted);" id="dr-mechanism-card">
+          <span style="font-weight:600;color:var(--text);" data-i18n="dr.mechanism_title">备份机制说明</span>
+          <span data-i18n="dr.mechanism_note">MySQL/MariaDB 通过 mysqldump、PostgreSQL 通过 pg_dump 本地命令执行；文件/目录使用 Python tarfile 直接打包。执行备份命令的机器即运行 DBCheck 的机器，需确保该机器网络可达目标数据库且已安装对应客户端工具。</span>
+        </div>
+
+        <div class="card" style="margin-bottom:16px;" id="dr-health-card">
+          <div class="card-title" data-i18n="dr.health_title">健康度</div>
+          <div style="display:flex;gap:32px;flex-wrap:wrap;font-size:14px;">
+            <div style="text-align:center;"><div style="font-size:28px;font-weight:700;color:var(--accent)" id="dr-health-score">0</div><div style="font-size:12px;color:var(--text-muted)" data-i18n="dr.score">综合评分</div></div>
+            <div style="text-align:center;"><div style="font-size:22px;font-weight:600" id="dr-health-freshness">0%</div><div style="font-size:12px;color:var(--text-muted)" data-i18n="dr.freshness">新鲜度</div></div>
+            <div style="text-align:center;"><div style="font-size:22px;font-weight:600" id="dr-health-success">0%</div><div style="font-size:12px;color:var(--text-muted)" data-i18n="dr.success_rate">成功率</div></div>
+            <div style="text-align:center;"><div style="font-size:22px;font-weight:600;color:var(--warn)" id="dr-health-verified">未验证</div><div style="font-size:12px;color:var(--text-muted)" data-i18n="dr.verified">恢复验证</div></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-title" data-i18n="dr.plans_title">备份计划</div>
+          <div class="table-wrap">
+            <table class="table" style="width:100%;">
+              <thead><tr>
+                <th>名称</th><th>类型</th><th>目标</th><th>调度</th><th>下次执行</th><th style="text-align:center">启用</th><th>操作</th>
+              </tr></thead>
+              <tbody id="dr-plans-tbody"><tr><td colspan="7" style="text-align:center;color:var(--text-muted)">加载中...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-title" data-i18n="dr.backups_title">备份文件</div>
+          <div class="table-wrap">
+            <table class="table" style="width:100%;">
+              <thead><tr>
+                <th>文件</th><th>计划</th><th>大小</th><th>时间</th><th>操作</th>
+              </tr></thead>
+              <tbody id="dr-backups-tbody"><tr><td colspan="5" style="text-align:center;color:var(--text-muted)">加载中...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title" data-i18n="dr.history_title">执行历史</div>
+          <div class="table-wrap">
+            <table class="table" style="width:100%;">
+              <thead><tr>
+                <th>时间</th><th>计划</th><th style="text-align:center">状态</th><th>大小</th><th>耗时</th><th>错误</th>
+              </tr></thead>
+              <tbody id="dr-history-tbody"><tr><td colspan="6" style="text-align:center;color:var(--text-muted)">加载中...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- 新建计划弹窗 -->
+      <div id="dr-create-panel" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.45);z-index:9999;align-items:center;justify-content:center;">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;min-width:420px;max-width:90vw;max-height:90vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,0.35)">
+          <div style="font-size:16px;font-weight:600;margin-bottom:16px;" data-i18n="dr.create_title">新建备份计划</div>
+          <form id="dr-create-form" onsubmit="return false;">
+            <div class="field"><label>计划名称</label><input type="text" id="dr-name" class="input" placeholder="如 mysql-daily" style="width:100%;padding:8px 12px;"></div>
+            <div class="field" style="margin-top:10px;"><label>备份类型</label>
+              <select id="dr-db-type" class="input" style="width:100%;padding:8px 12px;" onchange="drOnTypeChange()">
+                <option value="mysql">MySQL / MariaDB</option>
+                <option value="postgresql">PostgreSQL</option>
+                <option value="file">文件 / 目录</option>
+              </select>
+            </div>
+            <input type="hidden" id="dr-connection-id">
+            <div class="field" style="margin-top:10px;">
+              <label>选择数据源（可选）</label>
+              <select id="dr-conn-id" class="input" style="width:100%;padding:8px 12px;" onchange="drOnConnChange()"></select>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:4px;" data-i18n="dr.conn_hint">选择数据源可自动填充连接参数；文件/目录备份无需数据源</div>
+            </div>
+            <div id="dr-db-fields" style="display:none;margin-top:10px;">
+              <div class="field"><label>主机</label><input type="text" id="dr-host" class="input" style="width:100%;padding:8px 12px;" placeholder="localhost"></div>
+              <div class="field" style="margin-top:8px;"><label>端口</label><input type="number" id="dr-port" class="input" style="width:100%;padding:8px 12px;"></div>
+              <div class="field" style="margin-top:8px;"><label>用户</label><input type="text" id="dr-user" class="input" style="width:100%;padding:8px 12px;"></div>
+              <div class="field" id="dr-database-wrap" style="margin-top:8px; display:none;"><label>数据库</label><input type="text" id="dr-database" class="input" style="width:100%;padding:8px 12px;"></div>
+              <div class="field" style="margin-top:8px;">
+                <label>密码</label>
+                <input type="password" id="dr-password" class="input" style="width:100%;padding:8px 12px;">
+                <div style="font-size:12px;color:var(--text-muted);margin-top:4px;" data-i18n="dr.password_hint">留空将使用数据源保存的密码；手动输入则覆盖</div>
+              </div>
+            </div>
+            <div id="dr-file-fields" style="display:none;margin-top:10px;">
+              <div class="field"><label>源路径</label><input type="text" id="dr-source" class="input" style="width:100%;padding:8px 12px;" placeholder="/path/to/backup"></div>
+              <div class="field" style="margin-top:8px;"><label>排除（逗号分隔）</label><input type="text" id="dr-exclude" class="input" style="width:100%;padding:8px 12px;" placeholder="*.tmp, cache/"></div>
+            </div>
+            <div class="field" style="margin-top:10px;"><label>调度（cron，留空=手动）</label><input type="text" id="dr-schedule" class="input" style="width:100%;padding:8px 12px;" placeholder="0 2 * * *"></div>
+            <div class="field" style="margin-top:10px;"><label>保留天数</label><input type="number" id="dr-retention" class="input" style="width:100%;padding:8px 12px;" value="30"></div>
+            <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;">
+              <button class="btn btn-ghost" type="button" onclick="drCloseCreate()">取消</button>
+              <button class="btn btn-primary" type="button" onclick="drSubmitCreate()">保存</button>
+            </div>
+          </form>
         </div>
       </div>
 
@@ -7863,6 +7983,7 @@ function showPage(name) {
     'monitor-slow': [i18n('monitor.slow_title') || '实时慢查询', i18n('monitor.slow_desc') || '定时拉取各数据源 Top SQL'],
     'monitor-conn': [i18n('monitor.conn_title') || '活跃连接监控', i18n('monitor.conn_desc') || '实时查看各数据源连接数'],
     'data-management': [i18n('webui.data_management_title') || '数据管理', i18n('webui.data_management_desc') || '管理 DBCheck 自身数据文件'],
+    'disaster-recovery': [i18n('webui.nav_disaster_recovery') || '容灾备份', i18n('dr.page_subtitle') || '基于 autobackup 的定时备份与调度'],
     'awr': [i18n('webui.awr_nav') || 'AWR 报告分析', i18n('webui.awr_desc') || '上传 Oracle AWR HTML 报告自动生成分析报告'],
     'oracle-client': [i18n('webui.oracle_client_title') || '数据库驱动设置', ''],
     'plugin-market': [i18n('webui.plugin_market_title') || '插件市场', ''],
@@ -7887,6 +8008,7 @@ function showPage(name) {
   if (name === 'home') loadHomeStats();
   if (name === 'shares') loadShares();
   if (name === 'data-management') loadDataManagement();
+  if (name === 'disaster-recovery') loadDisasterRecovery();
   if (name === 'backup') loadBackupPage();
   if (name === 'apikey') loadApiKeys();
   if (name === 'server-history') loadServerHistory();
@@ -14986,6 +15108,289 @@ async function loadBackupPage() {
     await fillBackupInstances();
     await loadBackupList();
     await loadBackupStats();
+}
+
+// ─── 容灾备份（autobackup 引擎）───
+async function loadDisasterRecovery() {
+    await drLoadStatus();
+    await drLoadPlans();
+    await drLoadBackups();
+    await drLoadHistory();
+    await drLoadHealth();
+}
+
+async function drApi(path, opts) {
+    const res = await fetch('/api/dr' + path, Object.assign({headers: {'Content-Type': 'application/json'}}, opts || {}));
+    let data = {};
+    try { data = await res.json(); } catch (e) {}
+    return data;
+}
+
+async function drLoadStatus() {
+    try {
+        const d = await drApi('/status');
+        const el = document.getElementById('dr-scheduler-status');
+        if (el && d.ok && d.status) {
+            const running = !!d.status.scheduler_running;
+            el.textContent = running ? (i18n('dr.running') || '运行中') : (i18n('dr.stopped') || '已停止');
+            el.style.background = running ? 'var(--success)' : 'var(--warn)';
+            el.style.color = '#fff';
+        }
+        const cnt = document.getElementById('dr-plan-count');
+        if (cnt) cnt.textContent = (d.ok && d.status) ? (d.status.plan_count || 0) : 0;
+        const ver = document.getElementById('dr-engine-version');
+        if (ver) ver.textContent = (d.ok && d.status) ? (d.status.autobackup_version || '-') : '-';
+    } catch (e) {}
+}
+
+async function drLoadPlans() {
+    try {
+        const d = await drApi('/plans');
+        const tb = document.getElementById('dr-plans-tbody');
+        if (!tb) return;
+        const plans = (d.ok && d.plans) ? d.plans : [];
+        if (!plans.length) {
+            tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">' + (i18n('dr.no_plans') || '暂无备份计划') + '</td></tr>';
+            return;
+        }
+        tb.innerHTML = plans.map(function (p) {
+            const enabled = !!p.enabled;
+            return '<tr>' +
+                '<td>' + escHtml(p.name || '') + '</td>' +
+                '<td>' + escHtml(p.type_label || p.type || '') + '</td>' +
+                '<td style="font-size:12px;color:var(--text-muted)">' + escHtml(p.target || '-') + '</td>' +
+                '<td style="font-size:12px;">' + escHtml(p.schedule || '手动') + '</td>' +
+                '<td style="font-size:12px;color:var(--text-muted)">' + escHtml(p.next_run || '-') + '</td>' +
+                '<td style="text-align:center;"><input type="checkbox" ' + (enabled ? 'checked' : '') + ' onchange="drTogglePlan(\'' + escHtml(p.name) + '\', this.checked)"></td>' +
+                '<td style="white-space:nowrap;">' +
+                    '<button class="btn btn-ghost" style="font-size:11px;padding:4px 8px;margin-right:4px;" onclick="drRunNow(\'' + escHtml(p.name) + '\')">' + (i18n('dr.run_now') || '立即备份') + '</button>' +
+                    '<button class="btn btn-ghost" style="font-size:11px;padding:4px 8px;color:var(--danger)" onclick="drDeletePlan(\'' + escHtml(p.name) + '\')">' + (i18n('dr.delete') || '删除') + '</button>' +
+                '</td>' +
+            '</tr>';
+        }).join('');
+    } catch (e) {}
+}
+
+async function drLoadBackups() {
+    try {
+        const d = await drApi('/backups');
+        const tb = document.getElementById('dr-backups-tbody');
+        if (!tb) return;
+        const files = (d.ok && d.backups) ? d.backups : [];
+        if (!files.length) {
+            tb.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted)">暂无备份文件</td></tr>';
+            return;
+        }
+        tb.innerHTML = files.map(function (f) {
+            const fn = f.filename || '';
+            return '<tr>' +
+                '<td style="font-size:12px;">' + escHtml(fn) + '</td>' +
+                '<td style="font-size:12px;color:var(--text-muted)">' + escHtml(f.task || '-') + '</td>' +
+                '<td style="font-size:12px;">' + escHtml(f.size_human || '-') + '</td>' +
+                '<td style="font-size:12px;color:var(--text-muted)">' + escHtml(f.created_at || '-') + '</td>' +
+                '<td style="white-space:nowrap;">' +
+                    '<a class="btn btn-ghost" style="font-size:11px;padding:4px 8px;margin-right:4px;" href="/api/dr/backups/' + encodeURIComponent(fn) + '/download">下载</a>' +
+                    '<button class="btn btn-ghost" style="font-size:11px;padding:4px 8px;color:var(--danger)" onclick="drDeleteBackup(\'' + escHtml(fn) + '\')">删除</button>' +
+                '</td>' +
+            '</tr>';
+        }).join('');
+    } catch (e) {}
+}
+
+async function drLoadHistory() {
+    try {
+        const d = await drApi('/history?limit=50');
+        const tb = document.getElementById('dr-history-tbody');
+        if (!tb) return;
+        const rows = (d.ok && d.history) ? d.history : [];
+        if (!rows.length) {
+            tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">暂无执行记录</td></tr>';
+            return;
+        }
+        tb.innerHTML = rows.map(function (r) {
+            const ok = !!r.success;
+            return '<tr>' +
+                '<td style="font-size:12px;">' + escHtml(r.start_time || '-') + '</td>' +
+                '<td style="font-size:12px;color:var(--text-muted)">' + escHtml(r.task_name || '-') + '</td>' +
+                '<td style="text-align:center;"><span style="background:' + (ok ? 'var(--success)' : 'var(--danger)') + ';color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;">' + (ok ? (i18n('dr.success') || '成功') : (i18n('dr.failed') || '失败')) + '</span></td>' +
+                '<td style="font-size:12px;">' + escHtml(r.size_human || ((r.size_bytes || 0) + ' B')) + '</td>' +
+                '<td style="font-size:12px;color:var(--text-muted)">' + escHtml((r.duration_seconds != null ? r.duration_seconds + 's' : '-')) + '</td>' +
+                '<td style="font-size:12px;color:var(--danger)">' + escHtml(r.error || '') + '</td>' +
+            '</tr>';
+        }).join('');
+    } catch (e) {}
+}
+
+async function drLoadHealth() {
+    try {
+        const d = await drApi('/health');
+        const h = (d.ok && d.health) ? d.health : null;
+        if (!h) return;
+        const set = function (id, v) { const el = document.getElementById(id); if (el) el.textContent = v; };
+        set('dr-health-score', h.score);
+        set('dr-health-freshness', h.freshness + '%');
+        set('dr-health-success', h.success_rate + '%');
+        const v = document.getElementById('dr-health-verified');
+        if (v) v.textContent = h.verified_label || (h.verified ? '已验证' : '未验证');
+    } catch (e) {}
+}
+
+async function drRunNow(name) {
+    try {
+        const d = await drApi('/plans/' + encodeURIComponent(name) + '/run', {method: 'POST'});
+        if (d.ok) toastSuccess('备份任务已执行: ' + name);
+        else toastError(d.error || '执行失败');
+    } catch (e) { toastError(e.message); }
+    finally { drLoadPlans(); drLoadBackups(); drLoadHistory(); drLoadHealth(); drLoadStatus(); }
+}
+
+async function drTogglePlan(name, enabled) {
+    try {
+        await drApi('/plans/' + encodeURIComponent(name) + '/toggle', {method: 'POST', body: JSON.stringify({enabled: enabled})});
+    } catch (e) {}
+}
+
+async function drDeletePlan(name) {
+    if (!confirm(i18n('dr.confirm_delete_plan') || '确认删除该备份计划？')) return;
+    try {
+        await drApi('/plans/' + encodeURIComponent(name), {method: 'DELETE'});
+        toastSuccess('已删除计划: ' + name);
+    } catch (e) {}
+    finally { drLoadPlans(); drLoadStatus(); }
+}
+
+async function drDeleteBackup(filename) {
+    if (!confirm(i18n('dr.confirm_delete_backup') || '确认删除该备份文件？此操作不可恢复')) return;
+    try {
+        await drApi('/backups/' + encodeURIComponent(filename), {method: 'DELETE'});
+        toastSuccess('已删除备份文件');
+    } catch (e) {}
+    finally { drLoadBackups(); }
+}
+
+async function drOpenCreate() {
+    try {
+        const d = await drApi('/connections');
+        const conns = (d.ok && d.connections) ? d.connections : [];
+        window._drConnections = conns;
+        drRenderConnOptions();
+    } catch (e) { window._drConnections = []; }
+    drOnTypeChange();
+    const panel = document.getElementById('dr-create-panel');
+    if (panel) panel.style.display = 'flex';
+}
+
+function drRenderConnOptions(selectedId) {
+    const sel = document.getElementById('dr-conn-id');
+    if (!sel) return;
+    if (selectedId === undefined) selectedId = sel.value;
+    const type = document.getElementById('dr-db-type') ? document.getElementById('dr-db-type').value : 'mysql';
+    const all = window._drConnections || [];
+    let filtered = all;
+    if (type === 'mysql') {
+        filtered = all.filter(function (c) { return c.db_type === 'mysql' || c.db_type === 'mariadb'; });
+    } else if (type === 'postgresql') {
+        filtered = all.filter(function (c) { return c.db_type === 'postgresql'; });
+    } else if (type === 'file') {
+        filtered = [];
+    }
+    const opts = ['<option value="">— 手动输入 —</option>'].concat(filtered.map(function (c) {
+        return '<option value="' + escHtml(c.id) + '" data-dbtype="' + escHtml(c.db_type) + '" data-host="' + escHtml(c.host || '') + '" data-port="' + escHtml(c.port || '') + '" data-user="' + escHtml(c.user || '') + '" data-database="' + escHtml(c.database || '') + '" data-password-set="' + (c.password_set ? '1' : '0') + '">' + escHtml(c.name || c.id) + ' [' + escHtml(c.db_type) + ']</option>';
+    }));
+    sel.innerHTML = opts.join('');
+    sel.disabled = (type === 'file');
+    if (selectedId) {
+        sel.value = selectedId;
+        if (sel.value !== selectedId) sel.value = ''; // not available after filter
+    }
+}
+
+function drOnTypeChange() {
+    const t = document.getElementById('dr-db-type') ? document.getElementById('dr-db-type').value : '';
+    const dbF = document.getElementById('dr-db-fields'); if (dbF) dbF.style.display = (t === 'mysql' || t === 'postgresql') ? 'block' : 'none';
+    const fileF = document.getElementById('dr-file-fields'); if (fileF) fileF.style.display = (t === 'file') ? 'block' : 'none';
+    // MySQL/MariaDB 为实例级（无默认库），隐藏数据库框；仅 PostgreSQL 显示
+    const dbWrap = document.getElementById('dr-database-wrap'); if (dbWrap) dbWrap.style.display = (t === 'postgresql') ? 'block' : 'none';
+    drRenderConnOptions();
+    drOnConnChange();
+}
+
+function drOnConnChange() {
+    const sel = document.getElementById('dr-conn-id');
+    const hConnId = document.getElementById('dr-connection-id');
+    const id = sel ? sel.value : '';
+    if (hConnId) hConnId.value = id || '';
+    // 优先从完整连接对象取字段（比 data-* 属性更稳健，避免特殊字符导致取空）
+    const conns = window._drConnections || [];
+    const conn = conns.find(function (c) { return String(c.id) === String(id); });
+    const dbType = document.getElementById('dr-db-type') ? document.getElementById('dr-db-type').value : '';
+    const dbField = document.getElementById('dr-database');
+    if (!conn) {
+        if (dbField && dbType === 'postgresql') { dbField.value = ''; dbField.placeholder = ''; }
+        return;
+    }
+    const host = conn.host || '';
+    const port = conn.port || '';
+    const user = conn.user || '';
+    const database = conn.database || '';
+    if (host) { const h = document.getElementById('dr-host'); if (h) h.value = host; }
+    if (port) { const p = document.getElementById('dr-port'); if (p) p.value = port; }
+    if (user) { const u = document.getElementById('dr-user'); if (u) u.value = user; }
+    if (dbField && dbType === 'postgresql') {
+        dbField.value = database;
+        dbField.placeholder = database ? '' : (i18n('dr.db_empty_hint') || '该数据源未配置默认库，请手动填写');
+    }
+    const pw = document.getElementById('dr-password');
+    if (pw) {
+        pw.value = '';
+        const passwordSet = !!conn.password_set;
+        pw.placeholder = passwordSet ? (i18n('dr.password_saved') || '已保存，留空则使用数据源密码') : (i18n('dr.password_empty') || '请输入密码');
+    }
+}
+
+function drCloseCreate() {
+    const panel = document.getElementById('dr-create-panel');
+    if (panel) panel.style.display = 'none';
+    const form = document.getElementById('dr-create-form');
+    if (form) form.reset();
+    const conn = document.getElementById('dr-conn-id'); if (conn) { conn.innerHTML = ''; conn.disabled = false; }
+    const dbF = document.getElementById('dr-db-fields'); if (dbF) dbF.style.display = 'none';
+    const fileF = document.getElementById('dr-file-fields'); if (fileF) fileF.style.display = 'none';
+}
+
+async function drSubmitCreate() {
+    const name = document.getElementById('dr-name').value.trim();
+    const dbType = document.getElementById('dr-db-type').value;
+    if (!name) { toastError('请填写计划名称'); return; }
+    const payload = {name: name, db_type: dbType, enabled: true};
+    const connectionId = document.getElementById('dr-connection-id').value.trim();
+    if (connectionId) payload.connection_id = connectionId;
+    if (dbType === 'file') {
+        payload.source = document.getElementById('dr-source').value.trim();
+        payload.exclude = document.getElementById('dr-exclude').value.trim();
+    } else {
+        payload.host = document.getElementById('dr-host').value.trim();
+        payload.port = parseInt(document.getElementById('dr-port').value || '0', 10) || (dbType === 'mysql' ? 3306 : 5432);
+        payload.user = document.getElementById('dr-user').value.trim();
+        if (dbType === 'postgresql') {
+            payload.database = document.getElementById('dr-database').value.trim();
+        }
+        payload.password = document.getElementById('dr-password').value;
+    }
+    const sched = document.getElementById('dr-schedule').value.trim();
+    if (sched) payload.schedule = sched;
+    const ret = document.getElementById('dr-retention').value.trim();
+    if (ret) payload.retention_days = parseInt(ret, 10);
+    try {
+        const d = await drApi('/plans', {method: 'POST', body: JSON.stringify(payload)});
+        if (d.ok) {
+            toastSuccess(i18n('dr.created') || '备份计划已创建');
+            drCloseCreate();
+            drLoadPlans(); drLoadStatus();
+        } else {
+            toastError((i18n('dr.create_failed') || '创建失败') + ': ' + (d.error || ''));
+        }
+    } catch (e) { toastError(e.message); }
 }
 
 function getCurrentDbType() {

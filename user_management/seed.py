@@ -16,6 +16,39 @@ from user_management.models.db_manager import DBManager
 from user_management.models.menu import MenuModel
 from user_management.utils.password import hash_password
 
+# 菜单清单（单一数据源）：menu_code 必须与前端 index.html 中 nav-item 的 id 对应（去掉 "nav-" 前缀）
+# init_seed_data() 与 sync_menus() 共用；新增菜单只需在此追加一行。
+menus_data = [
+    ('home',             '首页',            0, 10),
+    ('wizard',           '数据库巡检',       0, 21),
+    ('server-inspect',   '服务器巡检',       0, 22),
+    ('scheduler',        '任务调度',         0, 23),
+    ('awr',              'AWR报告',         0, 24),
+    ('reports',          '巡检报告',         0, 25),
+    ('server-history',   '历史记录',         0, 26),
+    ('trend',            '趋势分析',         0, 27),
+    ('datasources',     '数据源管理',       0, 31),
+    ('inspection-config', '巡检配置',         0, 32),
+    ('baseline-config',  '基线配置',         0, 33),
+    ('server-thresholds', '阈值设置',         0, 34),
+    ('rules',            '规则管理',         0, 35),
+    ('rag',              '知识库',          0, 36),
+    ('plugin-market',    '插件市场',         0, 41),
+    ('sql-editor',       'SQL编辑器',       0, 42),
+    ('remote-shell',     '远程终端',         0, 43),
+    ('monitor-slow',     '慢查询监控',       0, 51),
+    ('monitor-conn',     '连接池监控',       0, 52),
+    ('ai',               'AI助手',          0, 53),
+    ('oracle-client',    'Oracle客户端',     0, 54),
+    ('notifier',         '通知管理',         0, 55),
+    ('apikey',           'API密钥',         0, 56),
+    ('shares',           '共享管理',         0, 57),
+    ('data-management',  '数据管理',         0, 66),
+    ('about',            '关于DBCheck',      0, 67),
+    ('disaster-recovery', '容灾备份',         0, 65),
+    ('intelligence',     '智能诊断中心',     0, 53),
+    ('diag-history',     '诊断历史',         0, 53),
+]
 
 def init_seed_data():
     """初始化种子数据（幂等：先清空再插入）"""
@@ -43,38 +76,7 @@ def init_seed_data():
     access_perm = db.query_one("SELECT id FROM um_permission WHERE perm_level=1")
     print("  ✅ 权限定义已初始化: 有权限(1)")
 
-    # 2. 初始化菜单数据
-    # menu_code 必须与前端 index.html 中 nav-item 的 id 对应（去掉 "nav-" 前缀）
-    menus_data = [
-        ('home',             '首页',            0, 10),
-        ('wizard',           '数据库巡检',       0, 21),
-        ('server-inspect',   '服务器巡检',       0, 22),
-        ('scheduler',        '任务调度',         0, 23),
-        ('awr',              'AWR报告',         0, 24),
-        ('reports',          '巡检报告',         0, 25),
-        ('server-history',   '历史记录',         0, 26),
-        ('trend',            '趋势分析',         0, 27),
-        ('datasources',     '数据源管理',       0, 31),
-        ('inspection-config', '巡检配置',         0, 32),
-        ('baseline-config',  '基线配置',         0, 33),
-        ('server-thresholds', '阈值设置',         0, 34),
-        ('rules',            '规则管理',         0, 35),
-        ('rag',              '知识库',          0, 36),
-        ('plugin-market',    '插件市场',         0, 41),
-        ('sql-editor',       'SQL编辑器',       0, 42),
-        ('remote-shell',     '远程终端',         0, 43),
-        ('monitor-slow',     '慢查询监控',       0, 51),
-        ('monitor-conn',     '连接池监控',       0, 52),
-        ('ai',               'AI助手',          0, 53),
-        ('intelligence',     '智能诊断中心',     0, 53),
-        ('diag-history',     '诊断历史',         0, 53),
-        ('oracle-client',    'Oracle客户端',     0, 54),
-        ('notifier',         '通知管理',         0, 55),
-        ('apikey',           'API密钥',         0, 56),
-        ('shares',           '共享管理',         0, 57),
-        ('data-management',  '数据管理',         0, 66),
-        ('about',            '关于DBCheck',      0, 67),
-    ]
+    # 2. 初始化菜单数据（menus_data 为模块级单一数据源，定义见文件顶部）
     menu_model = MenuModel()
     for code, name, pid, order in menus_data:
         menu_model.create(code, name, parent_id=pid, sort_order=order)
@@ -121,7 +123,7 @@ def init_seed_data():
     # 6. 给 operator 角色分配运维菜单
     operator_role = db.query_one("SELECT id FROM um_role WHERE role_code='operator'")
     if operator_role and access_perm:
-        operator_menus = ['home', 'wizard', 'monitor-slow', 'awr', 'reports', 'sql-editor', 'datasources']
+        operator_menus = ['home', 'wizard', 'monitor-slow', 'awr', 'reports', 'sql-editor', 'datasources', 'disaster-recovery']
         cnt = 0
         for menu in menus:
             if menu['menu_code'] in operator_menus:
@@ -172,6 +174,52 @@ def init_seed_data():
     print("     - operator / operator123 (运维人员)")
 
     print("\n🎉 RBAC 种子数据初始化完成!")
+
+
+def sync_menus():
+    """每次启动幂等同步菜单到 um_menu，并对新增菜单按 ROLE_MENU_MAP 补齐角色授权。
+
+    仅追加（append-only），绝不删除任何既有授权；数据库不可达时仅告警不阻断启动。
+    """
+    try:
+        db = DBManager()
+        menu_model = MenuModel()
+        existing = {m['menu_code']: m for m in db.query_all("SELECT id, menu_code FROM um_menu")}
+        for code, name, pid, order in menus_data:
+            if code not in existing:
+                menu_model.create(code, name, parent_id=pid, sort_order=order)
+                print(f"  [sync] 新增菜单: {code}")
+
+        role_menu_map = {
+            'admin': 'ALL',
+            'operator': ['home', 'wizard', 'monitor-slow', 'awr', 'reports', 'sql-editor', 'datasources', 'disaster-recovery'],
+            'viewer': ['home', 'reports', 'monitor-slow', 'ai'],
+        }
+        access_perm = db.query_one("SELECT id FROM um_permission WHERE perm_level=1")
+        if not access_perm:
+            return
+        for role_code, menus in role_menu_map.items():
+            role = db.query_one("SELECT id FROM um_role WHERE role_code=?", (role_code,))
+            if not role:
+                continue
+            if menus == 'ALL':
+                menus = [m['menu_code'] for m in db.query_all("SELECT menu_code FROM um_menu")]
+            for code in menus:
+                menu = db.query_one("SELECT id FROM um_menu WHERE menu_code=?", (code,))
+                if not menu:
+                    continue
+                cnt = db.query_one(
+                    "SELECT COUNT(*) c FROM um_role_menu_perm WHERE role_id=? AND menu_id=? AND perm_id=?",
+                    (role['id'], menu['id'], access_perm['id']),
+                )
+                if cnt['c'] == 0:
+                    db.execute(
+                        "INSERT INTO um_role_menu_perm(role_id, menu_id, perm_id) VALUES(?,?,?)",
+                        (role['id'], menu['id'], access_perm['id']),
+                    )
+        print("  [OK] 菜单同步完成（含容灾备份 disaster-recovery）")
+    except Exception as e:
+        print(f"  [WARN] 菜单同步失败: {e}")
 
 
 if __name__ == '__main__':

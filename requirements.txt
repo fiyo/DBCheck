@@ -20,6 +20,10 @@ cryptography>=41.0.0     # Password encryption for data source manager
 # （故不在此处放置硬依赖行，以免 pip install -r 在无法编译 bcc 时阻断整条安装链。）
 # bcc; sys_platform == 'linux'      # 如需在容器中 pip 安装可取消注释（需先装 libbcc 等系统依赖）
 
+# ── Disaster Recovery (vendored autobackup engine) ───────────────────────────
+croniter>=1.0.0          # Cron scheduling for backup plans (modules/disaster_recovery)
+requests>=2.25.0         # Webhook notifications (DingTalk/WeCom/Feishu) used by vendored autobackup
+
 # ── Web UI ───────────────────────────────────────────────────────────────────
 flask>=2.0.0
 flask-socketio>=5.0.0

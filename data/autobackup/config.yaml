@@ -1,0 +1,10 @@
+global:
+  backup_dir: D:\DBCheck\data\autobackup\backups
+  log_dir: D:\DBCheck\data\autobackup\logs
+  retention_days: 30
+  notify_on_success: false
+  web:
+    host: 127.0.0.1
+    port: 5005
+    token: ''
+tasks: []

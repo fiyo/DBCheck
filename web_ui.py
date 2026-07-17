@@ -416,6 +416,20 @@ try:
 except ImportError as e:
     print(f"  [WARN] RBAC 用户管理模块加载失败: {e}")
 
+# ── 容灾备份（autobackup 引擎，in-process）──────────────────
+try:
+    from user_management.seed import sync_menus
+    sync_menus()
+except Exception as e:
+    print(f"  [WARN] 菜单同步失败: {e}")
+
+try:
+    from api_v1 import register_disaster_recovery
+    register_disaster_recovery(app)
+    print("  [OK] 容灾备份模块已加载（autobackup）")
+except Exception as e:
+    print(f"  [WARN] 容灾备份模块加载失败: {e}")
+
 # ── 工具函数 ───────────────────────────────────────────────
 def _ts():
     return datetime.datetime.now().strftime('%H:%M:%S')
