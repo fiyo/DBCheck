@@ -8,6 +8,10 @@ psutil>=5.9.0
 PyYAML>=6.0.0            # Rule engine YAML parsing (required by pro/rule_engine.py)
 cryptography>=41.0.0     # Password encryption for data source manager
 
+# ── Disaster Recovery (vendored autobackup engine) ───────────────────────────
+croniter>=1.0.0          # Cron scheduling for backup plans (modules/disaster_recovery)
+requests>=2.25.0         # Webhook notifications (DingTalk/WeCom/Feishu) used by vendored autobackup
+
 # ── Web UI ───────────────────────────────────────────────────────────────────
 flask>=2.0.0
 flask-socketio>=5.0.0

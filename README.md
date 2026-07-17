@@ -338,6 +338,10 @@ Multi-round inspection data is automatically aggregated. Web UI trend analysis p
 
 Supports Cron expressions with quick presets (daily / weekdays / weekly / monthly). Auto-sends email (with Word report attachment) or Webhook (WeCom / DingTalk / custom JSON) notifications on completion.
 
+### Disaster Recovery Backup
+
+Built-in disaster recovery backup module powered by the MIT-licensed **autobackup** engine (vendored in-process — no Docker / sidecar required). Supports scheduled backups for **MySQL / MariaDB / PostgreSQL / files** with Cron scheduling, retention-day cleanup, and webhook notifications (DingTalk / WeCom / Feishu / email). Backup history, health scoring (freshness + success rate), and one-click restore points are available from the "容灾备份" page in the Web UI. Database passwords are encrypted at rest (Fernet) and masked in API responses.
+
 ### Shareable Links
 
 One-click shareable links for reports, viewable without login. Permission isolation, automatic visit counting, instant deletion support.

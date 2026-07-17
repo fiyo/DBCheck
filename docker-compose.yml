@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: acdante-zhang/dbcheck:latest
+    image: jackge12345/dbcheck:latest
     container_name: dbcheck
     restart: unless-stopped
     ports:

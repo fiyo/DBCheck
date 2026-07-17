@@ -2,7 +2,7 @@
 # Supports: MySQL, TiDB, PostgreSQL, IvorySQL, Oracle, SQL Server, DM8, YashanDB
 #
 # Build:
-#   docker build -t acdante-zhang/dbcheck:latest .
+#   docker build -t jackge12345/dbcheck:latest .
 #
 # Run:
 #   docker run -d -p 5003:5003 \
@@ -10,7 +10,7 @@
 #     -v dbcheck_data:/app/data \
 #     -v dbcheck_pro_data:/app/pro_data \
 #     -v dbcheck_reports:/app/reports \
-#     acdante-zhang/dbcheck:latest
+#     jackge12345/dbcheck:latest
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Builder Stage: install Python deps & copy app code
