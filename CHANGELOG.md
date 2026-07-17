@@ -1,5 +1,14 @@
 # Changelog
 
+## v26.7.17.1 (2026-07-17)
+- **版本号统一**：各源文件版本标识 v26.7.15.1 → v26.7.17.1（version.py / version.json / Dockerfile / skill `dbcheck` `_meta` + `_skillhub_meta` + `scripts/version.py` / README + README_zh 徽章 / CHANGELOG 顶段）
+- **合并 main → professional**：将 main 分支的容灾备份模块、NOTICE 合规声明、OceanBase 巡检全链路合并至 professional 分支
+  - **容灾备份模块**：基于 autobackup 引擎的定时备份与调度（MySQL/MariaDB/PostgreSQL/文件），含 Cron 调度、保留天数清理、Webhook 通知、健康度评分
+  - **OceanBase 巡检全链路**：新增 `main_oceanbase.py` 巡检实现、oceanbase.yaml 规则、Word 模板、监控扩展、UI 全链路支持（dbIcons/dbLogos/portMap/userMap + compat_tag）
+  - **规则引擎修复**：`eval(tree)` 替换为 `compile(tree) + eval(code)` 安全求值；新增 `_safe_eval_param()` 参数表达式安全求值
+  - **监控扩展**：`pro/metrics_collector.py` 追加 oceanbase 注册与 `_collect_oceanbase()` 方法
+- **NOTICE 合规声明**：新增 NOTICE 文件，声明 vendored autobackup 引擎的 MIT 许可
+
 ## v26.7.15.1 (2026-07-15)
 - **版本号统一**：各源文件版本标识 v26.7.13.1 → v26.7.15.1（version.py / version.json / Dockerfile / skill `dbcheck` `_meta` + `_skillhub_meta` + `scripts/version.py` / README + README_zh 徽章 / CHANGELOG 顶段）
 - **专业版 README 更新**：新增「专业版专属能力」详节与「社区版 vs 专业版 · 核心能力对比」表；标题/简介校正为 Professional / Commercial 以匹配专有版性质
