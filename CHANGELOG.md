@@ -1,5 +1,8 @@
 # Changelog
 
+## v26.7.19.1 (2026-07-19)
+- **版本号统一**：各源文件版本标识 v26.7.15.1 → v26.7.19.1（version.py / version.json / Dockerfile / skill `dbcheck` `_meta` + `_skillhub_meta` + `scripts/version.py` / README + README_zh 徽章 / CHANGELOG 顶段）
+
 ## v26.7.15.1 (2026-07-15)
 - **版本号统一**：各源文件版本标识 v26.7.13.1 → v26.7.15.1（version.py / version.json / Dockerfile / skill `dbcheck` `_meta` + `_skillhub_meta` + `scripts/version.py` / README + README_zh 徽章 / CHANGELOG 顶段）
 - **新增 MariaDB 原生巡检支持**：新增 `mariadb` 类型（连接复用 MySQL 框架 `pymysql`），含基线数据 18 条、规则 28+ 条（5 条 MariaDB 专有：Aria/线程池/galera wsrep/query_cache）、`main_mariadb.py` 巡检实现与 Word 模板，监控/基线/索引/慢查询复用 MySQL 逻辑
