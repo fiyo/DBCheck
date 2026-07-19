@@ -16,6 +16,28 @@ import yaml
 from typing import Dict, List, Any, Optional, Tuple
 
 
+# ── 允许在 condition 中安全调用的值方法（仅字符串/常用不可变方法，
+#    禁止任何危险属性/方法，如 __class__ / __bases__ / eval / exec 等）────────
+_SAFE_METHODS = {
+    'get',
+    'upper', 'lower', 'strip', 'lstrip', 'rstrip',
+    'replace', 'startswith', 'endswith', 'split', 'rsplit',
+    'title', 'capitalize', 'count', 'find', 'index',
+    'isdigit', 'isalpha', 'isnumeric', 'isalnum', 'isspace',
+}
+
+
+def _int(v, default: int = 0) -> int:
+    """规则引擎安全整型解析：容忍逗号/百分号/空白，解析失败回退 default。
+
+    供 YAML condition 中以 _int(x) 形式调用（如 yasdb tablespace 规则）。
+    """
+    try:
+        return int(str(v).replace(',', '').replace('%', '').strip())
+    except (ValueError, TypeError):
+        return default
+
+
 # ── 危险操作黑名单（ast 预检查）──────────────────────
 _DANGER_AST_NODES = (
     ast.Import, ast.ImportFrom,
@@ -28,8 +50,9 @@ _DANGER_AST_NODES = (
 def _safe_eval(expr: str, context: Dict, params: Dict) -> Tuple[bool, str]:
     """
     在安全沙箱中执行表达式。
-    仅允许：比较运算、算术运算、逻辑运算、取值操作。
-    禁止：import、函数调用（除白名单外）、属性访问链。
+    仅允许：比较运算、算术运算、逻辑运算、取值操作、白名单 builtins，
+           以及白名单安全方法调用（如 .upper()/.strip()/.startswith() 等）。
+    禁止：import、dunder 属性（__x__）、白名单外的属性/方法/函数调用。
 
     Returns:
         (result: bool, error_msg: str)
@@ -45,6 +68,7 @@ def _safe_eval(expr: str, context: Dict, params: Dict) -> Tuple[bool, str]:
         'abs': abs, 'round': round,
         'any': any, 'all': all,
         'sum': sum,
+        '_int': _int,
     }
 
     try:
@@ -54,52 +78,180 @@ def _safe_eval(expr: str, context: Dict, params: Dict) -> Tuple[bool, str]:
             # 拒绝 import
             if isinstance(node, (ast.Import, ast.ImportFrom)):
                 return False, "不允许 import 操作"
-            # 拒绝属性访问（防止 __class__.__bases__ 等逃逸）
+            # 属性访问：仅允许白名单安全方法，禁止 dunder / 未知属性
             if isinstance(node, ast.Attribute):
-                return False, "不允许属性访问"
-            # 拒绝调用（防止 __import__() 等）
+                attr = node.attr
+                if attr.startswith('__') and attr.endswith('__'):
+                    return False, f"不允许的属性访问: {attr}"
+                if attr not in _SAFE_METHODS:
+                    return False, f"不允许的属性访问: {attr}"
+                continue  # 白名单方法（通常是 .upper()/.strip()）放行
+            # 函数/方法调用
             if isinstance(node, ast.Call):
                 func = node.func
-                if isinstance(func, ast.Name) and func.id in safe_builtins:
-                    continue  # 白名单函数允许
-                return False, f"不允许函数调用: {ast.dump(func)}"
+                if isinstance(func, ast.Name):
+                    if func.id in safe_builtins:
+                        continue
+                    return False, f"不允许函数调用: {func.id}"
+                if isinstance(func, ast.Attribute):
+                    if func.attr in _SAFE_METHODS:
+                        continue
+                    return False, f"不允许的方法调用: {func.attr}"
+                return False, f"不允许的函数调用: {ast.dump(func)}"
 
-        result = eval(tree, {'__builtins__': safe_builtins}, locals_dict)
+        # 注意：eval() 接收的是 code object，不能直接传 AST 节点
+        # （eval(ast_node) 在 CPython 下会抛
+        #  "eval() arg 1 must be a string, bytes or code object"）。
+        # 必须先 compile() 成 code object 才能执行——这是规则引擎此前
+        #  对所有 condition 都静默失败（"全库 YAML 未生效"）的真正根因之一。
+        code = compile(tree, '<rule_condition>', 'eval')
+        result = eval(code, {'__builtins__': safe_builtins}, locals_dict)
         return bool(result), ""
     except Exception as e:
         return False, str(e)
+
+
+class _SafeContext:
+    """递归安全包装：同时支持属性与下标访问，dict/list 自动递归包装。
+
+    让 YAML 参数表达式里的 `context.x` / `context['x']` / `context.x[0].y`
+    在 context 是普通 dict 时也能正确取值。
+    同时委托 dict/list 的内置方法（如 .get()/.items()），使
+    `context.get('key')` 调用底层真实方法而非被误当作 key 查找。
+    """
+
+    def __init__(self, data):
+        self._d = data
+
+    def __getattr__(self, name):
+        if name.startswith('_'):
+            raise AttributeError(name)
+        if isinstance(self._d, dict):
+            # 若 name 是 dict 内置方法（如 get/keys/values），委托给真实方法，
+            # 否则按 key 查找（使 context.x == context['x']）
+            if hasattr(type(self._d), name):
+                attr = getattr(self._d, name)
+                if callable(attr):
+                    def _method(*args, **kwargs):
+                        return _wrap(attr(*args, **kwargs))
+                    return _method
+                return _wrap(attr)
+            return _wrap(self._d.get(name))
+        return _wrap(getattr(self._d, name, None))
+
+    def __getitem__(self, key):
+        if isinstance(self._d, (dict, list)):
+            try:
+                return _wrap(self._d[key])
+            except (KeyError, IndexError, TypeError):
+                return None
+        return None
+
+    def __contains__(self, key):
+        try:
+            return key in self._d
+        except TypeError:
+            return False
+
+    def __len__(self):
+        try:
+            return len(self._d)
+        except TypeError:
+            return 0
+
+    def __bool__(self):
+        try:
+            return bool(self._d)
+        except TypeError:
+            return False
+
+    def __repr__(self):
+        return repr(self._d)
+
+
+def _wrap(v):
+    if isinstance(v, (dict, list)):
+        return _SafeContext(v)
+    return v
+
+
+def _unwrap(v):
+    if isinstance(v, _SafeContext):
+        return _unwrap(v._d)
+    if isinstance(v, dict):
+        return {k: _unwrap(x) for k, x in v.items()}
+    if isinstance(v, list):
+        return [_unwrap(x) for x in v]
+    return v
+
+
+# 参数表达式允许的安全 builtins（比条件更宽松，但仍是白名单）
+# 注意 _int 已在文件上方定义为模块级函数，可直接引用
+_PARAM_BUILTINS = {
+    'int': int, 'float': float, 'str': str,
+    'len': len, 'min': min, 'max': max, 'abs': abs, 'round': round,
+    'any': any, 'all': all, 'sum': sum, 'bool': bool,
+    '_int': _int,
+}
+
+
+def _safe_eval_param(expr: str, context: Dict) -> Any:
+    """安全求值参数表达式（${context...} 内部内容）。
+
+    允许：比较/算术/逻辑运算、条件表达式(IfExp)、下标、非 dunder 属性访问、
+         白名单 builtins（int/len/_int/...）与 _SAFE_METHODS 方法调用。
+    禁止：import、dunder 属性（__x__）、白名单外的函数/方法调用。
+    返回解包后的原生值；任何失败返回 None（与 gbase 表达式内部的 else 兜底配合）。
+    """
+    try:
+        tree = ast.parse(expr, mode='eval')
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                return None
+            if isinstance(node, ast.Attribute):
+                if node.attr.startswith('__') and node.attr.endswith('__'):
+                    return None
+                continue
+            if isinstance(node, ast.Call):
+                func = node.func
+                if isinstance(func, ast.Name):
+                    if func.id not in _PARAM_BUILTINS:
+                        return None
+                elif isinstance(func, ast.Attribute):
+                    if func.attr not in _SAFE_METHODS:
+                        return None
+                else:
+                    return None
+        code = compile(tree, '<rule_param>', 'eval')
+        result = eval(code, {'__builtins__': _PARAM_BUILTINS}, {'context': _SafeContext(context)})
+        result = _unwrap(result)
+        # 数值字符串转数值（SHOW VARIABLES 等返回的 Value 多为字符串，如 '200'/'95'）
+        if isinstance(result, str):
+            try:
+                return int(result)
+            except (ValueError, TypeError):
+                pass
+            try:
+                return float(result)
+            except (ValueError, TypeError):
+                pass
+        return result
+    except Exception:
+        return None
 
 
 def _resolve_param(param_expr: str, context: Dict) -> Any:
     """
     解析参数表达式，支持：
     - 字面量：90, "hello", 1.5
-    - context 取值："${context.key.subkey}"
+    - 完整 Python 表达式（${context...}）：三元/方法调用/下标等，
+      交由 _safe_eval_param 在白名单沙箱中安全求值
     """
     if not isinstance(param_expr, str):
         return param_expr
-
-    # 匹配 ${context.xxx.yyy} 格式
     m = re.match(r'^\$\{(.+)\}$', param_expr.strip())
     if m:
-        expr = m.group(1)
-        # 支持 context.key 或 context.key[0].subkey 格式
-        parts = expr.split('.')
-        if parts[0] == 'context':
-            obj = context
-            for part in parts[1:]:
-                if obj is None:
-                    return None
-                if isinstance(obj, dict):
-                    obj = obj.get(part)
-                elif isinstance(obj, list) and part.isdigit():
-                    idx = int(part)
-                    obj = obj[idx] if idx < len(obj) else None
-                else:
-                    obj = getattr(obj, part, None)
-            return obj
-        return None
-
+        return _safe_eval_param(m.group(1), context)
     # 尝试解析为字面量
     try:
         return int(param_expr)
@@ -256,22 +408,16 @@ class RuleEngine:
         for k, v in params_raw.items():
             resolved_params[k] = _resolve_param(v, context)
 
-        # 计算额外变量（如百分比等）
+        # 计算额外变量（如连接数使用率 conn_pct 等）
         extra = {}
         try:
-            # 自动计算常用百分比
-            for k, v in resolved_params.items():
-                if k.endswith('_pct') or k.endswith('_percent'):
-                    continue  # 已经是百分比
-            # 如果有 a 和 b，自动计算 a_pct = a/b*100
-            for k in list(resolved_params.keys()):
-                if k.startswith('max_') and 'conn' in k:
-                    # 自动计算 conn_pct
-                    if 'max_conn' in resolved_params and 'max_used' in resolved_params:
-                        mc = resolved_params['max_conn']
-                        mu = resolved_params['max_used']
-                        if mc and mc > 0:
-                            extra['conn_pct'] = mu / mc * 100
+            # 自动计算连接数使用率 conn_pct：
+            # 当有 max_conn 且存在表示"已用连接"的参数（max_used 或 cur_conn）时计算
+            if 'max_conn' in resolved_params:
+                mc = resolved_params['max_conn']
+                mu = resolved_params.get('max_used', resolved_params.get('cur_conn', None))
+                if mu is not None and mc and mc > 0:
+                    extra['conn_pct'] = mu / mc * 100
         except Exception:
             pass
 

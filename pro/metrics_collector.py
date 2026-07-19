@@ -38,6 +38,8 @@ COUNTER_KEYS = {
               'slow_queries', 'aborted_connects', 'threads_created'},
     'tidb': {'queries', 'bytes_received', 'bytes_sent', 'connections',
              'slow_queries', 'aborted_connects', 'threads_created'},
+    'oceanbase': {'queries', 'bytes_received', 'bytes_sent', 'connections',
+                  'slow_queries', 'aborted_connects', 'threads_created'},
     'postgresql': {'xact_commit', 'xact_rollback', 'blks_read', 'blks_hit',
                    'deadlocks', 'conflicts', 'tup_returned', 'tup_fetched',
                    'tup_inserted', 'tup_updated', 'tup_deleted'},
@@ -250,10 +252,15 @@ class MetricsCollector:
         port = int(inst.get('port') or 0)
         user = inst.get('user')
         password = inst.get('password')
-        if db_type in ('mysql', 'tidb'):
+        if db_type in ('mysql', 'tidb', 'oceanbase'):
             import pymysql
+            db_name = inst.get('database')
+            if db_type == 'oceanbase':
+                # OceanBase MySQL 租户：database 即租户名（默认 sys）。
+                db_name = db_name or 'sys'
             return pymysql.connect(host=host, port=port, user=user,
-                                   password=password, connect_timeout=CONNECT_TIMEOUT)
+                                   password=password, database=db_name,
+                                   connect_timeout=CONNECT_TIMEOUT)
         if db_type in ('postgresql', 'pg', 'ivorysql', 'kingbase'):
             import psycopg2
             dbname = inst.get('database') or ('kingbase' if db_type == 'kingbase' else 'postgres')
@@ -490,6 +497,8 @@ class MetricsCollector:
         try:
             if db_type in ('mysql', 'tidb'):
                 return self._collect_mysql(conn)
+            if db_type == 'oceanbase':
+                return self._collect_oceanbase(conn)
             if db_type in ('postgresql', 'pg', 'ivorysql', 'kingbase'):
                 return self._collect_postgres(conn)
             if db_type in ('oracle', 'oracle_jdbc'):
@@ -524,6 +533,133 @@ class MetricsCollector:
                     m['seconds_behind_master'] = _to_num(sbm)
         except Exception:
             pass
+        return m
+
+    def _collect_oceanbase(self, conn) -> dict:
+        """OceanBase MySQL 租户深采：兼容 MySQL 计数器 + 补充 OB 原生 GV$OB_* 监控指标。
+
+        设计文档 §3.2 / PRD OB-P0-07 要求返回基于 GV$OB_* 的监控指标，键至少包含：
+            qps / tps / active_sessions / memstore_water_level /
+            latency_ms / sysstat / processlist
+        同时保留 SHOW GLOBAL STATUS 兼容逻辑（queries/threads_connected/...），
+        供向后兼容。每条 GV$OB 查询独立 try/except，视图不存在/列缺失/权限不足
+        均落入安全默认值（0 / 0.0 / {} / []），绝不让单条视图查询失败导致整个函数抛异常。
+        """
+        m = {}
+        cur = conn.cursor()
+
+        # ── 1) SHOW GLOBAL STATUS 兼容逻辑（向后兼容）──
+        status = {}
+        try:
+            cur.execute("SHOW GLOBAL STATUS")
+            status = {str(r[0]).lower(): _to_num(r[1]) for r in cur.fetchall()}
+            for k in ('queries', 'threads_connected', 'threads_running', 'slow_queries',
+                      'aborted_connects', 'bytes_received', 'bytes_sent', 'connections',
+                      'threads_created'):
+                if k in status:
+                    m[k] = status[k]
+        except Exception:
+            pass
+
+        # ── 2) active_sessions：GV$OB_PROCESSLIST COUNT(*)（映射为 active_sessions）──
+        # 同时覆盖 threads_connected（更贴近 OB 真实会话模型，向后兼容）。
+        try:
+            cur.execute("SELECT COUNT(*) FROM GV$OB_PROCESSLIST")
+            row = cur.fetchone()
+            if row and row[0] is not None:
+                cnt = int(_to_num(row[0]))
+                m['active_sessions'] = cnt
+                m['threads_connected'] = cnt
+        except Exception:
+            m.setdefault('active_sessions', 0)
+
+        # ── 3) processlist：完整会话快照（行列表，tuple 直存，不依赖具体列名）──
+        try:
+            cur.execute("SELECT * FROM GV$OB_PROCESSLIST")
+            m['processlist'] = list(cur.fetchall())
+        except Exception:
+            m['processlist'] = []
+
+        # ── 4) sysstat：GV$SYSSTAT / GV$OB_SYSSTAT 按 CLASS 归并的 dict ──
+        try:
+            # 优先 GV$SYSSTAT，缺失再退 GV$OB_SYSSTAT；两视图列名跨版本略有差异，
+            # 这里读 CLASS（分组键）+ 末列数值（VALUE），避免写死 VALUE 列名。
+            try:
+                cur.execute("SELECT CLASS, STAT_NAME, VALUE FROM GV$SYSSTAT")
+            except Exception:
+                cur.execute("SELECT CLASS, STAT_NAME, VALUE FROM GV$OB_SYSSTAT")
+            sysstat = {}
+            for row in cur.fetchall():
+                if not row or len(row) < 2:
+                    continue
+                class_name = str(row[0])
+                value = _to_num(row[-1])
+                sysstat[class_name] = sysstat.get(class_name, 0) + value
+            m['sysstat'] = sysstat
+        except Exception:
+            m['sysstat'] = {}
+
+        # ── 5) memstore_water_level：GV$OB_MEMSTORE 水位百分比 ──
+        try:
+            cur.execute(
+                "SELECT MEMSTORE_USED_PERCENT, ACTIVE_MEMSTORE_USED, MEMSTORE_LIMIT "
+                "FROM GV$OB_MEMSTORE"
+            )
+            rows = cur.fetchall()
+            memstore = 0.0
+            if rows and rows[0] is not None:
+                first = rows[0]
+                pct = _to_num(first[0]) if len(first) > 0 else 0
+                if pct > 0:
+                    memstore = float(pct)
+                else:
+                    active = _to_num(first[1]) if len(first) > 1 else 0
+                    limit = _to_num(first[2]) if len(first) > 2 else 0
+                    if limit > 0:
+                        memstore = round(active / limit * 100.0, 2)
+            m['memstore_water_level'] = memstore
+        except Exception:
+            m['memstore_water_level'] = 0.0
+
+        # ── 6) latency_ms：GV$OB_SERVER_STAT 的 RPC/SQL 平均延迟（ms）──
+        try:
+            cur.execute(
+                "SELECT SQL_RT, RPC_RT, AVG_RPC_TIME, SQL_PROCESS_RT "
+                "FROM GV$OB_SERVER_STAT"
+            )
+            rows = cur.fetchall()
+            latency = 0.0
+            if rows and rows[0] is not None:
+                first = rows[0]
+                for idx in range(min(len(first), 4)):
+                    v = _to_num(first[idx])
+                    if v > 0:
+                        latency = float(v)
+                        break
+            m['latency_ms'] = latency
+        except Exception:
+            m['latency_ms'] = 0.0
+
+        # ── 7) qps / tps：单点快照无时间差，缺速率上下文默认 0.0；
+        #        优先从 GV$SYSSTAT 查询/事务类累计计数器取值（生产环境真实速率
+        #        由 MetricsCollector._compute_rates 基于这些计数器差分得到）。
+        qps = 0.0
+        tps = 0.0
+        try:
+            ss = m.get('sysstat') or {}
+            q_terms = ('query', 'select', 'rpc total', 'sql select', 'execute', 'rpc')
+            t_terms = ('commit', 'rollback', 'transaction', 'user commit')
+            qps = sum(float(v) for k, v in ss.items()
+                      if any(t in str(k).lower() for t in q_terms))
+            tps = sum(float(v) for k, v in ss.items()
+                      if any(t in str(k).lower() for t in t_terms))
+        except Exception:
+            pass
+        # 真正的每秒速率由 _compute_rates 计算（基于 queries / Com_commit+Com_rollback
+        # 计数器差分），此处单点快照无 Δt，故无速率上下文时保持 0.0。
+        m['qps'] = float(qps)
+        m['tps'] = float(tps)
+
         return m
 
     def _collect_postgres(self, conn) -> dict:

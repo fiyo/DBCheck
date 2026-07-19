@@ -444,6 +444,354 @@ MYSQL_DEFAULT_CHAPTERS = [
         ]
     },
 ]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# OceanBase（MySQL 租户）默认巡检章节定义
+# ─────────────────────────────────────────────────────────────────────────────
+# 基于 MYSQL_DEFAULT_CHAPTERS 的 21 章框架，剔除 OceanBase 不暴露 / 架构不存在
+# 的 query_key，使报告每章只展示有意义的内容，不再出现"数据缺失"空壳条目。
+#
+# 剔除规则（章节框架与标题保持不变，仅裁剪 queries 列表）：
+#   第 2 章  连接状态        — 删 max_used_connections / aborted_connects /
+#                              connection_errors / threads_running（OB 不暴露）
+#   第 4 章  性能分析        — 全删（qps / com_commit / com_rollback /
+#                              innodb_row_ops / innodb_data_ops /
+#                              cache_hit_ratio / cache_hit_requests，OB 无对应状态变量）
+#   第 7 章  复制状态        — 全删（slave_status / master_status /
+#                              slave_io_running / replication_lag，OB 分布式无主从）
+#   第 8 章  InnoDB 锁等待   — 删 innodb_deadlock / innodb_long_trx
+#                              （保留 innodb_lock_chain，已定制 GV$OB_PROCESSLIST）
+#   第 9 章  缓冲池状态      — 删 buffer_pool_status / buffer_pool_instances
+#                              （保留 buffer_pool_size，SHOW VARIABLES 可取）
+#   第 11 章 慢查询          — 删 slow_query_count
+#                              （保留 slow_query_status / long_query_time_cfg）
+#   第 12 章 表碎片          — 删 table_fragmentation（OB 是 LSM 引擎无 MySQL 式碎片）
+#                              （保留 stale_tables）
+#   第 13 章 索引使用        — 全删（unused_indexes / index_stats，
+#                              OB 不支持 performance_schema）
+#   第 14 章 主从复制延迟    — 全删（repl_lag_detail / repl_channels，OB 无主从）
+#   第 15 章 Binlog 状态     — 删 binlog_status / binlog_cache（OB 用 Clog 无 Binlog）
+#                              （保留 binlog_config，SHOW VARIABLES 可能暴露部分变量）
+#   第 17 章 存储引擎状态    — 删 innodb_status（OB 不支持 SHOW ENGINE INNODB STATUS）
+#                              （保留 engine_status，SHOW ENGINES 可取）
+#   第 20 章 计划任务和事件  — 删 events_list（OB 无事件调度器）
+#                              （保留 event_scheduler）
+#   第 21 章 InnoDB 表空间   — 删 innodb_tablespaces / innodb_datafiles
+#                              （OB 不支持这些 information_schema 表）
+#                              （保留 file_per_table）
+#
+# 注：第 4 / 7 / 13 / 14 章所有 query_key 均被剔除，变为空章节。报告渲染逻辑
+# （inspection_engine.py `if not queries: continue`）会自动跳过空查询章节，
+# 不在报告中显示。这符合"保留章节框架但只展示有意义内容"的意图。
+# ─────────────────────────────────────────────────────────────────────────────
+
+OCEANBASE_DEFAULT_CHAPTERS = [
+    {
+        'chapter_number': 1,
+        'chapter_title_zh': '健康状态概览',
+        'chapter_title_en': 'Health Overview',
+        'description': '数据库整体健康状态概览',
+        'queries': [
+            {'key': 'my_version',   'sql': "SELECT VERSION() AS version;",
+             'desc_zh': '获取 MySQL 版本',          'desc_en': 'Get MySQL version'},
+            {'key': 'uptime',      'sql': "SHOW GLOBAL STATUS LIKE 'Uptime';",
+             'desc_zh': '数据库运行时长(秒)', 'desc_en': 'Database uptime (seconds)'},
+            {'key': 'datadir',     'sql': "SHOW VARIABLES LIKE 'datadir';",
+             'desc_zh': '数据目录路径',            'desc_en': 'Data directory path'},
+            {'key': 'server_uuid', 'sql': "SHOW VARIABLES LIKE 'server_uuid';",
+             'desc_zh': '服务器 UUID',             'desc_en': 'Server UUID'},
+        ]
+    },
+    {
+        'chapter_number': 2,
+        'chapter_title_zh': '连接状态检查',
+        'chapter_title_en': 'Connection Status',
+        'description': '数据库连接相关状态检查',
+        'queries': [
+            {'key': 'threads_connected',     'sql': "SHOW GLOBAL STATUS LIKE 'Threads_connected';",
+             'desc_zh': '当前连接数',                'desc_en': 'Current connections'},
+            {'key': 'max_connections',      'sql': "SHOW VARIABLES LIKE 'max_connections';",
+             'desc_zh': '最大连接数配置',           'desc_en': 'Max connections config'},
+        ]
+    },
+    {
+        'chapter_number': 3,
+        'chapter_title_zh': '配置参数检查',
+        'chapter_title_en': 'Configuration Check',
+        'description': '关键配置参数检查',
+        'queries': [
+            {'key': 'innodb_buffer_pool_size',   'sql': "SHOW VARIABLES LIKE 'innodb_buffer_pool_size';",
+             'desc_zh': 'InnoDB 缓冲池大小',     'desc_en': 'InnoDB buffer pool size'},
+            {'key': 'innodb_log_file_size',      'sql': "SHOW VARIABLES LIKE 'innodb_log_file_size';",
+             'desc_zh': 'Redo 日志文件大小',      'desc_en': 'Redo log file size'},
+            {'key': 'innodb_flush_log_at_trx_commit', 'sql': "SHOW VARIABLES LIKE 'innodb_flush_log_at_trx_commit';",
+             'desc_zh': '事务提交刷盘策略',         'desc_en': 'Transaction flush policy'},
+            {'key': 'sync_binlog',        'sql': "SHOW VARIABLES LIKE 'sync_binlog';",
+             'desc_zh': 'Binlog 刷盘策略',        'desc_en': 'Binlog sync policy'},
+            {'key': 'log_bin',            'sql': "SHOW VARIABLES LIKE 'log_bin';",
+             'desc_zh': 'Binlog 是否开启',        'desc_en': 'Binary logging enabled'},
+            {'key': 'slow_query_log',    'sql': "SHOW VARIABLES LIKE 'slow_query_log';",
+             'desc_zh': '慢查询日志是否开启',        'desc_en': 'Slow query log enabled'},
+            {'key': 'long_query_time',    'sql': "SHOW VARIABLES LIKE 'long_query_time';",
+             'desc_zh': '慢查询阈值（秒）',        'desc_en': 'Slow query threshold (s)'},
+            {'key': 'table_open_cache',   'sql': "SHOW VARIABLES LIKE 'table_open_cache';",
+             'desc_zh': '表缓存大小',               'desc_en': 'Table open cache size'},
+            {'key': 'key_buffer_size',    'sql': "SHOW VARIABLES LIKE 'key_buffer_size';",
+             'desc_zh': 'MyISAM 键缓存大小',     'desc_en': 'MyISAM key buffer size'},
+        ]
+    },
+    {
+        'chapter_number': 4,
+        'chapter_title_zh': '性能分析',
+        'chapter_title_en': 'Performance Analysis',
+        'description': '数据库性能指标分析',
+        'queries': []
+    },
+    {
+        'chapter_number': 5,
+        'chapter_title_zh': '数据库空间使用',
+        'chapter_title_en': 'Database Space Usage',
+        'description': '数据库和表的空间使用情况',
+        'queries': [
+            {'key': 'db_size', 'sql': """
+                SELECT table_schema AS database_name,
+                       ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) AS total_mb,
+                       ROUND(SUM(data_length) / 1024 / 1024, 2) AS data_mb,
+                       ROUND(SUM(index_length) / 1024 / 1024, 2) AS index_mb,
+                       COUNT(*) AS table_count
+                FROM information_schema.TABLES 
+                GROUP BY table_schema
+                ORDER BY total_mb DESC;
+            """,
+             'desc_zh': '各数据库大小',           'desc_en': 'Database sizes'},
+            {'key': 'table_size', 'sql': """
+                SELECT table_schema AS database_name, table_name,
+                       ROUND((data_length + index_length) / 1024 / 1024, 2) AS size_mb,
+                       table_rows
+                FROM information_schema.TABLES 
+                ORDER BY (data_length + index_length) DESC
+                LIMIT 20;
+            """,
+             'desc_zh': '最大的 20 张表',      'desc_en': 'Top 20 largest tables'},
+        ]
+    },
+    {
+        'chapter_number': 6,
+        'chapter_title_zh': '安全信息',
+        'chapter_title_en': 'Security Information',
+        'description': '数据库安全相关配置',
+        'queries': [
+            {'key': 'mysql_users', 'sql': """
+                SELECT user AS col1, host AS col2, Grant_priv AS col3,
+                       plugin AS col4, account_locked AS col5, password_expired AS col6
+                FROM mysql.user
+                WHERE user NOT IN ('mysql.infoschema','mysql.session','mysql.sys','root')
+                ORDER BY user;
+            """,
+             'desc_zh': '非系统用户列表',           'desc_en': 'Non-system users'},
+            {'key': 'password_expiry', 'sql': """
+                SELECT user, host, password_expired, password_lifetime
+                FROM mysql.user
+                WHERE password_expired='Y' OR password_lifetime IS NOT NULL;
+            """,
+             'desc_zh': '密码过期用户',            'desc_en': 'Password expiry status'},
+            {'key': 'user_privileges', 'sql': """
+                SELECT grantee, privilege_type, is_grantable
+                FROM information_schema.USER_PRIVILEGES
+                WHERE grantee NOT LIKE '%root%' AND grantee NOT LIKE '%mysql%'
+                ORDER BY grantee;
+            """,
+             'desc_zh': '用户权限一览',            'desc_en': 'User privileges overview'},
+        ]
+    },
+    {
+        'chapter_number': 7,
+        'chapter_title_zh': '复制状态检查',
+        'chapter_title_en': 'Replication Status',
+        'description': '主从复制状态检查',
+        'queries': []
+    },
+    {
+        'chapter_number': 8,
+        'chapter_title_zh': 'InnoDB 锁等待检查',
+        'chapter_title_en': 'InnoDB Lock Analysis',
+        'description': 'InnoDB 锁等待和长事务检查',
+        'queries': [
+            {'key': 'innodb_lock_chain', 'sql': """
+                SELECT r.trx_id AS waiting_trx_id, r.trx_mysql_thread_id AS waiting_thread,
+                       LEFT(COALESCE(r.trx_query, ''), 200) AS waiting_query,
+                       r.trx_state AS waiting_state,
+                       b.trx_id AS blocking_trx_id, b.trx_mysql_thread_id AS blocking_thread,
+                       LEFT(COALESCE(b.trx_query, ''), 200) AS blocking_query
+                FROM information_schema.INNODB_TRX r
+                JOIN performance_schema.data_lock_waits w ON r.trx_id = w.REQUESTING_ENGINE_TRANSACTION_ID
+                JOIN information_schema.INNODB_TRX b ON w.BLOCKING_ENGINE_TRANSACTION_ID = b.trx_id
+                ORDER BY r.trx_started;
+            """,
+             'desc_zh': 'InnoDB 锁等待链',      'desc_en': 'InnoDB lock wait chain'},
+        ]
+    },
+    {
+        'chapter_number': 9,
+        'chapter_title_zh': '缓冲池状态',
+        'chapter_title_en': 'Buffer Pool Status',
+        'description': 'InnoDB 缓冲池使用状态',
+        'queries': [
+            {'key': 'buffer_pool_size',    'sql': "SHOW VARIABLES LIKE 'innodb_buffer_pool_size';",
+             'desc_zh': '缓冲池大小配置',           'desc_en': 'Buffer pool size config'},
+        ]
+    },
+    {
+        'chapter_number': 10,
+        'chapter_title_zh': '事务和锁分析',
+        'chapter_title_en': 'Transaction & Lock Analysis',
+        'description': '事务状态和锁等待分析',
+        'queries': [
+            {'key': 'trx_list',   'sql': "SELECT * FROM information_schema.INNODB_TRX ORDER BY trx_started;",
+             'desc_zh': '当前 InnoDB 事务列表',   'desc_en': 'Current InnoDB transactions'},
+            {'key': 'lock_waits', 'sql': "SELECT * FROM performance_schema.data_lock_waits LIMIT 20;",
+             'desc_zh': '锁等待列表',              'desc_en': 'Lock wait list'},
+            {'key': 'lock_summary', 'sql': "SELECT lock_mode, lock_type, COUNT(*) AS cnt FROM performance_schema.data_locks GROUP BY lock_mode, lock_type;",
+             'desc_zh': '锁类型统计',               'desc_en': 'Lock type statistics'},
+        ]
+    },
+    {
+        'chapter_number': 11,
+        'chapter_title_zh': '慢查询分析',
+        'chapter_title_en': 'Slow Query Analysis',
+        'description': '慢查询日志分析',
+        'queries': [
+            {'key': 'slow_query_status',  'sql': "SHOW VARIABLES LIKE 'slow_query%';",
+             'desc_zh': '慢查询配置',              'desc_en': 'Slow query configuration'},
+            {'key': 'long_query_time_cfg', 'sql': "SHOW VARIABLES LIKE 'long_query_time';",
+             'desc_zh': '慢查询阈值配置',           'desc_en': 'Slow query threshold config'},
+        ]
+    },
+    {
+        'chapter_number': 12,
+        'chapter_title_zh': '表碎片和统计信息',
+        'chapter_title_en': 'Table Fragmentation & Statistics',
+        'description': '表碎片率和统计信息新鲜度',
+        'queries': [
+            {'key': 'stale_tables', 'sql': """
+                SELECT table_schema, table_name, update_time
+                FROM information_schema.TABLES
+                WHERE table_schema NOT IN ('information_schema','mysql','performance_schema','sys')
+                  AND update_time < NOW() - INTERVAL 7 DAY
+                ORDER BY update_time DESC
+                LIMIT 20;
+            """,
+             'desc_zh': '超过7天未更新的表',     'desc_en': 'Tables not updated in 7 days'},
+        ]
+    },
+    {
+        'chapter_number': 13,
+        'chapter_title_zh': '索引使用情况',
+        'chapter_title_en': 'Index Usage Analysis',
+        'description': '索引使用率和冗余索引分析',
+        'queries': []
+    },
+    {
+        'chapter_number': 14,
+        'chapter_title_zh': '主从复制延迟',
+        'chapter_title_en': 'Replication Lag',
+        'description': '主从复制延迟详细分析',
+        'queries': []
+    },
+    {
+        'chapter_number': 15,
+        'chapter_title_zh': 'Binlog 状态',
+        'chapter_title_en': 'Binary Log Status',
+        'description': 'Binary Log 状态和配置',
+        'queries': [
+            {'key': 'binlog_config', 'sql': "SHOW VARIABLES LIKE 'binlog%';",
+             'desc_zh': 'Binlog 相关配置',       'desc_en': 'Binary log configuration'},
+        ]
+    },
+    {
+        'chapter_number': 16,
+        'chapter_title_zh': '用户权限审计',
+        'chapter_title_en': 'User Privilege Audit',
+        'description': '用户权限和安全审计',
+        'queries': [
+            {'key': 'user_list', 'sql': """
+                SELECT user, host, authentication_string IS NOT NULL AS has_password,
+                       password_expired, password_lifetime, account_locked, plugin
+                FROM mysql.user
+                WHERE user != ''
+                ORDER BY user, host;
+            """,
+             'desc_zh': '用户账号安全状态',          'desc_en': 'User account security status'},
+            {'key': 'db_privileges', 'sql': "SELECT * FROM mysql.db ORDER BY user, db;",
+             'desc_zh': '数据库级别权限',           'desc_en': 'Database-level privileges'},
+            {'key': 'role_edges',    'sql': "SELECT * FROM mysql.role_edges ORDER BY from_user;",
+             'desc_zh': '角色关系',                'desc_en': 'Role edges'},
+        ]
+    },
+    {
+        'chapter_number': 17,
+        'chapter_title_zh': '存储引擎状态',
+        'chapter_title_en': 'Storage Engine Status',
+        'description': '存储引擎状态和统计',
+        'queries': [
+            {'key': 'engine_status', 'sql': "SHOW ENGINES;",
+             'desc_zh': '支持的存储引擎',           'desc_en': 'Supported storage engines'},
+        ]
+    },
+    {
+        'chapter_number': 18,
+        'chapter_title_zh': '系统变量检查',
+        'chapter_title_en': 'System Variables Check',
+        'description': '关键系统变量检查',
+        'queries': [
+            {'key': 'key_vars', 'sql': """
+                SELECT variable_name, variable_value
+                FROM performance_schema.global_variables
+                WHERE variable_name IN (
+                    'innodb_buffer_pool_size','innodb_log_file_size','max_connections',
+                    'query_cache_size','tmp_table_size','max_heap_table_size',
+                    'thread_cache_size','table_open_cache','open_files_limit',
+                    'innodb_flush_log_at_trx_commit','sync_binlog','log_bin',
+                    'slow_query_log','long_query_time'
+                )
+                ORDER BY variable_name;
+            """,
+             'desc_zh': '关键系统变量一览',           'desc_en': 'Key system variables overview'},
+        ]
+    },
+    {
+        'chapter_number': 19,
+        'chapter_title_zh': '错误日志检查',
+        'chapter_title_en': 'Error Log Check',
+        'description': '错误日志和告警信息',
+        'queries': [
+            {'key': 'error_log_path', 'sql': "SHOW VARIABLES LIKE 'log_error';",
+             'desc_zh': '错误日志路径',            'desc_en': 'Error log path'},
+            {'key': 'log_warnings',   'sql': "SHOW VARIABLES LIKE 'log_warnings';",
+             'desc_zh': '警告日志级别',            'desc_en': 'Warning log level'},
+        ]
+    },
+    {
+        'chapter_number': 20,
+        'chapter_title_zh': '计划任务和事件',
+        'chapter_title_en': 'Scheduled Events',
+        'description': 'MySQL 事件调度器状态',
+        'queries': [
+            {'key': 'event_scheduler', 'sql': "SHOW VARIABLES LIKE 'event_scheduler';",
+             'desc_zh': '事件调度器是否开启',        'desc_en': 'Event scheduler status'},
+        ]
+    },
+    {
+        'chapter_number': 21,
+        'chapter_title_zh': 'InnoDB 表空间状态',
+        'chapter_title_en': 'InnoDB Tablespace Status',
+        'description': 'InnoDB 表空间和文件状态',
+        'queries': [
+            {'key': 'file_per_table',     'sql': "SHOW VARIABLES LIKE 'innodb_file_per_table';",
+             'desc_zh': '独立表空间是否开启',        'desc_en': 'File-per-table enabled'},
+        ]
+    },
+]
 # 临时文件：PostgreSQL 21 章配置
 
 POSTGRESQL_DEFAULT_CHAPTERS = [
@@ -3787,6 +4135,7 @@ def init_default_templates(db_path: str = None, force: bool = False):
     db_types = [
         ('mysql',     'MySQL 默认巡检模板',        'MySQL Default Inspection Template',        MYSQL_DEFAULT_CHAPTERS,        'v1', 1, 1),
         ('mariadb',   'MariaDB 默认巡检模板',      'MariaDB Default Inspection Template',      MYSQL_DEFAULT_CHAPTERS,       'v1', 1, 1),  # MariaDB 复用 MySQL 章节 SQL（协议兼容）
+        ('oceanbase', 'OceanBase 默认巡检模板',    'OceanBase Default Inspection Template',    OCEANBASE_DEFAULT_CHAPTERS,  'v1', 1, 1),  # OceanBase 专有章节定义（剔除 OB 不支持的 query_key，默认端口 2881）
         ('postgresql', 'PostgreSQL 默认巡检模板',   'PostgreSQL Default Inspection Template',   POSTGRESQL_DEFAULT_CHAPTERS,   'v1', 1, 1),
         ('oracle',     'Oracle 默认巡检模板',        'Oracle Default Inspection Template',         ORACLE_DEFAULT_CHAPTERS,         'v1', 1, 1),
         ('oracle',     'Oracle 11g 巡检模板',        'Oracle 11g Inspection Template',             ORACLE_11G_CHAPTERS,             '11g', 0, 1),

@@ -355,12 +355,18 @@ class MonitorEngine:
         port = int(inst['port'])
         user = inst['user']
 
-        if db_type in ('mysql', 'mariadb'):
-            # MariaDB 与 MySQL 协议/参数高度兼容，复用同款 pymysql 连接逻辑
+        if db_type in ('mysql', 'mariadb', 'oceanbase'):
+            # MariaDB / OceanBase MySQL 租户与 MySQL 协议/参数高度兼容，复用同款 pymysql 连接逻辑。
+            # OceanBase MySQL 租户的 database 即租户名，默认 sys。
             import pymysql
+            db_name = inst.get('database')
+            if db_type == 'oceanbase':
+                db_name = db_name or 'sys'
+            elif db_name is None:
+                db_name = 'mysql'
             return pymysql.connect(
                 host=host, port=port, user=user, password=password,
-                database=inst.get('database') or 'mysql',
+                database=db_name,
                 charset='utf8mb4', connect_timeout=timeout, read_timeout=timeout,
             )
 

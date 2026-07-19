@@ -1,0 +1,260 @@
+# -*- coding: utf-8 -*-
+# OceanBase（MySQL 租户）内置巡检规则
+#
+# 复用 MySQL 规则（db_types 改为 oceanbase），因为 OceanBase MySQL 租户
+# 与 MySQL 协议/参数高度兼容，主巡检走 MySQL 形态模板（MYSQL_DEFAULT_CHAPTERS），
+# 同一批 context 键（max_connections / processlist / slow_query_log ...）可直接复用。
+#
+# 另追加 5 条 OceanBase 专有规则：
+#   ob_primary_zone_single  - Primary Zone 单点风险
+#   ob_locality_missing    - Locality 未配置
+#   ob_unit_imbalance     - 资源单元（Unit）不均衡
+#   ob_merge_trigger      - 合并 / 转储参数异常（freeze_trigger_percentage 过高）
+#   ob_replica_low        - 副本数不足
+# 这些规则消费的 context 键由 main_oceanbase.OceanBaseInspector._customize_queries
+# 注入的 OB 专有查询（ob_tenant_info / ob_unit_info / ob_merge_params / ob_replica_info）
+# 填充；当 OceanBase 环境未提供这些数据（权限/版本）时，条件为 False，
+# 规则自动跳过、不报错。
+#
+# 规则引擎约束（pro/rule_engine.py）：
+#   * condition 走 safe_eval：白名单 min/max/len/int/float/str/abs/round/any/all/sum，
+#     并允许对值调用白名单安全方法（.upper()/.lower()/.strip()/.replace()/.startswith()/
+#     .endswith()/.split()/.count()/.find() 等）；仅禁止 import、dunder 属性（__x__）、
+#     未知属性/方法调用与 set(/range(/自定义函数。故条件可用标量 params、
+#     LIST params 下标访问（u['ZONE']/p['name']）或上述白名单安全方法。
+#   * message 仅替换 resolved_params 与引擎自动计算的 conn_pct；YAML 的 _extra 键
+#     不被读取，故消息占位符只用 params / conn_pct 中真实存在的变量。
+#   * 行以 dict 存储，列名大小写敏感：SHOW PARAMETERS 列为小写 name/value，
+#     DBA_OB_* 视图列为大写（PRIMARY_ZONE / LOCALITY / ZONE / REPLICA_COUNT）。
+rules:
+  # ==============================================================
+  # 复用 MySQL 规则（db_types: [oceanbase]）
+  # ==============================================================
+  - id: ob_conn_usage_high
+    name: 连接数使用率过高
+    name_zh: 连接数使用率过高
+    category: connection
+    db_types: [oceanbase]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 历史最大连接数使用率超过 90%
+    description_zh: 历史最大连接数使用率超过 90%
+    condition: "max_conn > 0 and (max_used / max_conn * 100) > 90"
+    params:
+      max_conn: "${context.max_connections[0].Value}"
+      max_used: "${context.max_used_connections[0].Value}"
+    message: "历史最大连接数使用率高达 {conn_pct:.1f}%（{max_used}/{max_conn}），极有可能出现拒绝连接"
+    message_zh: "历史最大连接数使用率高达 {conn_pct:.1f}%（{max_used}/{max_conn}），极有可能出现拒绝连接"
+    fix_sql: "ALTER SYSTEM SET max_connections = {new_val};"
+    fix_params:
+      new_val: "min(max_conn * 2, 2000)"
+
+  - id: ob_conn_usage_medium
+    name: 连接数使用率预警
+    name_zh: 连接数使用率预警
+    category: connection
+    db_types: [oceanbase]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: 历史最大连接数使用率超过 80%
+    description_zh: 历史最大连接数使用率超过 80%
+    condition: "max_conn > 0 and (max_used / max_conn * 100) > 80 and (max_used / max_conn * 100) <= 90"
+    params:
+      max_conn: "${context.max_connections[0].Value}"
+      max_used: "${context.max_used_connections[0].Value}"
+    message: "连接数使用率达 {conn_pct:.1f}%（{max_used}/{max_conn}），建议提前关注"
+    message_zh: "连接数使用率达 {conn_pct:.1f}%（{max_used}/{max_conn}），建议提前关注"
+    fix_sql: "ALTER SYSTEM SET max_connections = {new_val};"
+    fix_params:
+      new_val: "int(max_conn * 1.5)"
+
+  - id: ob_long_query
+    name: 长时间运行的 SQL
+    name_zh: 长时间运行的 SQL
+    category: performance
+    db_types: [oceanbase]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 发现执行超过 60 秒的 SQL
+    description_zh: 发现执行超过 60 秒的 SQL
+    condition: "long_queries is not None and len(long_queries) > 0"
+    params:
+      long_queries: "${context._long_queries}"
+    message: "发现执行超过 60 秒的 SQL，可能导致锁等待和性能下降，建议通过 GV$OB_PROCESSLIST 定位并优化"
+    message_zh: "发现执行超过 60 秒的 SQL，可能导致锁等待和性能下降，建议通过 GV$OB_PROCESSLIST 定位并优化"
+    fix_sql: "-- 通过 GV$OB_PROCESSLIST 找到 TENANT_ID/SVR_IP/SVR_PORT 对应的会话后执行：KILL <session_id>;"
+
+  - id: ob_slow_log_off
+    name: 慢查询日志未开启
+    name_zh: 慢查询日志未开启
+    category: log
+    db_types: [oceanbase]
+    severity: info
+    priority: low
+    owner: DBA
+    enabled: true
+    description: slow_query_log 为 OFF
+    description_zh: 慢查询日志未开启
+    condition: "slow_log is not None and str(slow_log).upper() in ('OFF', '0')"
+    params:
+      slow_log: "${context.slow_query_log[0].Value}"
+    message: "慢查询日志已关闭，无法追踪性能问题，建议开启"
+    message_zh: "慢查询日志已关闭，无法追踪性能问题，建议开启"
+    fix_sql: "SET GLOBAL slow_query_log = 'ON';\nSET GLOBAL long_query_time = 1;"
+
+  - id: ob_binlog_off
+    name: binlog 未开启
+    name_zh: binlog 未开启
+    category: ha
+    db_types: [oceanbase]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: log_bin 为 OFF
+    description_zh: binlog 未开启
+    condition: "log_bin is not None and str(log_bin).upper() in ('OFF', '0')"
+    params:
+      log_bin: "${context.log_bin[0].Value}"
+    message: "binlog 未开启，无法实现基于时间点的数据恢复，生产环境建议开启"
+    message_zh: "binlog 未开启，无法实现基于时间点的数据恢复，生产环境建议开启"
+    fix_sql: "-- OceanBase 通过 ALTER SYSTEM 调整 binlog 相关租户参数（enable_bin_log = true）"
+
+  - id: ob_sql_mode
+    name: sql_mode 未包含严格模式
+    name_zh: sql_mode 未包含严格模式
+    category: security
+    db_types: [oceanbase]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: sql_mode 应包含 STRICT_TRANS_TABLES
+    description_zh: sql_mode 应包含 STRICT_TRANS_TABLES
+    condition: "sm is not None and 'STRICT_TRANS_TABLES' not in str(sm).upper()"
+    params:
+      sm: "${context.sql_mode[0].Value}"
+    message: "sql_mode 未包含 STRICT_TRANS_TABLES，存在脏数据写入风险"
+    message_zh: "sql_mode 未包含 STRICT_TRANS_TABLES，存在脏数据写入风险"
+    fix_sql: "SET GLOBAL sql_mode = 'STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION';"
+
+  - id: ob_innodb_buffer_pool
+    name: InnoDB 缓冲池过小
+    name_zh: InnoDB 缓冲池过小
+    category: performance
+    db_types: [oceanbase]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: innodb_buffer_pool_size 应 >= 1GB
+    description_zh: InnoDB 缓冲池大小应 >= 1GB
+    condition: "bps > 0 and bps < 1073741824"
+    params:
+      bps: "${context.innodb_buffer_pool_size[0].Value}"
+    message: "InnoDB 缓冲池大小仅 {bps} 字节（< 1GB），建议 >= 1GB"
+    message_zh: "InnoDB 缓冲池大小仅 {bps} 字节（< 1GB），建议 >= 1GB"
+    fix_sql: "ALTER SYSTEM SET innodb_buffer_pool_size = {new_val};"
+    fix_params:
+      new_val: "1073741824"
+
+  # ==============================================================
+  # OceanBase 专有规则（首版 5 条，阈值待 DBA 评审可调）
+  # 条件可调用白名单安全方法（.upper()/.strip() 等）；仅禁止 import、dunder
+  # 属性（__x__）、未知属性/方法调用与 set(/range(/自定义函数。
+  # ==============================================================
+  - id: ob_primary_zone_single
+    name: Primary Zone 单点风险
+    name_zh: Primary Zone 单点风险
+    category: ha
+    db_types: [oceanbase]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 租户的 Primary Zone 仅单 Zone，存在单点风险
+    description_zh: 租户的 Primary Zone 仅单 Zone，存在单点风险
+    condition: "pz is not None and ',' not in str(pz) and ';' not in str(pz) and len(str(pz).strip()) > 0"
+    params:
+      pz: "${context.ob_tenant_info[0].PRIMARY_ZONE}"
+    message: "租户 Primary Zone 为单 Zone（{pz}），Leader 集中、存在单点风险，建议多 Zone 均衡"
+    message_zh: "租户 Primary Zone 为单 Zone（{pz}），Leader 集中、存在单点风险，建议多 Zone 均衡"
+    fix_sql: "-- 通过 ALTER SYSTEM 调整租户 PRIMARY_ZONE 为多 Zone 列表（如 'zone1,zone2,zone3'）"
+
+  - id: ob_locality_missing
+    name: Locality 未配置
+    name_zh: Locality 未配置
+    category: ha
+    db_types: [oceanbase]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: 租户 Locality 为空，未显式指定副本分布
+    description_zh: 租户 Locality 为空，未显式指定副本分布
+    condition: "loc is None or str(loc).strip() == ''"
+    params:
+      loc: "${context.ob_tenant_info[0].LOCALITY}"
+    message: "租户 Locality 未配置（为空），副本分布依赖默认值，建议显式指定以提升容灾能力"
+    message_zh: "租户 Locality 未配置（为空），副本分布依赖默认值，建议显式指定以提升容灾能力"
+    fix_sql: "-- 通过 ALTER SYSTEM 设置租户 LOCALITY（如 'F@z1,F@z2,F@z3'）"
+
+  - id: ob_unit_imbalance
+    name: 资源单元（Unit）不均衡
+    name_zh: 资源单元（Unit）不均衡
+    category: performance
+    db_types: [oceanbase]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: 各 Zone 的 Unit 分布不一致，存在负载/容量不均
+    description_zh: 各 Zone 的 Unit 分布不一致，存在负载/容量不均
+    condition: "units and len(units) >= 2 and any(str(u['ZONE']) != str(units[0]['ZONE']) for u in units)"
+    params:
+      units: "${context.ob_unit_info}"
+    message: "检测到 Unit 在各 Zone 分布不一致，建议调整 Resource Pool / Unit 数使各 Zone 均衡"
+    message_zh: "检测到 Unit 在各 Zone 分布不一致，建议调整 Resource Pool / Unit 数使各 Zone 均衡"
+    fix_sql: "-- 调整 Resource Pool 的 UNIT_NUM 或 UNIT_CONFIG 使各 Zone 单元数一致"
+
+  - id: ob_merge_trigger
+    name: 合并/转储参数异常
+    name_zh: 合并/转储参数异常
+    category: performance
+    db_types: [oceanbase]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: freeze_trigger_percentage 过高，易频繁触发转储影响性能
+    description_zh: freeze_trigger_percentage 过高，易频繁触发转储影响性能
+    condition: "params and len(params) > 0 and any(str(p['name']) == 'freeze_trigger_percentage' and int(str(p['value'])) > 70 for p in params)"
+    params:
+      params: "${context.ob_merge_params}"
+    message: "freeze_trigger_percentage 阈值偏高（>70%），内存未充分使用前即转储，建议评估下调"
+    message_zh: "freeze_trigger_percentage 阈值偏高（>70%），内存未充分使用前即转储，建议评估下调"
+    fix_sql: "ALTER SYSTEM SET freeze_trigger_percentage = 50;"
+
+  - id: ob_replica_low
+    name: 副本数不足
+    name_zh: 副本数不足
+    category: ha
+    db_types: [oceanbase]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 表组副本数小于 3，容灾能力不足
+    description_zh: 表组副本数小于 3，容灾能力不足
+    condition: "reps and len(reps) > 0 and min(int(str(r['REPLICA_COUNT'])) for r in reps) < 3"
+    params:
+      reps: "${context.ob_replica_info}"
+    message: "存在表组副本数 < 3，单节点故障即可能丢数据，建议副本数 >= 3（REPLICA_NUM）"
+    message_zh: "存在表组副本数 < 3，单节点故障即可能丢数据，建议副本数 >= 3（REPLICA_NUM）"
+    fix_sql: "-- 通过 ALTER TABLEGROUP / 租户 Locality 提升副本数（REPLICA_NUM = 3）"

@@ -223,6 +223,66 @@ def run_mariadb(db_info, inspector_name, ssh_info=None):
     return ofile, file_name
 
 
+def run_oceanbase(db_info, inspector_name, ssh_info=None):
+    """执行 OceanBase（MySQL 租户）巡检（复用 main_oceanbase 的连接与模板逻辑）"""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("main_oceanbase", os.path.join(SCRIPT_DIR, "main_oceanbase.py"))
+    mod = importlib.util.module_from_spec(spec)
+
+    class _FakeInfos:
+        label = db_info.get('label', 'DBCheck')
+        sqltemplates = 'builtin'
+        batch = False
+    mod.infos = _FakeInfos()
+    spec.loader.exec_module(mod)
+    mod.infos = _FakeInfos()
+
+    ifile = mod.create_word_template(inspector_name)
+    if not ifile:
+        raise RuntimeError("Word 模板创建失败")
+
+    reports_dir = os.path.join(SCRIPT_DIR, "reports")
+    os.makedirs(reports_dir, exist_ok=True)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    file_name = f"OceanBase巡检报告_{db_info['label']}_{timestamp}.docx"
+    ofile = os.path.join(reports_dir, file_name)
+
+    data = mod.getData(
+        db_info['host'], db_info['port'],
+        db_info['user'], db_info['password'],
+        database=db_info.get('database', 'sys'),
+        ssh_info=ssh_info or {}
+    )
+    if data is None or data.conn_db2 is None:
+        raise RuntimeError("无法建立数据库连接，请检查连接参数")
+
+    ret = data.checkdb('builtin')
+    if not ret:
+        raise RuntimeError("巡检执行失败（checkdb 返回空）")
+
+    ret.update({"co_name": [{'CO_NAME': db_info['label']}]})
+    ret.update({"port": [{'PORT': db_info['port']}]})
+    ret.update({"ip": [{'IP': db_info['host']}]})
+
+    savedoc = mod.saveDoc(context=ret, ofile=ofile, ifile=ifile, inspector_name=inspector_name)
+    success = savedoc.contextsave()
+
+    try:
+        if os.path.exists(ifile):
+            os.remove(ifile)
+    except Exception:
+        pass
+
+    if not success:
+        raise RuntimeError("Word 报告渲染失败")
+
+    # 保存巡检记录到 Pro 模块
+    _record_inspection('oceanbase', db_info, ret, ofile)
+
+    return ofile, file_name
+
+
 def run_pg(db_info, inspector_name, ssh_info=None):
     """执行 PostgreSQL 巡检"""
     import importlib.util
@@ -716,16 +776,20 @@ def run_config_baseline(db_info, db_type, output_format='txt'):
     os.makedirs(reports_dir, exist_ok=True)
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     
-    if db_type in ('mysql', 'mariadb'):
+    if db_type in ('mysql', 'mariadb', 'oceanbase'):
         import pymysql
-        conn = pymysql.connect(
+        conn_kwargs = dict(
             host=db_info['host'],
             port=db_info['port'],
             user=db_info['user'],
             password=db_info['password'],
             charset='utf8mb4'
         )
-        db_label = 'MySQL' if db_type == 'mysql' else 'MariaDB'
+        if db_type == 'oceanbase':
+            # OceanBase MySQL 租户：database 即租户名（默认 sys）
+            conn_kwargs['database'] = db_info.get('database', 'sys')
+        conn = pymysql.connect(**conn_kwargs)
+        db_label = {'mysql': 'MySQL', 'mariadb': 'MariaDB', 'oceanbase': 'OceanBase'}[db_type]
     elif db_type == 'pg':
         import psycopg2
         conn = psycopg2.connect(
@@ -782,16 +846,20 @@ def run_index_health(db_info, db_type, output_format='txt'):
     os.makedirs(reports_dir, exist_ok=True)
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     
-    if db_type in ('mysql', 'mariadb'):
+    if db_type in ('mysql', 'mariadb', 'oceanbase'):
         import pymysql
-        conn = pymysql.connect(
+        conn_kwargs = dict(
             host=db_info['host'],
             port=db_info['port'],
             user=db_info['user'],
             password=db_info['password'],
             charset='utf8mb4'
         )
-        db_label = 'MySQL' if db_type == 'mysql' else 'MariaDB'
+        if db_type == 'oceanbase':
+            # OceanBase MySQL 租户：database 即租户名（默认 sys）
+            conn_kwargs['database'] = db_info.get('database', 'sys')
+        conn = pymysql.connect(**conn_kwargs)
+        db_label = {'mysql': 'MySQL', 'mariadb': 'MariaDB', 'oceanbase': 'OceanBase'}[db_type]
     elif db_type == 'pg':
         import psycopg2
         conn = psycopg2.connect(
@@ -889,7 +957,7 @@ def main():
                         help='配置基线/索引分析输出格式（默认 txt）')
     
     # 数据库连接参数（完整巡检模式需要）
-    parser.add_argument('--type', required=False, choices=['mysql', 'pg', 'oracle', 'sqlserver', 'dm', 'tidb', 'ivorysql', 'gbase', 'yashandb', 'kingbase'],
+    parser.add_argument('--type', required=False, choices=['mysql', 'pg', 'oracle', 'sqlserver', 'dm', 'tidb', 'ivorysql', 'gbase', 'yashandb', 'kingbase', 'oceanbase'],
                         help='数据库类型: mysql / pg / oracle / sqlserver / dm / tidb / ivorysql / gbase / yashandb / kingbase（完整巡检必需）')
     parser.add_argument('--host', help='数据库主机 IP 或域名')
     parser.add_argument('--port', type=int, default=None,
@@ -938,12 +1006,12 @@ def main():
             print("错误: 配置基线/索引分析模式需要 --type, --host, --user, --password 参数")
             sys.exit(1)
         
-        if args.type not in ('mysql', 'pg'):
-            print(f"错误: {args.type} 暂不支持配置基线/索引分析（仅支持 MySQL/PostgreSQL）")
+        if args.type not in ('mysql', 'pg', 'oceanbase'):
+            print(f"错误: {args.type} 暂不支持配置基线/索引分析（仅支持 MySQL/PostgreSQL/OceanBase）")
             sys.exit(1)
         
         if args.port is None:
-            defaults = {'mysql': 3306, 'pg': 5432, 'tidb': 4000}
+            defaults = {'mysql': 3306, 'pg': 5432, 'tidb': 4000, 'oceanbase': 2881}
             args.port = defaults.get(args.type, 3306)
         
         db_info = {
@@ -956,7 +1024,7 @@ def main():
         if args.database:
             db_info['database'] = args.database
         
-        type_labels = {'mysql': 'MySQL', 'pg': 'PostgreSQL'}
+        type_labels = {'mysql': 'MySQL', 'pg': 'PostgreSQL', 'oceanbase': 'OceanBase'}
         mode_labels = {'check_config': '配置基线检查', 'check_indexes': '索引健康分析'}
         
         if args.check_config:
@@ -996,7 +1064,7 @@ def main():
         sys.exit(1)
     
     if args.port is None:
-        defaults = {'mysql': 3306, 'pg': 5432, 'oracle': 1521, 'sqlserver': 1433, 'dm': 5236, 'tidb': 4000, 'ivorysql': 5432, 'kingbase': 54321, 'gbase': 5258}
+        defaults = {'mysql': 3306, 'pg': 5432, 'oracle': 1521, 'sqlserver': 1433, 'dm': 5236, 'tidb': 4000, 'ivorysql': 5432, 'kingbase': 54321, 'gbase': 5258, 'oceanbase': 2881}
         args.port = defaults.get(args.type, 3306)
 
     db_info = {
@@ -1022,13 +1090,15 @@ def main():
             'ssh_key_file': args.ssh_key or '',
         }
 
-    type_labels = {'mysql': 'MySQL', 'pg': 'PostgreSQL', 'oracle': 'Oracle', 'sqlserver': 'SQL Server', 'dm': 'DM8', 'tidb': 'TiDB', 'ivorysql': 'IvorySQL', 'kingbase': 'KingbaseES', 'gbase': 'GBase 8s'}
+    type_labels = {'mysql': 'MySQL', 'pg': 'PostgreSQL', 'oracle': 'Oracle', 'sqlserver': 'SQL Server', 'dm': 'DM8', 'tidb': 'TiDB', 'ivorysql': 'IvorySQL', 'kingbase': 'KingbaseES', 'gbase': 'GBase 8s', 'oceanbase': 'OceanBase'}
     print(f"\n[{type_labels.get(args.type, args.type)}] 开始巡检: {args.label} ({args.host}:{args.port})")
     print("-" * 50)
 
     try:
         if args.type == 'mysql':
             ofile, fname = run_mysql(db_info, args.inspector, ssh_info)
+        elif args.type == 'oceanbase':
+            ofile, fname = run_oceanbase(db_info, args.inspector, ssh_info)
         elif args.type == 'pg':
             ofile, fname = run_pg(db_info, args.inspector, ssh_info)
         elif args.type == 'oracle':

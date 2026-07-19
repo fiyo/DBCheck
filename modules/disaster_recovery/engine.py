@@ -43,7 +43,7 @@ DEFAULT_GLOBAL: Dict[str, Any] = {
     "web": {"host": "127.0.0.1", "port": 5005, "token": ""},
 }
 
-SUPPORTED_TYPES = ("mysql", "postgresql", "file")
+SUPPORTED_TYPES = ("mysql", "postgresql", "file", "oceanbase")
 
 
 # ---------------------------------------------------------------------------
@@ -94,9 +94,9 @@ def _version() -> str:
 # 类型归一
 # ---------------------------------------------------------------------------
 def normalize_db_type(db_type: str) -> str:
-    """DBCheck db_type -> autobackup type。mariadb 复用 mysql(mysqldump 兼容)。"""
+    """DBCheck db_type -> autobackup type。mariadb / oceanbase(MySQL 租户) 复用 mysql(mysqldump 兼容)。"""
     dt = (db_type or "").lower()
-    if dt in ("mysql", "mariadb"):
+    if dt in ("mysql", "mariadb", "oceanbase"):
         return "mysql"
     if dt in ("postgresql", "postgres", "pg"):
         return "postgresql"

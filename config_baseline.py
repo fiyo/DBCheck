@@ -472,6 +472,14 @@ def _get_mysql_version(conn):
         cursor.close()
         if row:
             ver_str = str(row[0]).strip()
+            # OceanBase MySQL 租户：兼容版本形如 '5.7.25-OceanBase' / '8.0.30-OceanBase'，
+            # 真实大版本形如 '4.2.1.0-OceanBase'。取首个数字段作为兼容主版本（5 / 4）。
+            # 注意：必须在 mariadb 分支之前判定，避免误归入 MariaDB 逻辑。
+            if 'oceanbase' in ver_str.lower():
+                try:
+                    return int(ver_str.split('.')[0])
+                except (ValueError, IndexError):
+                    return 5  # 解析失败，保守按 5.x
             # MariaDB 版本串处理
             if 'mariadb' in ver_str.lower():
                 parts = ver_str.split('.')
@@ -1799,6 +1807,12 @@ def get_config_baseline(db_type, conn):
         return check_mysql_config_baseline(conn)
     elif db_type == 'mariadb':
         # MariaDB 与 MySQL 协议/参数高度兼容，直接复用 MySQL 配置基线检查（含 5.x/8.x 差异化）
+        return check_mysql_config_baseline(conn)
+    elif db_type == 'oceanbase':
+        # OceanBase MySQL 租户与 MySQL 协议/参数高度兼容，
+        # 直接复用 MySQL 配置基线检查（含 5.x/8.x 差异化）。
+        # 专有参数（memstore_limit_percentage 等）走 OB 语法的 SHOW PARAMETERS，
+        # 已在 check_mysql_config_baseline 的 SHOW VARIABLES 之外由 oceanbase 基线块补充。
         return check_mysql_config_baseline(conn)
     elif db_type in ('pg', 'postgresql'):
         return check_pg_config_baseline(conn)

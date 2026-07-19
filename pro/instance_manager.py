@@ -77,6 +77,7 @@ class DatabaseInstance:
     database: str = ""  # PG/IvorySQL 数据库名
     service_name: str = ""  # Oracle 专用
     gbase_server_name: str = ""  # GBase 8s 服务器实例名
+    tenant: str = ""  # OceanBase 租户（连接用户名构造为 user@tenant）
     sysdba: bool = False  # Oracle SYSDBA 连接
     jdbc_url: str = ""  # Oracle JDBC 专用连接串（EZConnect / TNS / TCPS），优先于 host/port/service_name
     ssh_host: str = ""     # SSH 跳板主机
@@ -256,6 +257,11 @@ class InstanceManager:
                 c.execute('ALTER TABLE instances ADD COLUMN "gbase_server_name" TEXT DEFAULT \'\'')
             except Exception:
                 pass
+            # 迁移：为旧表添加 tenant 列（OceanBase 租户）
+            try:
+                c.execute('ALTER TABLE instances ADD COLUMN "tenant" TEXT DEFAULT \'\'')
+            except Exception:
+                pass
             # 确保表存在
             c.execute("""
                 CREATE TABLE IF NOT EXISTS instances (
@@ -263,7 +269,7 @@ class InstanceManager:
                     name TEXT NOT NULL, db_type TEXT NOT NULL, host TEXT NOT NULL,
                     port INTEGER NOT NULL, "user" TEXT NOT NULL,                 password TEXT DEFAULT '',
                     "database" TEXT DEFAULT '',
-                    service_name TEXT DEFAULT '', gbase_server_name TEXT DEFAULT '', sysdba INTEGER DEFAULT 0,
+                    service_name TEXT DEFAULT '', gbase_server_name TEXT DEFAULT '', tenant TEXT DEFAULT '', sysdba INTEGER DEFAULT 0,
                     ssh_host TEXT DEFAULT '', ssh_port INTEGER DEFAULT 22,
                     ssh_user TEXT DEFAULT '', ssh_password TEXT DEFAULT '',
                     ssh_key_file TEXT DEFAULT '', ssh_enabled INTEGER DEFAULT 0,
@@ -277,15 +283,15 @@ class InstanceManager:
                 d = inst.to_dict() if not isinstance(inst, dict) else inst
                 c.execute("""
                     INSERT OR REPLACE INTO instances
-                    (id, name, db_type, host, port, "user", password, "database", service_name, gbase_server_name, sysdba,
+                    (id, name, db_type, host, port, "user", password, "database", service_name, gbase_server_name, tenant, sysdba,
                      ssh_host, ssh_port, ssh_user, ssh_password, ssh_key_file, ssh_enabled,
                      tags, "group", enabled, description, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     d.get("id", ""), d.get("name", ""), d.get("db_type", ""),
                     d.get("host", ""), d.get("port", 0), d.get("user", ""),
                     d.get("password", ""), d.get("database", ""), d.get("service_name", ""),
-                    d.get("gbase_server_name", ""),
+                    d.get("gbase_server_name", ""), d.get("tenant", ""),
                     1 if d.get("sysdba") else 0,
                     d.get("ssh_host", ""), d.get("ssh_port", 22),
                     d.get("ssh_user", ""), d.get("ssh_password", ""),
@@ -424,6 +430,18 @@ class InstanceManager:
                 )
                 conn.close()
                 return {'ok': True, 'message': '连接成功 (MySQL %s:%d)' % (inst.host, inst.port)}
+
+            elif db_type == 'oceanbase':
+                import pymysql
+                # OceanBase MySQL 租户：默认端口 2881，database 即租户名（默认 sys）。
+                conn = pymysql.connect(
+                    host=inst.host, port=inst.port or 2881,
+                    user=inst.user, password=password,
+                    database=inst.database or 'sys',
+                    connect_timeout=10,
+                )
+                conn.close()
+                return {'ok': True, 'message': '连接成功 (OceanBase %s:%d)' % (inst.host, inst.port)}
 
             if db_type in ('postgresql', 'pg'):
                 import psycopg2
