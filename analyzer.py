@@ -2482,6 +2482,17 @@ def run_full_analysis(db_type: str, host: str, port, label: str,
         issues = smart_analyze_mysql(context)
         # MariaDB 专有参数补充检查（低风险探测），结果挂到 result['mariadb_extras']
         mariadb_extras = smart_analyze_mariadb_extras(context)
+    elif db_type == 'oceanbase':
+        # OceanBase MySQL 租户与 MySQL 协议/参数高度兼容，直接复用 MySQL 风险分析主规则
+        issues = smart_analyze_mysql(context)
+        # OceanBase 专有 YAML 规则（db_types:[oceanbase]），复用 MySQL context 键
+        try:
+            from pro.rule_engine import analyze_with_plugins
+            plugin_issues = analyze_with_plugins('oceanbase', context)
+            if plugin_issues:
+                issues.extend(plugin_issues)
+        except Exception:
+            pass
     elif db_type == 'pg':
         issues = smart_analyze_pg(context)
     elif db_type == 'oracle':

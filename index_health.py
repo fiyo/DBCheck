@@ -993,6 +993,56 @@ def analyze_tidb_indexes(conn, days_threshold=90):
 #  7. 统一入口函数
 # ═══════════════════════════════════════════════════════
 
+def analyze_oceanbase_indexes(conn, days_threshold=90):
+    """分析 OceanBase MySQL 租户索引健康状况。
+
+    OceanBase MySQL 租户与 MySQL 协议/参数高度兼容，直接复用 MySQL 索引健康分析；
+    并额外利用 OceanBase 增强视图 information_schema.indexes 补充 TABLET_ID、
+    INDEX_TYPE、ISHIDDEN 等专有字段，便于更精准地识别隐藏/冗余索引。
+
+    返回格式在 MySQL 报告基础上追加 'ob_index_details' 列表。
+    """
+    # 复用 MySQL 分析结果作为基础
+    report = analyze_mysql_indexes(conn, days_threshold)
+    if not report:
+        report = {
+            'missing_indexes': [],
+            'redundant_indexes': [],
+            'unused_indexes': [],
+            'ob_index_details': [],
+        }
+    # 增强：从 information_schema.indexes 读取 OB 专有字段
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT TABLE_SCHEMA, TABLE_NAME, INDEX_NAME, NON_UNIQUE, "
+            "INDEX_TYPE, ISHIDDEN, TABLET_ID, DATA_TABLE_ID "
+            "FROM information_schema.indexes "
+            "WHERE TABLE_SCHEMA NOT IN ('oceanbase', 'sys') "
+            "ORDER BY TABLE_SCHEMA, TABLE_NAME, INDEX_NAME"
+        )
+        rows = cur.fetchall()
+        cols = [str(c[0]).lower() for c in cur.description] if cur.description else []
+        ob_index_details = []
+        for r in rows:
+            d = dict(zip(cols, r))
+            ob_index_details.append({
+                'table_schema': d.get('table_schema') or d.get('TABLE_SCHEMA'),
+                'table_name': d.get('table_name') or d.get('TABLE_NAME'),
+                'index_name': d.get('index_name') or d.get('INDEX_NAME'),
+                'non_unique': d.get('non_unique'),
+                'index_type': d.get('index_type') or d.get('INDEX_TYPE'),
+                'is_hidden': d.get('ishidden') or d.get('ISHIDDEN'),
+                'tablet_id': d.get('tablet_id') or d.get('TABLET_ID'),
+                'data_table_id': d.get('data_table_id') or d.get('DATA_TABLE_ID'),
+            })
+        report['ob_index_details'] = ob_index_details
+    except Exception:
+        # information_schema.indexes 在部分低版本 OB 可能不存在，忽略增强部分
+        pass
+    return report
+
+
 def get_index_health(db_type, conn, days_threshold=90):
     """
     统一索引健康分析入口。
@@ -1020,6 +1070,9 @@ def get_index_health(db_type, conn, days_threshold=90):
         return analyze_sqlserver_indexes(conn, days_threshold)
     elif db_type == 'tidb':
         return analyze_tidb_indexes(conn, days_threshold)
+    elif db_type == 'oceanbase':
+        # OceanBase MySQL 租户与 MySQL 协议/参数高度兼容，复用 MySQL 索引分析并增强
+        return analyze_oceanbase_indexes(conn, days_threshold)
     else:
         return None
 

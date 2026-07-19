@@ -35,9 +35,10 @@ EN = {
     "cli.inspect_menu_line10": "🗄  10 │ GBase 8s (Domestic transactional DB)",
     "cli.inspect_menu_line11": "🐬  11 │ MariaDB (10.0+ / MySQL compatible)",
     "cli.inspect_menu_line12": "📋  12 │ Batch Template Generator",
+    "cli.inspect_menu_line13": "🐋  13 │ OceanBase (MySQL tenant)",
     "cli.inspect_menu_line0": "❌  0 │ Back to main menu",
-    "cli.inspect_menu_prompt": "Choose (1-12, 0 exit): ",
-    "cli.inspect_menu_invalid": "❌ Invalid choice. Please enter 0-12.",
+    "cli.inspect_menu_prompt": "Choose (1-13, 0 exit): ",
+    "cli.inspect_menu_invalid": "❌ Invalid choice. Please enter 0-13.",
 
     # Inspection start prompts
     "cli.main_menu_mysql_starting": "Starting MySQL inspection...",
@@ -50,6 +51,7 @@ EN = {
     "cli.main_menu_yashandb_starting": "Starting YashanDB inspection...",
     "cli.main_menu_gbase_starting": "Starting GBase 8s inspection...",
     "cli.main_menu_mariadb_starting": "Starting MariaDB inspection...",
+    "cli.main_menu_oceanbase_starting": "Starting OceanBase (MySQL tenant) inspection...",
 
     "cli.template_dm": "DM8 Batch Inspection Template (xlsx)",
 
@@ -280,6 +282,7 @@ EN = {
     "webui.log_start": "[{ts}] [{db_type}] Starting inspection...",
     "webui.log_mariadb_start": "[{ts}] [MariaDB] Starting inspection...",
     "webui.log_mysql_start": "[{ts}] [MySQL] Starting inspection...",
+    "webui.log_oceanbase_start": "[{ts}] [OceanBase] Starting inspection...",
     "webui.log_pg_start": "[{ts}] [PostgreSQL] Starting inspection...",
     "webui.log_kingbase_start": "[{ts}] [KingbaseES] Starting inspection...",
     "webui.log_oracle_start": "[{ts}] [Oracle Full Inspection] Starting...",
@@ -299,6 +302,7 @@ EN = {
     "webui.log_oracle_done": "Oracle full inspection complete",
     "webui.err_mariadb_module": "MariaDB module not installed",
     "webui.err_mysql_module": "MySQL module not installed",
+    "webui.err_oceanbase_module": "OceanBase module not installed",
     "webui.err_pg_module": "PostgreSQL module not installed",
     "webui.err_kingbase_module": "KingbaseES module not installed",
     "webui.err_oracle_module": "Oracle full inspection module not installed",
@@ -467,6 +471,7 @@ EN = {
     "webui.label_auth_method": "Auth Method",
     "webui.label_database": "Database",
     "webui.label_database_opt": "PostgreSQL",
+    "webui.label_tenant": "Tenant",
     "webui.label_host": "Host Address",
     "webui.label_instance_tag": "Instance Label",
     "webui.label_instance_tag_opt": "For report naming",
@@ -1743,6 +1748,7 @@ EN = {
     "webui.log_report_ok": "Report generated: {fname}",
     "webui.mariadb_report_filename": "MariaDBInspection_{ip}_{name}_{ts}",
     "webui.mysql_report_filename": "MySQLInspection_{ip}_{name}_{ts}",
+    "webui.oceanbase_report_filename": "OceanBaseInspection_{ip}_{name}_{ts}",
     "webui.pg_report_filename": "PostgreSQLInspection_{ip}_{name}_{ts}",
     "webui.kingbase_report_filename": "KingbaseESInspection_{ip}_{name}_{ts}",
     "webui.gbase_report_filename": "GBase8sInspection_{ip}_{name}_{ts}",
@@ -2324,6 +2330,7 @@ EN = {
     "webui.pro_ds_user": "Username",
     "webui.pro_ds_user_req": "Username *",
     "webui.pro_ds_password": "Password",
+    "webui.pro_ds_tenant": "Tenant",
     "webui.pro_ds_database": "Database",
     "webui.pro_ds_database_pg": "Database Name (PostgreSQL)",
     "webui.pro_ds_database_gbase": "Database/Schema (GBase)",
@@ -2401,9 +2408,6 @@ EN = {
     "webui.backup_delete_confirm": "Delete this backup?",
     "webui.backup_deleted": "Deleted",
     "webui.backup_files_title": "Backup Files",
-    # ── General ──
-    "webui.edition_badge": "Pro",
-    "webui.edition_badge_pro": "Pro",
     # ── Datasource Management ──
     "webui.scheduler_test_ok": "Connection successful: {}",
     "webui.scheduler_test_fail": "Connection failed: {}",
@@ -2426,6 +2430,7 @@ EN = {
     "webui.pro_ds_user": "Username",
     "webui.pro_ds_user_req": "Username *",
     "webui.pro_ds_password": "Password",
+    "webui.pro_ds_tenant": "Tenant",
     "webui.pro_ds_database": "Database",
     "webui.pro_ds_database_pg": "Database (PostgreSQL)",
     "webui.pro_ds_gbase_server": "Server Instance Name (GBase)",

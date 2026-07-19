@@ -604,6 +604,27 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None):
             label_default='MariaDB',
             db_name_default='mysql',
         ),
+        'oceanbase': dict(
+            module_name='main_oceanbase',
+            connect_test=test_mysql_connection,
+            connect_test_args=lambda info: [info['ip'], info['port'],
+                                            (info['user'] + '@' + info['tenant']) if info.get('tenant') else info['user'],
+                                            info['password'], info.get('database', 'sys')],
+            getdata_args=lambda info: ([info['ip'], info['port'],
+                                        (info['user'] + '@' + info['tenant']) if info.get('tenant') else info['user'],
+                                        info['password']],
+                                       {'ssh_info': {}, 'template_id': template_id, 'database': info.get('database', 'sys')}),
+            conn_attr='conn_db2',
+            smart_analyze='smart_analyze_mysql',
+            filename_key='webui.oceanbase_report_filename',
+            history_db_type='oceanbase',
+            instance_prefix='oceanbase',
+            error_task_name='OceanBase',
+            log_start_key='webui.log_oceanbase_start',
+            err_module_key='webui.err_oceanbase_module',
+            label_default='OceanBase',
+            db_name_default='sys',
+        ),
         'pg': dict(
             module_name='main_pg',
             connect_test=test_pg_connection,
@@ -1076,6 +1097,15 @@ def run_config_task(task_id, db_info, output_format='txt'):
                 charset='utf8mb4'
             )
             db_label = 'MySQL'
+        elif db_type == 'oceanbase':
+            import pymysql
+            conn = pymysql.connect(
+                host=db_info['host'], port=int(db_info.get('port') or 2881),
+                user=db_info['user'], password=db_info['password'],
+                database=db_info.get('database', 'sys'),
+                charset='utf8mb4'
+            )
+            db_label = 'OceanBase'
         elif db_type in ('pg', 'ivorysql', 'kingbase'):
             import psycopg2
             conn = psycopg2.connect(
@@ -1156,6 +1186,15 @@ def run_index_task(task_id, db_info, output_format='txt'):
                 charset='utf8mb4'
             )
             db_label = 'MySQL'
+        elif db_type == 'oceanbase':
+            import pymysql
+            conn = pymysql.connect(
+                host=db_info['host'], port=int(db_info.get('port') or 2881),
+                user=db_info['user'], password=db_info['password'],
+                database=db_info.get('database', 'sys'),
+                charset='utf8mb4'
+            )
+            db_label = 'OceanBase'
         elif db_type in ('pg', 'ivorysql', 'kingbase'):
             import psycopg2
             conn = psycopg2.connect(
@@ -2467,6 +2506,10 @@ def api_test_db():
     elif db_type == 'mariadb':
         ok, msg = test_mysql_connection(data['host'], data['port'], data['user'], data['password'], data.get('database'))
         result = {'ok': ok, 'msg': msg}
+    elif db_type == 'oceanbase':
+        _ob_user = data['user'] + '@' + data['tenant'] if data.get('tenant') else data['user']
+        ok, msg = test_mysql_connection(data['host'], data['port'], _ob_user, data['password'], data.get('database', 'sys'))
+        result = {'ok': ok, 'msg': msg}
     elif db_type == 'pg':
         ok, msg = test_pg_connection(data['host'], data['port'], data['user'], data['password'], data.get('database', 'postgres'))
         result = {'ok': ok, 'msg': msg}
@@ -2676,8 +2719,9 @@ def api_start_inspection():
                 'ip':        instance.get('host', ''),
                 'port':      int(instance.get('port', 0) or 0),
                 'user':      instance.get('user', ''),
+                'tenant':    instance.get('tenant', '') or '',
                 'password':  instance.get('password', ''),
-                'database':  instance.get('database') or ('master' if db_type == 'sqlserver' else ('DAMENG' if db_type == 'dm' else ('testdb' if db_type == 'gbase' else ('' if db_type == 'tidb' else 'postgres')))),
+                'database':  instance.get('database') or ('master' if db_type == 'sqlserver' else ('DAMENG' if db_type == 'dm' else ('testdb' if db_type == 'gbase' else ('' if db_type in ('tidb', 'oceanbase') else 'postgres')))),
                 'service_name': instance.get('service_name', None),
                 'sysdba':    bool(instance.get('sysdba', False)),  # ← 新增（确保是布尔值）
                 'name':      instance.get('name', ''),
@@ -2689,8 +2733,9 @@ def api_start_inspection():
                 'ip':        data.get('host', ''),
                 'port':      int(data.get('port', 0) or 0),
                 'user':      data.get('user', ''),
+                'tenant':    data.get('tenant', '') or '',
                 'password':  data.get('password', ''),
-                'database':  data.get('database') or ('master' if db_type == 'sqlserver' else ('DAMENG' if db_type == 'dm' else ('testdb' if db_type == 'gbase' else ('' if db_type == 'tidb' else 'postgres')))),
+                'database':  data.get('database') or ('master' if db_type == 'sqlserver' else ('DAMENG' if db_type == 'dm' else ('testdb' if db_type == 'gbase' else ('' if db_type in ('tidb', 'oceanbase') else 'postgres')))),
                 'service_name': data.get('service_name', None),
                 'sysdba':    bool(data.get('sysdba', False)),  # ← 新增（确保是布尔值）
                 'sid':       data.get('sid', None),
@@ -3188,12 +3233,12 @@ def api_start_config_baseline():
     try:
         data = request.json
         db_type = data.get('db_type', 'mysql')
-        if db_type not in ('mysql', 'pg', 'ivorysql'):
+        if db_type not in ('mysql', 'pg', 'ivorysql', 'oceanbase'):
             return jsonify({'ok': False, 'msg': 'Only MySQL, PostgreSQL and IvorySQL are supported'})
 
         db_info = {
             'host': data.get('host', ''),
-            'port': int(data.get('port', 0) or (3306 if db_type == 'mysql' else 5432)),
+            'port': int(data.get('port', 0) or (3306 if db_type == 'mysql' else 2881 if db_type == 'oceanbase' else 5432)),
             'user': data.get('user', ''),
             'password': data.get('password', ''),
             'database': data.get('database') or ('postgres' if db_type in ('pg', 'ivorysql') else ''),
@@ -3535,12 +3580,12 @@ def api_start_index_health():
     try:
         data = request.json
         db_type = data.get('db_type', 'mysql')
-        if db_type not in ('mysql', 'pg', 'ivorysql'):
+        if db_type not in ('mysql', 'pg', 'ivorysql', 'oceanbase'):
             return jsonify({'ok': False, 'msg': 'Only MySQL, PostgreSQL and IvorySQL are supported'})
 
         db_info = {
             'host': data.get('host', ''),
-            'port': int(data.get('port', 0) or (3306 if db_type == 'mysql' else 5432)),
+            'port': int(data.get('port', 0) or (3306 if db_type == 'mysql' else 2881 if db_type == 'oceanbase' else 5432)),
             'user': data.get('user', ''),
             'password': data.get('password', ''),
             'database': data.get('database') or ('postgres' if db_type in ('pg', 'ivorysql') else ''),
@@ -4825,6 +4870,7 @@ def api_pro_datasource_add():
             ssh_key_file=data.get('ssh_key_file', ''),
             ssh_enabled=bool(data.get('ssh_enabled', False)),
             gbase_server_name=data.get('gbase_server_name', ''),
+            tenant=data.get('tenant', ''),
             tags=data.get('tags', []),
             group=data.get('group', 'default'),
             description=data.get('description', ''),
@@ -4879,12 +4925,14 @@ def api_db_types():
         'kingbase': '/kingbase.png',
         'gbase': '/gbase.png',
         'mariadb': '/mysql.png',  # MariaDB 复用 MySQL 图标（协议兼容）
+        'oceanbase': '/oceanbase.png',  # OceanBase 用自有 logo
     }
     
     built_in_descriptions = {
         'oracle': '适用于 Oracle 12c/19c/21c 实例，通过 oracledb 或 cx_Oracle 连接',
         'mysql': '适用于 MySQL 5.7+/8.0+ 实例，通过 PyMySQL 连接',
         'mariadb': '适用于 MariaDB 10.0+ 实例（MySQL 兼容），通过 PyMySQL 连接',
+        'oceanbase': '适用于 OceanBase 社区版 MySQL 租户（默认端口 2881），通过 PyMySQL 连接',
         'pg': '适用于 PostgreSQL 10+ 实例，通过 psycopg2 连接',
         'dm': '适用于 DM8 实例，通过 dmPython 连接',
         'sqlserver': '适用于 SQL Server 2012+ 实例，通过 pyodbc 连接',
@@ -4908,6 +4956,7 @@ def api_db_types():
         'kingbase': '🔵',
         'gbase': '🟤',
         'mariadb': '🐬',  # MariaDB 复用 MySQL emoji（协议兼容）
+        'oceanbase': '🐋',  # OceanBase 用鲸鱼 emoji（MySQL 租户兼容）
     }
     
     # 定义内置数据库类型配置
@@ -4915,6 +4964,7 @@ def api_db_types():
         'oracle': {'label': 'Oracle', 'port': 1521, 'user': 'system'},
         'mysql': {'label': 'MySQL', 'port': 3306, 'user': 'root'},
         'mariadb': {'label': 'MariaDB', 'port': 3306, 'user': 'root'},
+        'oceanbase': {'label': 'OceanBase', 'port': 2881, 'user': 'root@test', 'compat_tag': 'MySQL'},
         'pg': {'label': 'PostgreSQL', 'port': 5432, 'user': 'postgres'},
         'dm': {'label': 'DM8', 'port': 5236, 'user': 'SYSDBA'},
         'sqlserver': {'label': 'SQL Server', 'port': 1433, 'user': 'sa'},
@@ -4935,6 +4985,7 @@ def api_db_types():
             'is_plugin': False,
             'port': cfg.get('port', 3306),
             'user': cfg.get('user', 'root'),
+            'compat_tag': cfg.get('compat_tag', ''),
         })
     
     # 2. 插件提供的数据库类型
@@ -5032,7 +5083,13 @@ def api_pro_datasources_test_conn():
         if not host:
             return jsonify({'ok': False, 'error': '请输入主机地址'})
 
-        if db_type in ('mysql', 'tidb', 'mariadb'):
+        if db_type == 'oceanbase':
+            import pymysql
+            ob_user = user + '@' + data['tenant'] if data.get('tenant') else user
+            ob_db = data.get('database') or 'sys'
+            conn = pymysql.connect(host=host, port=port, user=ob_user, password=password, database=ob_db, connect_timeout=10)
+            conn.close()
+        elif db_type in ('mysql', 'tidb', 'mariadb'):
             import pymysql
             conn = pymysql.connect(host=host, port=port, user=user, password=password, connect_timeout=10)
             conn.close()
@@ -5295,7 +5352,7 @@ def api_ds_databases(ds_id):
 
     try:
         databases = []
-        if db_type in ('mysql', 'tidb', 'mariadb'):
+        if db_type in ('mysql', 'tidb', 'mariadb', 'oceanbase'):
             import pymysql
             conn = pymysql.connect(host=host, port=port, user=user, password=pwd,
                                    connect_timeout=timeout, charset='utf8mb4')
@@ -5406,7 +5463,7 @@ def api_ds_objects(ds_id):
 
     try:
         tables, views = [], []
-        if db_type in ('mysql', 'tidb', 'mariadb'):
+        if db_type in ('mysql', 'tidb', 'mariadb', 'oceanbase'):
             import pymysql
             conn = pymysql.connect(host=host, port=port, user=user, password=pwd,
                                    database=database, connect_timeout=timeout, charset='utf8mb4')
@@ -5665,7 +5722,7 @@ def api_execute_sql():
     try:
         conn = None
         cursor = None
-        if db_type in ('mysql', 'tidb', 'mariadb'):
+        if db_type in ('mysql', 'tidb', 'mariadb', 'oceanbase'):
             import pymysql
             db_name = database or 'INFORMATION_SCHEMA'
             conn = pymysql.connect(
@@ -6357,7 +6414,7 @@ def api_inspection_execute_sql():
                     result.append(p)
             return result
 
-        if db_type in ('mysql', 'tidb', 'mariadb'):
+        if db_type in ('mysql', 'tidb', 'mariadb', 'oceanbase'):
             import pymysql
             conn = pymysql.connect(
                 host=db_info.get('host', ''),
@@ -7393,6 +7450,7 @@ def _stream_inspection_response(data, message, session_id, chat_context):
         'kingbase': run_inspection_task,
         'yashandb': run_inspection_task,
         'gbase': run_inspection_task,
+        'oceanbase': run_inspection_task,
     }
     task_func = task_func_map.get(db_type, run_inspection_task)
 
@@ -7779,6 +7837,7 @@ def api_chat():
                 'kingbase': run_inspection_task,
                 'yashandb': run_inspection_task,
                 'gbase':   run_inspection_task,
+                'oceanbase': run_inspection_task,
             }
             task_func = task_func_map.get(db_type, run_inspection_task)
             t = threading.Thread(target=task_func, args=(task_id, db_info, inspector_name))

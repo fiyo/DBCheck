@@ -145,6 +145,9 @@ def _ensure_tables(conn):
     baseline_count = cursor.fetchone()[0]
     if baseline_count == 0:
         conn.commit()  # 先提交建表操作
+        # 标记已初始化，避免 init 内部经 get_db_connection 重入 _ensure_tables 造成递归
+        global _db_initialized
+        _db_initialized = True
         # 延迟导入，避免循环依赖
         try:
             from inspection_init_db import init_default_templates, init_server_thresholds
@@ -1707,6 +1710,38 @@ def init_default_baselines(db_path: str = None):
             {'param_name': 'expire_logs_days', 'query_sql': "SHOW VARIABLES LIKE 'expire_logs_days'", 'operator': '>=', 'expected_value': '7', 'risk_level': 'LOW', 'description_zh': 'binlog 保留天数应 >= 7 天', 'description_en': 'Binlog expiration should be >= 7 days'},
             {'param_name': 'max_allowed_packet', 'query_sql': "SHOW VARIABLES LIKE 'max_allowed_packet'", 'operator': '>=', 'expected_value': '67108864', 'risk_level': 'LOW', 'description_zh': '最大包大小应 >= 64MB', 'description_en': 'Max allowed packet should be >= 64MB'},
             {'param_name': 'query_cache_type', 'query_sql': "SHOW VARIABLES LIKE 'query_cache_type'", 'operator': '=', 'expected_value': 'OFF', 'risk_level': 'LOW', 'description_zh': 'query_cache_type 应关闭（MariaDB 旧版查询缓存建议关闭）', 'description_en': 'query_cache_type should be OFF (MariaDB legacy query cache should be disabled)'},
+        ],
+        # ═══════════════════════════════════════
+        # OceanBase（MySQL 租户）：复用 MySQL 13 条 + 5 条 OB 专有变量
+        #   OB 专有参数（memstore_limit_percentage / freeze_trigger_percentage /
+        #   major_compact_trigger / merge_thread_count / resource_hard_limit）
+        #   必须用 OB 语法的 SHOW PARAMETERS（SHOW VARIABLES 查不到），
+        #   阈值标注为「待 DBA 评审可调」。
+        # ═══════════════════════════════════════
+        'oceanbase': [
+            # ── 安全（复用 MySQL 13 条）──
+            {'param_name': 'validate_password.policy', 'query_sql': "SHOW VARIABLES LIKE 'validate_password.policy'", 'operator': '>=', 'expected_value': 'MEDIUM', 'risk_level': 'HIGH', 'description_zh': '密码策略应 >= MEDIUM', 'description_en': 'Password policy should be >= MEDIUM'},
+            {'param_name': 'max_connect_errors', 'query_sql': "SHOW VARIABLES LIKE 'max_connect_errors'", 'operator': '>=', 'expected_value': '100', 'risk_level': 'MEDIUM', 'description_zh': '最大连接错误数应 >= 100，防止暴力破解', 'description_en': 'Max connect errors should be >= 100'},
+            {'param_name': 'local_infile', 'query_sql': "SHOW VARIABLES LIKE 'local_infile'", 'operator': '=', 'expected_value': 'OFF', 'risk_level': 'HIGH', 'description_zh': 'local_infile 应关闭（防止 SQL 注入加载本地文件）', 'description_en': 'local_infile should be OFF to prevent local file injection'},
+            {'param_name': 'sql_mode', 'query_sql': "SHOW VARIABLES LIKE 'sql_mode'", 'operator': 'LIKE', 'expected_value': 'STRICT_TRANS_TABLES', 'risk_level': 'MEDIUM', 'description_zh': 'sql_mode 应包含 STRICT_TRANS_TABLES', 'description_en': 'sql_mode should contain STRICT_TRANS_TABLES'},
+            {'param_name': 'log_error', 'query_sql': "SHOW VARIABLES LIKE 'log_error'", 'operator': '!=', 'expected_value': '', 'risk_level': 'LOW', 'description_zh': '应配置错误日志路径', 'description_en': 'Error log path should be configured'},
+            # ── 性能 ──
+            {'param_name': 'max_connections', 'query_sql': "SHOW VARIABLES LIKE 'max_connections'", 'operator': '>=', 'expected_value': '500', 'risk_level': 'MEDIUM', 'description_zh': '最大连接数应 >= 500', 'description_en': 'Max connections should be >= 500'},
+            {'param_name': 'innodb_buffer_pool_size', 'query_sql': "SHOW VARIABLES LIKE 'innodb_buffer_pool_size'", 'operator': '>=', 'expected_value': '1073741824', 'risk_level': 'MEDIUM', 'description_zh': 'InnoDB 缓冲池大小应 >= 1GB', 'description_en': 'InnoDB buffer pool size should be >= 1GB'},
+            {'param_name': 'innodb_log_file_size', 'query_sql': "SHOW VARIABLES LIKE 'innodb_log_file_size'", 'operator': '>=', 'expected_value': '268435456', 'risk_level': 'LOW', 'description_zh': 'InnoDB 日志文件大小应 >= 256MB', 'description_en': 'InnoDB log file size should be >= 256MB'},
+            {'param_name': 'query_cache_size', 'query_sql': "SHOW VARIABLES LIKE 'query_cache_size'", 'operator': '<=', 'expected_value': '0', 'risk_level': 'LOW', 'description_zh': 'OceanBase 查询缓存应关闭（0）', 'description_en': 'Query cache should be disabled (0)'},
+            # ── 高可用 ──
+            {'param_name': 'sync_binlog', 'query_sql': "SHOW VARIABLES LIKE 'sync_binlog'", 'operator': '>=', 'expected_value': '1', 'risk_level': 'HIGH', 'description_zh': 'sync_binlog 应 >= 1（保证 binlog 落盘）', 'description_en': 'sync_binlog should be >= 1 for data safety'},
+            {'param_name': 'innodb_flush_log_at_trx_commit', 'query_sql': "SHOW VARIABLES LIKE 'innodb_flush_log_at_trx_commit'", 'operator': '>=', 'expected_value': '1', 'risk_level': 'HIGH', 'description_zh': '事务提交时刷盘策略应 >= 1', 'description_en': 'InnoDB flush log at trx commit should be >= 1'},
+            # ── 运维 ──
+            {'param_name': 'expire_logs_days', 'query_sql': "SHOW VARIABLES LIKE 'expire_logs_days'", 'operator': '>=', 'expected_value': '7', 'risk_level': 'LOW', 'description_zh': 'binlog 保留天数应 >= 7 天', 'description_en': 'Binlog expiration should be >= 7 days'},
+            {'param_name': 'max_allowed_packet', 'query_sql': "SHOW VARIABLES LIKE 'max_allowed_packet'", 'operator': '>=', 'expected_value': '67108864', 'risk_level': 'LOW', 'description_zh': '最大包大小应 >= 64MB', 'description_en': 'Max allowed packet should be >= 64MB'},
+            # ── OceanBase 专有变量（SHOW PARAMETERS，非 SHOW VARIABLES）──
+            {'param_name': 'memstore_limit_percentage', 'query_sql': "SHOW PARAMETERS LIKE 'memstore_limit_percentage'", 'operator': '<=', 'expected_value': '50', 'risk_level': 'MEDIUM', 'description_zh': 'MemStore 内存上限占比应 <= 50%（过高易触发转储）', 'description_en': 'MemStore limit percentage should be <= 50%'},
+            {'param_name': 'freeze_trigger_percentage', 'query_sql': "SHOW PARAMETERS LIKE 'freeze_trigger_percentage'", 'operator': '<=', 'expected_value': '70', 'risk_level': 'MEDIUM', 'description_zh': '转储触发阈值应 <= 70%（过高内存未充分使用即转储）', 'description_en': 'Freeze trigger percentage should be <= 70%'},
+            {'param_name': 'major_compact_trigger', 'query_sql': "SHOW PARAMETERS LIKE 'major_compact_trigger'", 'operator': '<=', 'expected_value': '60', 'risk_level': 'LOW', 'description_zh': '合并触发阈值应 <= 60%（避免频繁 Major Freeze）', 'description_en': 'Major compact trigger should be <= 60%'},
+            {'param_name': 'merge_thread_count', 'query_sql': "SHOW PARAMETERS LIKE 'merge_thread_count'", 'operator': '>=', 'expected_value': '4', 'risk_level': 'LOW', 'description_zh': '合并线程数应 >= 4（提升转储/合并吞吐）', 'description_en': 'Merge thread count should be >= 4'},
+            {'param_name': 'resource_hard_limit', 'query_sql': "SHOW PARAMETERS LIKE 'resource_hard_limit'", 'operator': '>=', 'expected_value': '80', 'risk_level': 'LOW', 'description_zh': '租户资源硬限制占比应 >= 80%（充分利用资源）', 'description_en': 'Resource hard limit percentage should be >= 80%'},
         ],
         # ═══════════════════════════════════════════
         # PostgreSQL

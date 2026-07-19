@@ -146,6 +146,96 @@ MYSQL_SLOW_QUERIES = {
     """,
 }
 
+# OceanBase MySQL 租户慢查询 SQL（基于 GV$OB_SQL_AUDIT 审计视图）
+# 说明：OceanBase 无 performance_schema.events_statements_summary_by_digest 的等价聚合，
+# 慢查询数据统一来自 GV$OB_SQL_AUDIT；其耗时字段单位为「微秒」，需 /1000000.0 转秒。
+OB_SLOW_QUERIES = {
+    # Top SQL by total latency（按 SQL_ID 聚合，耗时单位微秒）
+    # 注：OB 审计视图【无 ROWS_EXAMINED 列】，扫描行数用
+    #     MEMSTORE_READ_ROW_COUNT + SSSTORE_READ_ROW_COUNT 近似，别名保持 rows_scanned。
+    "ob_top_by_latency": """
+        SELECT
+            SQL_ID,
+            MAX(SUBSTR(QUERY_SQL, 1, 300)) AS query_sample_text,
+            COUNT(*) AS exec_count,
+            ROUND(SUM(ELAPSED_TIME) / 1000000.0, 3) AS total_latency_sec,
+            ROUND(AVG(ELAPSED_TIME) / 1000000.0, 3) AS avg_latency_sec,
+            SUM(MEMSTORE_READ_ROW_COUNT + SSSTORE_READ_ROW_COUNT) AS rows_scanned,
+            SUM(RETURN_ROWS) AS rows_sent
+        FROM oceanbase.GV$OB_SQL_AUDIT
+        GROUP BY SQL_ID
+        ORDER BY total_latency_sec DESC
+        LIMIT 20
+    """,
+
+    # Top SQL by full table scans（TABLE_SCAN = 1 表示走了全表扫描）
+    # 扫描行数同样用 MEMSTORE_READ_ROW_COUNT + SSSTORE_READ_ROW_COUNT 近似。
+    "ob_full_table_scan": """
+        SELECT
+            SQL_ID,
+            MAX(SUBSTR(QUERY_SQL, 1, 300)) AS query_sample_text,
+            COUNT(*) AS exec_count,
+            SUM(MEMSTORE_READ_ROW_COUNT + SSSTORE_READ_ROW_COUNT) AS rows_scanned,
+            SUM(RETURN_ROWS) AS rows_sent
+        FROM oceanbase.GV$OB_SQL_AUDIT
+        WHERE TABLE_SCAN = 1
+        GROUP BY SQL_ID
+        ORDER BY rows_scanned DESC
+        LIMIT 20
+    """,
+
+    # Top SQL by lock wait time（OB 社区版审计视图【无 LOCK_TIME 列】，无法获取锁等待时间）
+    # 以 EXECUTE_TIME（单位微秒）近似锁等待开销，别名保留 total_lock_sec / avg_lock_sec 不变。
+    "ob_top_by_lock": """
+        SELECT
+            SQL_ID,
+            MAX(SUBSTR(QUERY_SQL, 1, 300)) AS query_sample_text,
+            COUNT(*) AS exec_count,
+            ROUND(SUM(EXECUTE_TIME) / 1000000.0, 3) AS total_lock_sec,
+            ROUND(AVG(EXECUTE_TIME) / 1000000.0, 3) AS avg_lock_sec
+        FROM oceanbase.GV$OB_SQL_AUDIT
+        GROUP BY SQL_ID
+        ORDER BY total_lock_sec DESC
+        LIMIT 20
+    """,
+
+    # Top SQL by IO / tmp usage（OB 审计无临时表字段，以 EXECUTE_TIME 近似 IO 开销排序）
+    # 扫描行数同样用 MEMSTORE_READ_ROW_COUNT + SSSTORE_READ_ROW_COUNT 近似。
+    "ob_top_by_io": """
+        SELECT
+            SQL_ID,
+            MAX(SUBSTR(QUERY_SQL, 1, 300)) AS query_sample_text,
+            COUNT(*) AS exec_count,
+            ROUND(SUM(EXECUTE_TIME) / 1000000.0, 3) AS total_io_sec,
+            SUM(MEMSTORE_READ_ROW_COUNT + SSSTORE_READ_ROW_COUNT) AS rows_scanned,
+            SUM(RETURN_ROWS) AS rows_sent
+        FROM oceanbase.GV$OB_SQL_AUDIT
+        GROUP BY SQL_ID
+        ORDER BY total_io_sec DESC
+        LIMIT 20
+    """,
+
+    # 近期慢查询（ELAPSED_TIME > 1s，单位微秒）
+    # 注：OB 审计视图【无 END_TIME / ROWS_EXAMINED / LOCK_TIME 列】：
+    #   - 时间字段用 REQUEST_TIME（请求开始时间）替代，别名保持 start_time；
+    #   - 扫描行数用 MEMSTORE_READ_ROW_COUNT + SSSTORE_READ_ROW_COUNT 近似，别名保持 rows_examined；
+    #   - 等待时间用 TOTAL_WAIT_TIME_MICRO（V4.x 确认存在）近似锁等待，别名保持 lock_time。
+    "ob_slow_log_recent": """
+        SELECT
+            REQUEST_TIME AS start_time,
+            ROUND(ELAPSED_TIME / 1000000.0, 3) AS query_time,
+            ROUND(TOTAL_WAIT_TIME_MICRO / 1000000.0, 3) AS lock_time,
+            RETURN_ROWS AS rows_sent,
+            MEMSTORE_READ_ROW_COUNT + SSSTORE_READ_ROW_COUNT AS rows_examined,
+            DB_NAME AS db,
+            SUBSTR(QUERY_SQL, 1, 500) AS sql_text
+        FROM oceanbase.GV$OB_SQL_AUDIT
+        WHERE ELAPSED_TIME > 1000000
+        ORDER BY ELAPSED_TIME DESC
+        LIMIT 50
+    """,
+}
+
 # PostgreSQL 慢查询 SQL
 PG_SLOW_QUERIES = {
     # Top SQL by total time (requires pg_stat_statements)
@@ -904,6 +994,62 @@ class MySQLSlowQueryAnalyzer(BaseSlowQueryAnalyzer):
         return text[:300]  # 截断超长 query
 
 
+class OceanBaseSlowQueryAnalyzer(MySQLSlowQueryAnalyzer):
+    """OceanBase MySQL 租户慢查询分析器。
+
+    通过 GV$OB_SQL_AUDIT 审计视图采集慢查询数据，复用 MySQL 分析器的 normalize()
+    逻辑（其列名与 MySQL 报告字段一一对应），以最小化重复代码。
+    """
+    DB_TYPE = 'oceanbase'
+
+    def collect(self, conn) -> dict:
+        """采集 OceanBase 慢查询原始数据（GV$OB_SQL_AUDIT）。"""
+        result = {}
+        try:
+            result['top_by_latency'] = self._exec_sql(conn,
+                OB_SLOW_QUERIES['ob_top_by_latency'])
+        except Exception:
+            result['top_by_latency'] = []
+
+        try:
+            result['full_table_scan'] = self._exec_sql(conn,
+                OB_SLOW_QUERIES['ob_full_table_scan'])
+        except Exception:
+            result['full_table_scan'] = []
+
+        try:
+            result['top_by_lock'] = self._exec_sql(conn,
+                OB_SLOW_QUERIES['ob_top_by_lock'])
+        except Exception:
+            result['top_by_lock'] = []
+
+        try:
+            result['top_tmp_tables'] = self._exec_sql(conn,
+                OB_SLOW_QUERIES['ob_top_by_io'])
+        except Exception:
+            result['top_tmp_tables'] = []
+
+        try:
+            result['top_sorting'] = self._exec_sql(conn,
+                OB_SLOW_QUERIES['ob_top_by_io'])
+        except Exception:
+            result['top_sorting'] = []
+
+        try:
+            result['slow_log'] = self._exec_sql(conn,
+                OB_SLOW_QUERIES['ob_slow_log_recent'])
+        except Exception:
+            result['slow_log'] = []
+
+        # OceanBase MySQL 租户无 performance_schema，标记不可用
+        result['ps_enabled'] = False
+        return result
+
+    def _check_ps_enabled(self, conn) -> bool:
+        """OceanBase MySQL 租户不使用 performance_schema 做慢查询统计。"""
+        return False
+
+
 class PGSlowQueryAnalyzer(BaseSlowQueryAnalyzer):
     DB_TYPE = 'pg'
 
@@ -1196,6 +1342,7 @@ def get_slow_query_analyzer(db_type: str) -> BaseSlowQueryAnalyzer:
     TABLE = {
         'mysql':     MySQLSlowQueryAnalyzer,
         'mariadb':   MySQLSlowQueryAnalyzer,  # MariaDB 复用 MySQL 慢查询分析器（协议兼容）
+        'oceanbase': OceanBaseSlowQueryAnalyzer,  # OceanBase MySQL 租户走 GV$OB_SQL_AUDIT
         'pg':        PGSlowQueryAnalyzer,
         'oracle':    OracleSlowQueryAnalyzer,
         'sqlserver': SQLServerSlowQueryAnalyzer,

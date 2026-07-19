@@ -115,6 +115,12 @@ def _run_mariadb():
     main_mariadb.main()
 
 
+def _run_oceanbase():
+    """启动 OceanBase（MySQL 租户）数据库巡检（复用 main_oceanbase 逻辑）"""
+    import main_oceanbase
+    main_oceanbase.main()
+
+
 def _run_pg():
     import main_pg
     main_pg.main()
@@ -184,6 +190,7 @@ def _run_inspect_menu():
         print(f"  {GREEN}10{RESET}. {t('cli.inspect_menu_line10')}")
         print(f"  {CYAN}11{RESET}. {t('cli.inspect_menu_line11')}")
         print(f"  {ORANGE}12{RESET}. {t('cli.inspect_menu_line12')}")
+        print(f"  {GREEN}13{RESET}. {t('cli.inspect_menu_line13')}")
         print(f"  {DIM}0{RESET}. {t('cli.inspect_menu_line0')}")
         print(f"{DIM}{'='*50}{RESET}")
         choice = input(t("cli.inspect_menu_prompt")).strip()
@@ -221,6 +228,9 @@ def _run_inspect_menu():
         elif choice == '11':
             print(f"\n{t('cli.main_menu_mariadb_starting')}\n")
             _run_mariadb()
+        elif choice == '13':
+            print(f"\n{t('cli.main_menu_oceanbase_starting')}\n")
+            _run_oceanbase()
         elif choice == '12':
             _run_template_menu()
         elif choice in ('0', ''):

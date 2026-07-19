@@ -1418,7 +1418,7 @@ def check_service_status(ssh_collector):
     """
     services = [
         'nginx', 'httpd', 'apache2',
-        'mysqld', 'mariadb', 'postgresql',
+        'mysqld', 'mariadb', 'postgresql', 'observer',  # observer = OceanBase 进程名
         'redis', 'redis-server',
         'mongod', 'docker', 'containerd',
         'firewalld', 'iptables',

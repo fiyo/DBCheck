@@ -629,6 +629,17 @@ async function executeFixSql(taskId, sql) {
   vertical-align: middle;
   text-transform: uppercase;
 }
+.type-card .compat-tag {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  background: #4caf50;
+  color: #fff;
+  border-radius: 3px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
 .type-card .tc-desc {
   font-size: 11px; color: var(--text-muted); line-height: 1.35;
 }
@@ -4108,12 +4119,17 @@ function formatBytes(bytes) {
               return;
             }
             listEl.innerHTML = list.map(ds => {
-              const dbIcons = {mysql:'🐬', mariadb:'🐬', pg:'🐘', oracle:'🔴', oracle_jdbc:'🔴', dm:'🟡', sqlserver:'🟠', tidb:'🟢', ivorysql:'🐘', kingbase:'🐘', gbase:'🟢'};
+              const dbIcons = {mysql:'🐬', mariadb:'🐬', oceanbase:'🐋', pg:'🐘', oracle:'🔴', oracle_jdbc:'🔴', dm:'🟡', sqlserver:'🟠', tidb:'🟢', ivorysql:'🐘', kingbase:'🐘', gbase:'🟢'};
               const icon = dbIcons[ds.db_type] || '🗄️';
+              const dbLogos = {oceanbase:'/oceanbase.png'};
+              const logo = dbLogos[ds.db_type];
+              const iconHtml = logo
+                ? '<img src="' + logo + '" alt="' + (ds.db_type||'') + '" style="width:14px;height:14px;object-fit:contain;vertical-align:middle" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'inline\'"><span style="display:none">' + icon + '</span>'
+                : icon;
               const tagClass = 'tag-' + (ds.db_type === 'oracle' || ds.db_type === 'oracle_jdbc' ? 'oracle' : ds.db_type === 'sqlserver' ? 'sqlserver' : ds.db_type);
               const groupLabel = ds.group || 'default';
               return '<div style="padding:12px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;display:flex;align-items:center;gap:12px">' +
-                '<span class="tag ' + tagClass + '" style="font-size:12px">' + icon + ' ' + (ds.db_type||'') + '</span>' +
+                '<span class="tag ' + tagClass + '" style="font-size:12px">' + iconHtml + ' ' + (ds.db_type||'') + '</span>' +
                 '<div style="flex:1">' +
                   '<div style="font-weight:600;font-size:13px">' + escHtml(ds.name || (ds.host + ':' + ds.port)) + '</div>' +
                   '<div style="font-size:11px;color:var(--text-muted)">' + escHtml(ds.host) + ':' + (ds.port||'') + (ds.database ? ' / ' + escHtml(ds.database) : '') + '</div>' +
@@ -4270,6 +4286,8 @@ function formatBytes(bytes) {
               '</div>' +
               '<div><label style="font-size:12px;color:var(--text-muted)">' + i18n('webui.pro_ds_password') + '</label>' +
                 '<input id="ds-password" type="password" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="' + i18n('webui.pro_ds_password') + '"></div>' +
+              '<div id="ds-tenant-wrap" style="display:none"><label style="font-size:12px;color:var(--text-muted)">' + i18n('webui.pro_ds_tenant') + '</label>' +
+                '<input id="ds-tenant" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="例如 sys / test"></div>' +
               '<div id="ds-database-wrap" style="display:none"><label id="ds-database-label" style="font-size:12px;color:var(--text-muted)">' + i18n('webui.pro_ds_database') + '</label>' +
                 '<input id="ds-database" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px"></div>' +
               '<div id="ds-gbase-server-wrap" style="display:none"><label style="font-size:12px;color:var(--text-muted)">' + i18n('webui.pro_ds_gbase_server') + '</label>' +
@@ -4324,7 +4342,8 @@ function formatBytes(bytes) {
         if (dsDbTypeSel && window.dbTypes) {
           dsDbTypeSel.innerHTML = '<option value="">请选择数据库类型</option>';
           window.dbTypes.forEach(t => {
-            dsDbTypeSel.innerHTML += `<option value="${t.value}" data-port="${t.port||3306}" data-user="${t.user||''}">${t.emoji||''} ${t.label}</option>`;
+            const compatSuffix = t.compat_tag ? ` (${t.compat_tag} 兼容)` : '';
+            dsDbTypeSel.innerHTML += `<option value="${t.value}" data-port="${t.port||3306}" data-user="${t.user||''}">${t.emoji||''} ${t.label}${compatSuffix}</option>`;
           });
         }
         onDsDbTypeChange();
@@ -4348,15 +4367,17 @@ function formatBytes(bytes) {
         // 优先从 data 属性读取（插件类型），其次用硬编码映射
         const defaultPort = opt?.getAttribute('data-port') || '';
         const defaultUser = opt?.getAttribute('data-user') || '';
-        const portMap = {mysql:3306, mariadb:3306, pg:5432, dm:5236, oracle:1521, oracle_jdbc:1521, sqlserver:1433, tidb:4000, ivorysql:5432, yashandb:1688, kingbase:54321, gbase:9088};
-        const userMap = {mysql:'root', mariadb:'root', pg:'postgres', dm:'SYSDBA', oracle:'system', oracle_jdbc:'system', sqlserver:'sa', tidb:'root', ivorysql:'postgres', yashandb:'sys', kingbase:'kingbase', gbase:'gbasedbt'};
+        const portMap = {mysql:3306, mariadb:3306, oceanbase:2881, pg:5432, dm:5236, oracle:1521, oracle_jdbc:1521, sqlserver:1433, tidb:4000, ivorysql:5432, yashandb:1688, kingbase:54321, gbase:9088};
+        const userMap = {mysql:'root', mariadb:'root', oceanbase:'root@test', pg:'postgres', dm:'SYSDBA', oracle:'system', oracle_jdbc:'system', sqlserver:'sa', tidb:'root', ivorysql:'postgres', yashandb:'sys', kingbase:'kingbase', gbase:'gbasedbt'};
         document.getElementById('ds-port').value = (defaultPort && parseInt(defaultPort)) || portMap[dbType] || 3306;
         const userEl = document.getElementById('ds-user');
         if (dbType !== _currentDbType || !userEl.value) {
           userEl.value = defaultUser || userMap[dbType] || 'root';
         }
         _currentDbType = dbType;
-        document.getElementById('ds-database-wrap').style.display = (dbType === 'pg' || dbType === 'ivorysql' || dbType === 'kingbase' || dbType === 'gbase') ? '' : 'none';
+        const showDsDbField = (dbType === 'pg' || dbType === 'ivorysql' || dbType === 'kingbase' || dbType === 'gbase' || dbType === 'oceanbase');
+        document.getElementById('ds-database-wrap').style.display = showDsDbField ? '' : 'none';
+        document.getElementById('ds-tenant-wrap').style.display = (dbType === 'oceanbase') ? '' : 'none';
         document.getElementById('ds-service-wrap').style.display = (dbType === 'oracle' || dbType === 'oracle_jdbc') ? '' : 'none';
         document.getElementById('ds-sysdba-wrap').style.display = (dbType === 'oracle' || dbType === 'oracle_jdbc') ? '' : 'none';
         // 原生 Oracle 与 Oracle(JDBC) 均显示连接串字段；标签随类型切换
@@ -4379,8 +4400,10 @@ function formatBytes(bytes) {
         // 根据数据库类型更新 database 输入框的 placeholder
         var dbInput = document.getElementById('ds-database');
         if (dbInput) {
-          var _ph = {'pg':'postgres','ivorysql':'postgres','kingbase':'kingbase','gbase':'sysmaster'};
+          var _ph = {'pg':'postgres','ivorysql':'postgres','kingbase':'kingbase','gbase':'sysmaster','oceanbase':'oceanbase'};
           dbInput.placeholder = _ph[dbType] || 'mysql';
+          // OceanBase 不预填数据库名（仅为占位提示），由用户在 DBeaver 风格界面自行填写
+          if (dbType === 'oceanbase' && !dbInput.value) dbInput.value = '';
         }
         // 根据数据库类型更新 database 标签
         var dbLabel = document.getElementById('ds-database-label');
@@ -4416,6 +4439,8 @@ function formatBytes(bytes) {
         if (!dbName && (dbType === 'pg' || dbType === 'ivorysql')) dbName = 'postgres';
         if (!dbName && dbType === 'kingbase') dbName = 'kingbase';
         if (!dbName && dbType === 'gbase') dbName = 'sysmaster';
+        if (!dbName && dbType === 'oceanbase') dbName = 'oceanbase';
+        const tenant = (document.getElementById('ds-tenant')?.value || '').trim();
         const sysdba = document.getElementById('ds-sysdba')?.checked || false;
         const gbaseServer = document.getElementById('ds-gbase-server')?.value.trim() || '';
         const jdbcUrl = (document.getElementById('ds-jdbc-url')?.value || '').trim();
@@ -4425,13 +4450,14 @@ function formatBytes(bytes) {
         let sshPass = document.getElementById('ds-ssh-password')?.value || '';
         if (!sshPass) sshPass = _editSshPassword;
         if (!host) { msgEl.style.color = 'var(--danger)'; msgEl.textContent = '❌ 请输入主机地址'; return; }
+        if (!user) { msgEl.style.color = 'var(--danger)'; msgEl.textContent = '❌ 请输入用户名'; return; }
         msgEl.style.color = 'var(--text-muted)';
         msgEl.textContent = '⏳ 测试连接中...';
         try {
           const res = await fetch('/api/pro/datasources/test-connection', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ db_type: dbType, host, port: parseInt(port), user, password, service_name: svcName, database: dbName, sysdba, jdbc_url: jdbcUrl, gbase_server_name: gbaseServer, ssh_host: sshHost, ssh_port: parseInt(sshPort), ssh_user: sshUser, ssh_password: sshPass })
+            body: JSON.stringify({ db_type: dbType, host, port: parseInt(port), user, password, service_name: svcName, database: dbName, tenant: tenant, sysdba, jdbc_url: jdbcUrl, gbase_server_name: gbaseServer, ssh_host: sshHost, ssh_port: parseInt(sshPort), ssh_user: sshUser, ssh_password: sshPass })
           });
           const data = await res.json();
           msgEl.style.color = data.ok ? 'var(--success)' : 'var(--danger)';
@@ -4471,6 +4497,10 @@ function formatBytes(bytes) {
         if (payload.db_type === 'gbase') {
           payload.gbase_server_name = document.getElementById('ds-gbase-server').value.trim();
           payload.database = document.getElementById('ds-database').value.trim();
+        }
+        if (payload.db_type === 'oceanbase') {
+          payload.database = document.getElementById('ds-database').value.trim();
+          payload.tenant = document.getElementById('ds-tenant').value.trim();
         }
         if (!payload.name || !payload.host || !payload.user) {
           msgEl.style.color = 'var(--danger)';
@@ -4538,6 +4568,10 @@ function formatBytes(bytes) {
               if (ds.db_type === 'gbase') {
                 document.getElementById('ds-database').value = ds.database || 'sysmaster';
                 document.getElementById('ds-gbase-server').value = ds.gbase_server_name || 'gbase01';
+              }
+              if (ds.db_type === 'oceanbase') {
+                document.getElementById('ds-database').value = ds.database || '';
+                document.getElementById('ds-tenant').value = ds.tenant || '';
               }
               if (ds.db_type === 'oracle' || ds.db_type === 'oracle_jdbc') {
                 document.getElementById('ds-service-name').value = ds.service_name || '';
@@ -5175,6 +5209,10 @@ function formatBytes(bytes) {
             <div class="field">
               <label data-i18n="webui.label_password">密码</label>
               <input type="password" id="f-password" data-i18n="webui.placeholder_password" placeholder="数据库密码" />
+            </div>
+            <div class="field full" id="f-tenant-wrap" style="display:none">
+              <label><span data-i18n="webui.label_tenant">租户</span> <span class="opt">OceanBase</span></label>
+              <input type="text" id="f-tenant" placeholder="例如 sys / test" />
             </div>
             <div class="field full" id="f-database-wrap" style="display:none">
               <label><span data-i18n="webui.label_database">连接数据库</span> <span class="opt" data-i18n="webui.label_database_opt">PostgreSQL</span></label>
@@ -5923,7 +5961,7 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
   -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" \
   -d '{"db_type":"oracle","host":"192.168.1.200","port":1521,"service_name":"ORCL","user":"system","password":"****","ssh":{"host":"10.0.0.1","user":"oracle","password":"ssh_pass"}}'</pre>
               <div style="margin-top:12px;color:var(--text-muted);font-size:11px;">
-                <b>支持的 db_type</b>：mysql, mariadb, pg, oracle, dm, sqlserver, tidb, ivorysql, yashandb &nbsp;|&nbsp;
+                <b>支持的 db_type</b>：mysql, mariadb, oceanbase, pg, oracle, dm, sqlserver, tidb, ivorysql, yashandb &nbsp;|&nbsp;
                 <b>可选参数</b>：database, sysdba, inspector, timeout
               </div>
               <div style="margin-top:8px;padding:8px 10px;background:var(--warn);border-radius:4px;font-size:11px;color:var(--text);">
@@ -8288,7 +8326,7 @@ function startWizard() {
   selectDbType('oracle');
 
   // 2. 清除所有表单字段（port/user/ssh-port 由默认值覆盖，需保留）
-  const fids = ['f-name','f-host','f-password','f-database',
+  const fids = ['f-name','f-host','f-password','f-database','f-tenant',
                 'f-service-name','f-inspector','f-ssh-host',
                 'f-ssh-user','f-ssh-password','f-ssh-key'];
   fids.forEach(id => {
@@ -8485,6 +8523,10 @@ async function onDatasourceChange() {
       if (ds.db_type === 'gbase') {
         document.getElementById('f-database').value = ds.database || 'sysmaster';
       }
+      if (ds.db_type === 'oceanbase') {
+        document.getElementById('f-database').value = ds.database || '';
+        document.getElementById('f-tenant').value = ds.tenant || '';
+      }
       if (ds.db_type === 'oracle' || ds.db_type === 'oracle_jdbc') {
         console.log('[Oracle模板] onDatasourceChange: oracle branch entered, ds:', ds);
         document.getElementById('f-service-name').value = ds.service_name || '';
@@ -8536,7 +8578,7 @@ async function onDatasourceChange() {
 
 function resetFormFromDatasource() {
   // 清除自动填充的内容，让用户手动输入
-  ['f-name','f-host','f-port','f-user','f-password','f-database','f-service-name',
+  ['f-name','f-host','f-port','f-user','f-password','f-database','f-service-name','f-tenant',
    'f-ssh-host','f-ssh-port','f-ssh-user','f-ssh-password','f-ssh-key'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
@@ -8549,7 +8591,7 @@ function resetFormFromDatasource() {
 async function selectDbType(type, skipReload) {
   dbType = type;
   // 切换数据库类型时，清空上次填入的连接信息（密码始终清空）
-  ['f-name','f-host','f-port','f-user','f-database','f-service-name'].forEach(id => {
+  ['f-name','f-host','f-port','f-user','f-database','f-service-name','f-tenant'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
@@ -8574,7 +8616,8 @@ async function selectDbType(type, skipReload) {
   const dbInfo = (window.dbTypes || []).find(t => t.value === type) || {};
   document.getElementById('f-port').value = dbInfo.port || 3306;
   document.getElementById('f-user').value = dbInfo.user || 'root';
-  document.getElementById('f-database-wrap').style.display = (type === 'pg' || type === 'ivorysql' || type === 'kingbase' || type === 'gbase') ? '' : 'none';
+  document.getElementById('f-database-wrap').style.display = (type === 'pg' || type === 'ivorysql' || type === 'kingbase' || type === 'gbase' || type === 'oceanbase') ? '' : 'none';
+  document.getElementById('f-tenant-wrap').style.display = (type === 'oceanbase') ? '' : 'none';
   // Oracle全面巡检：显示服务名输入框
   var svcWrap = document.getElementById('f-service-wrap');
   if (svcWrap) svcWrap.style.display = (type === 'oracle' || type === 'oracle_jdbc') ? '' : 'none';
@@ -8592,9 +8635,10 @@ async function selectDbType(type, skipReload) {
   if (fJdbcInput) fJdbcInput.placeholder = (type === 'oracle_jdbc') ? 'jdbc:oracle:thin:@//host:1521/ORCLCDB 或 @host:1521:ORCL' : '(DESCRIPTION=(HOST=host)(PORT=1521)(CONNECT_DATA=(SERVICE_NAME=ORCLCDB))) 或 //host:1521/ORCLCDB';
   // 更新数据库名称输入框的 placeholder 并自动填写默认值
   const defaultDbMap = { pg: 'postgres', ivorysql: 'postgres', kingbase: 'kingbase', gbase: 'sysmaster' };
+  const dbPlaceholderMap = Object.assign({}, defaultDbMap, { oceanbase: 'oceanbase' });
   var fDbEl = document.getElementById('f-database');
   if (fDbEl) {
-    fDbEl.placeholder = '默认 ' + (defaultDbMap[type] || '');
+    fDbEl.placeholder = '默认 ' + (dbPlaceholderMap[type] || '');
     if (defaultDbMap[type]) fDbEl.value = defaultDbMap[type];
   }
   // 更新数据库标签（去掉静态写死的 PostgreSQL）
@@ -8662,16 +8706,23 @@ async function testDb() {
   const el = document.getElementById('db-test-status');
   el.innerHTML = '<div class="status-banner info"><span class="spinner"></span> ' + i18n('webui.testing_connection') + '</div>';
   try {
+    const host = document.getElementById('f-host').value.trim();
+    const user = document.getElementById('f-user').value.trim();
+    if (!host || !user) {
+      el.innerHTML = '<div class="status-banner err">' + i18n('webui.connection_fail') + '：请填写主机地址和用户名</div>';
+      return;
+    }
     const res = await fetch('/api/test_db', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         db_type: dbType,
-        host:     document.getElementById('f-host').value.trim(),
+        host:     host,
         port:     parseInt(document.getElementById('f-port').value) || (dbType==='oracle'?1521:(dbType==='mysql'?3306:5432)),
-        user:     document.getElementById('f-user').value.trim(),
+        user:     user,
         password: document.getElementById('f-password').value,
-        database: (dbType === 'pg' || dbType === 'ivorysql') ? (document.getElementById('f-database').value.trim() || 'postgres') : (dbType === 'kingbase') ? (document.getElementById('f-database').value.trim() || 'kingbase') : (dbType === 'gbase') ? (document.getElementById('f-database').value.trim() || 'sysmaster') : (document.getElementById('f-database').value.trim() || ''),
+        database: (dbType === 'pg' || dbType === 'ivorysql') ? (document.getElementById('f-database').value.trim() || 'postgres') : (dbType === 'kingbase') ? (document.getElementById('f-database').value.trim() || 'kingbase') : (dbType === 'gbase') ? (document.getElementById('f-database').value.trim() || 'sysmaster') : (dbType === 'oceanbase') ? (document.getElementById('f-database').value.trim() || '') : (document.getElementById('f-database').value.trim() || ''),
+        tenant:   (dbType === 'oceanbase') ? (document.getElementById('f-tenant').value.trim() || '') : '',
         service_name: document.getElementById('f-service-name') ? document.getElementById('f-service-name').value.trim() : null,
         sysdba: document.getElementById('f-sysdba').checked,
         jdbc_url: document.getElementById('f-jdbc-url')?.value.trim() || null,
@@ -9087,7 +9138,8 @@ async function startInspection() {
   const port = parseInt(document.getElementById('f-port').value) || (dbType==='mysql'?3306:dbType==='oracle'?1521:dbType==='dm'?5236:dbType==='ivorysql'?5432:5432);
   const user = document.getElementById('f-user').value.trim() || (userDefaults[dbType]||'root');
   const password = document.getElementById('f-password').value;
-  const database = (dbType === 'pg' || dbType === 'ivorysql') ? (document.getElementById('f-database').value.trim() || 'postgres') : (dbType === 'kingbase') ? (document.getElementById('f-database').value.trim() || 'kingbase') : (dbType === 'gbase') ? (document.getElementById('f-database').value.trim() || 'sysmaster') : (document.getElementById('f-database').value.trim() || '');
+  const database = (dbType === 'pg' || dbType === 'ivorysql') ? (document.getElementById('f-database').value.trim() || 'postgres') : (dbType === 'kingbase') ? (document.getElementById('f-database').value.trim() || 'kingbase') : (dbType === 'gbase') ? (document.getElementById('f-database').value.trim() || 'sysmaster') : (dbType === 'oceanbase') ? (document.getElementById('f-database').value.trim() || '') : (document.getElementById('f-database').value.trim() || '');
+  const tenant = (dbType === 'oceanbase') ? (document.getElementById('f-tenant').value.trim() || '') : '';
   const svcName = document.getElementById('f-service-name') ? document.getElementById('f-service-name').value.trim() : null;
   const jdbcUrl = document.getElementById('f-jdbc-url')?.value.trim() || null;
   const inspector = document.getElementById('f-inspector').value.trim() || 'Jack';
@@ -9096,7 +9148,7 @@ async function startInspection() {
   const datasourceId = document.getElementById('f-datasource').value;
   const payload = datasourceId
     ? { db_type: dbType, datasource_id: datasourceId, inspector_name: inspector, desensitize: document.getElementById('f-desensitize').checked }
-    : { db_type: dbType, name, host, port, user, password, database, service_name: svcName, jdbc_url: jdbcUrl, inspector_name: inspector, sysdba: document.getElementById('f-sysdba').checked, desensitize: document.getElementById('f-desensitize').checked };
+    : { db_type: dbType, name, host, port, user, password, database, tenant, service_name: svcName, jdbc_url: jdbcUrl, inspector_name: inspector, sysdba: document.getElementById('f-sysdba').checked, desensitize: document.getElementById('f-desensitize').checked };
   if (sshEnabled) {
     payload.ssh_host     = document.getElementById('f-ssh-host').value.trim() || host;
     payload.ssh_port     = parseInt(document.getElementById('f-ssh-port').value) || 22;
@@ -11061,6 +11113,7 @@ function showAddJobForm() {
       {value:'tidb', label:'TiDB'},
       {value:'yashandb', label:'YashanDB'},
       {value:'mongodb', label:'MongoDB'},
+      {value:'oceanbase', label:'OceanBase (MySQL 兼容)'},
     ];
     dbTypes.forEach(t => {
       const opt = document.createElement('option');
@@ -17846,6 +17899,7 @@ async function deleteBackupHistory(recordId) {
         <span class="about-db-chip"><img src="/tidb.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'" style="width:16px;height:16px;object-fit:contain"><span class="db-emoji" style="display:none;">🌊</span> TiDB</span>
         <span class="about-db-chip"><img src="/ivorysql.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'" style="width:16px;height:16px;object-fit:contain"><span class="db-emoji" style="display:none;">🦣</span> IvorySQL</span>
         <span class="about-db-chip"><img src="/yashandb.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'" style="width:16px;height:16px;object-fit:contain"><span class="db-emoji" style="display:none;">🗻</span> YashanDB</span>
+        <span class="about-db-chip"><img src="/oceanbase.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'" style="width:16px;height:16px;object-fit:contain"><span class="db-emoji" style="display:none;">🐋</span> OceanBase <span style="font-size:10px;background:#4caf50;color:#fff;padding:1px 5px;border-radius:3px;font-weight:600">MySQL</span></span>
       </div>
 
       <!-- 商业授权协议（Base64 encoded to prevent static search） -->
@@ -19679,13 +19733,14 @@ function mkdirRemote() {
         ? `<img src="${dbType.icon}" alt="${dbType.label}" style="height:28px;width:auto;">`
         : '🗄️';
       const pluginBadge = dbType.is_plugin ? ' <span class="beta-tag">Plugin</span>' : '';
+      const compatBadge = dbType.compat_tag ? ` <span class="compat-tag">${dbType.compat_tag}</span>` : '';
 
       card.innerHTML = `
         <div class="tc-header">
           <div class="tc-logo">${iconHtml}</div>
           <div class="tc-check" id="chk-${dbType.value}"></div>
         </div>
-        <div class="tc-name">${dbType.label}${pluginBadge}</div>
+        <div class="tc-name">${dbType.label}${pluginBadge}${compatBadge}</div>
         <div class="tc-desc">${dbType.description || ''}</div>
       `;
       container.appendChild(card);
@@ -19695,31 +19750,32 @@ function mkdirRemote() {
   // 填充所有数据库类型下拉框
   function populateDbTypeDropdowns() {
     const dbTypes = window.dbTypes || [];
-    
+    const compatLabel = (t) => t.compat_tag ? `${t.label} (${t.compat_tag} 兼容)` : t.label;
+
     // 1. 新增数据源弹窗中的数据库类型下拉框
     const dsDbType = document.getElementById('f-ds-db-type');
     if (dsDbType) {
       dsDbType.innerHTML = '<option value="">请选择数据库类型</option>';
       dbTypes.forEach(t => {
-        dsDbType.innerHTML += `<option value="${t.value}">${t.label}</option>`;
+        dsDbType.innerHTML += `<option value="${t.value}">${compatLabel(t)}</option>`;
       });
     }
-    
+
     // 2. 规则管理页面的数据库类型过滤
     const rulesDbType = document.getElementById('rules-db-type');
     if (rulesDbType) {
       rulesDbType.innerHTML = '<option value="">全部</option>';
       dbTypes.forEach(t => {
-        rulesDbType.innerHTML += `<option value="${t.value}">${t.label}</option>`;
+        rulesDbType.innerHTML += `<option value="${t.value}">${compatLabel(t)}</option>`;
       });
     }
-    
+
     // 3. 基线配置管理页面的数据库类型过滤
     const baselineFilterDbType = document.getElementById('baseline-filter-db-type');
     if (baselineFilterDbType) {
       baselineFilterDbType.innerHTML = '<option value="">所有数据库类型</option>';
       dbTypes.forEach(t => {
-        baselineFilterDbType.innerHTML += `<option value="${t.value}">${t.label}</option>`;
+        baselineFilterDbType.innerHTML += `<option value="${t.value}">${compatLabel(t)}</option>`;
       });
     }
     

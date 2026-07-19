@@ -1,0 +1,15 @@
+# -*- coding: utf-8 -*-
+# OceanBase Oracle 租户（企业版）规则占位壳
+#
+# 本期（OceanBase MySQL 租户）不实现 Oracle 租户（db_type='oceanbase_oracle'）。
+# 此处仅预留目录占位，供后续企业版 Oracle 模式填充规则。
+#
+# 类型枚举 / 分发守卫 / analyzer 收集 MAP 中的 'oceanbase_oracle'
+# 占位键已就位（指向抛出 NotImplementedError 的占位函数），
+# 见 main_oceanbase.py 顶部 TODO 与 inspection_engine / run_inspection / analyzer 等相关路由。
+#
+# 后续实现时：
+#   1. 新建 main_oceanbase_oracle.py 的 OceanBaseOracleInspector(BaseInspectionEngine)
+#      （独立 oracledb 连接 + OB Oracle 租户专有视图）。
+#   2. 在此文件编写 db_types: [oceanbase_oracle] 的规则清单。
+rules: []

@@ -20,8 +20,8 @@ rules:
     params:
       cur_conn: "${context.gbase_current_sessions[0].session_count if context.get('gbase_current_sessions') else 0}"
       max_conn: "${int(context.gbase_max_connections[0].cf_effective) if context.get('gbase_max_connections') and context.gbase_max_connections[0].get('cf_effective', '0').isdigit() else 0}"
-    message: "连接数使用率 {pct:.0f}%（{cur_conn}/{max_conn}），建议增大 MAXCONNECTIONS"
-    message_zh: "连接数使用率 {pct:.0f}%（{cur_conn}/{max_conn}），建议增大 MAXCONNECTIONS"
+    message: "连接数使用率 {conn_pct:.0f}%（{cur_conn}/{max_conn}），建议增大 MAXCONNECTIONS"
+    message_zh: "连接数使用率 {conn_pct:.0f}%（{cur_conn}/{max_conn}），建议增大 MAXCONNECTIONS"
     fix_sql: "# 修改 $GBASEDBTDIR/etc/onconfig 文件，设置 MAXCONNECTIONS 值并重启实例"
 
   - id: gbase_conn_usage_medium
@@ -39,8 +39,8 @@ rules:
     params:
       cur_conn: "${context.gbase_current_sessions[0].session_count if context.get('gbase_current_sessions') else 0}"
       max_conn: "${int(context.gbase_max_connections[0].cf_effective) if context.get('gbase_max_connections') and context.gbase_max_connections[0].get('cf_effective', '0').isdigit() else 0}"
-    message: "连接数使用率 {pct:.0f}%（{cur_conn}/{max_conn}），建议提前关注"
-    message_zh: "连接数使用率 {pct:.0f}%（{cur_conn}/{max_conn}），建议提前关注"
+    message: "连接数使用率 {conn_pct:.0f}%（{cur_conn}/{max_conn}），建议提前关注"
+    message_zh: "连接数使用率 {conn_pct:.0f}%（{cur_conn}/{max_conn}），建议提前关注"
     fix_sql: "# 修改 $GBASEDBTDIR/etc/onconfig 文件，设置 MAXCONNECTIONS 值并重启实例"
 
   # ── 存储检查 ──────────────────────────────────────
@@ -95,8 +95,8 @@ rules:
     condition: "shmvirtsize < 1073741824"
     params:
       shmvirtsize: "${int(context.gbase_memory_config[0].cf_effective) if context.get('gbase_memory_config') and len(context.gbase_memory_config) > 0 and context.gbase_memory_config[0].get('cf_effective', '0').isdigit() else 9999999999}"
-    message: "SHMVIRTSIZE 仅为 {shmvirtsize_mb:.0f}MB，建议增加到 1GB 以上"
-    message_zh: "SHMVIRTSIZE 仅为 {shmvirtsize_mb:.0f}MB，建议增加到 1GB 以上"
+    message: "SHMVIRTSIZE 仅为 {shmvirtsize}，建议增加到 1GB 以上"
+    message_zh: "SHMVIRTSIZE 仅为 {shmvirtsize}，建议增加到 1GB 以上"
     fix_sql: "# 修改 onconfig 文件，设置 SHMVIRTSIZE 值并重启实例"
 
   # ── 安全检查 ──────────────────────────────────────
