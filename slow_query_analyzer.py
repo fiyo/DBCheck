@@ -801,6 +801,36 @@ class BaseSlowQueryAnalyzer:
                 print("⚠️ 慢查询 AI 诊断失败 [%s]: %s" % (self.DB_TYPE, e))
         return self._result
 
+    def collect(self, conn):
+        """子类实现：采集慢查询原始数据"""
+        raise NotImplementedError
+
+    def normalize(self, raw: dict) -> SlowQueryResult:
+        """子类实现：将原始数据标准化"""
+        raise NotImplementedError
+
+    def _exec_sql(self, conn, sql: str, fetch=True) -> list:
+        """执行 SQL 并返回结果字典列表"""
+        try:
+            cursor = conn.cursor()
+            cursor.execute(sql)
+            if fetch:
+                cols = [d[0] for d in cursor.description]
+                return [dict(zip(cols, row)) for row in cursor.fetchall()]
+            return []
+        except Exception as e:
+            # 权限不足或扩展未开启时打印具体错误再降级
+            import logging
+            logging.getLogger('slow_query').warning(
+                'SQL exec failed (db=%s): %s', self.db_type, str(e))
+            # psycopg2 在查询失败后事务进入 aborted 状态，必须回滚
+            # 否则后续所有 SQL 都会报 "current transaction is aborted"
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            return []
+
 
 def _split_diag_recommend(raw: str):
     """把 AI 慢查询输出拆成 (诊断分析, 处置建议)。
@@ -834,36 +864,6 @@ def _split_diag_recommend(raw: str):
     diag = text[:rec_start].strip()
     rec = text[rec_start:].strip()
     return diag, rec
-
-    def collect(self, conn):
-        """子类实现：采集慢查询原始数据"""
-        raise NotImplementedError
-
-    def normalize(self, raw: dict) -> SlowQueryResult:
-        """子类实现：将原始数据标准化"""
-        raise NotImplementedError
-
-    def _exec_sql(self, conn, sql: str, fetch=True) -> list:
-        """执行 SQL 并返回结果字典列表"""
-        try:
-            cursor = conn.cursor()
-            cursor.execute(sql)
-            if fetch:
-                cols = [d[0] for d in cursor.description]
-                return [dict(zip(cols, row)) for row in cursor.fetchall()]
-            return []
-        except Exception as e:
-            # 权限不足或扩展未开启时打印具体错误再降级
-            import logging
-            logging.getLogger('slow_query').warning(
-                'SQL exec failed (db=%s): %s', self.db_type, str(e))
-            # psycopg2 在查询失败后事务进入 aborted 状态，必须回滚
-            # 否则后续所有 SQL 都会报 "current transaction is aborted"
-            try:
-                conn.rollback()
-            except Exception:
-                pass
-            return []
 
 
 class MySQLSlowQueryAnalyzer(BaseSlowQueryAnalyzer):
