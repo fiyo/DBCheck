@@ -1,5 +1,8 @@
 # Changelog
 
+## v26.7.19.1 (2026-07-19)
+- **版本号统一**：各源文件版本标识 v26.7.17.1 → v26.7.19.1（version.py / version.json / Dockerfile / skill `dbcheck` `_meta` + `_skillhub_meta` + `scripts/version.py` / README + README_zh 徽章 / CHANGELOG 顶段）
+
 ## v26.7.17.1 (2026-07-17)
 - **版本号统一**：各源文件版本标识 v26.7.15.1 → v26.7.17.1（version.py / version.json / Dockerfile / skill `dbcheck` `_meta` + `_skillhub_meta` + `scripts/version.py` / README + README_zh 徽章 / CHANGELOG 顶段）
 - **合并 main → professional**：将 main 分支的容灾备份模块、NOTICE 合规声明、OceanBase 巡检全链路合并至 professional 分支
