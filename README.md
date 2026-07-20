@@ -1,5 +1,5 @@
 # DBCheck — Open-Source Intelligent Database Inspection Tool
-
+![logo](snapshot/dbcheck_logo_en.png)
 ![logo](snapshot/dbcheck_logo_info.png)
 
 DBCheck is an open-source, cross-platform database health inspection tool supporting **10 mainstream relational databases**. It automatically generates standardized Word inspection reports by executing predefined SQL checks and collecting system resources. Advanced features include a SQL editor, remote terminal, configurable inspection chapters, configuration baseline management, historical trend analysis, AI-powered smart diagnostics, index health analysis, in-depth slow query analysis, server inspection, shareable links, and masked data export.
@@ -430,15 +430,10 @@ Package as a single executable using PyInstaller:
 
 ```bash
 # Windows
-rd /s /q build dist __pycache__
-pyinstaller dbcheck.spec
-cd dist
-dbcheck.exe
+build/build_windows.bat
 
 # Linux
-pyinstaller build/dbcheck_linux.spec
-cd dist
-./dbcheck
+build/build_linux.sh
 ```
 
 ---
@@ -487,6 +482,7 @@ This project references the following works:
 
 - [Zhh9126/MySQLDBCHECK](https://github.com/Zhh9126/MySQLDBCHECK.git)
 - [Zhh9126/SQL-SERVER-CHECK](https://github.com/Zhh9126/SQL-SERVER-CHECK.git)
+- [MMCISAGOODMAN/autobackup](https://github.com/MMCISAGOODMAN/autobackup)
 
 ## Support the Project
 

@@ -1,5 +1,5 @@
 # DBCheck — 开源智能数据库巡检工具
-
+![logo](snapshot/dbcheck_logo_zh.png)
 ![logo](snapshot/dbcheck_logo_info.png)
 
 DBCheck 是一款开源、跨平台的数据库自动化健康巡检工具，支持 **10 种主流关系型数据库**，通过执行预定义的巡检 SQL 并采集系统资源，自动生成标准化的 Word 巡检报告。同时提供 SQL 编辑器、远程终端、可配置巡检章节、配置基线管理、历史趋势分析、AI 智能诊断、索引健康分析、慢查询深度分析、服务器巡检、分享链接、数据脱敏导出等高级功能。
@@ -426,15 +426,11 @@ curl -X POST http://localhost:5003/api/v1/inspect \
 
 ```bash
 # Windows
-rd /s /q build dist __pycache__
-pyinstaller dbcheck.spec
-cd dist
-dbcheck.exe
+build/build_windows.bat
 
 # Linux
-pyinstaller build/dbcheck_linux.spec
-cd dist
-./dbcheck
+chmod +x build/build_linux.sh
+build/build_linux.sh
 ```
 
 ---
@@ -483,6 +479,7 @@ A：内置阈值基于通用最佳实践，请结合实际业务评估。
 
 - [Zhh9126/MySQLDBCHECK](https://github.com/Zhh9126/MySQLDBCHECK.git)
 - [Zhh9126/SQL-SERVER-CHECK](https://github.com/Zhh9126/SQL-SERVER-CHECK.git)
+- [MMCISAGOODMAN/autobackup](https://github.com/MMCISAGOODMAN/autobackup)
 
 ## 支持项目
 
