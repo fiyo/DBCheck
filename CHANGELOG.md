@@ -1,5 +1,8 @@
 # Changelog
 
+## v26.7.21.1 (2026-07-20)
+- **版本号统一**：各源文件版本标识 v26.7.19.1 → v26.7.21.1（version.py / version.json / Dockerfile / skill `dbcheck` `_meta` + `_skillhub_meta` + `scripts/version.py` / README + README_zh 徽章 / CHANGELOG 顶段）
+
 ## v26.7.19.1 (2026-07-19)
 - **版本号统一**：各源文件版本标识 v26.7.15.1 → v26.7.19.1（version.py / version.json / Dockerfile / skill `dbcheck` `_meta` + `_skillhub_meta` + `scripts/version.py` / README + README_zh 徽章 / CHANGELOG 顶段）
 
