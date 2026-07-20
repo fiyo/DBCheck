@@ -1758,6 +1758,7 @@ EN = {
     "webui.ivorysql_report_filename": "IvorySQLInspection_{ip}_{name}_{ts}",
     "webui.yashandb_report_filename": "YashanDBInspection_{ip}_{name}_{ts}",
     "webui.oracle_jdbc_report_filename": "Oracle_JDBC_Inspection_{ip}_{name}_{ts}",
+    "webui.mongodb_report_filename": "MongoDB Inspection Report_{ip}_{name}_{ts}",
 
     # SQL Server CLI i18n
     "sqlserver.report_title": "SQL Server Database Health Inspection Report",

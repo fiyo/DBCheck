@@ -19,6 +19,7 @@ DBCheck 慢查询深度分析模块
   - Oracle 11g+   （AWR / v$sql / DBA_HIST_SQLTEXT）
   - SQL Server 2012+（sys.dm_exec_query_stats）
   - DM8           （v$sql / v$sql_plan）
+  - MongoDB 5.0+  （system.profile + $currentOp 聚合管道）
 
 核心类：
   SlowQueryAnalyzer    — 工厂类，根据 db_type 返回对应分析器
@@ -28,6 +29,7 @@ DBCheck 慢查询深度分析模块
   OracleSlowQueryAnalyzer
   SQLServerSlowQueryAnalyzer
   DMSlowQueryAnalyzer
+  MongoDBSlowQueryAnalyzer
 
 AI 诊断：
   利用现有 AIAdvisor（analyzer.py），自动注入慢查询指标，
@@ -36,6 +38,7 @@ AI 诊断：
 
 import time
 import re
+import json
 
 
 # ═══════════════════════════════════════════════════════════
@@ -1298,6 +1301,199 @@ class DMSlowQueryAnalyzer(BaseSlowQueryAnalyzer):
 #  5. 工厂函数
 # ═══════════════════════════════════════════════════════════
 
+# ═══════════════════════════════════════════════════
+#  5. MongoDB 慢查询分析器
+# ═══════════════════════════════════════════════════
+
+def _mongo_to_num(v):
+    """把 MongoDB 返回的值尽量转为数字；失败返回 0。"""
+    if v is None:
+        return 0
+    if isinstance(v, (int, float)):
+        return v
+    try:
+        s = str(v).strip().replace(',', '')
+        if '.' in s:
+            return float(s)
+        return int(s)
+    except (ValueError, TypeError):
+        return 0
+
+
+class MongoDBSlowQueryAnalyzer(BaseSlowQueryAnalyzer):
+    """
+    MongoDB 慢查询深度分析器（5.0+）。
+
+    数据采集来源（按优先级）：
+      1. system.profile 集合：当数据库 Profiler 开启（level>=1）时，
+         聚合 Top N 慢操作（millis > 10），覆盖 ns / op / query / command /
+         planSummary / 锁耗时 / 扫描行数等。
+      2. db.currentOp({secs_running: {$gt: 10}}) 兜底：当 Profiler 未开启
+         或 system.profile 不可用时，采集当前正在执行的慢操作。
+
+    collect(conn) 接收 pymongo.MongoClient（鸭子类型，不改基类签名），
+    与 OceanBase 复用 MySQL 分析器、MariaDB 复用 MySQL 分析器的风格一致。
+    """
+
+    DB_TYPE = 'mongodb'
+
+    def collect(self, conn) -> dict:
+        """采集 MongoDB 慢查询原始数据。
+
+        Args:
+            conn: pymongo.MongoClient 实例（鸭子类型）
+
+        Returns:
+            {
+                'profile_docs': [...],   # system.profile 慢操作文档
+                'current_op':    [...],   # currentOp 兜底得到的慢操作
+            }
+        """
+        result = {'profile_docs': [], 'current_op': []}
+        if conn is None:
+            return result
+
+        client = conn
+
+        # ── 1) 优先尝试 system.profile（Profiler 开启时）──
+        try:
+            try:
+                db_names = client.list_database_names()
+            except Exception:
+                db_names = ['admin']
+            for db_name in db_names:
+                if db_name in ('local', 'config', 'admin'):
+                    continue
+                try:
+                    cdb = client[db_name]
+                    if 'system.profile' not in cdb.list_collection_names():
+                        continue
+                    info = cdb.command('profile', -1)
+                    if int(info.get('was') or 0) < 1:
+                        continue
+                    pipeline = [
+                        {'$match': {'millis': {'$gt': 10}}},
+                        {'$sort': {'millis': -1}},
+                        {'$limit': 20},
+                    ]
+                    for doc in cdb['system.profile'].aggregate(pipeline):
+                        doc = dict(doc)
+                        doc['_db'] = db_name
+                        result['profile_docs'].append(doc)
+                except Exception:
+                    continue
+            result['profile_docs'].sort(
+                key=lambda d: _mongo_to_num(d.get('millis')), reverse=True)
+        except Exception:
+            result['profile_docs'] = []
+
+        # ── 2) currentOp 兜底（Profiler 未开启时）──
+        if not result['profile_docs']:
+            try:
+                ops = client.admin.command(
+                    'currentOp', {'secs_running': {'$gt': 10}})
+                inprog = ops.get('inprog', []) if isinstance(ops, dict) else []
+                for op in inprog:
+                    result['current_op'].append(dict(op))
+            except Exception:
+                result['current_op'] = []
+        return result
+
+    @staticmethod
+    def _doc_text(doc: dict) -> str:
+        """从 system.profile 文档提取可读的查询文本。"""
+        if not doc:
+            return ''
+        for key in ('command', 'query'):
+            v = doc.get(key)
+            if v:
+                try:
+                    return json.dumps(v, default=str, ensure_ascii=False)[:400]
+                except Exception:
+                    return str(v)[:400]
+        if 'planSummary' in doc:
+            return str(doc.get('planSummary', ''))[:400]
+        return str(doc.get('op', ''))[:400]
+
+    @staticmethod
+    def _op_text(op: dict) -> str:
+        """从 currentOp 文档提取可读的查询文本。"""
+        if not op:
+            return ''
+        for key in ('command', 'query', 'planSummary'):
+            v = op.get(key)
+            if v:
+                try:
+                    return json.dumps(v, default=str, ensure_ascii=False)[:400]
+                except Exception:
+                    return str(v)[:400]
+        return str(op.get('op', ''))[:400]
+
+    def normalize(self, raw: dict) -> SlowQueryResult:
+        r = SlowQueryResult('mongodb')
+        docs = raw.get('profile_docs', []) or []
+        ops = raw.get('current_op', []) or []
+        r.extension_available['profiler'] = len(docs) > 0
+
+        # Top by latency：来自 system.profile
+        for doc in docs:
+            lock = doc.get('lockStats')
+            lock_ms = 0.0
+            if isinstance(lock, dict):
+                t = lock.get('timeLockedMicros', {})
+                if isinstance(t, dict):
+                    lock_ms = _mongo_to_num(t.get('total', 0)) / 1000.0
+            r.top_sql_by_latency.append({
+                'query_text': self._doc_text(doc),
+                'exec_ms': _mongo_to_num(doc.get('millis')),
+                'lock_ms': round(lock_ms, 3),
+                'rows_examined': _mongo_to_num(
+                    doc.get('docsExamined', doc.get('keysExamined', 0))),
+                'rows_sent': _mongo_to_num(doc.get('nreturned', 0)),
+                'ns': doc.get('ns', ''),
+                'op': doc.get('op', ''),
+                'plan_summary': doc.get('planSummary', ''),
+            })
+
+        # 当前正在执行的慢操作：来自 currentOp
+        for op in ops:
+            r.slow_queries_current.append({
+                'opid': op.get('opid') or op.get('opId'),
+                'query_text': self._op_text(op),
+                'exec_ms': _mongo_to_num(op.get('secs_running', 0)) * 1000.0,
+                'ns': op.get('ns', ''),
+                'op': op.get('op', ''),
+                'client': str(op.get('client', '')),
+                'desc': op.get('desc', ''),
+            })
+
+        if r.top_sql_by_latency or r.slow_queries_current:
+            r.summary = {
+                'total_profiled': len(r.top_sql_by_latency),
+                'current_long_running': len(r.slow_queries_current),
+                'profiler_enabled': r.extension_available['profiler'],
+            }
+        return r
+
+
+# ═══════════════════════════════════════════════════
+#  6. 工厂函数
+# ═══════════════════════════════════════════════════
+
+# 慢查询分析器工厂表：db_type -> 分析器类。
+# 单一事实来源（get_slow_query_analyzer 也引用此表）。
+SLOW_QUERY_ANALYZERS = {
+    'mysql':     MySQLSlowQueryAnalyzer,
+    'mariadb':   MySQLSlowQueryAnalyzer,  # MariaDB 复用 MySQL 慢查询分析器（协议兼容）
+    'oceanbase': OceanBaseSlowQueryAnalyzer,  # OceanBase MySQL 租户走 GV$OB_SQL_AUDIT
+    'pg':        PGSlowQueryAnalyzer,
+    'oracle':    OracleSlowQueryAnalyzer,
+    'sqlserver': SQLServerSlowQueryAnalyzer,
+    'dm':        DMSlowQueryAnalyzer,
+    'mongodb':   MongoDBSlowQueryAnalyzer,
+}
+
+
 def get_slow_query_analyzer(db_type: str) -> BaseSlowQueryAnalyzer:
     """
     根据数据库类型返回对应的慢查询分析器。
@@ -1305,16 +1501,7 @@ def get_slow_query_analyzer(db_type: str) -> BaseSlowQueryAnalyzer:
     :param db_type: 'mysql' | 'pg' | 'oracle' | 'sqlserver' | 'dm'
     :return: 对应数据库的 BaseSlowQueryAnalyzer 子类实例
     """
-    TABLE = {
-        'mysql':     MySQLSlowQueryAnalyzer,
-        'mariadb':   MySQLSlowQueryAnalyzer,  # MariaDB 复用 MySQL 慢查询分析器（协议兼容）
-        'oceanbase': OceanBaseSlowQueryAnalyzer,  # OceanBase MySQL 租户走 GV$OB_SQL_AUDIT
-        'pg':        PGSlowQueryAnalyzer,
-        'oracle':    OracleSlowQueryAnalyzer,
-        'sqlserver': SQLServerSlowQueryAnalyzer,
-        'dm':        DMSlowQueryAnalyzer,
-    }
-    cls = TABLE.get(db_type.lower())
+    cls = SLOW_QUERY_ANALYZERS.get(str(db_type).lower())
     if cls is None:
         raise ValueError(f"Unsupported db_type for slow query analysis: {db_type}")
     return cls()

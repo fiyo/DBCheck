@@ -1738,7 +1738,14 @@ Format requirement (output Markdown directly, no prefixes like "Here are"):
         # 使用较长超时（300s），避免首次加载模型时冷启动超时；qwen3:30b 等大模型加载时间可达数分钟
         with urllib.request.urlopen(req, timeout=max(timeout, 300)) as resp:
             data = _json.loads(resp.read().decode('utf-8'))
-            raw = data.get('response', '').strip()
+            # 空值安全：本地模型（qwen/deepseek 等）在异常场景下可能返回显式 null
+            raw = data.get('response')
+            if raw is None:
+                print(f"[WARN] AI 诊断返回空内容（{self.backend}），跳过")
+                raw = ''
+            elif not isinstance(raw, str):
+                raw = str(raw)
+            raw = raw.strip()
             # 过滤 qwen3 的 thinking 残留（如果 think:false 未生效）
             import re
             raw = re.sub(r'<\|reserved_for_thinking\|>[\s\S]*?<\|end_of_thought\|>', '', raw)
@@ -1775,7 +1782,14 @@ Format requirement (output Markdown directly, no prefixes like "Here are"):
             # OpenAI 协议响应格式: choices[0].message.content
             choices = data.get('choices', [])
             if choices:
-                return choices[0].get('message', {}).get('content', '').strip()
+                message = choices[0].get('message') or {}
+                content = message.get('content')
+                if content is None:
+                    print(f"[WARN] AI 诊断返回空内容（{self.backend}），跳过")
+                    content = ''
+                elif not isinstance(content, str):
+                    content = str(content)
+                return content.strip()
             return ''
 
 
@@ -2248,6 +2262,21 @@ def smart_analyze_gbase(context: dict) -> list:
         })
 
     return issues
+
+
+def smart_analyze_mongodb(context: dict) -> list:
+    """MongoDB 智能风险分析：运行 mongodb.yaml 内置规则（80 条，db_types=[mongodb]）。
+
+    与 mysql/pg 等一致，规则主体放在插件规则引擎（pro/rules/builtin/mongodb.yaml），
+    此处仅负责调用 analyze_with_plugins 汇总规则命中项。
+    """
+    try:
+        from pro.rule_engine import analyze_with_plugins
+        plugin_issues = analyze_with_plugins('mongodb', context)
+    except Exception as e:
+        print(f"[WARN] smart_analyze_mongodb plugin rules failed: {e}")
+        plugin_issues = []
+    return plugin_issues
 
 
 # ═══════════════════════════════════════════════════════

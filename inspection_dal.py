@@ -1880,21 +1880,9 @@ def init_default_baselines(db_path: str = None):
             {'param_name': 'LONGTX', 'query_sql': "SELECT cf_name, cf_effective FROM sysconfig WHERE cf_name = 'LONGTX'", 'operator': '<=', 'expected_value': '300', 'risk_level': 'MEDIUM', 'description_zh': '长事务超时应 <= 300 秒', 'description_en': 'LONGTX should be <= 300 seconds'},
         ],
         # ══════════════════════════════════════════
-        # MongoDB
+        # MongoDB — 基线配置已迁移至插件目录 baselines.json
+        # 插件 _check_baselines() 通过 getParameter 批量获取，不再使用此处定义
         # ══════════════════════════════════════════
-        'mongodb': [
-            # ── 安全 ──
-            {'param_name': 'authenticationMechanisms', 'query_sql': "db.runCommand({getParameter: 1, authenticationMechanisms: 1})", 'operator': 'LIKE', 'expected_value': 'SCRAM-SHA-256', 'risk_level': 'HIGH', 'description_zh': '认证机制应包含 SCRAM-SHA-256', 'description_en': 'Authentication mechanisms should include SCRAM-SHA-256'},
-            {'param_name': 'enableLocalhostAuthBypass', 'query_sql': "db.runCommand({getParameter: 1, enableLocalhostAuthBypass: 1})", 'operator': '=', 'expected_value': 'false', 'risk_level': 'HIGH', 'description_zh': '应禁用 localhost 认证绕过', 'description_en': 'localhost auth bypass should be disabled'},
-            # ── 性能 ──
-            {'param_name': 'maxConnections', 'query_sql': "db.serverStatus().connections.available", 'operator': '>=', 'expected_value': '500', 'risk_level': 'MEDIUM', 'description_zh': '最大连接数应 >= 500', 'description_en': 'maxConnections should be >= 500'},
-            {'param_name': 'wiredTigerCacheSizeGB', 'query_sql': "db.serverStatus().wiredTiger.cache['maximum bytes configured']", 'operator': '>=', 'expected_value': '1073741824', 'risk_level': 'MEDIUM', 'description_zh': 'WiredTiger 缓存大小应 >= 1GB', 'description_en': 'WiredTiger cache size should be >= 1GB'},
-            # ── 高可用 ──
-            {'param_name': 'writeConcernMajorityJournalDefault', 'query_sql': "db.runCommand({getParameter: 1, writeConcernMajorityJournalDefault: 1})", 'operator': '=', 'expected_value': 'true', 'risk_level': 'HIGH', 'description_zh': 'majority write concern 应等待 journal 落盘', 'description_en': 'writeConcernMajorityJournalDefault should be true'},
-            # ── 运维 ──
-            {'param_name': 'logLevel', 'query_sql': "db.runCommand({getParameter: 1, logLevel: 1})", 'operator': '<=', 'expected_value': '0', 'risk_level': 'LOW', 'description_zh': '日志级别应 <= 0', 'description_en': 'Log level should be <= 0'},
-            {'param_name': 'slowOpThresholdMs', 'query_sql': "db.runCommand({getParameter: 1, slowOpThresholdMs: 1})", 'operator': '<=', 'expected_value': '100', 'risk_level': 'LOW', 'description_zh': '慢查询阈值应 <= 100ms', 'description_en': 'Slow operation threshold should be <= 100ms'},
-        ],
         # ═════════════════════════════════════════
         # Oracle JDBC（复用 Oracle 基线配置）
         # ═════════════════════════════════════════

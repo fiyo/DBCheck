@@ -5,6 +5,9 @@
 为 MongoDB 在 inspection.db 中创建模板和章节
 读取 plugins/available/mongodb/sql_templates.json 配置
 支持 --force 参数强制重新创建
+
+v2.0: 适配新章节结构（12+ 章节、20+ 采集项）
+支持 category / condition 字段传递
 """
 
 import os
@@ -98,6 +101,7 @@ def init_mongodb_template(db_path=DEFAULT_DB_PATH, plugin_dir=None, force=False)
         db_type="mongodb",
         template_name="MongoDB 默认巡检模板",
         template_name_en="MongoDB Default Inspection Template",
+        is_default=1,
         db_path=db_path
     )
     print(f"[OK] 已创建模板（ID: {template_id}）")
@@ -119,11 +123,20 @@ def init_mongodb_template(db_path=DEFAULT_DB_PATH, plugin_dir=None, force=False)
         
         # 创建查询
         for idx, q_data in enumerate(ch_data.get('queries', []), 1):
+            # v2.0: 支持 category / condition 字段（拼入 query_description）
+            desc_zh = q_data.get('desc_zh', '')
+            category = q_data.get('category', '')
+            condition = q_data.get('condition', '')
+            if category:
+                desc_zh = f"[{category}] {desc_zh}" if desc_zh else f"[{category}]"
+            if condition:
+                desc_zh = f"{desc_zh} (条件: {condition})" if desc_zh else f"条件: {condition}"
+
             query_id = create_query(
                 chapter_id=chapter_id,
                 query_key=q_data['key'],
                 query_sql=q_data.get('command', ''),  # MongoDB 使用 command 而不是 query_sql
-                query_description_zh=q_data.get('desc_zh', ''),
+                query_description_zh=desc_zh,
                 query_description_en=q_data.get('desc_en', ''),
                 sort_order=q_data.get('sort_order', idx),
                 db_path=db_path

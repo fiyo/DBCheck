@@ -640,6 +640,8 @@ async function executeFixSql(taskId, sql) {
   margin-left: 4px;
   vertical-align: middle;
 }
+.type-card .compat-tag-mysql { background: #2196f3; }
+.type-card .compat-tag-nosql { background: #00ED64; color: #001e2b; }
 .type-card .tc-desc {
   font-size: 11px; color: var(--text-muted); line-height: 1.35;
 }
@@ -3582,9 +3584,9 @@ function formatBytes(bytes) {
               return;
             }
             listEl.innerHTML = list.map(ds => {
-              const dbIcons = {mysql:'🐬', mariadb:'🐬', oceanbase:'🐋', pg:'🐘', oracle:'🔴', oracle_jdbc:'🔴', dm:'🟡', sqlserver:'🟠', tidb:'🟢', ivorysql:'🐘', kingbase:'🐘', gbase:'🟢'};
+              const dbIcons = {mysql:'🐬', mariadb:'🐬', oceanbase:'🐋', pg:'🐘', oracle:'🔴', oracle_jdbc:'🔴', dm:'🟡', sqlserver:'🟠', tidb:'🟢', ivorysql:'🐘', kingbase:'🐘', gbase:'🟢', mongodb:'🍃'};
               const icon = dbIcons[ds.db_type] || '🗄️';
-              const dbLogos = {oceanbase:'/oceanbase.png'};
+              const dbLogos = {oceanbase:'/oceanbase.png', mongodb:'/plugin-logo/mongodb'};
               const logo = dbLogos[ds.db_type];
               const iconHtml = logo
                 ? '<img src="' + logo + '" alt="' + (ds.db_type||'') + '" style="width:14px;height:14px;object-fit:contain;vertical-align:middle" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'inline\'"><span style="display:none">' + icon + '</span>'
@@ -3762,6 +3764,44 @@ function formatBytes(bytes) {
                 '<span style="font-size:13px;color:var(--text-muted)">' + i18n('webui.checkbox_sysdba') + '</span></label></div>' +
               '<div id="ds-jdbc-url-wrap" style="display:none"><label id="ds-jdbc-url-label" style="font-size:12px;color:var(--text-muted)">JDBC URL <span style="color:var(--text-muted);font-weight:normal">（可选，留空则使用上方主机/端口/服务名）</span></label>' +
                 '<input id="ds-jdbc-url" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="jdbc:oracle:thin:@//host:1521/ORCLCDB 或 @host:1521:ORCL"></div>' +
+              '<div id="ds-mongo-wrap" style="display:none">' +
+                '<label style="font-size:13px;font-weight:600;color:var(--text);margin-top:6px;display:block">MongoDB 连接配置</label>' +
+                '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px">' +
+                  '<div><label style="font-size:12px;color:var(--text-muted)">连接模式</label>' +
+                    '<select id="ds-mongo-connect-mode" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px">' +
+                      '<option value="standard">标准连接 (mongodb://)</option>' +
+                      '<option value="srv">SRV 连接 (mongodb+srv://)</option>' +
+                    '</select></div>' +
+                  '<div><label style="font-size:12px;color:var(--text-muted)">认证源 (authSource)</label>' +
+                    '<input id="ds-mongo-auth-source" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="admin"></div>' +
+                  '<div><label style="font-size:12px;color:var(--text-muted)">认证机制 (authMechanism)</label>' +
+                    '<select id="ds-mongo-auth-mechanism" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px">' +
+                      '<option value="">默认 (自动协商)</option>' +
+                      '<option value="SCRAM-SHA-256">SCRAM-SHA-256</option>' +
+                      '<option value="SCRAM-SHA-1">SCRAM-SHA-1</option>' +
+                    '</select></div>' +
+                  '<div><label style="font-size:12px;color:var(--text-muted)">副本集名称 (可选)</label>' +
+                    '<input id="ds-mongo-replica-set" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="rs0"></div>' +
+                '</div>' +
+                '<div style="margin-top:8px">' +
+                  '<label style="display:flex;align-items:center;gap:6px;cursor:pointer">' +
+                    '<input type="checkbox" id="ds-mongo-tls" onchange="document.getElementById(\'ds-mongo-tls-detail\').style.display=this.checked?\'grid\':\'none\'" />' +
+                    '<span style="font-size:13px;color:var(--text-muted)">启用 TLS/SSL 加密连接</span>' +
+                  '</label>' +
+                '</div>' +
+                '<div id="ds-mongo-tls-detail" style="display:none;margin-top:8px;grid-template-columns:1fr 1fr;gap:8px">' +
+                  '<div><label style="font-size:12px;color:var(--text-muted)">CA 证书路径 (tlsCAFile)</label>' +
+                    '<input type="text" id="ds-mongo-tls-ca" placeholder="/path/to/ca.pem" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface2)"></div>' +
+                  '<div><label style="font-size:12px;color:var(--text-muted)">客户端证书路径 (tlsCertificateKeyFile)</label>' +
+                    '<input type="text" id="ds-mongo-tls-cert" placeholder="/path/to/client.pem" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface2)"></div>' +
+                  '<div style="grid-column:span 2">' +
+                    '<label style="display:flex;align-items:center;gap:6px;cursor:pointer">' +
+                      '<input type="checkbox" id="ds-mongo-tls-allow-invalid" />' +
+                      '<span style="font-size:12px;color:var(--text-muted)">允许无效证书 (仅测试环境)</span>' +
+                    '</label>' +
+                  '</div>' +
+                '</div>' +
+              '</div>' +
               '<div><label style="font-size:12px;color:var(--text-muted)">' + i18n('webui.pro_ds_group') + '</label>' +
                 '<select id="ds-group" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px">' +
                 '<option value="default">default</option></select></div>' +
@@ -3830,8 +3870,8 @@ function formatBytes(bytes) {
         // 优先从 data 属性读取（插件类型），其次用硬编码映射
         const defaultPort = opt?.getAttribute('data-port') || '';
         const defaultUser = opt?.getAttribute('data-user') || '';
-        const portMap = {mysql:3306, mariadb:3306, oceanbase:2881, pg:5432, dm:5236, oracle:1521, oracle_jdbc:1521, sqlserver:1433, tidb:4000, ivorysql:5432, yashandb:1688, kingbase:54321, gbase:9088};
-        const userMap = {mysql:'root', mariadb:'root', oceanbase:'root@test', pg:'postgres', dm:'SYSDBA', oracle:'system', oracle_jdbc:'system', sqlserver:'sa', tidb:'root', ivorysql:'postgres', yashandb:'sys', kingbase:'kingbase', gbase:'gbasedbt'};
+        const portMap = {mysql:3306, mariadb:3306, oceanbase:2881, pg:5432, dm:5236, oracle:1521, oracle_jdbc:1521, sqlserver:1433, tidb:4000, ivorysql:5432, yashandb:1688, kingbase:54321, gbase:9088, mongodb:27017};
+        const userMap = {mysql:'root', mariadb:'root', oceanbase:'root@test', pg:'postgres', dm:'SYSDBA', oracle:'system', oracle_jdbc:'system', sqlserver:'sa', tidb:'root', ivorysql:'postgres', yashandb:'sys', kingbase:'kingbase', gbase:'gbasedbt', mongodb:''};
         document.getElementById('ds-port').value = (defaultPort && parseInt(defaultPort)) || portMap[dbType] || 3306;
         const userEl = document.getElementById('ds-user');
         if (dbType !== _currentDbType || !userEl.value) {
@@ -3873,6 +3913,9 @@ function formatBytes(bytes) {
         if (dbLabel) {
           dbLabel.textContent = (dbType === 'gbase') ? i18n('webui.pro_ds_database_gbase') : i18n('webui.pro_ds_database');
         }
+        // MongoDB 专用配置区块显隐
+        var mongoWrap = document.getElementById('ds-mongo-wrap');
+        if (mongoWrap) mongoWrap.style.display = (dbType === 'mongodb') ? '' : 'none';
       }
 
       function toggleDsSsh() {
@@ -3916,11 +3959,22 @@ function formatBytes(bytes) {
         if (!user) { msgEl.style.color = 'var(--danger)'; msgEl.textContent = '❌ 请输入用户名'; return; }
         msgEl.style.color = 'var(--text-muted)';
         msgEl.textContent = '⏳ 测试连接中...';
+        // MongoDB 专用字段
+        const mongoEl = (id) => document.getElementById(id);
+        const mongoConnectMode = mongoEl('ds-mongo-connect-mode') ? mongoEl('ds-mongo-connect-mode').value : 'standard';
+        const mongoAuthSource = mongoEl('ds-mongo-auth-source') ? mongoEl('ds-mongo-auth-source').value.trim() : 'admin';
+        const mongoAuthMechanism = mongoEl('ds-mongo-auth-mechanism') ? mongoEl('ds-mongo-auth-mechanism').value : '';
+        const mongoReplicaSet = mongoEl('ds-mongo-replica-set') ? mongoEl('ds-mongo-replica-set').value.trim() : '';
+        const mongoTls = mongoEl('ds-mongo-tls') ? mongoEl('ds-mongo-tls').checked : false;
+        const mongoTlsCa = mongoEl('ds-mongo-tls-ca') ? mongoEl('ds-mongo-tls-ca').value.trim() : '';
+        const mongoTlsCert = mongoEl('ds-mongo-tls-cert') ? mongoEl('ds-mongo-tls-cert').value.trim() : '';
+        const mongoTlsAllowInvalid = mongoEl('ds-mongo-tls-allow-invalid') ? mongoEl('ds-mongo-tls-allow-invalid').checked : false;
         try {
           const res = await fetch('/api/pro/datasources/test-connection', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ db_type: dbType, host, port: parseInt(port), user, password, service_name: svcName, database: dbName, tenant: tenant, sysdba, jdbc_url: jdbcUrl, gbase_server_name: gbaseServer, ssh_host: sshHost, ssh_port: parseInt(sshPort), ssh_user: sshUser, ssh_password: sshPass })
+            body: JSON.stringify({ db_type: dbType, host, port: parseInt(port), user, password, service_name: svcName, database: dbName, tenant: tenant, sysdba, jdbc_url: jdbcUrl, gbase_server_name: gbaseServer, ssh_host: sshHost, ssh_port: parseInt(sshPort), ssh_user: sshUser, ssh_password: sshPass,
+              connect_mode: mongoConnectMode, auth_source: mongoAuthSource, auth_mechanism: mongoAuthMechanism, replica_set: mongoReplicaSet, tls: mongoTls, tls_ca_file: mongoTlsCa, tls_cert_key_file: mongoTlsCert, tls_allow_invalid_certs: mongoTlsAllowInvalid })
           });
           const data = await res.json();
           msgEl.style.color = data.ok ? 'var(--success)' : 'var(--danger)';
@@ -3964,6 +4018,16 @@ function formatBytes(bytes) {
         if (payload.db_type === 'oceanbase') {
           payload.database = document.getElementById('ds-database').value.trim();
           payload.tenant = document.getElementById('ds-tenant').value.trim();
+        }
+        if (payload.db_type === 'mongodb') {
+          payload.connect_mode = document.getElementById('ds-mongo-connect-mode').value;
+          payload.auth_source = document.getElementById('ds-mongo-auth-source').value.trim();
+          payload.auth_mechanism = document.getElementById('ds-mongo-auth-mechanism').value;
+          payload.replica_set = document.getElementById('ds-mongo-replica-set').value.trim();
+          payload.tls = document.getElementById('ds-mongo-tls').checked;
+          payload.tls_ca_file = document.getElementById('ds-mongo-tls-ca').value.trim();
+          payload.tls_cert_key_file = document.getElementById('ds-mongo-tls-cert').value.trim();
+          payload.tls_allow_invalid_certs = document.getElementById('ds-mongo-tls-allow-invalid').checked;
         }
         if (!payload.name || !payload.host || !payload.user) {
           msgEl.style.color = 'var(--danger)';
@@ -4035,6 +4099,17 @@ function formatBytes(bytes) {
               if (ds.db_type === 'oceanbase') {
                 document.getElementById('ds-database').value = ds.database || '';
                 document.getElementById('ds-tenant').value = ds.tenant || '';
+              }
+              if (ds.db_type === 'mongodb') {
+                document.getElementById('ds-mongo-connect-mode').value = ds.connect_mode || 'standard';
+                document.getElementById('ds-mongo-auth-source').value = ds.auth_source || 'admin';
+                document.getElementById('ds-mongo-auth-mechanism').value = ds.auth_mechanism || '';
+                document.getElementById('ds-mongo-replica-set').value = ds.replica_set || '';
+                document.getElementById('ds-mongo-tls').checked = !!ds.tls;
+                document.getElementById('ds-mongo-tls-ca').value = ds.tls_ca_file || '';
+                document.getElementById('ds-mongo-tls-cert').value = ds.tls_cert_key_file || '';
+                document.getElementById('ds-mongo-tls-allow-invalid').checked = !!ds.tls_allow_invalid_certs;
+                document.getElementById('ds-mongo-tls-detail').style.display = ds.tls ? 'grid' : 'none';
               }
               if (ds.db_type === 'oracle' || ds.db_type === 'oracle_jdbc') {
                 document.getElementById('ds-service-name').value = ds.service_name || '';
@@ -4668,6 +4743,61 @@ function formatBytes(bytes) {
             <div class="field full" id="f-jdbc-url-wrap" style="display:none">
               <label><span id="f-jdbc-url-label">JDBC URL</span> <span id="f-jdbc-url-hint" class="opt" style="font-weight:normal;color:var(--text-muted)">可选，留空则使用上方主机/端口/服务名</span></label>
               <input type="text" id="f-jdbc-url" placeholder="jdbc:oracle:thin:@//host:1521/ORCLCDB 或 @host:1521:ORCL" />
+            </div>
+            <!-- MongoDB 专用字段 -->
+            <div class="field full" id="f-mongo-wrap" style="display:none">
+              <label><span>MongoDB 连接配置</span> <span class="opt" style="font-weight:normal;color:var(--text-muted)">NoSQL</span></label>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px">
+                <div>
+                  <label style="font-size:12px;color:var(--text-muted)">连接模式</label>
+                  <select id="f-mongo-connect-mode" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg-card)">
+                    <option value="standard">标准连接 (mongodb://)</option>
+                    <option value="srv">SRV 连接 (mongodb+srv://)</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="font-size:12px;color:var(--text-muted)">数据库 (默认 admin)</label>
+                  <input type="text" id="f-mongo-database" placeholder="admin" value="admin" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg-card)" />
+                </div>
+                <div>
+                  <label style="font-size:12px;color:var(--text-muted)">认证源 (authSource)</label>
+                  <input type="text" id="f-mongo-auth-source" placeholder="admin" value="admin" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg-card)" />
+                </div>
+                <div>
+                  <label style="font-size:12px;color:var(--text-muted)">认证机制 (authMechanism)</label>
+                  <select id="f-mongo-auth-mechanism" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg-card)">
+                    <option value="">默认 (自动协商)</option>
+                    <option value="SCRAM-SHA-256">SCRAM-SHA-256 (推荐)</option>
+                    <option value="SCRAM-SHA-1">SCRAM-SHA-1</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="font-size:12px;color:var(--text-muted)">副本集名称 (可选)</label>
+                  <input type="text" id="f-mongo-replica-set" placeholder="rs0" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg-card)" />
+                </div>
+              </div>
+              <div style="margin-top:8px">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                  <input type="checkbox" id="f-mongo-tls" onchange="document.getElementById('f-mongo-tls-detail').style.display=this.checked?'':'none'" />
+                  <span style="font-size:13px;color:var(--text-muted)">启用 TLS/SSL 加密连接</span>
+                </label>
+              </div>
+              <div id="f-mongo-tls-detail" style="display:none;margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                <div>
+                  <label style="font-size:12px;color:var(--text-muted)">CA 证书路径 (tlsCAFile)</label>
+                  <input type="text" id="f-mongo-tls-ca" placeholder="/path/to/ca.pem" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg-card)" />
+                </div>
+                <div>
+                  <label style="font-size:12px;color:var(--text-muted)">客户端证书路径 (tlsCertificateKeyFile)</label>
+                  <input type="text" id="f-mongo-tls-cert" placeholder="/path/to/client.pem" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg-card)" />
+                </div>
+                <div style="grid-column:span 2">
+                  <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                    <input type="checkbox" id="f-mongo-tls-allow-invalid" />
+                    <span style="font-size:12px;color:var(--text-muted)">允许无效证书 (仅测试环境)</span>
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
           <div id="db-test-status" style="margin-top:12px"></div>
@@ -7944,6 +8074,20 @@ async function selectDbType(type, skipReload) {
   document.getElementById('f-user').value = dbInfo.user || 'root';
   document.getElementById('f-database-wrap').style.display = (type === 'pg' || type === 'ivorysql' || type === 'kingbase' || type === 'gbase' || type === 'oceanbase') ? '' : 'none';
   document.getElementById('f-tenant-wrap').style.display = (type === 'oceanbase') ? '' : 'none';
+  // MongoDB 专用字段显示/隐藏
+  var mongoWrap = document.getElementById('f-mongo-wrap');
+  if (mongoWrap) mongoWrap.style.display = (type === 'mongodb') ? '' : 'none';
+  // MongoDB SRV 模式下隐藏端口
+  var mongoConnMode = document.getElementById('f-mongo-connect-mode');
+  var portField = document.getElementById('f-port');
+  if (mongoConnMode && type === 'mongodb') {
+    var updatePortVisibility = function() {
+      var portWrap = portField ? portField.parentElement : null;
+      if (portWrap) portWrap.style.display = (mongoConnMode.value === 'srv') ? 'none' : '';
+    };
+    mongoConnMode.onchange = updatePortVisibility;
+    updatePortVisibility();
+  }
   // Oracle全面巡检：显示服务名输入框
   var svcWrap = document.getElementById('f-service-wrap');
   if (svcWrap) svcWrap.style.display = (type === 'oracle' || type === 'oracle_jdbc') ? '' : 'none';
@@ -8044,14 +8188,23 @@ async function testDb() {
       body: JSON.stringify({
         db_type: dbType,
         host:     host,
-        port:     parseInt(document.getElementById('f-port').value) || (dbType==='oracle'?1521:(dbType==='mysql'?3306:5432)),
+        port:     parseInt(document.getElementById('f-port').value) || (dbType==='oracle'?1521:(dbType==='mysql'?3306:(dbType==='mongodb'?27017:5432))),
         user:     user,
         password: document.getElementById('f-password').value,
-        database: (dbType === 'pg' || dbType === 'ivorysql') ? (document.getElementById('f-database').value.trim() || 'postgres') : (dbType === 'kingbase') ? (document.getElementById('f-database').value.trim() || 'kingbase') : (dbType === 'gbase') ? (document.getElementById('f-database').value.trim() || 'sysmaster') : (dbType === 'oceanbase') ? (document.getElementById('f-database').value.trim() || '') : (document.getElementById('f-database').value.trim() || ''),
+        database: (dbType === 'pg' || dbType === 'ivorysql') ? (document.getElementById('f-database').value.trim() || 'postgres') : (dbType === 'kingbase') ? (document.getElementById('f-database').value.trim() || 'kingbase') : (dbType === 'gbase') ? (document.getElementById('f-database').value.trim() || 'sysmaster') : (dbType === 'oceanbase') ? (document.getElementById('f-database').value.trim() || '') : (dbType === 'mongodb') ? (document.getElementById('f-mongo-database')?.value.trim() || 'admin') : (document.getElementById('f-database').value.trim() || ''),
         tenant:   (dbType === 'oceanbase') ? (document.getElementById('f-tenant').value.trim() || '') : '',
         service_name: document.getElementById('f-service-name') ? document.getElementById('f-service-name').value.trim() : null,
         sysdba: document.getElementById('f-sysdba').checked,
         jdbc_url: document.getElementById('f-jdbc-url')?.value.trim() || null,
+        // MongoDB 专用参数
+        connect_mode: (dbType === 'mongodb') ? (document.getElementById('f-mongo-connect-mode')?.value || 'standard') : undefined,
+        auth_source: (dbType === 'mongodb') ? (document.getElementById('f-mongo-auth-source')?.value.trim() || 'admin') : undefined,
+        auth_mechanism: (dbType === 'mongodb') ? (document.getElementById('f-mongo-auth-mechanism')?.value || '') : undefined,
+        replica_set: (dbType === 'mongodb') ? (document.getElementById('f-mongo-replica-set')?.value.trim() || '') : undefined,
+        tls: (dbType === 'mongodb') ? document.getElementById('f-mongo-tls')?.checked : undefined,
+        tls_ca_file: (dbType === 'mongodb' && document.getElementById('f-mongo-tls')?.checked) ? (document.getElementById('f-mongo-tls-ca')?.value.trim() || '') : undefined,
+        tls_cert_key_file: (dbType === 'mongodb' && document.getElementById('f-mongo-tls')?.checked) ? (document.getElementById('f-mongo-tls-cert')?.value.trim() || '') : undefined,
+        tls_allow_invalid_certs: (dbType === 'mongodb') ? document.getElementById('f-mongo-tls-allow-invalid')?.checked : undefined,
       })
     });
     const data = await res.json();
@@ -8464,7 +8617,7 @@ async function startInspection() {
   const port = parseInt(document.getElementById('f-port').value) || (dbType==='mysql'?3306:dbType==='oracle'?1521:dbType==='dm'?5236:dbType==='ivorysql'?5432:5432);
   const user = document.getElementById('f-user').value.trim() || (userDefaults[dbType]||'root');
   const password = document.getElementById('f-password').value;
-  const database = (dbType === 'pg' || dbType === 'ivorysql') ? (document.getElementById('f-database').value.trim() || 'postgres') : (dbType === 'kingbase') ? (document.getElementById('f-database').value.trim() || 'kingbase') : (dbType === 'gbase') ? (document.getElementById('f-database').value.trim() || 'sysmaster') : (dbType === 'oceanbase') ? (document.getElementById('f-database').value.trim() || '') : (document.getElementById('f-database').value.trim() || '');
+  const database = (dbType === 'pg' || dbType === 'ivorysql') ? (document.getElementById('f-database').value.trim() || 'postgres') : (dbType === 'kingbase') ? (document.getElementById('f-database').value.trim() || 'kingbase') : (dbType === 'gbase') ? (document.getElementById('f-database').value.trim() || 'sysmaster') : (dbType === 'oceanbase') ? (document.getElementById('f-database').value.trim() || '') : (dbType === 'mongodb') ? (document.getElementById('f-mongo-database')?.value.trim() || 'admin') : (document.getElementById('f-database').value.trim() || '');
   const tenant = (dbType === 'oceanbase') ? (document.getElementById('f-tenant').value.trim() || '') : '';
   const svcName = document.getElementById('f-service-name') ? document.getElementById('f-service-name').value.trim() : null;
   const jdbcUrl = document.getElementById('f-jdbc-url')?.value.trim() || null;
@@ -8475,6 +8628,19 @@ async function startInspection() {
   const payload = datasourceId
     ? { db_type: dbType, datasource_id: datasourceId, inspector_name: inspector, desensitize: document.getElementById('f-desensitize').checked }
     : { db_type: dbType, name, host, port, user, password, database, tenant, service_name: svcName, jdbc_url: jdbcUrl, inspector_name: inspector, sysdba: document.getElementById('f-sysdba').checked, desensitize: document.getElementById('f-desensitize').checked };
+  // MongoDB 专用参数
+  if (dbType === 'mongodb') {
+    payload.connect_mode = document.getElementById('f-mongo-connect-mode')?.value || 'standard';
+    payload.auth_source = document.getElementById('f-mongo-auth-source')?.value.trim() || 'admin';
+    payload.auth_mechanism = document.getElementById('f-mongo-auth-mechanism')?.value || '';
+    payload.replica_set = document.getElementById('f-mongo-replica-set')?.value.trim() || '';
+    payload.tls = document.getElementById('f-mongo-tls')?.checked || false;
+    if (payload.tls) {
+      payload.tls_ca_file = document.getElementById('f-mongo-tls-ca')?.value.trim() || '';
+      payload.tls_cert_key_file = document.getElementById('f-mongo-tls-cert')?.value.trim() || '';
+      payload.tls_allow_invalid_certs = document.getElementById('f-mongo-tls-allow-invalid')?.checked || false;
+    }
+  }
   if (sshEnabled) {
     payload.ssh_host     = document.getElementById('f-ssh-host').value.trim() || host;
     payload.ssh_port     = parseInt(document.getElementById('f-ssh-port').value) || 22;
@@ -18850,10 +19016,10 @@ function mkdirRemote() {
       card.onclick = () => selectDbType(dbType.value);
 
       const iconHtml = dbType.icon
-        ? `<img src="${dbType.icon}" alt="${dbType.label}" style="height:28px;width:auto;">`
+        ? `<img src="${dbType.icon}" alt="${dbType.label}" style="height:28px;width:auto;" onerror="this.outerHTML='🗄️'">`
         : '🗄️';
       const pluginBadge = dbType.is_plugin ? ' <span class="beta-tag">Plugin</span>' : '';
-      const compatBadge = dbType.compat_tag ? ` <span class="compat-tag">${dbType.compat_tag}</span>` : '';
+      const compatBadge = dbType.compat_tag ? ` <span class="compat-tag compat-tag-${dbType.compat_tag.toLowerCase()}">${dbType.compat_tag}</span>` : '';
 
       card.innerHTML = `
         <div class="tc-header">

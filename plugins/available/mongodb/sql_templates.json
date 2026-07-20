@@ -7,8 +7,8 @@
       "queries": [
         {
           "key": "mongodb_version",
-          "desc_zh": "MongoDB 版本信息",
-          "desc_en": "MongoDB Version Information",
+          "desc_zh": "MongoDB 版本信息（buildInfo）",
+          "desc_en": "MongoDB Version Information (buildInfo)",
           "command": "db.buildInfo()",
           "category": "basic"
         }
@@ -16,28 +16,28 @@
     },
     {
       "chapter_number": 2,
-      "chapter_title_zh": "服务器状态",
-      "chapter_title_en": "Server Status",
+      "chapter_title_zh": "服务器状态概要",
+      "chapter_title_en": "Server Status Overview",
       "queries": [
         {
           "key": "mongodb_server_status",
-          "desc_zh": "服务器运行状态",
-          "desc_en": "Server Running Status",
+          "desc_zh": "服务器运行状态概要（serverStatus）",
+          "desc_en": "Server Running Status (serverStatus)",
           "command": "db.serverStatus()",
           "category": "basic"
         },
         {
           "key": "mongodb_connections",
-          "desc_zh": "当前连接数",
-          "desc_en": "Current Connections",
+          "desc_zh": "当前连接数与可用连接数",
+          "desc_en": "Current and Available Connections",
           "command": "db.serverStatus().connections",
           "category": "performance"
         },
         {
           "key": "mongodb_memory",
-          "desc_zh": "内存使用情况",
-          "desc_en": "Memory Usage",
-          "command": "db.serverStatus().mem",
+          "desc_zh": "内存使用情况（mem + WiredTiger cache）",
+          "desc_en": "Memory Usage (mem + WiredTiger cache)",
+          "command": "db.serverStatus().mem / db.serverStatus().wiredTiger.cache",
           "category": "performance"
         }
       ]
@@ -49,16 +49,16 @@
       "queries": [
         {
           "key": "mongodb_db_stats",
-          "desc_zh": "数据库统计信息",
-          "desc_en": "Database Statistics",
+          "desc_zh": "数据库统计信息（dbStats）",
+          "desc_en": "Database Statistics (dbStats)",
           "command": "db.stats()",
           "category": "basic"
         },
         {
           "key": "mongodb_collections",
-          "desc_zh": "集合列表",
-          "desc_en": "Collection List",
-          "command": "db.getCollectionNames()",
+          "desc_zh": "集合列表及各集合统计（collStats）",
+          "desc_en": "Collection List and Statistics (collStats)",
+          "command": "db.getCollectionNames() + db.collStats()",
           "category": "basic"
         }
       ]
@@ -70,15 +70,15 @@
       "queries": [
         {
           "key": "mongodb_users",
-          "desc_zh": "用户列表",
-          "desc_en": "User List",
+          "desc_zh": "用户列表及角色（usersInfo）",
+          "desc_en": "User List and Roles (usersInfo)",
           "command": "db.getUsers()",
           "category": "security"
         },
         {
           "key": "mongodb_roles",
-          "desc_zh": "角色列表",
-          "desc_en": "Role List",
+          "desc_zh": "角色列表及权限（rolesInfo）",
+          "desc_en": "Role List and Privileges (rolesInfo)",
           "command": "db.getRoles({showBuiltinRoles: true})",
           "category": "security"
         }
@@ -91,22 +91,22 @@
       "queries": [
         {
           "key": "mongodb_opcounters",
-          "desc_zh": "操作计数器",
+          "desc_zh": "操作计数器（insert/query/update/delete/getmore/command）",
           "desc_en": "Operation Counters",
           "command": "db.serverStatus().opcounters",
           "category": "performance"
         },
         {
           "key": "mongodb_global_lock",
-          "desc_zh": "全局锁状态",
-          "desc_en": "Global Lock Status",
+          "desc_zh": "全局锁状态（activeClients / currentQueue）",
+          "desc_en": "Global Lock Status (activeClients / currentQueue)",
           "command": "db.serverStatus().globalLock",
           "category": "performance"
         },
         {
           "key": "mongodb_wired_tiger",
-          "desc_zh": "WiredTiger 存储引擎状态",
-          "desc_en": "WiredTiger Storage Engine Status",
+          "desc_zh": "WiredTiger 存储引擎状态（cache 命中率/淘汰/并发事务）",
+          "desc_en": "WiredTiger Storage Engine Status (cache hit ratio/eviction/concurrent transactions)",
           "command": "db.serverStatus().wiredTiger",
           "category": "performance"
         }
@@ -114,16 +114,148 @@
     },
     {
       "chapter_number": 6,
-      "chapter_title_zh": "复制集状态",
+      "chapter_title_zh": "副本集状态",
       "chapter_title_en": "Replica Set Status",
       "queries": [
         {
           "key": "mongodb_repl_status",
-          "desc_zh": "复制集状态",
-          "desc_en": "Replica Set Status",
+          "desc_zh": "副本集状态（replSetGetStatus），非副本集则空",
+          "desc_en": "Replica Set Status (replSetGetStatus), empty if not a replset",
           "command": "rs.status()",
           "category": "high_availability",
           "condition": "db.isMaster().setName != null"
+        }
+      ]
+    },
+    {
+      "chapter_number": 7,
+      "chapter_title_zh": "分片集群状态",
+      "chapter_title_en": "Sharded Cluster Status",
+      "queries": [
+        {
+          "key": "mongodb_shards",
+          "desc_zh": "分片列表（listShards），非分片集群则空",
+          "desc_en": "Shard List (listShards), empty if not a sharded cluster",
+          "command": "sh.status() / db.adminCommand({listShards: 1})",
+          "category": "high_availability",
+          "condition": "db.adminCommand({isdbgrid: 1}).ok == 1"
+        },
+        {
+          "key": "mongodb_sharded_dbs",
+          "desc_zh": "已开启分片的数据库列表（config.databases，partitioned=true）",
+          "desc_en": "Sharded databases (config.databases, partitioned=true)",
+          "command": "db.getSiblingDB('config').databases.find({partitioned: true})",
+          "category": "high_availability",
+          "condition": "db.adminCommand({isdbgrid: 1}).ok == 1"
+        },
+        {
+          "key": "mongodb_sharded_collections",
+          "desc_zh": "分片集合与片键（config.collections）",
+          "desc_en": "Sharded collections and shard keys (config.collections)",
+          "command": "db.getSiblingDB('config').collections.find()",
+          "category": "high_availability",
+          "condition": "db.adminCommand({isdbgrid: 1}).ok == 1"
+        },
+        {
+          "key": "mongodb_chunk_distribution",
+          "desc_zh": "各分片 Chunk 数量分布（config.chunks 按 shard 聚合）",
+          "desc_en": "Chunk count per shard (config.chunks group by shard)",
+          "command": "db.getSiblingDB('config').chunks.aggregate([{$group:{_id:'$shard',count:{$sum:1}}}])",
+          "category": "high_availability",
+          "condition": "db.adminCommand({isdbgrid: 1}).ok == 1"
+        },
+        {
+          "key": "mongodb_chunk_top_collections",
+          "desc_zh": "Chunk 数 Top 10 的分片集合",
+          "desc_en": "Top 10 collections by chunk count",
+          "command": "db.getSiblingDB('config').chunks.aggregate([{$group:{_id:'$ns',count:{$sum:1}}},{$sort:{count:-1}},{$limit:10}])",
+          "category": "high_availability",
+          "condition": "db.adminCommand({isdbgrid: 1}).ok == 1"
+        },
+        {
+          "key": "mongodb_balancer_status",
+          "desc_zh": "Balancer 状态与均衡窗口（config.settings / sh.getBalancerState）",
+          "desc_en": "Balancer status and active window (config.settings / sh.getBalancerState)",
+          "command": "db.getSiblingDB('config').settings.findOne({_id:'balancer'})",
+          "category": "high_availability",
+          "condition": "db.adminCommand({isdbgrid: 1}).ok == 1"
+        }
+      ]
+    },
+    {
+      "chapter_number": 8,
+      "chapter_title_zh": "慢查询与 Profiler",
+      "chapter_title_en": "Slow Queries and Profiler",
+      "queries": [
+        {
+          "key": "mongodb_profile",
+          "desc_zh": "Profiler 级别与慢查询阈值（profile -1）",
+          "desc_en": "Profiler Level and Slow Query Threshold (profile -1)",
+          "command": "db.getProfilingStatus()",
+          "category": "performance"
+        },
+        {
+          "key": "mongodb_slow_queries",
+          "desc_zh": "慢查询 Top 10（system.profile）",
+          "desc_en": "Top 10 Slow Queries (system.profile)",
+          "command": "db.system.profile.find().sort({millis: -1}).limit(10)",
+          "category": "performance"
+        }
+      ]
+    },
+    {
+      "chapter_number": 9,
+      "chapter_title_zh": "基线配置检查",
+      "chapter_title_en": "Baseline Configuration Check",
+      "queries": [
+        {
+          "key": "baseline_results",
+          "desc_zh": "基线参数检查结果（getParameter 批量获取）",
+          "desc_en": "Baseline Parameter Check Results (getParameter batch)",
+          "command": "db.adminCommand({getParameter: '*', ...})",
+          "category": "security"
+        }
+      ]
+    },
+    {
+      "chapter_number": 10,
+      "chapter_title_zh": "网络与连接池",
+      "chapter_title_en": "Network and Connection Pool",
+      "queries": [
+        {
+          "key": "mongodb_network",
+          "desc_zh": "网络流量统计（bytesIn/bytesOut/numRequests）",
+          "desc_en": "Network Traffic Statistics (bytesIn/bytesOut/numRequests)",
+          "command": "db.serverStatus().network",
+          "category": "performance"
+        }
+      ]
+    },
+    {
+      "chapter_number": 11,
+      "chapter_title_zh": "事务与锁",
+      "chapter_title_en": "Transactions and Locks",
+      "queries": [
+        {
+          "key": "mongodb_transactions",
+          "desc_zh": "事务统计（transactionsCommit/Abort/Timeout）",
+          "desc_en": "Transaction Statistics (transactionsCommit/Abort/Timeout)",
+          "command": "db.serverStatus().transactions",
+          "category": "performance"
+        }
+      ]
+    },
+    {
+      "chapter_number": 12,
+      "chapter_title_zh": "存储引擎与压缩",
+      "chapter_title_en": "Storage Engine and Compression",
+      "queries": [
+        {
+          "key": "mongodb_storage_engine",
+          "desc_zh": "存储引擎信息（wiredTiger/blockManager）",
+          "desc_en": "Storage Engine Information (wiredTiger/blockManager)",
+          "command": "db.serverStatus().wiredTiger.block-manager",
+          "category": "storage"
         }
       ]
     }

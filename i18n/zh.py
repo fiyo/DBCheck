@@ -1785,6 +1785,7 @@ ZI = {
     "webui.ivorysql_report_filename": "IvorySQL巡检报告_{ip}_{name}_{ts}",
     "webui.yashandb_report_filename": "YashanDB巡检报告_{ip}_{name}_{ts}",
     "webui.oracle_jdbc_report_filename": "Oracle_JDBC巡检报告_{ip}_{name}_{ts}",
+    "webui.mongodb_report_filename": "MongoDB巡检报告_{ip}_{name}_{ts}",
 
     # SQL Server CLI i18n
     "sqlserver.report_title": "SQL Server 数据库健康巡检报告",
