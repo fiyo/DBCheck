@@ -1,20 +1,23 @@
 # -*- coding: utf-8 -*-
 """
-i18n 一致性检查脚本（验证用，第一阶段）
+i18n 一致性检查脚本（验证用，第二阶段 T4：全量译文填充）
 
 校验目标：
   1. 结构性对齐：
        · dict(ZI) 拷贝语言（zh_tw/ja/ko/es/fr/de/ru）key 集合必须与 ZI 完全一致（==）。
-       · en 为完整英文字典（非 dict(ZI) 拷贝，且本阶段按任务要求“不要动它们，只追加
-         menu.*”），其相对 ZI 的 key 漂移（缺失/多余）作为【警告】输出，不报错退出。
+       · en 为完整英文字典（非 dict(ZI) 拷贝），其相对 ZI 的 key 漂移作为【警告】输出，
+         不报错退出（T4 会补齐缺失 key，最终应 0 缺失）。
   2. menu.* 必须已译：
        · en/es/fr/de/ru（拉丁系）：值必须 != ZI 中文源（已真正翻译）。
        · ja/ko/zh_tw（CJK 目标语言，译文可能与中文同形）：仅校验 key 存在。
          —— 任一拉丁系 menu.* 未译（== 中文源）即视为错误并退出非 0。
-  3. CJK 未译仅作警告：对“值含 CJK 且仍 == ZI 值”的非 menu.* key，输出警告，
-     但不报错退出（ja/ko/es/fr/de/ru 此刻仍有大量未译，属第二阶段 T4 工作）。
+  3. CJK 未译检查：
+       · 拉丁系（en/es/fr/de/ru）：非 menu.* 的“值含 CJK 且 == ZI”即判 FAIL（exit 1）。
+         这是 T4 的核心验收：拉丁系必须 0 残留中文。
+       · CJK 系（ja/ko/zh_tw）：同上情况仅作【警告】（日/韩/繁中译文可能合法含 CJK
+         且与 ZI 同形，或个别未译，允许接近 0）。
 
-退出码：0 = 通过（仅警告）；1 = 存在 menu.* 未译等错误。
+退出码：0 = 通过（仅警告）；1 = 存在 menu.* 未译或拉丁系 CJK 残留等错误。
 """
 
 from i18n import ZI, EN, ZH_TW, JA, KO, ES, FR, DE, RU
@@ -34,6 +37,9 @@ LANG_DICTS = {
 STRICT_PARITY_LANGS = {'zh_tw', 'ja', 'ko', 'es', 'fr', 'de', 'ru'}
 # 这些 CJK 目标语言的 menu.* 译文可能与中文同形，仅校验 key 存在
 CJK_TARGET_LANGS = {'ja', 'ko', 'zh_tw'}
+# 拉丁系目标语言：译文必须非中文（不得残留与 ZI 相同的中文字）。
+# 第二阶段 T4 完成后，这些语言若有 CJK 值 == ZI（未译）即判 FAIL（exit 1）。
+LATIN_TARGET_LANGS = {'en', 'es', 'fr', 'de', 'ru'}
 
 # CJK 统一表意文字范围（用于判定“值是否仍为中文”）
 _CJK_START, _CJK_END = 0x4E00, 0x9FFF
@@ -54,7 +60,7 @@ def main():
     menu_keys = [k for k in ZI if k.startswith('menu.')]
 
     print("=" * 60)
-    print("i18n 一致性检查（第一阶段：结构性对齐 + menu.* 翻译）")
+    print("i18n 一致性检查（第二阶段 T4：全量译文填充）")
     print("=" * 60)
     print("ZI key 总数: %d | menu.* key 数: %d" % (len(zi_keys), len(menu_keys)))
 
@@ -106,8 +112,8 @@ def main():
         else:
             print("  [%-6s] OK  (全部 %d 个 menu.* 已译)" % (lang, len(menu_keys)))
 
-    # ── 3) CJK 未译仅作警告 ──────────────────────────────────
-    print("\n[3] 非 menu.* 的 CJK 未译警告（值含中文且等于中文源；不报错）：")
+    # ── 3) CJK 未译：拉丁系判 FAIL，CJK 系仅警告 ────────────
+    print("\n[3] 非 menu.* 的 CJK 未译检查（拉丁系残留中文=FAIL，CJK 系仅警告）：")
     for lang, d in LANG_DICTS.items():
         cnt = 0
         samples = []
@@ -122,8 +128,12 @@ def main():
                 if len(samples) < 25:
                     samples.append(k)
         if cnt:
-            warnings.append("[%s] CJK 未译: %d 条" % (lang, cnt))
-        print("  [%-6s] CJK 未译警告: %d 条" % (lang, cnt))
+            if lang in LATIN_TARGET_LANGS:
+                errors.append("[%s] CJK 未译(拉丁系必须非中文): %d 条" % (lang, cnt))
+            else:
+                warnings.append("[%s] CJK 未译: %d 条" % (lang, cnt))
+        print("  [%-6s] CJK 未译: %d 条%s" % (
+            lang, cnt, "  ← FAIL(拉丁系)" if (cnt and lang in LATIN_TARGET_LANGS) else ""))
         for s in samples:
             print("           - %s" % s)
         if cnt > len(samples):
