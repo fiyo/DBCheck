@@ -2142,7 +2142,7 @@ class BaseInspectionEngine:
                 # 将数据段登记为第1章，避免与基线章节重复编号
                 self.context.setdefault('_chapters', []).append({'chapter_number': 1})
                 for key in sorted(self.context.keys()):
-                    if key.startswith('_') or key in ('auto_analyze', 'system_info', 'health_analysis', 'report_time', 'inspector_name', 'problem_count', 'health_status', 'co_name', 'version'):
+                    if key.startswith('_') or key in ('auto_analyze', 'baseline_results', 'system_info', 'health_analysis', 'report_time', 'inspector_name', 'problem_count', 'health_status', 'co_name', 'version'):
                         continue
                     val = self.context.get(key)
                     if val and isinstance(val, list) and len(val) > 0 and isinstance(val[0], dict):
