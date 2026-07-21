@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="IBM Db2">
+  <defs>
+    <linearGradient id="db2Grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2C7BE5"/>
+      <stop offset="100%" stop-color="#1B4F9C"/>
+    </linearGradient>
+  </defs>
+  <!-- 背景圆角方块 -->
+  <rect x="2" y="2" width="60" height="60" rx="12" ry="12" fill="url(#db2Grad)"/>
+  <!-- 数据库圆柱 -->
+  <g fill="none" stroke="#FFFFFF" stroke-width="3">
+    <ellipse cx="32" cy="20" rx="16" ry="6"/>
+    <path d="M16 20 v14 a16 6 0 0 0 32 0 V20"/>
+    <path d="M16 34 a16 6 0 0 0 32 0"/>
+  </g>
+  <!-- DB2 文字 -->
+  <text x="32" y="48" text-anchor="middle" font-family="Arial, Helvetica, sans-serif"
+        font-size="15" font-weight="bold" fill="#FFFFFF">DB2</text>
+</svg>

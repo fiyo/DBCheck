@@ -2281,6 +2281,22 @@ def smart_analyze_mongodb(context: dict) -> list:
     return plugin_issues
 
 
+def smart_analyze_db2(context: dict) -> list:
+    """DB2 智能风险分析：运行 db2.yaml 内置规则（db_types=[db2]）。
+
+    与 mongodb/oracle_jdbc 一致，规则主体放在插件规则引擎
+    （pro/rules/builtin/db2.yaml），此处仅负责调用 analyze_with_plugins
+    汇总规则命中项；任何异常均降级为空列表，保证巡检不中断。
+    """
+    try:
+        from pro.rule_engine import analyze_with_plugins
+        plugin_issues = analyze_with_plugins('db2', context)
+    except Exception as e:
+        print(f"[WARN] smart_analyze_db2 plugin rules failed: {e}")
+        plugin_issues = []
+    return plugin_issues
+
+
 def smart_analyze_mariadb_extras(context: dict, conn=None) -> list:
     """
     MariaDB 专有参数/特性补充检查（低风险探测，不覆盖 MySQL 主规则结果）。
@@ -2526,6 +2542,8 @@ def run_full_analysis(db_type: str, host: str, port, label: str,
         issues = smart_analyze_gbase(context)
     elif db_type == 'kingbase':
         issues = smart_analyze_kingbase(context)
+    elif db_type == 'db2':
+        issues = smart_analyze_db2(context)
     else:
         issues = []  # 未知类型，返回空列表
 

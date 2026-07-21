@@ -1505,6 +1505,98 @@ class MongoDBSlowQueryAnalyzer(BaseSlowQueryAnalyzer):
 
 
 # ═══════════════════════════════════════════════════════════
+#  4.x DB2 LUW 慢查询分析器（JDBC 连接，复用 MON_GET_* 表函数）
+# ═══════════════════════════════════════════════════════════
+
+DB2_SLOW_QUERIES = {
+    # Top SQL by total execution time（MON_GET_PKG_CACHE_STMT，单位毫秒）
+    "db2_top_by_latency": """
+        SELECT STMT_TEXT, NUM_EXECUTIONS, TOTAL_EXEC_TIME, TOTAL_CPU_TIME,
+               ROWS_READ, ROWS_RETURNED
+        FROM TABLE(MON_GET_PKG_CACHE_STMT(NULL, 'N', NULL, -2))
+        ORDER BY TOTAL_EXEC_TIME DESC
+        FETCH FIRST 20 ROWS ONLY
+    """,
+    # Top SQL by rows read（IO 密集型）
+    "db2_top_by_io": """
+        SELECT STMT_TEXT, NUM_EXECUTIONS, TOTAL_EXEC_TIME, TOTAL_CPU_TIME,
+               ROWS_READ, ROWS_RETURNED
+        FROM TABLE(MON_GET_PKG_CACHE_STMT(NULL, 'N', NULL, -2))
+        ORDER BY ROWS_READ DESC
+        FETCH FIRST 20 ROWS ONLY
+    """,
+    # 当前正在执行且耗时较长的活动（需要 MON_ACT_METRICS 开启）
+    "db2_current_long": """
+        SELECT APPLICATION_HANDLE, ELAPSED_TIME, STMT_TEXT
+        FROM TABLE(MON_GET_ACTIVITY(NULL, -2))
+        WHERE ELAPSED_TIME > 10000
+        FETCH FIRST 20 ROWS ONLY
+    """,
+}
+
+
+class DB2SlowQueryAnalyzer(BaseSlowQueryAnalyzer):
+    """DB2 LUW 慢查询深度分析器（v11+/v12+，基于 JDBC 系统监控表函数）。
+
+    collect(conn) 接收 DB-API 2.0 兼容的 JDBC 连接包装（JdbcConnectionWrapper），
+    与 oracle_jdbc 风格一致：所有查询独立 try/except，视图不存在/权限不足
+    均降级为空列表，绝不抛异常。
+    """
+
+    DB_TYPE = 'db2'
+
+    def collect(self, conn) -> dict:
+        result = {}
+        result['top_by_latency'] = self._exec_sql(conn,
+            DB2_SLOW_QUERIES['db2_top_by_latency'])
+        result['top_by_io'] = self._exec_sql(conn,
+            DB2_SLOW_QUERIES['db2_top_by_io'])
+        result['current_long'] = self._exec_sql(conn,
+            DB2_SLOW_QUERIES['db2_current_long'])
+        return result
+
+    def normalize(self, raw: dict) -> SlowQueryResult:
+        r = SlowQueryResult('db2')
+
+        for row in raw.get('top_by_latency', []):
+            r.top_sql_by_latency.append({
+                'query_text': str(row.get('STMT_TEXT', '') or '')[:300],
+                'exec_count': int(row.get('NUM_EXECUTIONS', 0) or 0),
+                'total_time_sec': round(float(row.get('TOTAL_EXEC_TIME', 0) or 0) / 1000.0, 3),
+                'avg_time_sec': round(
+                    (float(row.get('TOTAL_EXEC_TIME', 0) or 0) /
+                     max(int(row.get('NUM_EXECUTIONS', 1) or 1), 1)) / 1000.0, 3),
+                'cpu_time_sec': round(float(row.get('TOTAL_CPU_TIME', 0) or 0) / 1000.0, 3),
+                'rows_scanned': int(row.get('ROWS_READ', 0) or 0),
+                'rows_returned': int(row.get('ROWS_RETURNED', 0) or 0),
+            })
+
+        for row in raw.get('top_by_io', []):
+            r.top_sql_by_io.append({
+                'query_text': str(row.get('STMT_TEXT', '') or '')[:300],
+                'exec_count': int(row.get('NUM_EXECUTIONS', 0) or 0),
+                'total_time_sec': round(float(row.get('TOTAL_EXEC_TIME', 0) or 0) / 1000.0, 3),
+                'rows_scanned': int(row.get('ROWS_READ', 0) or 0),
+                'rows_returned': int(row.get('ROWS_RETURNED', 0) or 0),
+            })
+
+        for row in raw.get('current_long', []):
+            r.slow_queries_current.append({
+                'application_handle': row.get('APPLICATION_HANDLE', ''),
+                'exec_time_ms': float(row.get('ELAPSED_TIME', 0) or 0),
+                'query_text': str(row.get('STMT_TEXT', '') or '')[:200],
+            })
+
+        if r.top_sql_by_latency:
+            r.extension_available['pkg_cache'] = True
+            r.summary = {
+                'total_sampled_queries': len(r.top_sql_by_latency),
+                'current_long_running': len(r.slow_queries_current),
+            }
+        return r
+
+
+# ═══════════════════════════════════════════════════════════
 #  5. 工厂函数
 # ═══════════════════════════════════════════════════════════
 
@@ -1524,6 +1616,7 @@ def get_slow_query_analyzer(db_type: str) -> BaseSlowQueryAnalyzer:
         'sqlserver': SQLServerSlowQueryAnalyzer,
         'dm':        DMSlowQueryAnalyzer,
         'mongodb':   MongoDBSlowQueryAnalyzer,
+        'db2':       DB2SlowQueryAnalyzer,
     }
     cls = TABLE.get(db_type.lower())
     if cls is None:

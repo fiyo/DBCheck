@@ -318,6 +318,10 @@ class MetricsCollector:
             # oracle_jdbc 数据源一律走插件 JDBC 连接，绝不走 oracledb，
             # 以避免 Oracle 11g 在无 Oracle 客户端环境下连接失败。
             return self._connect_oracle_jdbc(inst)
+        if db_type == 'db2':
+            # db2 数据源一律走插件 JDBC 连接（JdbcConnectionWrapper，DB-API 兼容），
+            # 与 oracle_jdbc 同理，绝不走原生驱动（DB2 无适用原生 Python 驱动）。
+            return self._connect_db2(inst)
         if db_type == 'oracle':
             import oracledb
             # 原生 oracle 用 oracledb 直连；端口/协议探测提前暴露典型误配
@@ -450,6 +454,30 @@ class MetricsCollector:
             service_name=inst.get('service_name') or 'ORCL',
             sysdba=bool(inst.get('sysdba')),
             jdbc_url=inst.get('jdbc_url') or None,
+        )
+
+    def _connect_db2(self, inst: dict):
+        """db2 类型：一律通过插件走 JDBC 连接（JdbcConnectionWrapper，DB-API 兼容），
+        与 oracle_jdbc 同理，绝不走原生驱动（DB2 无适用原生 Python 驱动）。
+        """
+        try:
+            from plugin_loader import get_plugin_module
+        except Exception as e:
+            raise RuntimeError('加载插件系统失败: %s' % e)
+        mod = get_plugin_module('db2')
+        if mod is None or not hasattr(mod, 'get_connection'):
+            raise RuntimeError(
+                'db2 插件未启用或缺少 get_connection 入口，'
+                '请先在插件管理中启用 DB2 (JDBC) 插件'
+            )
+        return mod.get_connection(
+            host=inst.get('host'),
+            port=int(inst.get('port') or 50000),
+            user=inst.get('user'),
+            password=inst.get('password'),
+            database=inst.get('database') or '',
+            jdbc_url=inst.get('jdbc_url') or None,
+            ssl=bool(inst.get('ssl', False)),
         )
 
     # ── 通用探针 ──
@@ -609,6 +637,8 @@ class MetricsCollector:
                 return self._collect_postgres(conn)
             if db_type in ('oracle', 'oracle_jdbc'):
                 return self._collect_oracle(conn)
+            if db_type == 'db2':
+                return self._collect_db2(conn)
             if db_type == 'dm':
                 return self._collect_dm(conn)
             if db_type in ('sqlserver', 'mssql'):
@@ -897,6 +927,55 @@ class MetricsCollector:
                     m['active_sessions'] = _to_num(cur.fetchone()[0])
                 except Exception:
                     pass
+        return m
+
+    def _collect_db2(self, conn) -> dict:
+        """DB2 LUW 深采：JDBC 连接（JdbcConnectionWrapper，DB-API 兼容）。
+
+        采集活跃会话数 / 锁等待 / 表空间使用率 / 当前活动语句等关键实时监控指标。
+        全部查询独立 try/except，视图不存在或权限不足均落入安全默认（0/{}），
+        绝不让单条查询失败导致整个函数抛异常。
+        """
+        m = {}
+        cur = conn.cursor()
+        # 活跃应用会话数（SYSIBMADM.APPLICATIONS）
+        try:
+            cur.execute("SELECT COUNT(*) FROM SYSIBMADM.APPLICATIONS")
+            row = cur.fetchone()
+            if row and row[0] is not None:
+                cnt = int(_to_num(row[0]))
+                m['active_sessions'] = cnt
+                m['threads_connected'] = cnt
+        except Exception:
+            pass
+        # 锁等待数（SYSIBMADM.LOCKWAITS）
+        try:
+            cur.execute("SELECT COUNT(*) FROM SYSIBMADM.LOCKWAITS")
+            row = cur.fetchone()
+            if row and row[0] is not None:
+                m['lockwait_count'] = int(_to_num(row[0]))
+        except Exception:
+            pass
+        # 表空间最大使用率（SYSIBMADM.TBSP_UTILIZATION）
+        try:
+            cur.execute(
+                "SELECT MAX(CASE WHEN tbsp_total_size > 0 "
+                "THEN tbsp_used_size * 100 / tbsp_total_size ELSE 0 END) "
+                "FROM SYSIBMADM.TBSP_UTILIZATION")
+            row = cur.fetchone()
+            if row and row[0] is not None:
+                m['tablespace_max_used_pct'] = float(_to_num(row[0]))
+        except Exception:
+            pass
+        # 当前活动语句数（MON_GET_ACTIVITY，需 MON_ACT_METRICS 开启）
+        try:
+            cur.execute(
+                "SELECT COUNT(*) FROM TABLE(MON_GET_ACTIVITY(NULL, -2))")
+            row = cur.fetchone()
+            if row and row[0] is not None:
+                m['active_statements'] = int(_to_num(row[0]))
+        except Exception:
+            pass
         return m
 
     # ── 速率计算 ──

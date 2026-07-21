@@ -4934,6 +4934,7 @@ def api_pro_datasource_add():
             user=data.get('user', ''),
             password=data.get('password', ''),
             service_name=data.get('service_name', ''),
+            database=data.get('database', ''),
             sysdba=bool(data.get('sysdba', False)),
             jdbc_url=data.get('jdbc_url', ''),
             ssh_host=data.get('ssh_host', ''),
@@ -5309,6 +5310,22 @@ def api_pro_datasources_test_conn():
                     return jsonify({'ok': False, 'error': msg})
                 else:
                     return jsonify({'ok': False, 'error': f'不支持的数据库类型: {db_type}'})
+        elif db_type == 'db2':
+            # DB2 (JDBC) 插件：走统一插件连接入口；database/jdbc_url 透传
+            ok, msg = test_plugin_connection(
+                db_type,
+                host,
+                port,
+                user,
+                password,
+                database=data.get('database', ''),
+                jdbc_url=jdbc_url,
+                ssl=bool(data.get('ssl', False)),
+            )
+            if ok:
+                return jsonify({'ok': True, 'message': msg})
+            else:
+                return jsonify({'ok': False, 'error': msg}) if msg else jsonify({'ok': False, 'error': f'不支持的数据库类型: {db_type}'})
         else:
             # 尝试使用插件测试连接
             ok, msg = test_plugin_connection(

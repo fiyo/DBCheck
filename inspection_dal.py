@@ -1916,6 +1916,31 @@ def init_default_baselines(db_path: str = None):
             {'param_name': 'OPEN_CURSORS_PER_SESSION', 'query_sql': "SELECT NAME, VALUE FROM V$PARAMETER WHERE NAME='open_cursors_per_session'", 'operator': '>=', 'expected_value': '300', 'risk_level': 'LOW', 'description_zh': '每会话打开游标数应 >= 300', 'description_en': 'Open cursors per session should be >= 300'},
             {'param_name': 'UNDO_RETENTION', 'query_sql': "SELECT NAME, VALUE FROM V$PARAMETER WHERE NAME='undo_retention'", 'operator': '>=', 'expected_value': '900', 'risk_level': 'LOW', 'description_zh': 'UNDO 保留时间应 >= 900 秒', 'description_en': 'UNDO retention should be >= 900 seconds'},
         ],
+        # ═════════════════════════════════════════
+        # DB2 LUW（JDBC 连接，配置来自 SYSIBMADM.DBCFG / DBMCFG）
+        # ═════════════════════════════════════════
+        'db2': [
+            # ── 性能 ──
+            {'param_name': 'LOGFILSIZ', 'query_sql': "SELECT value FROM SYSIBMADM.DBCFG WHERE name='logfilsiz'", 'operator': '>=', 'expected_value': '1000', 'risk_level': 'MEDIUM', 'description_zh': '主日志文件大小（4KB 页）应 >= 1000（约 4MB）', 'description_en': 'Primary log file size (4KB pages) should be >= 1000'},
+            {'param_name': 'LOGPRIMARY', 'query_sql': "SELECT value FROM SYSIBMADM.DBCFG WHERE name='logprimary'", 'operator': '>=', 'expected_value': '10', 'risk_level': 'MEDIUM', 'description_zh': '主日志文件个数应 >= 10', 'description_en': 'Number of primary log files should be >= 10'},
+            {'param_name': 'LOGBUFSZ', 'query_sql': "SELECT value FROM SYSIBMADM.DBCFG WHERE name='logbufsz'", 'operator': '>=', 'expected_value': '256', 'risk_level': 'MEDIUM', 'description_zh': '日志缓冲区（4KB 页）应 >= 256', 'description_en': 'Log buffer (4KB pages) should be >= 256'},
+            {'param_name': 'SORTHEAP', 'query_sql': "SELECT value FROM SYSIBMADM.DBCFG WHERE name='sortheap'", 'operator': '>=', 'expected_value': '256', 'risk_level': 'LOW', 'description_zh': '排序堆（4KB 页）应 >= 256，避免排序溢出磁盘', 'description_en': 'Sort heap (4KB pages) should be >= 256'},
+            {'param_name': 'LOCKLIST', 'query_sql': "SELECT value FROM SYSIBMADM.DBCFG WHERE name='locklist'", 'operator': '>=', 'expected_value': '4096', 'risk_level': 'MEDIUM', 'description_zh': '锁列表内存（4KB 页）应 >= 4096', 'description_en': 'Lock list memory (4KB pages) should be >= 4096'},
+            {'param_name': 'MAXLOCKS', 'query_sql': "SELECT value FROM SYSIBMADM.DBCFG WHERE name='maxlocks'", 'operator': '>=', 'expected_value': '10', 'risk_level': 'LOW', 'description_zh': '应用程序持锁占锁列表百分比应 >= 10', 'description_en': 'Max locks percent should be >= 10'},
+            {'param_name': 'NUM_IOCLEANERS', 'query_sql': "SELECT value FROM SYSIBMADM.DBCFG WHERE name='num_iocleaners'", 'operator': '>=', 'expected_value': '1', 'risk_level': 'MEDIUM', 'description_zh': '异步 IO 清理器数量应 >= 1', 'description_en': 'Number of asynchronous IO cleaners should be >= 1'},
+            {'param_name': 'DLCHKTIME', 'query_sql': "SELECT value FROM SYSIBMADM.DBCFG WHERE name='dlchktime'", 'operator': '>=', 'expected_value': '1000', 'risk_level': 'HIGH', 'description_zh': '死锁检测时间间隔（毫秒）应 >= 1000', 'description_en': 'Deadlock check time (ms) should be >= 1000'},
+            {'param_name': 'CHNGPGS_THRESH', 'query_sql': "SELECT value FROM SYSIBMADM.DBCFG WHERE name='chngpgs_thresh'", 'operator': '>=', 'expected_value': '30', 'risk_level': 'LOW', 'description_zh': '页清理阈值应 >= 30%', 'description_en': 'Changed pages threshold should be >= 30%'},
+            # ── 高可用 / 备份 ──
+            {'param_name': 'LOGARCHMETH1', 'query_sql': "SELECT value FROM SYSIBMADM.DBCFG WHERE name='logarchmeth1'", 'operator': '!=', 'expected_value': 'OFF', 'risk_level': 'HIGH', 'description_zh': '应开启归档日志（LOGARCHMETH1 != OFF）', 'description_en': 'Archive logging should be enabled (LOGARCHMETH1 != OFF)'},
+            {'param_name': 'TRACKMOD', 'query_sql': "SELECT value FROM SYSIBMADM.DBCFG WHERE name='trackmod'", 'operator': '!=', 'expected_value': 'NO', 'risk_level': 'MEDIUM', 'description_zh': '应启用增量备份跟踪（TRACKMOD != NO）', 'description_en': 'Track modified pages should be enabled (TRACKMOD != NO)'},
+            {'param_name': 'BLOCKNONLOGGED', 'query_sql': "SELECT value FROM SYSIBMADM.DBCFG WHERE name='blocknonlogged'", 'operator': '!=', 'expected_value': 'NO', 'risk_level': 'MEDIUM', 'description_zh': '应阻止非日志记录操作（BLOCKNONLOGGED != NO）', 'description_en': 'Non-logged operations should be blocked (BLOCKNONLOGGED != NO)'},
+            # ── 安全 ──
+            {'param_name': 'AUTHENTICATION', 'query_sql': "SELECT value FROM SYSIBMADM.DBMCFG WHERE name='authentication'", 'operator': '!=', 'expected_value': 'NONE', 'risk_level': 'CRITICAL', 'description_zh': '认证方式不应为 NONE（无认证）', 'description_en': 'Authentication method must not be NONE'},
+            {'param_name': 'KEEPFENCED', 'query_sql': "SELECT value FROM SYSIBMADM.DBMCFG WHERE name='keepfenced'", 'operator': '!=', 'expected_value': 'NO', 'risk_level': 'MEDIUM', 'description_zh': '应保留 fenced 进程（KEEPFENCED != NO）', 'description_en': 'Fenced process should be kept (KEEPFENCED != NO)'},
+            # ── 监控 ──
+            {'param_name': 'MON_ACT_METRICS', 'query_sql': "SELECT value FROM SYSIBMADM.DBMCFG WHERE name='mon_act_metrics'", 'operator': '!=', 'expected_value': 'NONE', 'risk_level': 'MEDIUM', 'description_zh': '应开启活动指标监控（MON_ACT_METRICS != NONE）', 'description_en': 'Activity metrics monitoring should be enabled (MON_ACT_METRICS != NONE)'},
+            {'param_name': 'MAX_CONNECTIONS', 'query_sql': "SELECT value FROM SYSIBMADM.DBMCFG WHERE name='max_connections'", 'operator': '>=', 'expected_value': '100', 'risk_level': 'LOW', 'description_zh': '实例最大连接代理数应 >= 100', 'description_en': 'Maximum instance connections should be >= 100'},
+        ],
     }
 
     conn = get_db_connection(db_path)

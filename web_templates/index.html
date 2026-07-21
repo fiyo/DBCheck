@@ -4457,33 +4457,41 @@ function formatBytes(bytes) {
         // 优先从 data 属性读取（插件类型），其次用硬编码映射
         const defaultPort = opt?.getAttribute('data-port') || '';
         const defaultUser = opt?.getAttribute('data-user') || '';
-        const portMap = {mysql:3306, mariadb:3306, oceanbase:2881, pg:5432, dm:5236, oracle:1521, oracle_jdbc:1521, sqlserver:1433, tidb:4000, ivorysql:5432, yashandb:1688, kingbase:54321, gbase:9088};
-        const userMap = {mysql:'root', mariadb:'root', oceanbase:'root@test', pg:'postgres', dm:'SYSDBA', oracle:'system', oracle_jdbc:'system', sqlserver:'sa', tidb:'root', ivorysql:'postgres', yashandb:'sys', kingbase:'kingbase', gbase:'gbasedbt'};
+        const portMap = {mysql:3306, mariadb:3306, oceanbase:2881, pg:5432, dm:5236, oracle:1521, oracle_jdbc:1521, sqlserver:1433, tidb:4000, ivorysql:5432, yashandb:1688, kingbase:54321, gbase:9088, db2:50000};
+        const userMap = {mysql:'root', mariadb:'root', oceanbase:'root@test', pg:'postgres', dm:'SYSDBA', oracle:'system', oracle_jdbc:'system', sqlserver:'sa', tidb:'root', ivorysql:'postgres', yashandb:'sys', kingbase:'kingbase', gbase:'gbasedbt', db2:'db2inst1'};
         document.getElementById('ds-port').value = (defaultPort && parseInt(defaultPort)) || portMap[dbType] || 3306;
         const userEl = document.getElementById('ds-user');
         if (dbType !== _currentDbType || !userEl.value) {
           userEl.value = defaultUser || userMap[dbType] || 'root';
         }
         _currentDbType = dbType;
-        const showDsDbField = (dbType === 'pg' || dbType === 'ivorysql' || dbType === 'kingbase' || dbType === 'gbase' || dbType === 'oceanbase');
+        const showDsDbField = (dbType === 'pg' || dbType === 'ivorysql' || dbType === 'kingbase' || dbType === 'gbase' || dbType === 'oceanbase' || dbType === 'db2');
         document.getElementById('ds-database-wrap').style.display = showDsDbField ? '' : 'none';
         document.getElementById('ds-tenant-wrap').style.display = (dbType === 'oceanbase') ? '' : 'none';
         document.getElementById('ds-service-wrap').style.display = (dbType === 'oracle' || dbType === 'oracle_jdbc') ? '' : 'none';
         document.getElementById('ds-sysdba-wrap').style.display = (dbType === 'oracle' || dbType === 'oracle_jdbc') ? '' : 'none';
-        // 原生 Oracle 与 Oracle(JDBC) 均显示连接串字段；标签随类型切换
+        // 原生 Oracle 与 Oracle(JDBC) 以及 DB2(JDBC) 均显示 JDBC URL 字段；标签随类型切换
         var _jdbcWrap = document.getElementById('ds-jdbc-url-wrap');
-        if (_jdbcWrap) _jdbcWrap.style.display = (dbType === 'oracle' || dbType === 'oracle_jdbc') ? '' : 'none';
+        if (_jdbcWrap) _jdbcWrap.style.display = (dbType === 'oracle' || dbType === 'oracle_jdbc' || dbType === 'db2') ? '' : 'none';
         var _jdbcLabel = document.getElementById('ds-jdbc-url-label');
         var _jdbcInput = document.getElementById('ds-jdbc-url');
         if (_jdbcLabel) {
-          _jdbcLabel.innerHTML = (dbType === 'oracle_jdbc')
-            ? 'JDBC URL <span style="color:var(--text-muted);font-weight:normal">（可选，留空则使用上方主机/端口/服务名）</span>'
-            : '连接串 (DSN) <span style="color:var(--text-muted);font-weight:normal">（可选，TNS 描述符 (DESCRIPTION=...) 或留空用上方主机/端口/服务名）</span>';
+          if (dbType === 'oracle_jdbc') {
+            _jdbcLabel.innerHTML = 'JDBC URL <span style="color:var(--text-muted);font-weight:normal">（可选，留空则使用上方主机/端口/服务名）</span>';
+          } else if (dbType === 'db2') {
+            _jdbcLabel.innerHTML = 'JDBC URL <span style="color:var(--text-muted);font-weight:normal">（可选，留空则使用上方主机/端口/数据库名）</span>';
+          } else {
+            _jdbcLabel.innerHTML = '连接串 (DSN) <span style="color:var(--text-muted);font-weight:normal">（可选，TNS 描述符 (DESCRIPTION=...) 或留空用上方主机/端口/服务名）</span>';
+          }
         }
         if (_jdbcInput) {
-          _jdbcInput.placeholder = (dbType === 'oracle_jdbc')
-            ? 'jdbc:oracle:thin:@//host:1521/ORCLCDB 或 @host:1521:ORCL'
-            : '(DESCRIPTION=(HOST=host)(PORT=1521)(CONNECT_DATA=(SERVICE_NAME=ORCLCDB))) 或 //host:1521/ORCLCDB';
+          if (dbType === 'oracle_jdbc') {
+            _jdbcInput.placeholder = 'jdbc:oracle:thin:@//host:1521/ORCLCDB 或 @host:1521:ORCL';
+          } else if (dbType === 'db2') {
+            _jdbcInput.placeholder = 'jdbc:db2://host:50000/testdb';
+          } else {
+            _jdbcInput.placeholder = '(DESCRIPTION=(HOST=host)(PORT=1521)(CONNECT_DATA=(SERVICE_NAME=ORCLCDB))) 或 //host:1521/ORCLCDB';
+          }
         }
         var gbaseWrap = document.getElementById('ds-gbase-server-wrap');
         if (gbaseWrap) gbaseWrap.style.display = dbType === 'gbase' ? '' : 'none';
@@ -4492,7 +4500,7 @@ function formatBytes(bytes) {
         // 根据数据库类型更新 database 输入框的 placeholder
         var dbInput = document.getElementById('ds-database');
         if (dbInput) {
-          var _ph = {'pg':'postgres','ivorysql':'postgres','kingbase':'kingbase','gbase':'sysmaster','oceanbase':'oceanbase','mongodb':'admin'};
+          var _ph = {'pg':'postgres','ivorysql':'postgres','kingbase':'kingbase','gbase':'sysmaster','oceanbase':'oceanbase','mongodb':'admin','db2':'testdb'};
           dbInput.placeholder = _ph[dbType] || 'mysql';
           // OceanBase 不预填数据库名（仅为占位提示），由用户在 DBeaver 风格界面自行填写
           if (dbType === 'oceanbase' && !dbInput.value) dbInput.value = '';
@@ -4598,6 +4606,12 @@ function formatBytes(bytes) {
         if (payload.db_type === 'gbase') {
           payload.gbase_server_name = document.getElementById('ds-gbase-server').value.trim();
           payload.database = document.getElementById('ds-database').value.trim();
+        }
+        if (payload.db_type === 'db2') {
+          const db2Db = document.getElementById('ds-database')?.value.trim();
+          if (db2Db) payload.database = db2Db;
+          const jdbcUrl = document.getElementById('ds-jdbc-url')?.value.trim();
+          if (jdbcUrl) payload.jdbc_url = jdbcUrl;
         }
         if (payload.db_type === 'oceanbase') {
           payload.database = document.getElementById('ds-database').value.trim();
