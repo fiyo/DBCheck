@@ -3116,3 +3116,38 @@ EN = {
     "dr.mechanism_title": "Backup mechanism",
     "dr.mechanism_note": "MySQL/MariaDB via mysqldump and PostgreSQL via pg_dump local commands; files/directories packed via Python tarfile. Backup commands run on the same machine hosting DBCheck, which must reach the target database and have the client tools installed.",
 }
+
+
+# ── 菜单 i18n 翻译（menu.*，第一阶段补齐；草稿待人工校对）──
+EN.update({
+    "menu.about": "About DBCheck",
+    "menu.ai": "AI Assistant",
+    "menu.apikey": "API Keys",
+    "menu.awr": "AWR Report",
+    "menu.baseline-config": "Baseline Configuration",
+    "menu.data-management": "Data Management",
+    "menu.datasources": "Data Source Management",
+    "menu.diag-history": "Diagnosis History",
+    "menu.disaster-recovery": "Disaster Recovery",
+    "menu.dm8-offline": "DM8 Offline Storage Check",
+    "menu.home": "Home",
+    "menu.inspection-config": "Inspection Configuration",
+    "menu.intelligence": "Intelligence Diagnosis Center",
+    "menu.monitor-conn": "Connection Pool Monitor",
+    "menu.monitor-slow": "Slow Query Monitor",
+    "menu.notifier": "Notification Management",
+    "menu.oracle-client": "Oracle Client",
+    "menu.plugin-market": "Plugin Market",
+    "menu.rag": "Knowledge Base",
+    "menu.remote-shell": "Remote Terminal",
+    "menu.reports": "Inspection Reports",
+    "menu.rules": "Rule Management",
+    "menu.scheduler": "Task Scheduler",
+    "menu.server-history": "History",
+    "menu.server-inspect": "Server Inspection",
+    "menu.server-thresholds": "Threshold Settings",
+    "menu.shares": "Share Management",
+    "menu.sql-editor": "SQL Editor",
+    "menu.trend": "Trend Analysis",
+    "menu.wizard": "Database Inspection",
+})

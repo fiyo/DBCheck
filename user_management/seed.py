@@ -19,35 +19,36 @@ from user_management.utils.password import hash_password
 # 菜单清单（单一数据源）：menu_code 必须与前端 index.html 中 nav-item 的 id 对应（去掉 "nav-" 前缀）
 # init_seed_data() 与 sync_menus() 共用；新增菜单只需在此追加一行。
 menus_data = [
-    ('home',             '首页',            0, 10),
-    ('wizard',           '数据库巡检',       0, 21),
-    ('server-inspect',   '服务器巡检',       0, 22),
-    ('scheduler',        '任务调度',         0, 23),
-    ('awr',              'AWR报告',         0, 24),
-    ('reports',          '巡检报告',         0, 25),
-    ('server-history',   '历史记录',         0, 26),
-    ('trend',            '趋势分析',         0, 27),
-    ('datasources',     '数据源管理',       0, 31),
-    ('inspection-config', '巡检配置',         0, 32),
-    ('baseline-config',  '基线配置',         0, 33),
-    ('server-thresholds', '阈值设置',         0, 34),
-    ('rules',            '规则管理',         0, 35),
-    ('rag',              '知识库',          0, 36),
-    ('plugin-market',    '插件市场',         0, 41),
-    ('sql-editor',       'SQL编辑器',       0, 42),
-    ('remote-shell',     '远程终端',         0, 43),
-    ('monitor-slow',     '慢查询监控',       0, 51),
-    ('monitor-conn',     '连接池监控',       0, 52),
-    ('ai',               'AI助手',          0, 53),
-    ('oracle-client',    'Oracle客户端',     0, 54),
-    ('notifier',         '通知管理',         0, 55),
-    ('apikey',           'API密钥',         0, 56),
-    ('shares',           '共享管理',         0, 57),
-    ('data-management',  '数据管理',         0, 66),
-    ('about',            '关于DBCheck',      0, 67),
-    ('disaster-recovery', '容灾备份',         0, 65),
-    ('intelligence',     '智能诊断中心',     0, 53),
-    ('diag-history',     '诊断历史',         0, 53),
+    ('home',             'menu.home',            0, 10),
+    ('wizard',           'menu.wizard',          0, 21),
+    ('server-inspect',   'menu.server-inspect',  0, 22),
+    ('scheduler',        'menu.scheduler',       0, 23),
+    ('awr',              'menu.awr',             0, 24),
+    ('reports',          'menu.reports',         0, 25),
+    ('server-history',   'menu.server-history',  0, 26),
+    ('trend',            'menu.trend',           0, 27),
+    ('dm8-offline',      'menu.dm8-offline',     0, 28),
+    ('datasources',     'menu.datasources',      0, 31),
+    ('inspection-config','menu.inspection-config',0, 32),
+    ('baseline-config',  'menu.baseline-config', 0, 33),
+    ('server-thresholds','menu.server-thresholds',0, 34),
+    ('rules',            'menu.rules',           0, 35),
+    ('rag',              'menu.rag',             0, 36),
+    ('plugin-market',    'menu.plugin-market',   0, 41),
+    ('sql-editor',       'menu.sql-editor',      0, 42),
+    ('remote-shell',     'menu.remote-shell',    0, 43),
+    ('monitor-slow',     'menu.monitor-slow',    0, 51),
+    ('monitor-conn',     'menu.monitor-conn',    0, 52),
+    ('ai',               'menu.ai',              0, 53),
+    ('oracle-client',    'menu.oracle-client',   0, 54),
+    ('notifier',         'menu.notifier',        0, 55),
+    ('apikey',           'menu.apikey',          0, 56),
+    ('shares',           'menu.shares',          0, 57),
+    ('data-management',  'menu.data-management', 0, 66),
+    ('about',            'menu.about',           0, 67),
+    ('disaster-recovery','menu.disaster-recovery',0, 65),
+    ('intelligence',     'menu.intelligence',    0, 53),
+    ('diag-history',     'menu.diag-history',    0, 53),
 ]
 
 def init_seed_data():
@@ -177,18 +178,30 @@ def init_seed_data():
 
 
 def sync_menus():
-    """每次启动幂等同步菜单到 um_menu，并对新增菜单按 ROLE_MENU_MAP 补齐角色授权。
+    """每次启动幂等同步菜单到 um_menu（upsert），并对菜单按 ROLE_MENU_MAP 补齐角色授权。
 
-    仅追加（append-only），绝不删除任何既有授权；数据库不可达时仅告警不阻断启动。
+    对新增菜单 INSERT；对已在 um_menu 的现有行也 UPDATE menu_name 为 i18n key
+    （按 menu_code 匹配），使旧的中文 menu_name 在每次启动时被幂等覆盖成 key。
+    绝不删除任何既有授权；数据库不可达时仅告警不阻断启动。
     """
     try:
         db = DBManager()
         menu_model = MenuModel()
-        existing = {m['menu_code']: m for m in db.query_all("SELECT id, menu_code FROM um_menu")}
+        existing = {m['menu_code']: m for m in db.query_all("SELECT id, menu_code, menu_name FROM um_menu")}
         for code, name, pid, order in menus_data:
             if code not in existing:
                 menu_model.create(code, name, parent_id=pid, sort_order=order)
                 print(f"  [sync] 新增菜单: {code}")
+            else:
+                # 幂等覆盖：旧的中文 menu_name 在每次启动时被覆盖成 i18n key
+                if existing[code]['menu_name'] != name:
+                    menu_model.update(
+                        existing[code]['id'],
+                        menu_name=name,
+                        parent_id=pid,
+                        sort_order=order,
+                    )
+                    print(f"  [sync] 更新菜单 menu_name: {code} -> {name}")
 
         role_menu_map = {
             'admin': 'ALL',

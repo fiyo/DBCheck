@@ -930,3 +930,38 @@ FR.update({
 "webui.dm8_offline_desc_short": "Analyser le répertoire des fichiers de données DM8 et vérifier l'intégrité du stockage",
 "webui.nav_disaster_recovery": "Sauvegarde de reprise après sinistre",
 })
+
+
+# ── 菜单 i18n 翻译（menu.*，第一阶段补齐；草稿待人工校对）──
+FR.update({
+    "menu.about": "À propos de DBCheck",
+    "menu.ai": "Assistant IA",
+    "menu.apikey": "Clés API",
+    "menu.awr": "Rapport AWR",
+    "menu.baseline-config": "Configuration de base",
+    "menu.data-management": "Gestion des données",
+    "menu.datasources": "Gestion des sources de données",
+    "menu.diag-history": "Historique de diagnostic",
+    "menu.disaster-recovery": "Reprise après sinistre",
+    "menu.dm8-offline": "Vérification du stockage DM8 hors ligne",
+    "menu.home": "Accueil",
+    "menu.inspection-config": "Configuration d'inspection",
+    "menu.intelligence": "Centre de diagnostic intelligent",
+    "menu.monitor-conn": "Surveillant du pool de connexions",
+    "menu.monitor-slow": "Surveillant des requêtes lentes",
+    "menu.notifier": "Gestion des notifications",
+    "menu.oracle-client": "Client Oracle",
+    "menu.plugin-market": "Marché de plugins",
+    "menu.rag": "Base de connaissances",
+    "menu.remote-shell": "Terminal à distance",
+    "menu.reports": "Rapports d'inspection",
+    "menu.rules": "Gestion des règles",
+    "menu.scheduler": "Planificateur de tâches",
+    "menu.server-history": "Historique",
+    "menu.server-inspect": "Inspection de serveur",
+    "menu.server-thresholds": "Paramètres de seuil",
+    "menu.shares": "Gestion des partages",
+    "menu.sql-editor": "Éditeur SQL",
+    "menu.trend": "Analyse des tendances",
+    "menu.wizard": "Inspection de base de données",
+})

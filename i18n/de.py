@@ -930,3 +930,38 @@ DE.update({
 "webui.dm8_offline_desc_short": "DM8-Datenbankdateiverzeichnis scannen und Speicherintegrität prüfen",
 "webui.nav_disaster_recovery": "Notfall-Wiederherstellungs-Backup",
 })
+
+
+# ── 菜单 i18n 翻译（menu.*，第一阶段补齐；草稿待人工校对）──
+DE.update({
+    "menu.about": "Über DBCheck",
+    "menu.ai": "KI-Assistent",
+    "menu.apikey": "API-Schlüssel",
+    "menu.awr": "AWR-Bericht",
+    "menu.baseline-config": "Baseline-Konfiguration",
+    "menu.data-management": "Datenverwaltung",
+    "menu.datasources": "Datenquellenverwaltung",
+    "menu.diag-history": "Diagnoseverlauf",
+    "menu.disaster-recovery": "Notfallwiederherstellung",
+    "menu.dm8-offline": "DM8-Offline-Speicherprüfung",
+    "menu.home": "Startseite",
+    "menu.inspection-config": "Prüfungskonfiguration",
+    "menu.intelligence": "Intelligentes Diagnosezentrum",
+    "menu.monitor-conn": "Verbindungspool-Überwachung",
+    "menu.monitor-slow": "Langsame-Abfragen-Überwachung",
+    "menu.notifier": "Benachrichtigungsverwaltung",
+    "menu.oracle-client": "Oracle-Client",
+    "menu.plugin-market": "Plugin-Markt",
+    "menu.rag": "Wissensdatenbank",
+    "menu.remote-shell": "Remote-Terminal",
+    "menu.reports": "Prüfungsberichte",
+    "menu.rules": "Regelverwaltung",
+    "menu.scheduler": "Aufgabenplaner",
+    "menu.server-history": "Verlauf",
+    "menu.server-inspect": "Serverprüfung",
+    "menu.server-thresholds": "Schwellenwerteinstellungen",
+    "menu.shares": "Freigabeverwaltung",
+    "menu.sql-editor": "SQL-Editor",
+    "menu.trend": "Tendenzanalyse",
+    "menu.wizard": "Datenbankprüfung",
+})

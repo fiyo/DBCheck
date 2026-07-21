@@ -929,3 +929,38 @@ KO.update({
 "webui.dm8_offline_desc_short": "DM8 데이터 파일 디렉터리 스캔, 스토리지 무결성 확인",
 "webui.nav_disaster_recovery": "재해 복구 백업",
 })
+
+
+# ── 菜单 i18n 翻译（menu.*，第一阶段补齐；草稿待人工校对）──
+KO.update({
+    "menu.about": "DBCheck 정보",
+    "menu.ai": "AI 어시스턴트",
+    "menu.apikey": "API 키",
+    "menu.awr": "AWR 보고서",
+    "menu.baseline-config": "기준선 설정",
+    "menu.data-management": "데이터 관리",
+    "menu.datasources": "데이터 소스 관리",
+    "menu.diag-history": "진단 이력",
+    "menu.disaster-recovery": "재해 복구",
+    "menu.dm8-offline": "DM8 오프라인 스토리지 점검",
+    "menu.home": "홈",
+    "menu.inspection-config": "점검 설정",
+    "menu.intelligence": "지능형 진단 센터",
+    "menu.monitor-conn": "연결 풀 모니터",
+    "menu.monitor-slow": "슬로우 쿼리 모니터",
+    "menu.notifier": "알림 관리",
+    "menu.oracle-client": "Oracle 클라이언트",
+    "menu.plugin-market": "플러그인 마켓",
+    "menu.rag": "지식 베이스",
+    "menu.remote-shell": "원격 터미널",
+    "menu.reports": "점검 보고서",
+    "menu.rules": "규칙 관리",
+    "menu.scheduler": "작업 스케줄러",
+    "menu.server-history": "이력",
+    "menu.server-inspect": "서버 점검",
+    "menu.server-thresholds": "임계값 설정",
+    "menu.shares": "공유 관리",
+    "menu.sql-editor": "SQL 편집기",
+    "menu.trend": "추세 분석",
+    "menu.wizard": "데이터베이스 점검",
+})

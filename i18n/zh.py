@@ -3146,3 +3146,38 @@ ZI = {
     "dr.mechanism_title": "备份机制说明",
     "dr.mechanism_note": "MySQL/MariaDB 通过 mysqldump、PostgreSQL 通过 pg_dump 本地命令执行；文件/目录使用 Python tarfile 直接打包。执行备份命令的机器即运行 DBCheck 的机器，需确保该机器网络可达目标数据库且已安装对应客户端工具。",
 }
+
+
+# ── 菜单 i18n key（menu.*，第一阶段结构性对齐；值为原中文菜单名）──
+ZI.update({
+    "menu.about": "关于DBCheck",
+    "menu.ai": "AI助手",
+    "menu.apikey": "API密钥",
+    "menu.awr": "AWR报告",
+    "menu.baseline-config": "基线配置",
+    "menu.data-management": "数据管理",
+    "menu.datasources": "数据源管理",
+    "menu.diag-history": "诊断历史",
+    "menu.disaster-recovery": "容灾备份",
+    "menu.dm8-offline": "DM8离线存储检查",
+    "menu.home": "首页",
+    "menu.inspection-config": "巡检配置",
+    "menu.intelligence": "智能诊断中心",
+    "menu.monitor-conn": "连接池监控",
+    "menu.monitor-slow": "慢查询监控",
+    "menu.notifier": "通知管理",
+    "menu.oracle-client": "Oracle客户端",
+    "menu.plugin-market": "插件市场",
+    "menu.rag": "知识库",
+    "menu.remote-shell": "远程终端",
+    "menu.reports": "巡检报告",
+    "menu.rules": "规则管理",
+    "menu.scheduler": "任务调度",
+    "menu.server-history": "历史记录",
+    "menu.server-inspect": "服务器巡检",
+    "menu.server-thresholds": "阈值设置",
+    "menu.shares": "共享管理",
+    "menu.sql-editor": "SQL编辑器",
+    "menu.trend": "趋势分析",
+    "menu.wizard": "数据库巡检",
+})

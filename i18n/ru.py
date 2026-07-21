@@ -930,3 +930,38 @@ RU.update({
 "webui.dm8_offline_desc_short": "Сканирование каталога файлов данных DM8, проверка целостности хранилища",
 "webui.nav_disaster_recovery": "Аварийное восстановление и резервное копирование",
 })
+
+
+# ── 菜单 i18n 翻译（menu.*，第一阶段补齐；草稿待人工校对）──
+RU.update({
+    "menu.about": "О DBCheck",
+    "menu.ai": "ИИ-ассистент",
+    "menu.apikey": "API-ключи",
+    "menu.awr": "Отчёт AWR",
+    "menu.baseline-config": "Настройка базовой линии",
+    "menu.data-management": "Управление данными",
+    "menu.datasources": "Управление источниками данных",
+    "menu.diag-history": "История диагностики",
+    "menu.disaster-recovery": "Аварийное восстановление",
+    "menu.dm8-offline": "Автономная проверка хранилища DM8",
+    "menu.home": "Главная",
+    "menu.inspection-config": "Настройка проверки",
+    "menu.intelligence": "Центр интеллектуальной диагностики",
+    "menu.monitor-conn": "Монитор пула соединений",
+    "menu.monitor-slow": "Монитор медленных запросов",
+    "menu.notifier": "Управление уведомлениями",
+    "menu.oracle-client": "Клиент Oracle",
+    "menu.plugin-market": "Рынок плагинов",
+    "menu.rag": "База знаний",
+    "menu.remote-shell": "Удалённый терминал",
+    "menu.reports": "Отчёты о проверке",
+    "menu.rules": "Управление правилами",
+    "menu.scheduler": "Планировщик задач",
+    "menu.server-history": "История",
+    "menu.server-inspect": "Проверка сервера",
+    "menu.server-thresholds": "Настройки пороговых значений",
+    "menu.shares": "Управление общим доступом",
+    "menu.sql-editor": "SQL-редактор",
+    "menu.trend": "Анализ тенденций",
+    "menu.wizard": "Проверка базы данных",
+})

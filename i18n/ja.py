@@ -929,3 +929,38 @@ JA.update({
 "webui.dm8_offline_desc_short": "DM8 データファイルディレクトリをスキャンし、ストレージの完全性をチェック",
 "webui.nav_disaster_recovery": "災害復旧バックアップ",
 })
+
+
+# ── 菜单 i18n 翻译（menu.*，第一阶段补齐；草稿待人工校对）──
+JA.update({
+    "menu.about": "DBCheckについて",
+    "menu.ai": "AIアシスタント",
+    "menu.apikey": "APIキー",
+    "menu.awr": "AWRレポート",
+    "menu.baseline-config": "ベースライン設定",
+    "menu.data-management": "データ管理",
+    "menu.datasources": "データソース管理",
+    "menu.diag-history": "診断履歴",
+    "menu.disaster-recovery": "障害復旧",
+    "menu.dm8-offline": "DM8オフラインストレージチェック",
+    "menu.home": "ホーム",
+    "menu.inspection-config": "検査設定",
+    "menu.intelligence": "インテリジェント診断センター",
+    "menu.monitor-conn": "接続プール監視",
+    "menu.monitor-slow": "スロークエリ監視",
+    "menu.notifier": "通知管理",
+    "menu.oracle-client": "Oracleクライアント",
+    "menu.plugin-market": "プラグイン市場",
+    "menu.rag": "ナレッジベース",
+    "menu.remote-shell": "リモートターミナル",
+    "menu.reports": "検査レポート",
+    "menu.rules": "ルール管理",
+    "menu.scheduler": "タスクスケジューラ",
+    "menu.server-history": "履歴",
+    "menu.server-inspect": "サーバー検査",
+    "menu.server-thresholds": "閾値設定",
+    "menu.shares": "共有管理",
+    "menu.sql-editor": "SQLエディタ",
+    "menu.trend": "トレンド分析",
+    "menu.wizard": "データベース検査",
+})

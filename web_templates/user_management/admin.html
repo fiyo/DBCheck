@@ -309,6 +309,23 @@
     <div id="toastContainer"></div>
 
     <script>
+        // ─── i18n 初始化（与 index.html 对齐：通过 /api/i18n 获取当前语言字典）───
+        let I18N = {};
+        let CURRENT_LANG = 'zh';
+        async function initI18N() {
+            try {
+                const res = await fetch('/api/i18n');
+                const data = await res.json();
+                if (data && data.ok) {
+                    I18N = data.data || {};
+                    CURRENT_LANG = data.lang || 'zh';
+                }
+            } catch (e) { console.error('i18n load failed', e); }
+        }
+        function i18n(key) {
+            return I18N[key] !== undefined ? I18N[key] : undefined;
+        }
+
         // ═══ embed 模式检测 + 主题同步 ═══
         const urlParams = new URLSearchParams(window.location.search);
         const isEmbed = urlParams.get('embed') === '1';
@@ -389,6 +406,7 @@
 
         // ========== 页面初始化 ==========
         async function init() {
+            await initI18N();
             if (!isEmbed) {
                 try {
                     const res = await API('/api/um/auth/status');
@@ -636,7 +654,7 @@
                 <div class="perm-checkboxes">
                     ${menus.map(m => `
                         <label>
-                            <span style="flex:1;">${m.menu_name}</span>
+                            <span style="flex:1;">${i18n(m.menu_name) || m.menu_name}</span>
                             <select class="perm-select" data-menu="${m.id}">
                                 <option value="0">无权限</option>
                                 ${perms.map(p => `
@@ -697,7 +715,7 @@
                                 ${menus.map(m => `
                                     <tr>
                                         <td><span class="badge badge-info">${m.menu_code}</span></td>
-                                        <td>${m.menu_name}</td>
+                                        <td>${i18n(m.menu_name) || m.menu_name}</td>
                                         <td>${m.sort_order}</td>
                                     </tr>
                                 `).join('')}
