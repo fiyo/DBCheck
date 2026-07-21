@@ -4930,6 +4930,79 @@ function formatBytes(bytes) {
           <div class="slogan-sub" id="slogan-sub">DBCheck · Database Inspector</div>
         </div>
 
+        <!-- 实时监控 (v2.10) -->
+        <div class="home-section monitor-section" id="monitor-section" style="display:none;">
+          <div class="section-header">
+            <h2 class="section-title" data-i18n="webui.home_monitor_title">📡 实时监控</h2>
+            <span class="section-desc" data-i18n="webui.home_monitor_desc">采集器每 30s 推送 · QPS / TPS · 连接数 · 延迟 · 可用性</span>
+            <span class="monitor-running-pill" id="monitor-running-pill" data-i18n="webui.home_monitor_detecting">Detecting…</span>
+          </div>
+          <div class="monitor-toolbar">
+            <label data-i18n="webui.home_monitor_instance_label">实例</label>
+            <select id="monitor-instance-select" onchange="onMonitorInstanceChange()">
+              <option value="" data-i18n="webui.home_monitor_select_instance">请选择实例</option>
+            </select>
+            <span class="monitor-latency" id="monitor-latency-text"></span>
+            <span class="monitor-updated" id="monitor-updated-text"></span>
+          </div>
+          <div class="monitor-grid">
+            <div class="health-chart-card">
+              <div class="health-chart-title" id="monitor-throughput-title" data-i18n="webui.home_monitor_throughput">⚡ 吞吐（QPS / TPS）</div>
+              <div class="health-chart-box" id="echart-mon-throughput"></div>
+            </div>
+            <div class="health-chart-card">
+              <div class="health-chart-title" id="monitor-conn-title" data-i18n="webui.home_monitor_conn">🔗 连接数</div>
+              <div class="health-chart-box" id="echart-mon-conn"></div>
+            </div>
+            <div class="health-chart-card">
+              <div class="health-chart-title" id="monitor-latency-title" data-i18n="webui.home_monitor_latency">⏱️ 响应延迟 (ms)</div>
+              <div class="health-chart-box" id="echart-mon-latency"></div>
+            </div>
+          </div>
+
+          <!-- 宿主资源（实例感知：SSH 远端 eBPF/psutil，或中心机本机降级） -->
+          <div class="host-resource-block" id="host-resource-block">
+            <div class="host-resource-head" style="display:flex;align-items:center;gap:10px;margin:16px 0 4px;">
+              <div class="health-chart-title" id="host-res-title" data-i18n="monitor.host_title">🖥️ 宿主资源</div>
+              <span class="host-source-badge" id="host-source-badge" style="font-size:11px;padding:2px 9px;border-radius:10px;border:1px solid #8b949e;color:#8b949e;background:rgba(139,148,158,.12);">—</span>
+            </div>
+            <div class="host-resource-body" style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;">
+              <div class="health-chart-card host-chart-card" style="flex:1;min-width:320px;">
+                <div class="health-chart-box" id="echart-host-res" style="height:210px;"></div>
+              </div>
+              <div class="health-chart-card host-chart-card" id="host-ebpf-card" style="flex:1;min-width:320px;display:none;">
+                <div class="health-chart-title" id="host-ebpf-title" data-i18n="monitor.host_ebpf_title">⚡ eBPF 内核级指标</div>
+                <div class="health-chart-box" id="echart-host-ebpf" style="height:210px;"></div>
+                <div class="host-top-procs" id="host-top-procs"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 健康态势大屏 (ECharts) -->
+        <div class="home-section health-screen" id="health-screen-section" style="display:none;">
+          <div class="section-header" style="justify-content:flex-start;">
+            <h2 class="section-title" data-i18n="webui.home_health_screen_title">🩺 健康态势大屏</h2>
+          </div>
+          <div class="health-screen-grid">
+            <div class="health-chart-card">
+              <div class="health-chart-title" data-i18n="webui.home_chart_health_score">🎯 综合健康评分</div>
+              <div class="health-chart-box" id="echart-gauge"></div>
+            </div>
+            <div class="health-chart-card">
+              <div class="health-chart-title" data-i18n="webui.home_chart_risk_dist">⚠️ 风险等级分布</div>
+              <div class="health-chart-box" id="echart-risk"></div>
+            </div>
+            <div class="health-chart-card">
+              <div class="health-chart-title" data-i18n="webui.home_chart_trend">📈 健康评分趋势（近 30 天）</div>
+              <div class="health-chart-box" id="echart-trend"></div>
+            </div>
+            <div class="health-chart-card">
+              <div class="health-chart-title" data-i18n="webui.home_chart_matrix">🗂️ 实例健康矩阵</div>
+              <div class="health-chart-box" id="echart-matrix"></div>
+            </div>
+          </div>
+        </div>
 
         <!-- 首页概览卡片 -->
         <div class="home-overview" id="home-overview-section" style="display:none;">
@@ -4945,7 +5018,7 @@ function formatBytes(bytes) {
                 </div>
               </div>
               <div id="home-health-dashboard">
-                <div class="health-no-data">暂无巡检数据</div>
+                <div class="health-no-data" data-i18n="webui.home_no_data">暂无巡检数据</div>
               </div>
             </div>
 
@@ -5007,81 +5080,6 @@ function formatBytes(bytes) {
                 </div>
               </div>
               <div class="kb-hint" id="home-kb-hint" data-i18n="webui.home_kb_hint">上传数据库文档，AI 诊断更精准</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 健康态势大屏 (ECharts) -->
-        <div class="home-section health-screen" id="health-screen-section" style="display:none;">
-          <div class="section-header">
-            <h2 class="section-title">🩺 健康态势大屏</h2>
-            <span class="section-desc">实时健康评分 · 风险分布 · 趋势研判 · 实例矩阵</span>
-          </div>
-          <div class="health-screen-grid">
-            <div class="health-chart-card">
-              <div class="health-chart-title">🎯 综合健康评分</div>
-              <div class="health-chart-box" id="echart-gauge"></div>
-            </div>
-            <div class="health-chart-card">
-              <div class="health-chart-title">⚠️ 风险等级分布</div>
-              <div class="health-chart-box" id="echart-risk"></div>
-            </div>
-            <div class="health-chart-card">
-              <div class="health-chart-title">📈 健康评分趋势（近 30 天）</div>
-              <div class="health-chart-box" id="echart-trend"></div>
-            </div>
-            <div class="health-chart-card">
-              <div class="health-chart-title">🗂️ 实例健康矩阵</div>
-              <div class="health-chart-box" id="echart-matrix"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 实时监控 (v2.10) -->
-        <div class="home-section monitor-section" id="monitor-section" style="display:none;">
-          <div class="section-header">
-            <h2 class="section-title">📡 实时监控</h2>
-            <span class="section-desc">采集器每 30s 推送 · QPS / TPS · 连接数 · 延迟 · 可用性</span>
-            <span class="monitor-running-pill" id="monitor-running-pill">采集器：检测中…</span>
-          </div>
-          <div class="monitor-toolbar">
-            <label>实例</label>
-            <select id="monitor-instance-select" onchange="onMonitorInstanceChange()">
-              <option value="">请选择实例</option>
-            </select>
-            <span class="monitor-latency" id="monitor-latency-text"></span>
-            <span class="monitor-updated" id="monitor-updated-text"></span>
-          </div>
-          <div class="monitor-grid">
-            <div class="health-chart-card">
-              <div class="health-chart-title" id="monitor-throughput-title">⚡ 吞吐（QPS / TPS）</div>
-              <div class="health-chart-box" id="echart-mon-throughput"></div>
-            </div>
-            <div class="health-chart-card">
-              <div class="health-chart-title" id="monitor-conn-title">🔗 连接数</div>
-              <div class="health-chart-box" id="echart-mon-conn"></div>
-            </div>
-            <div class="health-chart-card">
-              <div class="health-chart-title" id="monitor-latency-title">⏱️ 响应延迟 (ms)</div>
-              <div class="health-chart-box" id="echart-mon-latency"></div>
-            </div>
-          </div>
-
-          <!-- 宿主资源（实例感知：SSH 远端 eBPF/psutil，或中心机本机降级） -->
-          <div class="host-resource-block" id="host-resource-block">
-            <div class="host-resource-head" style="display:flex;align-items:center;gap:10px;margin:16px 0 4px;">
-              <div class="health-chart-title" id="host-res-title" data-i18n="monitor.host_title">🖥️ 宿主资源</div>
-              <span class="host-source-badge" id="host-source-badge" style="font-size:11px;padding:2px 9px;border-radius:10px;border:1px solid #8b949e;color:#8b949e;background:rgba(139,148,158,.12);">—</span>
-            </div>
-            <div class="host-resource-body" style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;">
-              <div class="health-chart-card host-chart-card" style="flex:1;min-width:320px;">
-                <div class="health-chart-box" id="echart-host-res" style="height:210px;"></div>
-              </div>
-              <div class="health-chart-card host-chart-card" id="host-ebpf-card" style="flex:1;min-width:320px;display:none;">
-                <div class="health-chart-title" id="host-ebpf-title" data-i18n="monitor.host_ebpf_title">⚡ eBPF 内核级指标</div>
-                <div class="health-chart-box" id="echart-host-ebpf" style="height:210px;"></div>
-                <div class="host-top-procs" id="host-top-procs"></div>
-              </div>
             </div>
           </div>
         </div>
@@ -5191,10 +5189,10 @@ function formatBytes(bytes) {
           <div class="quotes-inner">
             <div class="quotes-icon">💡</div>
             <div class="quotes-body">
-              <div class="quotes-text" id="quotes-text">加载中...</div>
+              <div class="quotes-text" id="quotes-text" data-i18n="webui.home_quote_loading">加载中...</div>
               <div class="quotes-meta">
                 <span class="quotes-category" id="quotes-category"></span>
-                <span class="quotes-refresh" onclick="refreshQuote()" title="换一条">🔄</span>
+                <span class="quotes-refresh" onclick="refreshQuote()" data-i18n-title="webui.home_quote_refresh" title="换一条">🔄</span>
               </div>
             </div>
           </div>
@@ -7724,6 +7722,11 @@ function applyI18N() {
     } else {
       el.textContent = i18n(key);
     }
+  });
+  // 应用 data-i18n-title 属性的元素（翻译 title 提示）
+  document.querySelectorAll('[data-i18n-title]').forEach(el => {
+    const k = el.getAttribute('data-i18n-title');
+    if (k) el.title = i18n(k);
   });
 }
 
@@ -13222,7 +13225,7 @@ function ensureMonChart(key, id) {
 function monitorShowFallback(msg) {
   ['echart-mon-throughput', 'echart-mon-conn', 'echart-mon-latency'].forEach(function (id) {
     const el = document.getElementById(id);
-    if (el) el.innerHTML = '<div class="health-chart-fallback">' + (msg || '暂无数据') + '</div>';
+    if (el) el.innerHTML = '<div class="health-chart-fallback">' + (msg || i18n('webui.home_monitor_no_data')) + '</div>';
   });
 }
 
@@ -13231,7 +13234,7 @@ function initMonitor() {
   if (!section) return;
   section.style.display = '';
   if (typeof echarts === 'undefined') {
-    monitorShowFallback('ECharts 未加载<br>请联网或部署离线版以查看实时监控');
+    monitorShowFallback(i18n('webui.home_monitor_echarts_missing'));
     return;
   }
   try {
@@ -13252,18 +13255,18 @@ async function loadMonitorSummary() {
     const d = await r.json();
     monitorSummary = d.instances || [];
     const pill = document.getElementById('monitor-running-pill');
-    if (pill) pill.textContent = '采集器：' + (d.running ? '运行中' : '未运行');
+    if (pill) pill.textContent = i18n('webui.home_monitor_running_prefix') + (d.running ? i18n('webui.home_monitor_running_on') : i18n('webui.home_monitor_running_off'));
     const sel = document.getElementById('monitor-instance-select');
     if (!sel) return;
     const cur = monitorCurrentId;
-    sel.innerHTML = '<option value="">请选择实例</option>' +
+    sel.innerHTML = '<option value="">' + (i18n('webui.home_monitor_select_instance') || '请选择实例') + '</option>' +
       monitorSummary.map(function (i) {
         return '<option value="' + i.instance_id + '">' + (i.name || i.instance_id) + ' (' + (i.db_type || '') + ')</option>';
       }).join('');
     if (cur) sel.value = cur;
     else if (monitorSummary.length) { sel.value = monitorSummary[0].instance_id; monitorCurrentId = monitorSummary[0].instance_id; }
     if (monitorCurrentId) loadMonitorHistory(monitorCurrentId);
-    else monitorShowFallback('暂无被监控实例');
+    else monitorShowFallback(i18n('webui.home_monitor_no_instance'));
     prefillMonitorFilterSources();
   } catch (e) { console.error('loadMonitorSummary failed:', e); }
 }
@@ -13307,16 +13310,16 @@ function updateMonitorStatus(id) {
   const up = document.getElementById('monitor-updated-text');
   const avail = latest ? latest.metrics.available : (inst ? inst.available : undefined);
   if (dot) dot.className = 'monitor-dot ' + (avail ? 'up' : 'down');
-  if (st) st.textContent = avail === false ? (latest && latest.metrics.status === 'cooldown' ? '退避中' : '不可用') : '正常';
-  if (lt) lt.textContent = (latest && latest.metrics.latency_ms != null) ? ('延迟 ' + latest.metrics.latency_ms + ' ms') : '';
-  if (up) up.textContent = latest ? ('更新于 ' + (latest.ts || '').replace('T', ' ').slice(0, 19)) : '';
+  if (st) st.textContent = avail === false ? (latest && latest.metrics.status === 'cooldown' ? i18n('webui.home_monitor_status_cooldown') : i18n('webui.home_monitor_status_down')) : i18n('webui.home_monitor_status_normal');
+  if (lt) lt.textContent = (latest && latest.metrics.latency_ms != null) ? (i18n('webui.home_monitor_latency_prefix') + latest.metrics.latency_ms + ' ms') : '';
+  if (up) up.textContent = latest ? (i18n('webui.home_monitor_updated_prefix') + (latest.ts || '').replace('T', ' ').slice(0, 19)) : '';
 }
 
 function renderMonitorCharts() {
   if (typeof echarts === 'undefined') return;
   const id = monitorCurrentId;
   const hist = monitorHistory[id] || [];
-  if (!hist.length) { monitorShowFallback('等待采集数据…'); return; }
+  if (!hist.length) { monitorShowFallback(i18n('webui.home_monitor_waiting')); return; }
   // 宿主资源面板（eBPF 内核级 / psutil 用户态，实例感知），与深采与否无关
   renderHostPanel();
 
@@ -13401,24 +13404,24 @@ function renderMonitorCharts() {
   }
 
   // 恢复默认标题（切换实例时重置，非深采分支会再次覆盖）
-  if (titleTP) titleTP.textContent = '⚡ 吞吐（QPS / TPS）';
-  if (titleCN) titleCN.textContent = '🔗 连接数';
-  if (titleLT) titleLT.textContent = '⏱️ 响应延迟 (ms)';
+  if (titleTP) titleTP.textContent = i18n('webui.home_monitor_throughput');
+  if (titleCN) titleCN.textContent = i18n('webui.home_monitor_conn');
+  if (titleLT) titleLT.textContent = i18n('webui.home_monitor_latency');
 
   if (deep) {
     // ── 深采实例：三图保持原逻辑 ──
     const tp = multi('rate_', ['#3b82f6', '#22c55e', '#f59e0b', '#a855f7']);
     if (!tp.length) { const f = pick(['rate_queries', 'rate_xact_commit', 'rate_ora_user_commits',
                                       'mssql_batch_requests', 'mssql_sql_compilations'], '#3b82f6'); if (f) tp.push(f); }
-    ensureMonChart('throughput', 'echart-mon-throughput').setOption(opt(tp, !tp.length ? '该实例类型暂不支持深采' : null), { notMerge: true });
+    ensureMonChart('throughput', 'echart-mon-throughput').setOption(opt(tp, !tp.length ? (i18n('webui.home_monitor_no_deep') || '该实例类型暂不支持深采') : null), { notMerge: true });
 
     const conn = [pick(['threads_connected', 'numbackends', 'user_sessions', 'active_sessions',
                          'connections', 'total_sessions'], '#22c55e'),
                   pick(['threads_running', 'sessions_running'], '#f59e0b')].filter(Boolean);
-    ensureMonChart('conn', 'echart-mon-conn').setOption(opt(conn, !conn.length ? '该实例类型暂不支持深采' : null), { notMerge: true });
+    ensureMonChart('conn', 'echart-mon-conn').setOption(opt(conn, !conn.length ? (i18n('webui.home_monitor_no_deep') || '该实例类型暂不支持深采') : null), { notMerge: true });
 
     const lat = pick(['latency_ms'], '#f85149');
-    ensureMonChart('latency', 'echart-mon-latency').setOption(opt(lat ? [lat] : [], !lat ? '该实例暂无延迟数据' : null), { notMerge: true });
+    ensureMonChart('latency', 'echart-mon-latency').setOption(opt(lat ? [lat] : [], !lat ? (i18n('webui.home_monitor_no_latency') || '该实例暂无延迟数据') : null), { notMerge: true });
     return;
   }
 
@@ -13426,8 +13429,8 @@ function renderMonitorCharts() {
   const avail = hist.map(function (h) { return ((h.metrics && h.metrics.available) ? 1 : 0); });
   const upCount = avail.filter(function (v) { return v === 1; }).length;
   const ratePct = hist.length ? Math.round(upCount / hist.length * 100) : 0;
-  if (titleTP) titleTP.textContent = '📶 端口可用性 · 可用率 ' + ratePct + '%';
-  if (titleCN) titleCN.textContent = '🩺 连通性诊断';
+  if (titleTP) titleTP.textContent = i18n('webui.home_monitor_throughput_avail') + ratePct + '%';
+  if (titleCN) titleCN.textContent = i18n('webui.home_monitor_conn_diag');
 
   // 1) 端口可用性时间线（可达=1 / 不可达=0 阶梯面积）
   const availSeries = [{
@@ -13437,21 +13440,21 @@ function renderMonitorCharts() {
   }];
   const availY = { type: 'value', min: 0, max: 1, interval: 1,
     splitLine: { lineStyle: { color: BORD } },
-    axisLabel: { color: MUT, fontSize: 10, formatter: function (v) { return v === 1 ? '可达' : '不可达'; } } };
+    axisLabel: { color: MUT, fontSize: 10, formatter: function (v) { return v === 1 ? i18n('webui.home_monitor_reachable') : i18n('webui.home_monitor_unreachable'); } } };
   const availOpt = opt(availSeries, null, availY);
   availOpt.tooltip.formatter = function (ps) {
     if (!ps || !ps.length) return '';
     const p = ps[0];
-    return p.axisValue + '<br/>端口状态：<b style="color:#3fb950">' + (p.data === 1 ? '可达' : '不可达') + '</b>';
+    return p.axisValue + '<br/>' + i18n('webui.home_monitor_port_status') + '<b style="color:#3fb950">' + (p.data === 1 ? i18n('webui.home_monitor_reachable') : i18n('webui.home_monitor_unreachable')) + '</b>';
   };
   ensureMonChart('throughput', 'echart-mon-throughput').setOption(availOpt, { notMerge: true });
 
   // 2) 连通性诊断：可用率仪表 + 原因说明
   const latest = (hist[hist.length - 1].metrics) || {};
-  let reason = '该实例类型暂不支持深采，仅展示 TCP 连通性';
-  if (latest.status === 'cooldown') reason = '采集退避中（连续失败已自动熔断）';
-  else if (latest.error) reason = '深采失败：' + String(latest.error).slice(0, 56);
-  else if (latest.available === false) reason = '端口不可达，请检查网络 / 防火墙';
+  let reason = i18n('webui.home_monitor_tcp_only');
+  if (latest.status === 'cooldown') reason = i18n('webui.home_monitor_cooldown_reason');
+  else if (latest.error) reason = i18n('webui.home_monitor_deep_fail') + String(latest.error).slice(0, 56);
+  else if (latest.available === false) reason = i18n('webui.home_monitor_port_unreachable');
   const rateColor = ratePct >= 90 ? '#3fb950' : (ratePct >= 60 ? '#d29922' : '#f85149');
   const diagOpt = {
     backgroundColor: 'transparent',
