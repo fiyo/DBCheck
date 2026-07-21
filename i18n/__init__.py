@@ -5,6 +5,8 @@ DBCheck i18n 模块
 提供多语言支持，所有面向用户的字符串均通过 t(key) 获取。
 默认语言从 dbc_config.json 读取，也可通过启动参数 --lang 覆盖。
 
+支持语言：zh(简体中文) / en(English) / zh_tw(繁體中文) / ja(日本語) / ko(한국어)
+
 用法：
     from i18n import t, set_lang, get_lang
     print(t("cli.main_menu_title"))
@@ -15,8 +17,38 @@ import json
 
 from .zh import ZI
 from .en import EN
+from .zh_tw import ZH_TW
+from .ja import JA
+from .ko import KO
 
-# ── 配置路径 ────────────────────────────────────────────────────────────────
+# ── 语言注册表（新增语言只需在此登记）────────────────────────────────────
+_LANGS = {
+    'zh': ZI,
+    'en': EN,
+    'zh_tw': ZH_TW,
+    'ja': JA,
+    'ko': KO,
+}
+
+# 语言显示名（下拉框使用）
+_LANG_DISPLAY = {
+    'zh': '中文',
+    'en': 'English',
+    'zh_tw': '繁體中文',
+    'ja': '日本語',
+    'ko': '한국어',
+}
+
+# 常见别名 -> 标准代码
+_LANG_ALIASES = {
+    'zh': 'zh', 'chinese': 'zh', 'zh-cn': 'zh', 'cn': 'zh', 'zho': 'zh',
+    'en': 'en', 'english': 'en', 'en-us': 'en', 'eng': 'en',
+    'zh_tw': 'zh_tw', 'zh-tw': 'zh_tw', 'zh-hant': 'zh_tw', 'traditional': 'zh_tw', 'cht': 'zh_tw',
+    'ja': 'ja', 'jp': 'ja', 'japanese': 'ja', '日本语': 'ja', 'jpn': 'ja',
+    'ko': 'ko', 'kr': 'ko', 'korean': 'ko', '朝鲜语': 'ko', 'kor': 'ko',
+}
+
+# ── 配置路径 ───────────────────────────────────────────────────────────────
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _CONFIG_FILE = os.path.join(os.path.dirname(_SCRIPT_DIR), 'dbc_config.json')
 
@@ -41,6 +73,15 @@ def _save_config(cfg):
         json.dump(cfg, f, ensure_ascii=False, indent=4)
 
 
+
+def _normalize_lang(lang):
+    """将用户输入（含别名）规范为注册表中的标准代码。"""
+    if lang is None:
+        return None
+    lang = str(lang).strip().lower()
+    return _LANG_ALIASES.get(lang, lang)
+
+
 def get_lang():
     """
     获取当前语言。
@@ -55,11 +96,11 @@ def set_lang(lang, persist=True):
     """
     设置当前语言。
 
-    :param lang:     'zh' 或 'en'
+    :param lang:    'zh' / 'en' / 'zh_tw' / 'ja' / 'ko'（或别名）
     :param persist:  是否写入 dbc_config.json（Web UI 保存时为 True，
-                     CLI --lang 参数覆盖时为 False，不影响配置文件）
+                    CLI --lang 参数覆盖时为 False，不影响配置文件）
     """
-    lang = 'en' if str(lang).lower().startswith('en') else 'zh'
+    lang = _normalize_lang(lang) or 'zh'
     if persist:
         cfg = _load_config()
         cfg['language'] = lang
@@ -83,22 +124,22 @@ def t(key, lang=None, default=None):
     """
     if lang is None:
         lang = get_lang()
+    lang = _normalize_lang(lang)
 
-    data = EN if lang.startswith('en') else ZI
+    data = _LANGS.get(lang, ZI)
     val = data.get(key)
 
     if val is not None:
         return str(val)
 
-    # 回退到中文
+    # 回退到简体中文
     val = ZI.get(key)
     if val is not None:
         return str(val)
 
     # default 可能也是一个翻译 key，先尝试翻译它
     if default is not None:
-        # 避免无限递归：用 default 作为 key 再查一次（不含 default 参数）
-        default_val = data.get(default)
+        default_val = _LANGS.get(lang, ZI).get(default)
         if default_val is not None:
             return str(default_val)
         default_val = ZI.get(default)
@@ -115,11 +156,13 @@ def get_all_translations(lang=None):
     """返回指定语言的全部翻译字典"""
     if lang is None:
         lang = get_lang()
-    return EN if lang.startswith('en') else ZI
+    lang = _normalize_lang(lang)
+    return _LANGS.get(lang, ZI)
 
 
 def get_language_display(lang=None):
     """返回语言对应的显示名称"""
     if lang is None:
         lang = get_lang()
-    return "English" if lang.startswith('en') else "中文"
+    lang = _normalize_lang(lang)
+    return _LANG_DISPLAY.get(lang, '中文')
