@@ -1,15 +1,15 @@
 {
   "db_type": "mongodb",
-  "description_zh": "MongoDB 默认基线配置",
-  "description_en": "MongoDB Default Baseline Configuration",
+  "description_zh": "MongoDB 默认基线配置 v2.0（支持 5.0+/6.0+/7.0+）",
+  "description_en": "MongoDB Default Baseline Configuration v2.0 (supports 5.0+/6.0+/7.0+)",
   "baselines": [
     {
       "param_name": "authenticationMechanisms",
-      "operator": "!=",
-      "expected_value": "",
+      "operator": "LIKE",
+      "expected_value": "SCRAM-SHA-256",
       "risk_level": "HIGH",
-      "description_zh": "应启用身份验证机制（如 SCRAM-SHA-256）",
-      "description_en": "Authentication mechanisms should be configured"
+      "description_zh": "认证机制应包含 SCRAM-SHA-256",
+      "description_en": "Authentication mechanisms should include SCRAM-SHA-256"
     },
     {
       "param_name": "enableLocalhostAuthBypass",
@@ -20,12 +20,12 @@
       "description_en": "Localhost auth bypass should be disabled in production"
     },
     {
-      "param_name": "maxConnections",
-      "operator": ">=",
-      "expected_value": "1000",
-      "risk_level": "MEDIUM",
-      "description_zh": "最大连接数应 >= 1000",
-      "description_en": "Max connections should be >= 1000"
+      "param_name": "writeConcernMajorityJournalDefault",
+      "operator": "==",
+      "expected_value": "true",
+      "risk_level": "HIGH",
+      "description_zh": "writeConcernMajorityJournalDefault 应为 true（保证数据安全）",
+      "description_en": "writeConcernMajorityJournalDefault should be true for data safety"
     },
     {
       "param_name": "wiredTigerCacheSizeGB",
@@ -36,28 +36,68 @@
       "description_en": "WiredTiger cache size should be >= 1GB"
     },
     {
-      "param_name": "writeConcernMajorityJournalDefault",
+      "param_name": "javascriptEnabled",
       "operator": "==",
-      "expected_value": "true",
-      "risk_level": "HIGH",
-      "description_zh": "writeConcernMajorityJournalDefault 应为 true（保证数据安全）",
-      "description_en": "writeConcernMajorityJournalDefault should be true for data safety"
+      "expected_value": "false",
+      "risk_level": "MEDIUM",
+      "description_zh": "生产环境应禁用 JavaScript 执行（防注入攻击）",
+      "description_en": "JavaScript execution should be disabled in production (prevent injection)"
     },
     {
-      "param_name": "slowOpThresholdMs",
-      "operator": "<=",
-      "expected_value": "100",
-      "risk_level": "LOW",
-      "description_zh": "慢查询阈值应 <= 100ms",
-      "description_en": "Slow operation threshold should be <= 100ms"
+      "param_name": "clusterAuthMode",
+      "operator": "!=",
+      "expected_value": "undefined",
+      "risk_level": "HIGH",
+      "description_zh": "副本集应配置集群认证模式（x509 或 keyFile）",
+      "description_en": "Replica set should configure cluster auth mode (x509 or keyFile)"
     },
     {
       "param_name": "logLevel",
       "operator": "<=",
       "expected_value": "1",
       "risk_level": "LOW",
-      "description_zh": "日志级别应 <= 1（0=INFO, 1=WARN）",
-      "description_en": "Log level should be <= 1 (0=INFO, 1=WARN)"
+      "description_zh": "日志级别应 <= 1（0=INFO, 1=WARN，过高影响性能）",
+      "description_en": "Log level should be <= 1 (0=INFO, 1=WARN, higher impacts performance)"
+    },
+    {
+      "param_name": "slowOpThresholdMs",
+      "operator": "<=",
+      "expected_value": "100",
+      "risk_level": "LOW",
+      "description_zh": "慢查询阈值应 <= 100ms（6.x 及以下版本）",
+      "description_en": "Slow operation threshold should be <= 100ms (6.x and below)"
+    },
+    {
+      "param_name": "slowQuerySampler",
+      "operator": "<=",
+      "expected_value": "100",
+      "risk_level": "LOW",
+      "description_zh": "慢查询采样阈值应 <= 100ms（7.0+ 版本）",
+      "description_en": "Slow query sampler threshold should be <= 100ms (7.0+ only)"
+    },
+    {
+      "param_name": "tlsMode",
+      "operator": "!=",
+      "expected_value": "disabled",
+      "risk_level": "HIGH",
+      "description_zh": "生产环境应启用 TLS 加密传输（preferTLS 或 requireTLS）",
+      "description_en": "TLS should be enabled in production (preferTLS or requireTLS)"
+    },
+    {
+      "param_name": "auditLogDestination",
+      "operator": "!=",
+      "expected_value": "",
+      "risk_level": "MEDIUM",
+      "description_zh": "应配置审计日志目标（file/syslog）",
+      "description_en": "Audit log destination should be configured (file/syslog)"
+    },
+    {
+      "param_name": "maxConnections",
+      "operator": ">=",
+      "expected_value": "1000",
+      "risk_level": "MEDIUM",
+      "description_zh": "最大连接数应 >= 1000",
+      "description_en": "Max connections should be >= 1000"
     },
     {
       "param_name": "networkMessageCompressors",
@@ -66,6 +106,38 @@
       "risk_level": "LOW",
       "description_zh": "应启用网络消息压缩（snappy/zstd/zlib）",
       "description_en": "Network message compression should be enabled"
+    },
+    {
+      "param_name": "enableMajorityReadConcern",
+      "operator": "==",
+      "expected_value": "true",
+      "risk_level": "MEDIUM",
+      "description_zh": "应启用多数派读关注（保证数据一致性）",
+      "description_en": "Majority read concern should be enabled (data consistency)"
+    },
+    {
+      "param_name": "diagnosticDataCollectionEnabled",
+      "operator": "==",
+      "expected_value": "true",
+      "risk_level": "LOW",
+      "description_zh": "应启用诊断数据收集（FTDC，便于故障排查）",
+      "description_en": "Diagnostic data collection should be enabled (FTDC, for troubleshooting)"
+    },
+    {
+      "param_name": "ttlMonitorEnabled",
+      "operator": "==",
+      "expected_value": "true",
+      "risk_level": "LOW",
+      "description_zh": "应启用 TTL 监控（自动过期数据清理）",
+      "description_en": "TTL monitor should be enabled (automatic expired data cleanup)"
+    },
+    {
+      "param_name": "traceExceptions",
+      "operator": "==",
+      "expected_value": "false",
+      "risk_level": "LOW",
+      "description_zh": "生产环境应关闭异常追踪（影响性能）",
+      "description_en": "Exception tracing should be disabled in production (performance impact)"
     }
   ]
 }

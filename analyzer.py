@@ -2266,6 +2266,21 @@ def smart_analyze_gbase(context: dict) -> list:
 # ═══════════════════════════════════════════════════════
 
 
+def smart_analyze_mongodb(context: dict) -> list:
+    """MongoDB 智能风险分析：运行 mongodb.yaml 内置规则（80 条，db_types=[mongodb]）。
+
+    与 mysql/pg 等一致，规则主体放在插件规则引擎（pro/rules/builtin/mongodb.yaml），
+    此处仅负责调用 analyze_with_plugins 汇总规则命中项。
+    """
+    try:
+        from pro.rule_engine import analyze_with_plugins
+        plugin_issues = analyze_with_plugins('mongodb', context)
+    except Exception as e:
+        print(f"[WARN] smart_analyze_mongodb plugin rules failed: {e}")
+        plugin_issues = []
+    return plugin_issues
+
+
 def smart_analyze_mariadb_extras(context: dict, conn=None) -> list:
     """
     MariaDB 专有参数/特性补充检查（低风险探测，不覆盖 MySQL 主规则结果）。

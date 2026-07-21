@@ -1,0 +1,1478 @@
+# -*- coding: utf-8 -*-
+# MongoDB 内置巡检规则
+#
+# 规则引擎约束（pro/rule_engine.py）：
+#   * condition 走 safe_eval：白名单 min/max/len/int/float/str/abs/round/any/all/sum，
+#     并允许对值调用白名单安全方法；仅禁止 import、dunder 属性、未知属性/方法调用。
+#   * params 通过 ${context.xxx} 或 ${context.xxx[0].FIELD} 提取 context 值。
+#   * message 仅替换 resolved_params 与引擎自动计算的 conn_pct。
+#
+# 规则分类（80+ 条）：
+#   security (20) - 认证/TLS/审计/权限
+#   performance (25) - 连接/缓存/慢查询/索引/锁
+#   ha (15) - 副本集/成员健康/延迟/选举
+#   connection (10) - 连接池/超时/可用连接
+#   storage (10) - 存储大小/索引大小/压缩
+rules:
+  # ==============================================================
+  # Security (20)
+  # ==============================================================
+  - id: mongo_auth_disabled
+    name: Authentication appears disabled
+    name_zh: 认证未启用
+    category: security
+    db_types: [mongodb]
+    severity: critical
+    priority: critical
+    owner: DBA
+    enabled: true
+    description: No users found, authentication may be disabled
+    description_zh: 未发现用户，认证可能未启用
+    condition: "users is not None and len(users) == 0"
+    params:
+      users: "${context.mongodb_users}"
+    message: "MongoDB 未发现任何用户，认证可能未启用，生产环境必须启用认证"
+    message_zh: "MongoDB 未发现任何用户，认证可能未启用，生产环境必须启用认证"
+    fix_sql: "-- 在 admin 库创建管理员用户: use admin; db.createUser({user:'admin',pwd:'<strong_password>',roles:['root']})"
+
+  - id: mongo_auth_bypass_enabled
+    name: Localhost auth bypass enabled
+    name_zh: localhost 认证绕过已启用
+    category: security
+    db_types: [mongodb]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: enableLocalhostAuthBypass should be disabled in production
+    description_zh: 生产环境应禁用 localhost 认证绕过
+    condition: "bl is not None and any(b.get('param_name') == 'enableLocalhostAuthBypass' and b.get('status') == 'FAIL' for b in bl) if bl else False"
+    params:
+      bl: "${context.baseline_results}"
+    message: "enableLocalhostAuthBypass 已启用，存在本地认证绕过风险"
+    message_zh: "enableLocalhostAuthBypass 已启用，存在本地认证绕过风险"
+    fix_sql: "-- mongod.conf: setParameter: enableLocalhostAuthBypass: false"
+
+  - id: mongo_no_tls
+    name: TLS not enabled
+    name_zh: TLS 未启用
+    category: security
+    db_types: [mongodb]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: TLS should be enabled for network encryption
+    description_zh: 应启用 TLS 加密网络传输
+    condition: "bl is not None and any(b.get('param_name') == 'tlsMode' and b.get('status') == 'FAIL' for b in bl) if bl else False"
+    params:
+      bl: "${context.baseline_results}"
+    message: "TLS 未启用，网络传输未加密，存在数据泄露风险"
+    message_zh: "TLS 未启用，网络传输未加密，存在数据泄露风险"
+    fix_sql: "-- mongod.conf: net.tls.mode: requireTLS"
+
+  - id: mongo_weak_auth_mechanism
+    name: Weak authentication mechanism
+    name_zh: 认证机制强度不足
+    category: security
+    db_types: [mongodb]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: SCRAM-SHA-256 should be enabled
+    description_zh: 应启用 SCRAM-SHA-256 认证机制
+    condition: "bl is not None and any(b.get('param_name') == 'authenticationMechanisms' and b.get('status') == 'FAIL' for b in bl) if bl else False"
+    params:
+      bl: "${context.baseline_results}"
+    message: "认证机制未包含 SCRAM-SHA-256，建议启用强认证机制"
+    message_zh: "认证机制未包含 SCRAM-SHA-256，建议启用强认证机制"
+    fix_sql: "-- mongod.conf: setParameter: authenticationMechanisms: SCRAM-SHA-256,SCRAM-SHA-1"
+
+  - id: mongo_js_enabled
+    name: JavaScript execution enabled
+    name_zh: JavaScript 执行已启用
+    category: security
+    db_types: [mongodb]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: JavaScript execution should be disabled in production
+    description_zh: 生产环境应禁用 JavaScript 执行
+    condition: "bl is not None and any(b.get('param_name') == 'javascriptEnabled' and b.get('status') == 'FAIL' for b in bl) if bl else False"
+    params:
+      bl: "${context.baseline_results}"
+    message: "JavaScript 执行已启用，存在 $where 注入攻击风险"
+    message_zh: "JavaScript 执行已启用，存在 $where 注入攻击风险"
+    fix_sql: "-- mongod.conf: setParameter: javascriptEnabled: false"
+
+  - id: mongo_no_audit
+    name: Audit log not configured
+    name_zh: 审计日志未配置
+    category: security
+    db_types: [mongodb]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: Audit log destination should be configured
+    description_zh: 应配置审计日志目标
+    condition: "bl is not None and any(b.get('param_name') == 'auditLogDestination' and b.get('status') == 'FAIL' for b in bl) if bl else False"
+    params:
+      bl: "${context.baseline_results}"
+    message: "审计日志未配置，无法追踪安全事件"
+    message_zh: "审计日志未配置，无法追踪安全事件"
+    fix_sql: "-- mongod.conf: auditLog: {destination: 'file', format: 'JSON', path: '/var/log/mongodb/audit.log'}"
+
+  - id: mongo_cluster_auth_off
+    name: Cluster authentication not configured
+    name_zh: 集群认证未配置
+    category: security
+    db_types: [mongodb]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: Cluster auth mode should be configured for replica sets
+    description_zh: 副本集应配置集群认证模式
+    condition: "bl is not None and any(b.get('param_name') == 'clusterAuthMode' and b.get('status') == 'FAIL' for b in bl) if bl else False"
+    params:
+      bl: "${context.baseline_results}"
+    message: "集群认证模式未配置，副本集内部通信未加密认证"
+    message_zh: "集群认证模式未配置，副本集内部通信未加密认证"
+    fix_sql: "-- mongod.conf: security.clusterAuthMode: sendX509"
+
+  - id: mongo_excess_users
+    name: Excessive number of users
+    name_zh: 用户数量过多
+    category: security
+    db_types: [mongodb]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: More than 50 users found, review permissions
+    description_zh: 发现超过 50 个用户，建议审查权限
+    condition: "users is not None and len(users) > 50"
+    params:
+      users: "${context.mongodb_users}"
+    message: "发现 {user_count} 个用户，建议定期审查用户权限"
+    message_zh: "发现 {user_count} 个用户，建议定期审查用户权限"
+    fix_sql: "-- 定期审查: use admin; db.getUsers()"
+
+  - id: mongo_debug_build
+    name: Debug build detected
+    name_zh: 检测到 Debug 构建版本
+    category: security
+    db_types: [mongodb]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: MongoDB running in debug mode
+    description_zh: MongoDB 运行在 Debug 模式
+    condition: "debug is not None and debug == True"
+    params:
+      debug: "${context.mongodb_version[0].DEBUG}"
+    message: "MongoDB 运行在 Debug 构建模式，性能和安全均有影响，生产环境应使用 Release 版本"
+    message_zh: "MongoDB 运行在 Debug 构建模式，性能和安全均有影响，生产环境应使用 Release 版本"
+    fix_sql: "-- 安装 MongoDB 官方 Release 版本"
+
+  - id: mongo_log_level_high
+    name: Log level too high
+    name_zh: 日志级别过高
+    category: security
+    db_types: [mongodb]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: Log level should be <= 1
+    description_zh: 日志级别应 <= 1
+    condition: "bl is not None and any(b.get('param_name') == 'logLevel' and b.get('status') == 'FAIL' for b in bl) if bl else False"
+    params:
+      bl: "${context.baseline_results}"
+    message: "日志级别过高，影响性能并产生大量日志"
+    message_zh: "日志级别过高，影响性能并产生大量日志"
+    fix_sql: "-- db.adminCommand({setParameter: 1, logLevel: 0})"
+
+  - id: mongo_slow_op_threshold_high
+    name: Slow operation threshold too high
+    name_zh: 慢查询阈值过高
+    category: security
+    db_types: [mongodb]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: Slow operation threshold should be <= 100ms
+    description_zh: 慢查询阈值应 <= 100ms
+    condition: "bl is not None and any(b.get('param_name') in ('slowOpThresholdMs', 'slowQuerySampler') and b.get('status') == 'FAIL' for b in bl) if bl else False"
+    params:
+      bl: "${context.baseline_results}"
+    message: "慢查询阈值过高，可能遗漏性能问题"
+    message_zh: "慢查询阈值过高，可能遗漏性能问题"
+    fix_sql: "-- db.adminCommand({setParameter: 1, slowOpThresholdMs: 100})"
+
+  - id: mongo_trace_exceptions
+    name: Exception tracing enabled
+    name_zh: 异常追踪已启用
+    category: security
+    db_types: [mongodb]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: Exception tracing should be disabled in production
+    description_zh: 生产环境应关闭异常追踪
+    condition: "bl is not None and any(b.get('param_name') == 'traceExceptions' and b.get('status') == 'FAIL' for b in bl) if bl else False"
+    params:
+      bl: "${context.baseline_results}"
+    message: "异常追踪已启用，影响性能"
+    message_zh: "异常追踪已启用，影响性能"
+    fix_sql: "-- db.adminCommand({setParameter: 1, traceExceptions: false})"
+
+  - id: mongo_no_majority_read
+    name: Majority read concern disabled
+    name_zh: 多数派读关注未启用
+    category: security
+    db_types: [mongodb]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: enableMajorityReadConcern should be true
+    description_zh: 应启用多数派读关注
+    condition: "bl is not None and any(b.get('param_name') == 'enableMajorityReadConcern' and b.get('status') == 'FAIL' for b in bl) if bl else False"
+    params:
+      bl: "${context.baseline_results}"
+    message: "多数派读关注未启用，可能导致读取到过期数据"
+    message_zh: "多数派读关注未启用，可能导致读取到过期数据"
+    fix_sql: "-- mongod.conf: replication.enableMajorityReadConcern: true"
+
+  - id: mongo_no_write_concern
+    name: Write concern journal default disabled
+    name_zh: 写关注 journal 默认值未启用
+    category: security
+    db_types: [mongodb]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: writeConcernMajorityJournalDefault should be true
+    description_zh: writeConcernMajorityJournalDefault 应为 true
+    condition: "bl is not None and any(b.get('param_name') == 'writeConcernMajorityJournalDefault' and b.get('status') == 'FAIL' for b in bl) if bl else False"
+    params:
+      bl: "${context.baseline_results}"
+    message: "writeConcernMajorityJournalDefault 未启用，majority 写关注可能不等待 journal 落盘"
+    message_zh: "writeConcernMajorityJournalDefault 未启用，majority 写关注可能不等待 journal 落盘"
+    fix_sql: "-- db.adminCommand({setParameter: 1, writeConcernMajorityJournalDefault: true})"
+
+  - id: mongo_no_ftdc
+    name: FTDC diagnostic data disabled
+    name_zh: FTDC 诊断数据未启用
+    category: security
+    db_types: [mongodb]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: Diagnostic data collection should be enabled
+    description_zh: 应启用 FTDC 诊断数据收集
+    condition: "bl is not None and any(b.get('param_name') == 'diagnosticDataCollectionEnabled' and b.get('status') == 'FAIL' for b in bl) if bl else False"
+    params:
+      bl: "${context.baseline_results}"
+    message: "FTDC 诊断数据收集未启用，不利于故障排查"
+    message_zh: "FTDC 诊断数据收集未启用，不利于故障排查"
+    fix_sql: "-- mongod.conf: setParameter: diagnosticDataCollectionEnabled: true"
+
+  - id: mongo_compression_off
+    name: Network compression disabled
+    name_zh: 网络压缩未启用
+    category: security
+    db_types: [mongodb]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: Network message compression should be enabled
+    description_zh: 应启用网络消息压缩
+    condition: "bl is not None and any(b.get('param_name') == 'networkMessageCompressors' and b.get('status') == 'FAIL' for b in bl) if bl else False"
+    params:
+      bl: "${context.baseline_results}"
+    message: "网络消息压缩未启用，增加网络带宽消耗"
+    message_zh: "网络消息压缩未启用，增加网络带宽消耗"
+    fix_sql: "-- mongod.conf: net.compression.compressors: snappy,zstd,zlib"
+
+  - id: mongo_ttl_monitor_off
+    name: TTL monitor disabled
+    name_zh: TTL 监控未启用
+    category: security
+    db_types: [mongodb]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: TTL monitor should be enabled
+    description_zh: 应启用 TTL 监控
+    condition: "bl is not None and any(b.get('param_name') == 'ttlMonitorEnabled' and b.get('status') == 'FAIL' for b in bl) if bl else False"
+    params:
+      bl: "${context.baseline_results}"
+    message: "TTL 监控未启用，TTL 索引不会自动过期数据"
+    message_zh: "TTL 监控未启用，TTL 索引不会自动过期数据"
+    fix_sql: "-- db.adminCommand({setParameter: 1, ttlMonitorEnabled: true})"
+
+  - id: mongo_auth_users_error
+    name: Cannot retrieve users (permission denied)
+    name_zh: 无法获取用户列表（权限不足）
+    category: security
+    db_types: [mongodb]
+    severity: info
+    priority: low
+    owner: DBA
+    enabled: true
+    description: Permission denied when retrieving users
+    description_zh: 获取用户列表时权限不足
+    condition: "users is not None and len(users) > 0 and 'ERROR' in str(users[0])"
+    params:
+      users: "${context.mongodb_users}"
+    message: "获取用户列表权限不足，建议使用具有 clusterAdmin/userAdmin 角色的用户"
+    message_zh: "获取用户列表权限不足，建议使用具有 clusterAdmin/userAdmin 角色的用户"
+    fix_sql: "-- 授予用户 clusterMonitor 角色: use admin; db.grantRolesToUser('currentUser', [{role: 'clusterMonitor', db: 'admin'}])"
+
+  - id: mongo_roles_error
+    name: Cannot retrieve roles (permission denied)
+    name_zh: 无法获取角色列表（权限不足）
+    category: security
+    db_types: [mongodb]
+    severity: info
+    priority: low
+    owner: DBA
+    enabled: true
+    description: Permission denied when retrieving roles
+    description_zh: 获取角色列表时权限不足
+    condition: "roles is not None and len(roles) > 0 and 'ERROR' in str(roles[0])"
+    params:
+      roles: "${context.mongodb_roles}"
+    message: "获取角色列表权限不足，建议使用具有 clusterAdmin 角色的用户"
+    message_zh: "获取角色列表权限不足，建议使用具有 clusterAdmin 角色的用户"
+    fix_sql: "-- 授予用户 clusterMonitor 角色"
+
+  - id: mongo_version_old
+    name: MongoDB version is old or unsupported
+    name_zh: MongoDB 版本过旧或不支持
+    category: security
+    db_types: [mongodb]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: MongoDB version should be 5.0+ for full support
+    description_zh: MongoDB 版本应为 5.0+ 以获得完整支持
+    condition: "ver is not None and ver.startswith(('3.', '4.'))"
+    params:
+      ver: "${context.mongodb_version[0].VERSION}"
+    message: "MongoDB 版本 {ver} 较旧，建议升级到 5.0+ 以获得安全更新和完整功能"
+    message_zh: "MongoDB 版本 {ver} 较旧，建议升级到 5.0+ 以获得安全更新和完整功能"
+    fix_sql: "-- 升级 MongoDB 到 5.0+ 或 7.0+"
+
+  # ==============================================================
+  # Performance (25)
+  # ==============================================================
+  - id: mongo_conn_usage_high
+    name: Connection usage too high
+    name_zh: 连接数使用率过高
+    category: performance
+    db_types: [mongodb]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: Connection usage exceeds 80%
+    description_zh: 连接数使用率超过 80%
+    condition: "pct is not None and pct > 80"
+    params:
+      pct: "${context.mongodb_connections[0].USAGE_PCT}"
+    message: "连接数使用率高达 {pct}%，可能出现拒绝连接"
+    message_zh: "连接数使用率高达 {pct}%，可能出现拒绝连接"
+    fix_sql: "-- 增加最大连接数: db.adminCommand({setParameter: 1, maxConnections: 2000})"
+
+  - id: mongo_conn_usage_medium
+    name: Connection usage warning
+    name_zh: 连接数使用率预警
+    category: performance
+    db_types: [mongodb]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: Connection usage exceeds 60%
+    description_zh: 连接数使用率超过 60%
+    condition: "pct is not None and pct > 60 and pct <= 80"
+    params:
+      pct: "${context.mongodb_connections[0].USAGE_PCT}"
+    message: "连接数使用率达 {pct}%，建议关注"
+    message_zh: "连接数使用率达 {pct}%，建议关注"
+    fix_sql: "-- 监控连接池配置，优化连接复用"
+
+  - id: mongo_wt_cache_dirty_high
+    name: WiredTiger dirty cache ratio high
+    name_zh: WiredTiger 脏缓存比例过高
+    category: performance
+    db_types: [mongodb]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: Dirty cache bytes exceeds 20% of max cache
+    description_zh: 脏缓存字节超过最大缓存的 20%
+    condition: "dirty is not None and max_bytes is not None and max_bytes > 0 and (dirty / max_bytes * 100) > 20"
+    params:
+      dirty: "${context.mongodb_wired_tiger[0].CACHE_DIRTY_BYTES}"
+      max_bytes: "${context.mongodb_wired_tiger[0].CACHE_MAX_BYTES}"
+    message: "WiredTiger 脏缓存比例过高 ({pct:.1f}%)，可能导致写入延迟"
+    message_zh: "WiredTiger 脏缓存比例过高 ({pct:.1f}%)，可能导致写入延迟"
+    fix_sql: "-- 增大 WiredTiger 缓存: mongod.conf: storage.wiredTiger.engineConfig.cacheSizeGB"
+
+  - id: mongo_wt_cache_hit_low
+    name: WiredTiger cache hit ratio low
+    name_zh: WiredTiger 缓存命中率低
+    category: performance
+    db_types: [mongodb]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: Cache hit ratio below 90%
+    description_zh: 缓存命中率低于 90%
+    condition: "ratio is not None and ratio < 90"
+    params:
+      ratio: "${context.mongodb_wired_tiger[0].CACHE_HIT_RATIO_PCT}"
+    message: "WiredTiger 缓存命中率仅 {ratio}%，建议增大缓存或优化查询"
+    message_zh: "WiredTiger 缓存命中率仅 {ratio}%，建议增大缓存或优化查询"
+    fix_sql: "-- 增大缓存: storage.wiredTiger.engineConfig.cacheSizeGB: <larger_value>"
+
+  - id: mongo_mem_resident_high
+    name: Resident memory high
+    name_zh: 常驻内存过高
+    category: performance
+    db_types: [mongodb]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: Resident memory exceeds 50GB
+    description_zh: 常驻内存超过 50GB
+    condition: "mem is not None and mem > 51200"
+    params:
+      mem: "${context.mongodb_memory[0].MEM_RESIDENT_MB}"
+    message: "常驻内存高达 {mem} MB，检查是否有内存泄漏"
+    message_zh: "常驻内存高达 {mem} MB，检查是否有内存泄漏"
+    fix_sql: "-- 检查 WiredTiger 缓存配置和工作集大小"
+
+  - id: mongo_queue_high
+    name: Global lock queue high
+    name_zh: 全局锁队列过高
+    category: performance
+    db_types: [mongodb]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: Global lock queue total exceeds 10
+    description_zh: 全局锁队列总数超过 10
+    condition: "queue is not None and queue > 10"
+    params:
+      queue: "${context.mongodb_global_lock[0].CURRENT_QUEUE_TOTAL}"
+    message: "全局锁队列达 {queue}，存在锁争用"
+    message_zh: "全局锁队列达 {queue}，存在锁争用"
+    fix_sql: "-- 优化慢查询和索引，减少锁持有时间"
+
+  - id: mongo_active_clients_high
+    name: Active clients high
+    name_zh: 活跃客户端数过高
+    category: performance
+    db_types: [mongodb]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: Active clients exceeds 100
+    description_zh: 活跃客户端数超过 100
+    condition: "clients is not None and clients > 100"
+    params:
+      clients: "${context.mongodb_global_lock[0].ACTIVE_CLIENTS_TOTAL}"
+    message: "活跃客户端数达 {clients}，可能影响性能"
+    message_zh: "活跃客户端数达 {clients}，可能影响性能"
+    fix_sql: "-- 优化连接池配置，减少并发连接"
+
+  - id: mongo_slow_queries_found
+    name: Slow queries detected
+    name_zh: 检测到慢查询
+    category: performance
+    db_types: [mongodb]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: Slow queries found in system.profile
+    description_zh: 在 system.profile 中发现慢查询
+    condition: "slow is not None and len(slow) > 0 and 'INFO' not in str(slow[0]) and 'ERROR' not in str(slow[0])"
+    params:
+      slow: "${context.mongodb_slow_queries}"
+    message: "发现 {slow_count} 条慢查询，建议优化查询和索引"
+    message_zh: "发现 {slow_count} 条慢查询，建议优化查询和索引"
+    fix_sql: "-- 使用 db.system.profile.find().sort({millis: -1}).limit(10) 分析慢查询"
+
+  - id: mongo_profiler_off
+    name: Profiler not enabled
+    name_zh: Profiler 未开启
+    category: performance
+    db_types: [mongodb]
+    severity: info
+    priority: low
+    owner: DBA
+    enabled: true
+    description: Database profiler is off
+    description_zh: 数据库 Profiler 未开启
+    condition: "level is not None and level == 0"
+    params:
+      level: "${context.mongodb_profile[0].LEVEL}"
+    message: "Profiler 未开启，无法采集慢查询详情，建议开启 level=1"
+    message_zh: "Profiler 未开启，无法采集慢查询详情，建议开启 level=1"
+    fix_sql: "-- db.setProfilingLevel(1, {slowms: 100})"
+
+  - id: mongo_slow_ms_high
+    name: Slow query threshold too high
+    name_zh: 慢查询阈值过高
+    category: performance
+    db_types: [mongodb]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: Slow query threshold exceeds 100ms
+    description_zh: 慢查询阈值超过 100ms
+    condition: "slowms is not None and slowms > 100"
+    params:
+      slowms: "${context.mongodb_profile[0].SLOW_MS}"
+    message: "慢查询阈值为 {slowms}ms，建议降低到 100ms 以捕获更多慢查询"
+    message_zh: "慢查询阈值为 {slowms}ms，建议降低到 100ms 以捕获更多慢查询"
+    fix_sql: "-- db.setProfilingLevel(1, {slowms: 100})"
+
+  - id: mongo_wt_cache_size_low
+    name: WiredTiger cache size too small
+    name_zh: WiredTiger 缓存大小过小
+    category: performance
+    db_types: [mongodb]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: WiredTiger cache size below 1GB
+    description_zh: WiredTiger 缓存大小低于 1GB
+    condition: "bl is not None and any(b.get('param_name') == 'wiredTigerCacheSizeGB' and b.get('status') == 'FAIL' for b in bl) if bl else False"
+    params:
+      bl: "${context.baseline_results}"
+    message: "WiredTiger 缓存大小低于 1GB，可能影响性能"
+    message_zh: "WiredTiger 缓存大小低于 1GB，可能影响性能"
+    fix_sql: "-- mongod.conf: storage.wiredTiger.engineConfig.cacheSizeGB: 4"
+
+  - id: mongo_uptime_short
+    name: Server recently restarted
+    name_zh: 服务器最近重启
+    category: performance
+    db_types: [mongodb]
+    severity: info
+    priority: low
+    owner: DBA
+    enabled: true
+    description: Server uptime less than 1 hour
+    description_zh: 服务器运行时间不足 1 小时
+    condition: "uptime is not None and uptime > 0 and uptime < 3600"
+    params:
+      uptime: "${context.mongodb_server_status[0].UPTIME}"
+    message: "服务器最近重启（运行 {uptime} 秒），可能存在不稳定因素"
+    message_zh: "服务器最近重启（运行 {uptime} 秒），可能存在不稳定因素"
+    fix_sql: "-- 检查重启原因: 查看 mongod 日志"
+
+  - id: mongo_wt_eviction_high
+    name: WiredTiger eviction rate high
+    name_zh: WiredTiger 淘汰率过高
+    category: performance
+    db_types: [mongodb]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: High application thread eviction rate
+    description_zh: 应用线程淘汰率过高
+    condition: "evict is not None and evict > 100"
+    params:
+      evict: "${context.mongodb_wired_tiger[0].CACHE_PAGES_EVICTED}"
+    message: "WiredTiger 应用线程淘汰率达 {evict}，缓存压力较大"
+    message_zh: "WiredTiger 应用线程淘汰率达 {evict}，缓存压力较大"
+    fix_sql: "-- 增大 WiredTiger 缓存或优化工作集"
+
+  - id: mongo_wt_concurrent_write_low
+    name: WiredTiger write transaction slots low
+    name_zh: WiredTiger 写事务槽位不足
+    category: performance
+    db_types: [mongodb]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: Available write transaction slots below 64
+    description_zh: 可用写事务槽位低于 64
+    condition: "avail is not None and avail >= 0 and avail < 64"
+    params:
+      avail: "${context.mongodb_wired_tiger[0].CONCURRENT_TRANSACTIONS_WRITE_AVAIL}"
+    message: "可用写事务槽位仅 {avail}，写入并发受限"
+    message_zh: "可用写事务槽位仅 {avail}，写入并发受限"
+    fix_sql: "-- 减少并发写入或优化写入模式"
+
+  - id: mongo_queue_readers_high
+    name: Read queue high
+    name_zh: 读队列过高
+    category: performance
+    db_types: [mongodb]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: Read queue exceeds 5
+    description_zh: 读队列超过 5
+    condition: "readers is not None and readers > 5"
+    params:
+      readers: "${context.mongodb_global_lock[0].CURRENT_QUEUE_READERS}"
+    message: "读队列达 {readers}，读操作存在等待"
+    message_zh: "读队列达 {readers}，读操作存在等待"
+    fix_sql: "-- 优化读查询和索引"
+
+  - id: mongo_queue_writers_high
+    name: Write queue high
+    name_zh: 写队列过高
+    category: performance
+    db_types: [mongodb]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: Write queue exceeds 5
+    description_zh: 写队列超过 5
+    condition: "writers is not None and writers > 5"
+    params:
+      writers: "${context.mongodb_global_lock[0].CURRENT_QUEUE_WRITERS}"
+    message: "写队列达 {writers}，写操作存在等待"
+    message_zh: "写队列达 {writers}，写操作存在等待"
+    fix_sql: "-- 优化写操作和索引"
+
+  - id: mongo_active_readers_high
+    name: Active readers high
+    name_zh: 活跃读者数过高
+    category: performance
+    db_types: [mongodb]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: Active readers exceeds 50
+    description_zh: 活跃读者数超过 50
+    condition: "readers is not None and readers > 50"
+    params:
+      readers: "${context.mongodb_global_lock[0].ACTIVE_CLIENTS_READERS}"
+    message: "活跃读者数达 {readers}，读负载较高"
+    message_zh: "活跃读者数达 {readers}，读负载较高"
+    fix_sql: "-- 考虑读分离或增加副本节点"
+
+  - id: mongo_active_writers_high
+    name: Active writers high
+    name_zh: 活跃写者数过高
+    category: performance
+    db_types: [mongodb]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: Active writers exceeds 50
+    description_zh: 活跃写者数超过 50
+    condition: "writers is not None and writers > 50"
+    params:
+      writers: "${context.mongodb_global_lock[0].ACTIVE_CLIENTS_WRITERS}"
+    message: "活跃写者数达 {writers}，写负载较高"
+    message_zh: "活跃写者数达 {writers}，写负载较高"
+    fix_sql: "-- 考虑分片以分散写入负载"
+
+  - id: mongo_cache_used_high
+    name: Cache usage high
+    name_zh: 缓存使用率高
+    category: performance
+    db_types: [mongodb]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: Cache usage exceeds 95% of max
+    description_zh: 缓存使用率超过最大值的 95%
+    condition: "used is not None and max_bytes is not None and max_bytes > 0 and (used / max_bytes * 100) > 95"
+    params:
+      used: "${context.mongodb_wired_tiger[0].CACHE_USED_BYTES}"
+      max_bytes: "${context.mongodb_wired_tiger[0].CACHE_MAX_BYTES}"
+    message: "WiredTiger 缓存使用率达 {pct:.1f}%，接近上限"
+    message_zh: "WiredTiger 缓存使用率达 {pct:.1f}%，接近上限"
+    fix_sql: "-- 增大缓存或优化工作集"
+
+  - id: mongo_collections_error
+    name: Cannot retrieve collection stats
+    name_zh: 无法获取集合统计
+    category: performance
+    db_types: [mongodb]
+    severity: info
+    priority: low
+    owner: DBA
+    enabled: true
+    description: Error retrieving collection statistics
+    description_zh: 获取集合统计时出错
+    condition: "colls is not None and len(colls) > 0 and 'ERROR' in str(colls[0])"
+    params:
+      colls: "${context.mongodb_collections}"
+    message: "获取集合统计失败，可能权限不足"
+    message_zh: "获取集合统计失败，可能权限不足"
+    fix_sql: ""
+
+  - id: mongo_db_stats_error
+    name: Cannot retrieve database stats
+    name_zh: 无法获取数据库统计
+    category: performance
+    db_types: [mongodb]
+    severity: info
+    priority: low
+    owner: DBA
+    enabled: true
+    description: Error retrieving database statistics
+    description_zh: 获取数据库统计时出错
+    condition: "stats is not None and len(stats) > 0 and 'ERROR' in str(stats[0])"
+    params:
+      stats: "${context.mongodb_db_stats}"
+    message: "获取数据库统计失败"
+    message_zh: "获取数据库统计失败"
+    fix_sql: ""
+
+  - id: mongo_network_in_high
+    name: High network inbound traffic
+    name_zh: 网络入站流量高
+    category: performance
+    db_types: [mongodb]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: Network bytes in exceeds 1GB
+    description_zh: 网络入站流量超过 1GB
+    condition: "bytes_in is not None and bytes_in > 1073741824"
+    params:
+      bytes_in: "${context.mongodb_server_status[0].NETWORK_BYTES_IN}"
+    message: "网络入站流量达 {bytes_in} 字节，网络负载较高"
+    message_zh: "网络入站流量达 {bytes_in} 字节，网络负载较高"
+    fix_sql: "-- 启用网络压缩: net.compression.compressors: snappy"
+
+  - id: mongo_network_out_high
+    name: High network outbound traffic
+    name_zh: 网络出站流量高
+    category: performance
+    db_types: [mongodb]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: Network bytes out exceeds 1GB
+    description_zh: 网络出站流量超过 1GB
+    condition: "bytes_out is not None and bytes_out > 1073741824"
+    params:
+      bytes_out: "${context.mongodb_server_status[0].NETWORK_BYTES_OUT}"
+    message: "网络出站流量达 {bytes_out} 字节，网络负载较高"
+    message_zh: "网络出站流量达 {bytes_out} 字节，网络负载较高"
+    fix_sql: "-- 启用网络压缩"
+
+  - id: mongo_opcounters_high_command
+    name: High command count
+    name_zh: 命令操作计数高
+    category: performance
+    db_types: [mongodb]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: Command operations count is very high
+    description_zh: 命令操作计数非常高
+    condition: "cmd is not None and cmd > 100000000"
+    params:
+      cmd: "${context.mongodb_opcounters[0].COMMAND}"
+    message: "命令操作计数达 {cmd}，检查是否有过多的管理命令"
+    message_zh: "命令操作计数达 {cmd}，检查是否有过多的管理命令"
+    fix_sql: ""
+
+  - id: mongo_server_status_error
+    name: Cannot retrieve server status
+    name_zh: 无法获取服务器状态
+    category: performance
+    db_types: [mongodb]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: Error retrieving server status
+    description_zh: 获取服务器状态时出错
+    condition: "status is not None and len(status) > 0 and 'ERROR' in str(status[0])"
+    params:
+      status: "${context.mongodb_server_status}"
+    message: "获取服务器状态失败，可能权限不足（需要 clusterMonitor 角色）"
+    message_zh: "获取服务器状态失败，可能权限不足（需要 clusterMonitor 角色）"
+    fix_sql: "-- 授予 clusterMonitor 角色"
+
+  # ==============================================================
+  # HA (15)
+  # ==============================================================
+  - id: mongo_repl_not_configured
+    name: Replica set not configured
+    name_zh: 副本集未配置
+    category: ha
+    db_types: [mongodb]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: Server is not running as a replica set
+    description_zh: 服务器未配置为副本集
+    condition: "repl is not None and len(repl) == 0"
+    params:
+      repl: "${context.mongodb_repl_status}"
+    message: "未配置副本集，存在单点故障风险，生产环境建议配置副本集"
+    message_zh: "未配置副本集，存在单点故障风险，生产环境建议配置副本集"
+    fix_sql: "-- rs.initiate({_id: 'rs0', members: [{_id: 0, host: 'host:27017'}]})"
+
+  - id: mongo_repl_no_primary
+    name: No primary in replica set
+    name_zh: 副本集无 PRIMARY 节点
+    category: ha
+    db_types: [mongodb]
+    severity: critical
+    priority: critical
+    owner: DBA
+    enabled: true
+    description: Replica set has no primary node
+    description_zh: 副本集没有 PRIMARY 节点
+    condition: "repl is not None and len(repl) > 0 and state is not None and state != 1"
+    params:
+      repl: "${context.mongodb_repl_status}"
+      state: "${context.mongodb_repl_status[0].MY_STATE}"
+    message: "副本集当前节点状态不是 PRIMARY（状态: {state}），无法接受写入"
+    message_zh: "副本集当前节点状态不是 PRIMARY（状态: {state}），无法接受写入"
+    fix_sql: "-- 检查副本集状态: rs.status()"
+
+  - id: mongo_repl_member_down
+    name: Replica set member is down
+    name_zh: 副本集成员宕机
+    category: ha
+    db_types: [mongodb]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: A replica set member health is 0 (DOWN)
+    description_zh: 副本集成员健康状态为 0（宕机）
+    condition: "repl is not None and len(repl) > 0 and 'DOWN' in str(repl[0].get('MEMBERS', ''))"
+    params:
+      repl: "${context.mongodb_repl_status}"
+    message: "副本集存在宕机成员，影响高可用性"
+    message_zh: "副本集存在宕机成员，影响高可用性"
+    fix_sql: "-- rs.status() 检查 DOWN 成员并恢复"
+
+  - id: mongo_repl_member_recovering
+    name: Replica set member recovering
+    name_zh: 副本集成员正在恢复
+    category: ha
+    db_types: [mongodb]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: A replica set member is in RECOVERING state
+    description_zh: 副本集成员处于 RECOVERING 状态
+    condition: "repl is not None and len(repl) > 0 and 'RECOVERING' in str(repl[0].get('MEMBERS', ''))"
+    params:
+      repl: "${context.mongodb_repl_status}"
+    message: "副本集成员正在恢复中，可能影响读取可用性"
+    message_zh: "副本集成员正在恢复中，可能影响读取可用性"
+    fix_sql: "-- rs.status() 检查 RECOVERING 成员进度"
+
+  - id: mongo_repl_member_rollback
+    name: Replica set member in rollback
+    name_zh: 副本集成员正在回滚
+    category: ha
+    db_types: [mongodb]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: A replica set member is in ROLLBACK state
+    description_zh: 副本集成员处于 ROLLBACK 状态
+    condition: "repl is not None and len(repl) > 0 and 'ROLLBACK' in str(repl[0].get('MEMBERS', ''))"
+    params:
+      repl: "${context.mongodb_repl_status}"
+    message: "副本集成员正在回滚，可能丢失未复制的写入"
+    message_zh: "副本集成员正在回滚，可能丢失未复制的写入"
+    fix_sql: "-- rs.status() 检查 ROLLBACK 成员"
+
+  - id: mongo_repl_few_members
+    name: Replica set has too few members
+    name_zh: 副本集成员数过少
+    category: ha
+    db_types: [mongodb]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: Replica set has fewer than 3 members
+    description_zh: 副本集成员数少于 3 个
+    condition: "repl is not None and len(repl) > 0 and count is not None and count < 3"
+    params:
+      repl: "${context.mongodb_repl_status}"
+      count: "${context.mongodb_repl_status[0].MEMBERS_COUNT}"
+    message: "副本集仅 {count} 个成员，建议至少 3 个成员保证高可用"
+    message_zh: "副本集仅 {count} 个成员，建议至少 3 个成员保证高可用"
+    fix_sql: "-- rs.add('newhost:27017')"
+
+  - id: mongo_not_sharded
+    name: Not a sharded cluster
+    name_zh: 非分片集群
+    category: ha
+    db_types: [mongodb]
+    severity: info
+    priority: low
+    owner: DBA
+    enabled: true
+    description: Server is not part of a sharded cluster
+    description_zh: 服务器不是分片集群的一部分
+    condition: "shards is not None and len(shards) == 0"
+    params:
+      shards: "${context.mongodb_shards}"
+    message: "非分片集群，数据量增长后可能需要分片"
+    message_zh: "非分片集群，数据量增长后可能需要分片"
+    fix_sql: "-- 参考 MongoDB 分片文档: sh.enableSharding('dbname')"
+
+  - id: mongo_shard_count_low
+    name: Too few shards
+    name_zh: 分片数过少
+    category: ha
+    db_types: [mongodb]
+    severity: info
+    priority: low
+    owner: DBA
+    enabled: true
+    description: Sharded cluster has fewer than 2 shards
+    description_zh: 分片集群分片数少于 2 个
+    condition: "shards is not None and len(shards) > 0 and len(shards) < 2"
+    params:
+      shards: "${context.mongodb_shards}"
+    message: "分片集群仅 {shard_count} 个分片，建议增加分片以分散负载"
+    message_zh: "分片集群仅 {shard_count} 个分片，建议增加分片以分散负载"
+    fix_sql: "-- sh.addShard('rs1/host:27017')"
+
+  - id: mongo_repl_state_unknown
+    name: Replica set member in UNKNOWN state
+    name_zh: 副本集成员状态未知
+    category: ha
+    db_types: [mongodb]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: A replica set member is in UNKNOWN state
+    description_zh: 副本集成员处于 UNKNOWN 状态
+    condition: "repl is not None and len(repl) > 0 and 'UNKNOWN' in str(repl[0].get('MEMBERS', ''))"
+    params:
+      repl: "${context.mongodb_repl_status}"
+    message: "副本集存在状态未知成员，检查网络连接"
+    message_zh: "副本集存在状态未知成员，检查网络连接"
+    fix_sql: "-- rs.status() 检查网络和防火墙"
+
+  - id: mongo_repl_arbiter_only
+    name: Replica set uses arbiter
+    name_zh: 副本集使用仲裁节点
+    category: ha
+    db_types: [mongodb]
+    severity: info
+    priority: low
+    owner: DBA
+    enabled: true
+    description: Replica set has an arbiter member
+    description_zh: 副本集包含仲裁节点
+    condition: "repl is not None and len(repl) > 0 and 'ARBITER' in str(repl[0].get('MEMBERS', ''))"
+    params:
+      repl: "${context.mongodb_repl_status}"
+    message: "副本集使用仲裁节点，仲裁节点不存储数据，仅参与选举"
+    message_zh: "副本集使用仲裁节点，仲裁节点不存储数据，仅参与选举"
+    fix_sql: ""
+
+  - id: mongo_repl_secondary_only
+    name: Connected to secondary only
+    name_zh: 连接到 SECONDARY 节点
+    category: ha
+    db_types: [mongodb]
+    severity: info
+    priority: low
+    owner: DBA
+    enabled: true
+    description: Connected node is a secondary
+    description_zh: 连接的节点是 SECONDARY
+    condition: "repl is not None and len(repl) > 0 and state is not None and state == 2"
+    params:
+      repl: "${context.mongodb_repl_status}"
+      state: "${context.mongodb_repl_status[0].MY_STATE}"
+    message: "当前连接的是 SECONDARY 节点，只能读取（需 readPreference=secondary）"
+    message_zh: "当前连接的是 SECONDARY 节点，只能读取（需 readPreference=secondary）"
+    fix_sql: ""
+
+  - id: mongo_repl_no_sync_source
+    name: No sync source
+    name_zh: 无同步源
+    category: ha
+    db_types: [mongodb]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: Secondary has no sync source configured
+    description_zh: SECONDARY 节点无同步源
+    condition: "repl is not None and len(repl) > 0 and src is not None and src == '' and state is not None and state == 2"
+    params:
+      repl: "${context.mongodb_repl_status}"
+      src: "${context.mongodb_repl_status[0].SYNC_SOURCE_HOST}"
+      state: "${context.mongodb_repl_status[0].MY_STATE}"
+    message: "SECONDARY 节点无同步源，可能无法同步数据"
+    message_zh: "SECONDARY 节点无同步源，可能无法同步数据"
+    fix_sql: "-- rs.status() 检查复制链路"
+
+  - id: mongo_repl_removed_member
+    name: Replica set member removed
+    name_zh: 副本集成员被移除
+    category: ha
+    db_types: [mongodb]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: A replica set member is in REMOVED state
+    description_zh: 副本集成员处于 REMOVED 状态
+    condition: "repl is not None and len(repl) > 0 and 'REMOVED' in str(repl[0].get('MEMBERS', ''))"
+    params:
+      repl: "${context.mongodb_repl_status}"
+    message: "副本集成员被移除，检查是否计划内操作"
+    message_zh: "副本集成员被移除，检查是否计划内操作"
+    fix_sql: ""
+
+  - id: mongo_repl_draining
+    name: Replica set member draining
+    name_zh: 副本集成员正在排空
+    category: ha
+    db_types: [mongodb]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: A replica set member is in DRAINING state
+    description_zh: 副本集成员正在排空
+    condition: "repl is not None and len(repl) > 0 and 'DRAINING' in str(repl[0].get('MEMBERS', ''))"
+    params:
+      repl: "${context.mongodb_repl_status}"
+    message: "副本集成员正在排空，可能即将被移除"
+    message_zh: "副本集成员正在排空，可能即将被移除"
+    fix_sql: ""
+
+  - id: mongo_repl_startup2
+    name: Replica set member still starting up
+    name_zh: 副本集成员仍在启动
+    category: ha
+    db_types: [mongodb]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: A replica set member is in STARTUP2 state
+    description_zh: 副本集成员处于 STARTUP2 状态
+    condition: "repl is not None and len(repl) > 0 and 'STARTUP2' in str(repl[0].get('MEMBERS', ''))"
+    params:
+      repl: "${context.mongodb_repl_status}"
+    message: "副本集成员正在初始化（STARTUP2），等待数据同步完成"
+    message_zh: "副本集成员正在初始化（STARTUP2），等待数据同步完成"
+    fix_sql: ""
+
+  # ==============================================================
+  # Connection (10)
+  # ==============================================================
+  - id: mongo_max_conn_low
+    name: Max connections too low
+    name_zh: 最大连接数过低
+    category: connection
+    db_types: [mongodb]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: maxConnections should be >= 1000
+    description_zh: 最大连接数应 >= 1000
+    condition: "bl is not None and any(b.get('param_name') == 'maxConnections' and b.get('status') == 'FAIL' for b in bl) if bl else False"
+    params:
+      bl: "${context.baseline_results}"
+    message: "最大连接数配置过低，可能导致连接耗尽"
+    message_zh: "最大连接数配置过低，可能导致连接耗尽"
+    fix_sql: "-- mongod.conf: setParameter: maxConnections: 2000"
+
+  - id: mongo_available_conn_low
+    name: Available connections low
+    name_zh: 可用连接数不足
+    category: connection
+    db_types: [mongodb]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: Available connections below 100
+    description_zh: 可用连接数低于 100
+    condition: "avail is not None and avail < 100"
+    params:
+      avail: "${context.mongodb_connections[0].AVAILABLE}"
+    message: "可用连接数仅 {avail}，即将耗尽"
+    message_zh: "可用连接数仅 {avail}，即将耗尽"
+    fix_sql: "-- 增大 maxConnections 或优化连接池"
+
+  - id: mongo_total_created_high
+    name: Total connections created high
+    name_zh: 累计创建连接数过高
+    category: connection
+    db_types: [mongodb]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: Total created connections is very high
+    description_zh: 累计创建连接数非常高
+    condition: "created is not None and created > 100000"
+    params:
+      created: "${context.mongodb_connections[0].TOTAL_CREATED}"
+    message: "累计创建连接数 {created}，可能存在连接泄漏"
+    message_zh: "累计创建连接数 {created}，可能存在连接泄漏"
+    fix_sql: "-- 检查应用连接池配置，确保正确复用连接"
+
+  - id: mongo_active_conn_high
+    name: Active connection ratio high
+    name_zh: 活跃连接比例过高
+    category: connection
+    db_types: [mongodb]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: Active connections ratio exceeds 80%
+    description_zh: 活跃连接比例超过 80%
+    condition: "active is not None and current is not None and current > 0 and (active / current * 100) > 80"
+    params:
+      active: "${context.mongodb_connections[0].ACTIVE}"
+      current: "${context.mongodb_connections[0].CURRENT}"
+    message: "活跃连接比例过高 ({pct:.1f}%)，连接池可能不足"
+    message_zh: "活跃连接比例过高 ({pct:.1f}%)，连接池可能不足"
+    fix_sql: ""
+
+  - id: mongo_exhaust_is_master
+    name: Exhaust isMaster connections
+    name_zh: Exhaust isMaster 连接
+    category: connection
+    db_types: [mongodb]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: High exhaustIsMaster connections
+    description_zh: Exhaust isMaster 连接数高
+    condition: "exhaust is not None and exhaust > 10"
+    params:
+      exhaust: "${context.mongodb_connections[0].EXHAUST_IS_MASTER}"
+    message: "exhaustIsMaster 连接数 {exhaust}，可能有过多心跳请求"
+    message_zh: "exhaustIsMaster 连接数 {exhaust}，可能有过多心跳请求"
+    fix_sql: ""
+
+  - id: mongo_exhaust_others
+    name: Exhaust other connections
+    name_zh: Exhaust 其他连接
+    category: connection
+    db_types: [mongodb]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: High exhaustOthers connections
+    description_zh: Exhaust 其他连接数高
+    condition: "exhaust is not None and exhaust > 10"
+    params:
+      exhaust: "${context.mongodb_connections[0].EXHAUST_OTHERS}"
+    message: "exhaustOthers 连接数 {exhaust}，检查游标使用"
+    message_zh: "exhaustOthers 连接数 {exhaust}，检查游标使用"
+    fix_sql: ""
+
+  - id: mongo_network_requests_high
+    name: High network request count
+    name_zh: 网络请求数过高
+    category: connection
+    db_types: [mongodb]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: Network request count is very high
+    description_zh: 网络请求数非常高
+    condition: "reqs is not None and reqs > 1000000000"
+    params:
+      reqs: "${context.mongodb_server_status[0].NETWORK_NUM_REQUESTS}"
+    message: "网络请求总数达 {reqs}，运行负载较高"
+    message_zh: "网络请求总数达 {reqs}，运行负载较高"
+    fix_sql: ""
+
+  - id: mongo_connections_error
+    name: Cannot retrieve connection info
+    name_zh: 无法获取连接信息
+    category: connection
+    db_types: [mongodb]
+    severity: info
+    priority: low
+    owner: DBA
+    enabled: true
+    description: Error retrieving connection info
+    description_zh: 获取连接信息时出错
+    condition: "conns is not None and len(conns) > 0 and 'ERROR' in str(conns[0])"
+    params:
+      conns: "${context.mongodb_connections}"
+    message: "获取连接信息失败"
+    message_zh: "获取连接信息失败"
+    fix_sql: ""
+
+  - id: mongo_wt_concurrent_read_low
+    name: Read transaction slots low
+    name_zh: 读事务槽位不足
+    category: connection
+    db_types: [mongodb]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: Available read transaction slots below 64
+    description_zh: 可用读事务槽位低于 64
+    condition: "avail is not None and avail >= 0 and avail < 64"
+    params:
+      avail: "${context.mongodb_wired_tiger[0].CONCURRENT_TRANSACTIONS_READ_AVAIL}"
+    message: "可用读事务槽位仅 {avail}，读并发受限"
+    message_zh: "可用读事务槽位仅 {avail}，读并发受限"
+    fix_sql: ""
+
+  - id: mongo_global_lock_error
+    name: Cannot retrieve global lock status
+    name_zh: 无法获取全局锁状态
+    category: connection
+    db_types: [mongodb]
+    severity: info
+    priority: low
+    owner: DBA
+    enabled: true
+    description: Error retrieving global lock status
+    description_zh: 获取全局锁状态时出错
+    condition: "gl is not None and len(gl) > 0 and 'ERROR' in str(gl[0])"
+    params:
+      gl: "${context.mongodb_global_lock}"
+    message: "获取全局锁状态失败"
+    message_zh: "获取全局锁状态失败"
+    fix_sql: ""
+
+  # ==============================================================
+  # Storage (10)
+  # ==============================================================
+  - id: mongo_data_size_large
+    name: Data size very large
+    name_zh: 数据量非常大
+    category: storage
+    db_types: [mongodb]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: Data size exceeds 100GB
+    description_zh: 数据大小超过 100GB
+    condition: "size is not None and size > 107374182400"
+    params:
+      size: "${context.mongodb_db_stats[0].DATA_SIZE}"
+    message: "数据大小达 {size} 字节，考虑分片"
+    message_zh: "数据大小达 {size} 字节，考虑分片"
+    fix_sql: "-- sh.enableSharding('dbname'); sh.shardCollection('dbname.coll', {shardKey: 1})"
+
+  - id: mongo_storage_size_large
+    name: Storage size very large
+    name_zh: 存储大小非常大
+    category: storage
+    db_types: [mongodb]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: Storage size exceeds 100GB
+    description_zh: 存储大小超过 100GB
+    condition: "size is not None and size > 107374182400"
+    params:
+      size: "${context.mongodb_db_stats[0].STORAGE_SIZE}"
+    message: "存储大小达 {size} 字节，监控磁盘空间"
+    message_zh: "存储大小达 {size} 字节，监控磁盘空间"
+    fix_sql: ""
+
+  - id: mongo_index_size_large
+    name: Index size very large
+    name_zh: 索引大小非常大
+    category: storage
+    db_types: [mongodb]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: Index size exceeds 10GB
+    description_zh: 索引大小超过 10GB
+    condition: "size is not None and size > 10737418240"
+    params:
+      size: "${context.mongodb_db_stats[0].INDEX_SIZE}"
+    message: "索引大小达 {size} 字节，审查冗余索引"
+    message_zh: "索引大小达 {size} 字节，审查冗余索引"
+    fix_sql: "-- 使用 $indexStats 检查索引使用情况"
+
+  - id: mongo_many_collections
+    name: Too many collections
+    name_zh: 集合数量过多
+    category: storage
+    db_types: [mongodb]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: More than 100 collections
+    description_zh: 集合数量超过 100 个
+    condition: "count is not None and count > 100"
+    params:
+      count: "${context.mongodb_db_stats[0].NUM_COLLECTIONS}"
+    message: "集合数量 {count} 过多，影响命名空间和性能"
+    message_zh: "集合数量 {count} 过多，影响命名空间和性能"
+    fix_sql: ""
+
+  - id: mongo_avg_obj_size_large
+    name: Average document size large
+    name_zh: 文档平均大小过大
+    category: storage
+    db_types: [mongodb]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: Average document size exceeds 16KB
+    description_zh: 文档平均大小超过 16KB
+    condition: "size is not None and size > 16384"
+    params:
+      size: "${context.mongodb_db_stats[0].AVG_OBJ_SIZE}"
+    message: "文档平均大小 {size} 字节，建议优化文档结构"
+    message_zh: "文档平均大小 {size} 字节，建议优化文档结构"
+    fix_sql: ""
+
+  - id: mongo_index_count_high
+    name: Index count high
+    name_zh: 索引数量过多
+    category: storage
+    db_types: [mongodb]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: Index count exceeds 100
+    description_zh: 索引数量超过 100 个
+    condition: "count is not None and count > 100"
+    params:
+      count: "${context.mongodb_db_stats[0].INDEXES}"
+    message: "索引数量 {count} 过多，审查并删除冗余索引"
+    message_zh: "索引数量 {count} 过多，审查并删除冗余索引"
+    fix_sql: "-- db.coll.getIndexes() 检查冗余索引"
+
+  - id: mongo_no_indexes
+    name: Collection has no indexes
+    name_zh: 集合无索引
+    category: storage
+    db_types: [mongodb]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: A collection has no indexes (only _id)
+    description_zh: 集合无索引（仅有 _id）
+    condition: "colls is not None and len(colls) > 0 and any(c.get('INDEXES', 0) <= 1 and 'ERROR' not in str(c) for c in colls)"
+    params:
+      colls: "${context.mongodb_collections}"
+    message: "存在无索引的集合，查询性能可能受影响"
+    message_zh: "存在无索引的集合，查询性能可能受影响"
+    fix_sql: "-- db.coll.createIndex({field: 1})"
+
+  - id: mongo_capped_collection
+    name: Capped collection detected
+    name_zh: 检测到固定集合
+    category: storage
+    db_types: [mongodb]
+    severity: info
+    priority: low
+    owner: DBA
+    enabled: true
+    description: A capped collection was found
+    description_zh: 发现固定集合
+    condition: "colls is not None and len(colls) > 0 and any(c.get('CAPPED', False) == True for c in colls)"
+    params:
+      colls: "${context.mongodb_collections}"
+    message: "存在固定集合（capped），写入到上限后会覆盖旧数据"
+    message_zh: "存在固定集合（capped），写入到上限后会覆盖旧数据"
+    fix_sql: ""
+
+  - id: mongo_collection_count_zero
+    name: Empty collection detected
+    name_zh: 检测到空集合
+    category: storage
+    db_types: [mongodb]
+    severity: info
+    priority: low
+    owner: DBA
+    enabled: true
+    description: A collection with 0 documents was found
+    description_zh: 发现 0 文档的集合
+    condition: "colls is not None and len(colls) > 0 and any(c.get('COUNT', 0) == 0 and 'ERROR' not in str(c) for c in colls)"
+    params:
+      colls: "${context.mongodb_collections}"
+    message: "存在空集合，考虑清理无用集合"
+    message_zh: "存在空集合，考虑清理无用集合"
+    fix_sql: "-- db.coll.drop()"
+
+  - id: mongo_large_collection
+    name: Very large collection detected
+    name_zh: 检测到超大集合
+    category: storage
+    db_types: [mongodb]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: A collection with more than 10 million documents
+    description_zh: 集合文档数超过 1000 万
+    condition: "colls is not None and len(colls) > 0 and any(c.get('COUNT', 0) > 10000000 and 'ERROR' not in str(c) for c in colls)"
+    params:
+      colls: "${context.mongodb_collections}"
+    message: "存在超大集合（>1000 万文档），考虑分片"
+    message_zh: "存在超大集合（>1000 万文档），考虑分片"
+    fix_sql: "-- sh.shardCollection('db.coll', {shardKey: 'hashed'})"

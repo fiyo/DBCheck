@@ -850,6 +850,14 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None):
         if db_info.get('ssh_host'):
             ssh_info = {k: db_info[k] for k in ('ssh_host', 'ssh_port', 'ssh_user', 'ssh_password', 'ssh_key_file') if k in db_info}
 
+        # MongoDB 专用参数透传到 ssh_info（供插件 getData → MongoConnectionConfig 使用）
+        if db_type == 'mongodb':
+            for _mk in ('database', 'connect_mode', 'auth_source', 'auth_mechanism',
+                        'replica_set', 'tls', 'tls_ca_file', 'tls_cert_key_file',
+                        'tls_allow_invalid_certs'):
+                if _mk in db_info:
+                    ssh_info[_mk] = db_info[_mk]
+
         # 激活 print 拦截器（需在 getData 之前就激活，因为 Oracle 的日志在 getData 内部产生）
         import builtins as _bi
         _orig_print = _bi.print
@@ -2543,6 +2551,38 @@ def api_test_db():
     elif db_type == 'gbase':
         ok, msg = test_gbase_connection(data['host'], data['port'], data['user'], data['password'], data.get('database', 'gbase01'))
         result = {'ok': ok, 'msg': msg}
+    elif db_type == 'mongodb':
+        # MongoDB 连接测试：透传专用参数给插件
+        ok, msg = test_plugin_connection(
+            db_type,
+            data['host'],
+            data['port'],
+            data['user'],
+            data['password'],
+            database=data.get('database', 'admin'),
+            connect_mode=data.get('connect_mode', 'standard'),
+            auth_source=data.get('auth_source', 'admin'),
+            auth_mechanism=data.get('auth_mechanism', ''),
+            replica_set=data.get('replica_set', ''),
+            tls=bool(data.get('tls', False)),
+            tls_ca_file=data.get('tls_ca_file', ''),
+            tls_cert_key_file=data.get('tls_cert_key_file', ''),
+            tls_allow_invalid_certs=bool(data.get('tls_allow_invalid_certs', False)),
+        )
+        if ok is not None:
+            result = {'ok': ok, 'msg': msg}
+            # 动态调用插件的 parse_connection_result() 方法（无侵入式架构）
+            try:
+                from plugin_loader import get_plugin_instance
+                plugin = get_plugin_instance(db_type)
+                if plugin and hasattr(plugin, 'parse_connection_result'):
+                    extra = plugin.parse_connection_result(ok, msg)
+                    if extra and isinstance(extra, dict):
+                        result.update(extra)
+            except Exception as e:
+                logger.warning(f"调用插件 {db_type} 的 parse_connection_result() 失败: {e}")
+        else:
+            return jsonify({'ok': False, 'msg': _t('webui.err_unknown_db_type')})
     else:
         # 尝试使用插件测试连接
         ok, msg = test_plugin_connection(
@@ -2699,6 +2739,22 @@ def api_test_ssh():
     return jsonify({'ok': ok, 'msg': msg})
 
 
+@app.route('/plugin-logo/<db_type>')
+def plugin_logo(db_type):
+    """从插件目录读取 logo.png（前端 db_type 下拉图标）。404 时前端回退 emoji。"""
+    try:
+        from plugin_loader import discover_plugins
+        for p in discover_plugins():
+            if p.get('enabled') and p.get('db_type') == db_type:
+                logo = os.path.join(p.get('path') or '', 'logo.png')
+                if os.path.exists(logo):
+                    return send_file(logo, mimetype='image/png')
+                break
+    except Exception:
+        pass
+    return '', 404
+
+
 @app.route('/api/start_inspection', methods=['POST'])
 def api_start_inspection():
     try:
@@ -2721,12 +2777,18 @@ def api_start_inspection():
                 'user':      instance.get('user', ''),
                 'tenant':    instance.get('tenant', '') or '',
                 'password':  instance.get('password', ''),
-                'database':  instance.get('database') or ('master' if db_type == 'sqlserver' else ('DAMENG' if db_type == 'dm' else ('testdb' if db_type == 'gbase' else ('' if db_type in ('tidb', 'oceanbase') else 'postgres')))),
+                'database':  instance.get('database') or ('admin' if db_type == 'mongodb' else ('master' if db_type == 'sqlserver' else ('DAMENG' if db_type == 'dm' else ('testdb' if db_type == 'gbase' else ('' if db_type in ('tidb', 'oceanbase') else 'postgres'))))),
                 'service_name': instance.get('service_name', None),
                 'sysdba':    bool(instance.get('sysdba', False)),  # ← 新增（确保是布尔值）
                 'name':      instance.get('name', ''),
                 'desensitize': bool(data.get('desensitize', False)),
             }
+            # MongoDB 专用参数从数据源实例透传
+            if db_type == 'mongodb':
+                for _mk in ('connect_mode', 'auth_source', 'auth_mechanism', 'replica_set',
+                            'tls', 'tls_ca_file', 'tls_cert_key_file', 'tls_allow_invalid_certs'):
+                    if instance.get(_mk) is not None:
+                        db_info[_mk] = instance[_mk]
         else:
             # 原有逻辑：使用手动输入的连接信息
             db_info = {
@@ -2735,7 +2797,7 @@ def api_start_inspection():
                 'user':      data.get('user', ''),
                 'tenant':    data.get('tenant', '') or '',
                 'password':  data.get('password', ''),
-                'database':  data.get('database') or ('master' if db_type == 'sqlserver' else ('DAMENG' if db_type == 'dm' else ('testdb' if db_type == 'gbase' else ('' if db_type in ('tidb', 'oceanbase') else 'postgres')))),
+                'database':  data.get('database') or ('admin' if db_type == 'mongodb' else ('master' if db_type == 'sqlserver' else ('DAMENG' if db_type == 'dm' else ('testdb' if db_type == 'gbase' else ('' if db_type in ('tidb', 'oceanbase') else 'postgres'))))),
                 'service_name': data.get('service_name', None),
                 'sysdba':    bool(data.get('sysdba', False)),  # ← 新增（确保是布尔值）
                 'sid':       data.get('sid', None),
@@ -2744,6 +2806,16 @@ def api_start_inspection():
                 'name':      data.get('name', ''),
                 'desensitize': bool(data.get('desensitize', False)),
             }
+            # MongoDB 专用参数透传（通过 db_info → ssh_info 传递给插件 getData）
+            if db_type == 'mongodb':
+                db_info['connect_mode'] = data.get('connect_mode', 'standard')
+                db_info['auth_source'] = data.get('auth_source', 'admin')
+                db_info['auth_mechanism'] = data.get('auth_mechanism', '')
+                db_info['replica_set'] = data.get('replica_set', '')
+                db_info['tls'] = bool(data.get('tls', False))
+                db_info['tls_ca_file'] = data.get('tls_ca_file', '')
+                db_info['tls_cert_key_file'] = data.get('tls_cert_key_file', '')
+                db_info['tls_allow_invalid_certs'] = bool(data.get('tls_allow_invalid_certs', False))
 
         if data.get('ssh_host'):
             db_info.update({
@@ -4999,11 +5071,12 @@ def api_db_types():
                     'value': plugin.get('db_type'),
                     'label': plugin.get('name', plugin.get('db_type')),
                     'description': plugin.get('description', ''),
-                    'icon': '',  # 插件可以自己提供图标
+                    'icon': '/plugin-logo/' + plugin.get('db_type'),  # 插件图标统一从插件目录 /plugin-logo/<db_type> 读取，404 时前端回退 emoji
                     'emoji': plugin.get('emoji', '🧩'),  # 插件默认 emoji
                     'is_plugin': True,
                     'port': plugin.get('default_port', 3306),   # 插件可自定义端口
                     'user': plugin.get('default_user', 'root'), # 插件可自定义用户名
+                    'compat_tag': plugin.get('compat_tag', ''),  # NoSQL / MySQL 等兼容性标签
                 })
     except Exception as e:
         print(f"[API] 加载插件数据库类型失败: {e}")
@@ -5210,6 +5283,31 @@ def api_pro_datasources_test_conn():
             result = test_gbase_connection(host, int(port), user, password, data.get('database', 'gbase01'), gbase_server)
             if not result[0]:
                 return jsonify({'ok': False, 'error': result[1]})
+        elif db_type == 'mongodb':
+            # MongoDB 连接测试：透传专用参数给插件
+            ok, msg = test_plugin_connection(
+                db_type,
+                host,
+                port,
+                user,
+                password,
+                database=data.get('database', 'admin'),
+                connect_mode=data.get('connect_mode', 'standard'),
+                auth_source=data.get('auth_source', 'admin'),
+                auth_mechanism=data.get('auth_mechanism', ''),
+                replica_set=data.get('replica_set', ''),
+                tls=bool(data.get('tls', False)),
+                tls_ca_file=data.get('tls_ca_file', ''),
+                tls_cert_key_file=data.get('tls_cert_key_file', ''),
+                tls_allow_invalid_certs=bool(data.get('tls_allow_invalid_certs', False)),
+            )
+            if ok:
+                return jsonify({'ok': True, 'message': msg})
+            else:
+                if msg:
+                    return jsonify({'ok': False, 'error': msg})
+                else:
+                    return jsonify({'ok': False, 'error': f'不支持的数据库类型: {db_type}'})
         else:
             # 尝试使用插件测试连接
             ok, msg = test_plugin_connection(

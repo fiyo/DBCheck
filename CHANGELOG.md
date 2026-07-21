@@ -1,7 +1,11 @@
 # Changelog
 
-## v26.7.19.1 (2026-07-19)
-- **版本号统一**：各源文件版本标识 v26.7.17.1 → v26.7.19.1（version.py / version.json / Dockerfile / skill `dbcheck` `_meta` + `_skillhub_meta` + `scripts/version.py` / README + README_zh 徽章 / CHANGELOG 顶段）
+## v26.7.21.1 (2026-07-19)
+- **版本号统一**：各源文件版本标识 v26.7.19.1 → v26.7.21.1（version.py / version.json / Dockerfile / skill `dbcheck` `_meta` + `_skillhub_meta` + `scripts/version.py` / README + README_zh 徽章 / CHANGELOG 顶段）
+- **合并 main → professional（MongoDB 完整功能）**：将 main 分支的 MongoDB 巡检全链路合并至 professional 分支
+  - **插件接入钩子**：`pro/metrics_collector.py`（mongodb 计数器 + `_connect` 分支 + `_collect_mongodb`）、`index_health.py`（`analyze_mongodb_indexes`）、`slow_query_analyzer.py`（`MongoDBSlowQueryAnalyzer`）、`inspection_engine.py`（db_type 名称映射 + `MONGO_SECTION_TITLES` + `baseline_results` 白名单修复）、`pro/instance_manager.py`（MongoDB 专用连接配置列）、`web_ui.py`（路由/表单/logo/`smart_analyze` 透传）、`web_templates/index.html`（菜单/表单/NoSQL 徽章）、`i18n`（MongoDB 文案）、`builtin_registry.json`（mongodb 注册）、`requirements.txt`（`pymongo>=4.6`）
+  - **插件资产**：`plugins/available/mongodb` 整体升级为社区版（含 80 条 mongodb.yaml 规则）、`pro/rules/builtin/mongodb.yaml`、`templates/mongodb_wordtemplates_v1.0.docx`、`scripts/mongo-test-standalone.*`、`analyzer.py` 新增 `smart_analyze_mongodb`
+  - **intelligence/ 专有模块与其它 db_type 逻辑完整保留**
 
 ## v26.7.17.1 (2026-07-17)
 - **版本号统一**：各源文件版本标识 v26.7.15.1 → v26.7.17.1（version.py / version.json / Dockerfile / skill `dbcheck` `_meta` + `_skillhub_meta` + `scripts/version.py` / README + README_zh 徽章 / CHANGELOG 顶段）

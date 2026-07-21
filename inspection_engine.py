@@ -1162,7 +1162,8 @@ class BaseInspectionEngine:
         db_type_display = {
             'dm8': 'DM8', 'mysql': 'MySQL', 'mariadb': 'MariaDB', 'postgresql': 'PostgreSQL',
             'oracle': 'Oracle', 'sqlserver': 'SQL Server',
-            'tidb': 'TiDB', 'ivorysql': 'IvorySQL'
+            'tidb': 'TiDB', 'ivorysql': 'IvorySQL',
+            'mongodb': 'MongoDB'
         }.get(self.db_type, self.db_type.upper())
         
         # Logo
@@ -1924,6 +1925,35 @@ class BaseInspectionEngine:
             
             # 封面标题（根据语言）
             is_zh = self._lang == 'zh'
+
+            # MongoDB 字段 key → 中文章节子标题映射（fallback 渲染常用）
+            MONGO_SECTION_TITLES = {
+                'mongodb_version': '数据库版本',
+                'mongodb_server_status': '服务器状态',
+                'mongodb_connections': '连接信息',
+                'mongodb_memory': '内存使用情况',
+                'mongodb_db_stats': '数据库统计',
+                'mongodb_collections': '集合信息',
+                'mongodb_users': '用户列表',
+                'mongodb_roles': '角色列表',
+                'mongodb_opcounters': '操作计数器',
+                'mongodb_global_lock': '全局锁',
+                'mongodb_wired_tiger': 'WiredTiger 存储引擎',
+                'mongodb_repl_status': '副本集状态',
+                'mongodb_shards': '分片信息',
+                'mongodb_sharded_dbs': '分片数据库',
+                'mongodb_sharded_collections': '分片集合',
+                'mongodb_chunk_distribution': 'Chunk 分布',
+                'mongodb_balancer_status': '均衡器状态',
+            }
+
+            def _mongo_section_title(k):
+                """将 mongodb_xxx 字段 key 转为可读中文子标题。"""
+                if k in MONGO_SECTION_TITLES:
+                    return MONGO_SECTION_TITLES[k]
+                s = k[9:] if k.startswith('mongodb_') else k
+                return s.replace('_', ' ').title()
+
             db_type_display = {
                 'dm8': 'DM8', 'mysql': 'MySQL', 'mariadb': 'MariaDB', 'postgresql': 'PostgreSQL',
                 'oracle': 'Oracle', 'sqlserver': 'SQL Server',
@@ -2086,11 +2116,12 @@ class BaseInspectionEngine:
                 # 如果没有章节结构，直接渲染所有列表数据
                 _fmt_heading(self._t(f'report.{self.db_type}_ch_data', default='巡检数据' if is_zh else 'Inspection Data'), level=1)
                 for key in sorted(self.context.keys()):
-                    if key.startswith('_') or key in ('auto_analyze', 'system_info', 'health_analysis', 'report_time', 'inspector_name', 'problem_count', 'health_status', 'co_name', 'version'):
+                    if key.startswith('_') or key in ('auto_analyze', 'baseline_results', 'system_info', 'health_analysis', 'report_time', 'inspector_name', 'problem_count', 'health_status', 'co_name', 'version'):
                         continue
                     val = self.context.get(key)
                     if val and isinstance(val, list) and len(val) > 0 and isinstance(val[0], dict):
-                        _fmt_para(key, bold=True, size=11)
+                        _heading_key = _mongo_section_title(key) if key.startswith('mongodb_') else key
+                        _fmt_para(_heading_key, bold=True, size=11)
                         headers = list(val[0].keys())
                         qt = doc.add_table(rows=1+len(val), cols=len(headers), style='Table Grid')
                         for j, h in enumerate(headers):

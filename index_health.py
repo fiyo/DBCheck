@@ -993,6 +993,213 @@ def analyze_tidb_indexes(conn, days_threshold=90):
 #  7. 统一入口函数
 # ═══════════════════════════════════════════════════════
 
+# ═════════════════════════════════════════════════
+#  6.5 MongoDB 索引健康分析
+# ═════════════════════════════════════════════════
+
+def _mongo_to_num(v):
+    """把 MongoDB 返回的值尽量转为数字；失败返回 0。"""
+    if v is None:
+        return 0
+    if isinstance(v, (int, float)):
+        return v
+    try:
+        s = str(v).strip().replace(',', '')
+        if '.' in s:
+            return float(s)
+        return int(s)
+    except (ValueError, TypeError):
+        return 0
+
+
+def analyze_mongodb_indexes(conn, days_threshold=30):
+    """分析 MongoDB 索引健康状况（5.0+）。
+
+    Args:
+        conn: pymongo.MongoClient 实例
+        days_threshold: 未使用索引判定天数阈值（MongoDB 无法直接给出
+            最后访问时间，统一标记 threshold+1 表示「索引统计以来未使用」）
+
+    Returns:
+        与 MySQL/PG 一致的报告字典：
+        {
+            'missing_indexes':  [...],   # 启发式：仅 _id 索引的大集合
+            'redundant_indexes': [...],  # 键前缀相同/包含的重复索引
+            'unused_indexes':    [...],  # $indexStats.ops == 0 的二级索引
+            'summary': {...},
+        }
+
+    检测手段：
+      - 未使用索引：对每集合执行 $indexStats 聚合，accesses.ops == 0
+        且非 _id 的二级索引视为未使用。
+      - 冗余索引：用 index_information() 提取各索引键列，比较前缀包含关系。
+      - 缺失索引（启发式）：仅有 _id 索引且文档数 > 10000 的集合，
+        若存在查询/排序/关联，很可能缺少二级索引。
+    """
+    result = {
+        'missing_indexes': [],
+        'redundant_indexes': [],
+        'unused_indexes': [],
+        'summary': {
+            'missing_count': 0,
+            'redundant_count': 0,
+            'unused_count': 0,
+            'total_indexes': 0,
+            'db_size_gb': 0.0,
+        },
+    }
+    client = conn
+    if client is None:
+        return result
+
+    # pymongo 为可选依赖：此处仅在类型异常捕获时按需引用，避免模块级硬依赖
+    try:
+        from pymongo.errors import PyMongoError
+    except Exception:
+        PyMongoError = Exception
+
+    total_bytes = 0.0
+    try:
+        db_names = client.list_database_names()
+    except PyMongoError:
+        db_names = []
+    user_dbs = [d for d in db_names if d not in ('admin', 'local', 'config')]
+    if not user_dbs:
+        user_dbs = ['admin']
+
+    total_index_count = 0
+    for db_name in user_dbs:
+        cdb = client[db_name]
+
+        # ── 1) 数据库总大小（dataSize + indexSize）──
+        try:
+            st = cdb.command('dbStats', scale=1)
+            total_bytes += _mongo_to_num(st.get('dataSize', 0)) \
+                + _mongo_to_num(st.get('indexSize', 0))
+        except PyMongoError:
+            pass
+
+        try:
+            coll_names = cdb.list_collection_names()
+        except PyMongoError:
+            continue
+
+        for coll_name in coll_names:
+            if coll_name.startswith('system.'):
+                continue
+            coll = cdb[coll_name]
+
+            # 已访问统计（$indexStats）
+            idx_ops = {}
+            try:
+                stats = list(coll.aggregate([{'$indexStats': {}}]))
+                for s in stats:
+                    name = s.get('name', '')
+                    acc = s.get('accesses', {}) or {}
+                    idx_ops[name] = _mongo_to_num(acc.get('ops', 0))
+                    if name != '_id_':
+                        total_index_count += 1
+            except PyMongoError:
+                continue
+
+            # 索引键定义（用于冗余检测）
+            key_list = []  # [(name, (col1, col2, ...))]
+            try:
+                info = coll.index_information()
+                for name, spec in info.items():
+                    key = spec.get('key')
+                    if isinstance(key, list):
+                        cols = tuple(
+                            str(k[0]) for k in key
+                            if isinstance(k, (list, tuple)) and len(k) >= 1)
+                        key_list.append((name, cols))
+            except PyMongoError:
+                pass
+
+            # ── 2) 未使用索引（ops == 0）──
+            for name, ops in idx_ops.items():
+                if name == '_id_':
+                    continue
+                if ops == 0:
+                    result['unused_indexes'].append({
+                        'table_schema': db_name,
+                        'table_name': coll_name,
+                        'index_name': name,
+                        'last_used': '从未访问（$indexStats.ops=0）',
+                        'days_unused': days_threshold + 1,
+                        'index_size_mb': 0.0,
+                        'recommendation': (
+                            f"索引 {name} 在 {db_name}.{coll_name} 上从未被访问"
+                            f"（accesses.ops=0），建议评估删除"
+                        ),
+                    })
+
+            # ── 3) 冗余索引（键前缀包含）──
+            for i in range(len(key_list)):
+                for j in range(i + 1, len(key_list)):
+                    n1, c1 = key_list[i]
+                    n2, c2 = key_list[j]
+                    if not c1 or not c2 or n1 == n2:
+                        continue
+                    if c1 == c2:
+                        result['redundant_indexes'].append({
+                            'table_schema': db_name,
+                            'table_name': coll_name,
+                            'index1': n1,
+                            'index2': n2,
+                            'reason': f"索引列完全相同: ({','.join(c1)})",
+                            'recommendation': f"索引 {n1} 和 {n2} 列相同，建议删除冗余",
+                        })
+                    elif len(c1) < len(c2) and c2[:len(c1)] == c1:
+                        result['redundant_indexes'].append({
+                            'table_schema': db_name,
+                            'table_name': coll_name,
+                            'index1': n1,
+                            'index2': n2,
+                            'reason': (f"索引 {n1}({','.join(c1)}) 是 "
+                                      f"{n2}({','.join(c2)}) 的前缀，建议删除被包含的索引"),
+                            'recommendation': "建议删除被包含的冗余索引",
+                        })
+                    elif len(c2) < len(c1) and c1[:len(c2)] == c2:
+                        result['redundant_indexes'].append({
+                            'table_schema': db_name,
+                            'table_name': coll_name,
+                            'index1': n1,
+                            'index2': n2,
+                            'reason': (f"索引 {n2}({','.join(c2)}) 是 "
+                                      f"{n1}({','.join(c1)}) 的前缀，建议删除被包含的索引"),
+                            'recommendation': "建议删除被包含的冗余索引",
+                        })
+
+            # ── 4) 缺失索引（启发式）──
+            try:
+                has_secondary = any(n != '_id_' for n in idx_ops.keys())
+                if not has_secondary:
+                    cstats = cdb.command('collStats', coll_name)
+                    n_docs = _mongo_to_num(cstats.get('count', 0))
+                    if n_docs > 10000:
+                        result['missing_indexes'].append({
+                            'table_schema': db_name,
+                            'table_name': coll_name,
+                            'column_name': '（建议根据查询模式添加索引）',
+                            'select_count': n_docs,
+                            'rows_examined_avg': n_docs,
+                            'recommendation': (
+                                f"集合 {db_name}.{coll_name} 仅有 _id 索引且文档数达 {n_docs}，"
+                                f"若存在 WHERE/排序/关联查询，建议添加合适的二级索引"
+                            ),
+                        })
+            except PyMongoError:
+                pass
+
+    result['summary']['db_size_gb'] = round(total_bytes / 1024 / 1024 / 1024, 2)
+    result['summary']['total_indexes'] = total_index_count
+    result['summary']['missing_count'] = len(result['missing_indexes'])
+    result['summary']['redundant_count'] = len(result['redundant_indexes'])
+    result['summary']['unused_count'] = len(result['unused_indexes'])
+    return result
+
+
 def analyze_oceanbase_indexes(conn, days_threshold=90):
     """分析 OceanBase MySQL 租户索引健康状况。
 
@@ -1073,6 +1280,9 @@ def get_index_health(db_type, conn, days_threshold=90):
     elif db_type == 'oceanbase':
         # OceanBase MySQL 租户与 MySQL 协议/参数高度兼容，复用 MySQL 索引分析并增强
         return analyze_oceanbase_indexes(conn, days_threshold)
+    elif db_type == 'mongodb':
+        # MongoDB 连接为 pymongo.MongoClient（非 DBAPI），conn 参数透传
+        return analyze_mongodb_indexes(conn, days_threshold)
     else:
         return None
 

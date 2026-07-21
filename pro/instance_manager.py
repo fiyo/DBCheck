@@ -92,6 +92,15 @@ class DatabaseInstance:
     description: str = ""
     created_at: str = ""
     updated_at: str = ""
+    # MongoDB 专用连接配置
+    connect_mode: str = ""  # standard / srv
+    auth_source: str = ""  # 认证源（默认 admin）
+    auth_mechanism: str = ""  # 认证机制：'' / SCRAM-SHA-256 / SCRAM-SHA-1
+    replica_set: str = ""  # 副本集名称
+    tls: int = 0  # 是否启用 TLS（0/1）
+    tls_ca_file: str = ""  # TLS CA 证书路径
+    tls_cert_key_file: str = ""  # TLS 客户端证书路径
+    tls_allow_invalid_certs: int = 0  # 是否允许无效证书（0/1）
 
     def __post_init__(self):
         if self.tags is None:
@@ -262,6 +271,21 @@ class InstanceManager:
                 c.execute('ALTER TABLE instances ADD COLUMN "tenant" TEXT DEFAULT \'\'')
             except Exception:
                 pass
+            # 迁移：为旧表添加 MongoDB 专用连接配置列
+            for col, coltype in (
+                ('connect_mode', 'TEXT'),
+                ('auth_source', 'TEXT'),
+                ('auth_mechanism', 'TEXT'),
+                ('replica_set', 'TEXT'),
+                ('tls', 'INTEGER'),
+                ('tls_ca_file', 'TEXT'),
+                ('tls_cert_key_file', 'TEXT'),
+                ('tls_allow_invalid_certs', 'INTEGER'),
+            ):
+                try:
+                    c.execute(f'ALTER TABLE instances ADD COLUMN "{col}" {coltype} DEFAULT \'\'')
+                except Exception:
+                    pass
             # 确保表存在
             c.execute("""
                 CREATE TABLE IF NOT EXISTS instances (
@@ -270,6 +294,8 @@ class InstanceManager:
                     port INTEGER NOT NULL, "user" TEXT NOT NULL,                 password TEXT DEFAULT '',
                     "database" TEXT DEFAULT '',
                     service_name TEXT DEFAULT '', gbase_server_name TEXT DEFAULT '', tenant TEXT DEFAULT '', sysdba INTEGER DEFAULT 0,
+                    connect_mode TEXT DEFAULT '', auth_source TEXT DEFAULT '', auth_mechanism TEXT DEFAULT '', replica_set TEXT DEFAULT '',
+                    tls INTEGER DEFAULT 0, tls_ca_file TEXT DEFAULT '', tls_cert_key_file TEXT DEFAULT '', tls_allow_invalid_certs INTEGER DEFAULT 0,
                     ssh_host TEXT DEFAULT '', ssh_port INTEGER DEFAULT 22,
                     ssh_user TEXT DEFAULT '', ssh_password TEXT DEFAULT '',
                     ssh_key_file TEXT DEFAULT '', ssh_enabled INTEGER DEFAULT 0,
@@ -284,15 +310,24 @@ class InstanceManager:
                 c.execute("""
                     INSERT OR REPLACE INTO instances
                     (id, name, db_type, host, port, "user", password, "database", service_name, gbase_server_name, tenant, sysdba,
+                     connect_mode, auth_source, auth_mechanism, replica_set, tls, tls_ca_file, tls_cert_key_file, tls_allow_invalid_certs,
                      ssh_host, ssh_port, ssh_user, ssh_password, ssh_key_file, ssh_enabled,
                      tags, "group", enabled, description, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     d.get("id", ""), d.get("name", ""), d.get("db_type", ""),
                     d.get("host", ""), d.get("port", 0), d.get("user", ""),
                     d.get("password", ""), d.get("database", ""), d.get("service_name", ""),
                     d.get("gbase_server_name", ""), d.get("tenant", ""),
                     1 if d.get("sysdba") else 0,
+                    d.get("connect_mode", ""),
+                    d.get("auth_source", ""),
+                    d.get("auth_mechanism", ""),
+                    d.get("replica_set", ""),
+                    1 if d.get("tls") else 0,
+                    d.get("tls_ca_file", ""),
+                    d.get("tls_cert_key_file", ""),
+                    1 if d.get("tls_allow_invalid_certs") else 0,
                     d.get("ssh_host", ""), d.get("ssh_port", 22),
                     d.get("ssh_user", ""), d.get("ssh_password", ""),
                     d.get("ssh_key_file", ""), 1 if d.get("ssh_enabled") else 0,

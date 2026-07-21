@@ -93,6 +93,14 @@ COUNTER_KEYS = {
                     'ora_db_block_gets', 'ora_consistent_gets'},
     'sqlserver': {'io_read_count', 'io_write_count', 'io_read_bytes', 'io_write_bytes'},
     'mssql':   {'io_read_count', 'io_write_count', 'io_read_bytes', 'io_write_bytes'},
+    # MongoDB 计数器（来自 serverStatus）：opcounters / 连接 / 网络 / 全局锁
+    'mongodb': {
+        'mongodb_opcounters_insert', 'mongodb_opcounters_query',
+        'mongodb_opcounters_update', 'mongodb_opcounters_delete',
+        'mongodb_opcounters_getmore', 'mongodb_opcounters_command',
+        'mongodb_net_in', 'mongodb_net_out',
+        'mongodb_network_requests', 'mongodb_global_lock_total',
+    },
     # DM8 计数器名不固定，速率在深采中按 dm_ 前缀动态处理
 }
 
@@ -358,6 +366,65 @@ class MetricsCollector:
                     pass
                 conn_str = f'DRIVER={driver};SERVER={host},{port};DATABASE={database};UID={user};PWD={password}'
             return pyodbc.connect(conn_str, timeout=CONNECT_TIMEOUT)
+        if db_type == 'mongodb':
+            # MongoDB 返回 MongoClient（非 DBAPI 连接）。
+            # 为避免 pro/ 与 plugins/available/mongodb/ 的跨目录硬依赖，
+            # 此处内联一个轻量 URI 构建（字段向后兼容 ssh_info）。
+            from pymongo import MongoClient
+            from urllib.parse import quote_plus
+            info = dict(inst)
+            info.update(inst.get('ssh_info') or {})
+            host = info.get('host') or '127.0.0.1'
+            port = int(info.get('port') or 27017)
+            user = info.get('user') or ''
+            password = info.get('password') or ''
+            database = info.get('database') or 'admin'
+            connect_mode = (info.get('connect_mode') or 'standard').lower()
+            auth_source = info.get('auth_source') or 'admin'
+            auth_mechanism = info.get('auth_mechanism') or ''
+            replica_set = info.get('replica_set') or ''
+            tls = bool(info.get('tls', False))
+            tls_ca_file = info.get('tls_ca_file') or ''
+            tls_cert_key_file = info.get('tls_cert_key_file') or ''
+            tls_allow_invalid_certs = bool(info.get('tls_allow_invalid_certs', False))
+
+            scheme = 'mongodb+srv://' if connect_mode == 'srv' else 'mongodb://'
+            auth_part = ''
+            if user:
+                eu = quote_plus(user)
+                if password:
+                    auth_part = '%s:%s@' % (eu, quote_plus(password))
+                else:
+                    auth_part = '%s@' % eu
+            host_part = host if connect_mode == 'srv' else '%s:%d' % (host, port)
+            db_part = '/%s' % database if database else '/'
+
+            params = []
+            if auth_source and auth_source != 'admin':
+                params.append('authSource=%s' % quote_plus(auth_source))
+            elif user and auth_source:
+                params.append('authSource=%s' % quote_plus(auth_source))
+            if auth_mechanism:
+                params.append('authMechanism=%s' % quote_plus(auth_mechanism))
+            if replica_set:
+                params.append('replicaSet=%s' % quote_plus(replica_set))
+            query = '?' + '&'.join(params) if params else ''
+            uri = '%s%s%s%s%s' % (scheme, auth_part, host_part, db_part, query)
+
+            kwargs = {
+                'serverSelectionTimeoutMS': 5000,
+                'connectTimeoutMS': 5000,
+                'socketTimeoutMS': 10000,
+            }
+            if tls:
+                kwargs['tls'] = True
+                if tls_ca_file:
+                    kwargs['tlsCAFile'] = tls_ca_file
+                if tls_cert_key_file:
+                    kwargs['tlsCertificateKeyFile'] = tls_cert_key_file
+                if tls_allow_invalid_certs:
+                    kwargs['tlsAllowInvalidCertificates'] = True
+            return MongoClient(uri, **kwargs)
         return None
 
     def _connect_oracle_jdbc(self, inst: dict):
@@ -546,6 +613,8 @@ class MetricsCollector:
                 return self._collect_dm(conn)
             if db_type in ('sqlserver', 'mssql'):
                 return self._collect_sqlserver(conn)
+            if db_type == 'mongodb':
+                return self._collect_mongodb(conn)
         except Exception as e:
             return {'deep_error': str(e)[:200]}
         return {}
@@ -869,6 +938,63 @@ class MetricsCollector:
                 self._compute_host_rates(inst_id, snapshot, host)
         except Exception:
             pass
+
+    def _collect_mongodb(self, conn) -> dict:
+        """MongoDB 深采：从 admin.command('serverStatus') 提取关键计数器。
+
+        conn 为 pymongo.MongoClient（_connect 对 mongodb 返回 MongoClient）。
+        所有指标键以 'mongodb_' 前缀统一命名，便于速率计算与前端展示。
+        单点采集无时间差，原始计数器直接落盘，速率由 _compute_rates 差分。
+        """
+        m = {}
+        try:
+            status = conn.admin.command('serverStatus')
+        except Exception:
+            return m
+
+        # 连接
+        conns = status.get('connections', {}) or {}
+        m['mongodb_connections_current'] = _to_num(conns.get('current', 0))
+        m['mongodb_connections_available'] = _to_num(conns.get('available', 0))
+
+        # 操作计数器（opcounters）
+        ops = status.get('opcounters', {}) or {}
+        m['mongodb_opcounters_insert'] = _to_num(ops.get('insert', 0))
+        m['mongodb_opcounters_query'] = _to_num(ops.get('query', 0))
+        m['mongodb_opcounters_update'] = _to_num(ops.get('update', 0))
+        m['mongodb_opcounters_delete'] = _to_num(ops.get('delete', 0))
+        m['mongodb_opcounters_getmore'] = _to_num(ops.get('getmore', 0))
+        m['mongodb_opcounters_command'] = _to_num(ops.get('command', 0))
+        m['mongodb_opcounters_total'] = (
+            m['mongodb_opcounters_insert'] + m['mongodb_opcounters_query']
+            + m['mongodb_opcounters_update'] + m['mongodb_opcounters_delete']
+            + m['mongodb_opcounters_getmore'] + m['mongodb_opcounters_command'])
+
+        # 内存
+        mem = status.get('mem', {}) or {}
+        m['mongodb_mem_resident'] = _to_num(mem.get('resident', 0))
+        m['mongodb_mem_virtual'] = _to_num(mem.get('virtual', 0))
+
+        # 网络
+        net = status.get('network', {}) or {}
+        m['mongodb_net_in'] = _to_num(net.get('bytesIn', 0))
+        m['mongodb_net_out'] = _to_num(net.get('bytesOut', 0))
+        m['mongodb_network_requests'] = _to_num(net.get('numRequests', 0))
+
+        # 全局锁（totalTime 单调递增，可算速率）
+        gl = status.get('globalLock', {}) or {}
+        m['mongodb_global_lock_total'] = _to_num(gl.get('totalTime', 0))
+
+        # WiredTiger 缓存（当前使用量，用于水位参考）
+        wt_cache = (status.get('wiredTiger', {}) or {}).get('cache', {}) or {}
+        m['mongodb_wt_cache_used'] = _to_num(
+            wt_cache.get('bytes currently in the cache', 0))
+        m['mongodb_wt_cache_dirty'] = _to_num(
+            wt_cache.get('tracked dirty bytes in the cache', 0))
+
+        # 辅助：uptime（非计数器，供监控面板展示）
+        m['mongodb_uptime'] = round(_to_num(status.get('uptime', 0)), 1)
+        return m
 
     def _collect_host(self, inst: dict) -> dict:
         """采集目标机的宿主资源。
