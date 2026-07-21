@@ -865,7 +865,8 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None):
             _sep = _kw.get('sep', ' ')
             _msg = _sep.join(str(x) for x in _a)
             _msg_clean = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', _msg)
-            if _msg_clean.strip():
+            # 后台采集/内部日志（如 [metrics]）仅输出到后端控制台，不推送到前端巡检日志
+            if _msg_clean.strip() and not _msg_clean.lstrip().startswith('[metrics]'):
                 _emit('log', {'msg': _msg_clean})
             _orig_print(*_a, **_kw)
         _bi.print = _web_print
