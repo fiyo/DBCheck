@@ -4897,9 +4897,16 @@ function formatBytes(bytes) {
     <div class="topbar">
       <span class="topbar-title" id="topbar-title">首页</span>
       <span class="topbar-sub" id="topbar-sub">欢迎使用 DBCheck 数据库巡检工具</span>
-      <button class="btn btn-ghost" id="lang-toggle" onclick="toggleLang()" style="margin-left:auto;font-size:12px;padding:4px 10px;border-radius:6px;cursor:pointer;">
-        🌐 <span id="lang-label">EN</span>
-      </button>
+      <span style="margin-left:auto;display:inline-flex;align-items:center;gap:4px;font-size:12px;">
+        🌐
+        <select id="lang-select" onchange="changeLang()" style="font-size:12px;padding:3px 6px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;">
+          <option value="zh">中文</option>
+          <option value="en">English</option>
+          <option value="zh_tw">繁體中文</option>
+          <option value="ja">日本語</option>
+          <option value="ko">한국어</option>
+        </select>
+      </span>
       <button class="btn btn-ghost" id="theme-toggle" onclick="toggleTheme()" title="切换主题" style="font-size:12px;padding:4px 10px;border-radius:6px;cursor:pointer;">
         ☀️
       </button>
@@ -7678,9 +7685,9 @@ function i18n(key) {
 }
 
 function applyI18N() {
-  // 语言切换按钮
-  const langLabel = document.getElementById('lang-label');
-  if (langLabel) langLabel.textContent = CURRENT_LANG === 'zh' ? 'EN' : '中';
+  // 语言切换下拉框
+  const langSel = document.getElementById('lang-select');
+  if (langSel) langSel.value = CURRENT_LANG;
 
   // 顶部标题 — 优先保留当前页面的翻译标题
   const activePage = document.querySelector('.page.active, .page[style*="flex"]');
@@ -7730,8 +7737,10 @@ function applyI18N() {
   });
 }
 
-async function toggleLang() {
-  const newLang = CURRENT_LANG === 'zh' ? 'en' : 'zh';
+async function changeLang() {
+  const sel = document.getElementById('lang-select');
+  const newLang = sel ? sel.value : 'zh';
+  if (newLang === CURRENT_LANG) return;
   try {
     await fetch('/api/set_lang', {
       method: 'POST',
