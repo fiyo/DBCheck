@@ -5,7 +5,7 @@ DBCheck i18n 模块
 提供多语言支持，所有面向用户的字符串均通过 t(key) 获取。
 默认语言从 dbc_config.json 读取，也可通过启动参数 --lang 覆盖。
 
-支持语言：zh(简体中文) / en(English) / zh_tw(繁體中文) / ja(日本語) / ko(한국어)
+支持语言：zh(简体中文) / en(English) / zh_tw(繁體中文) / ja(日本語) / ko(한국어) / es(Español) / fr(Français) / de(Deutsch) / ru(Русский)
 
 用法：
     from i18n import t, set_lang, get_lang
@@ -20,6 +20,10 @@ from .en import EN
 from .zh_tw import ZH_TW
 from .ja import JA
 from .ko import KO
+from .es import ES
+from .fr import FR
+from .de import DE
+from .ru import RU
 
 # ── 语言注册表（新增语言只需在此登记）────────────────────────────────────
 _LANGS = {
@@ -28,6 +32,10 @@ _LANGS = {
     'zh_tw': ZH_TW,
     'ja': JA,
     'ko': KO,
+    'es': ES,
+    'fr': FR,
+    'de': DE,
+    'ru': RU,
 }
 
 # 语言显示名（下拉框使用）
@@ -37,6 +45,10 @@ _LANG_DISPLAY = {
     'zh_tw': '繁體中文',
     'ja': '日本語',
     'ko': '한국어',
+    'es': 'Español',
+    'fr': 'Français',
+    'de': 'Deutsch',
+    'ru': 'Русский',
 }
 
 # 常见别名 -> 标准代码
@@ -46,6 +58,10 @@ _LANG_ALIASES = {
     'zh_tw': 'zh_tw', 'zh-tw': 'zh_tw', 'zh-hant': 'zh_tw', 'traditional': 'zh_tw', 'cht': 'zh_tw',
     'ja': 'ja', 'jp': 'ja', 'japanese': 'ja', '日本语': 'ja', 'jpn': 'ja',
     'ko': 'ko', 'kr': 'ko', 'korean': 'ko', '朝鲜语': 'ko', 'kor': 'ko',
+    'es': 'es', 'spanish': 'es', 'español': 'es', 'spa': 'es',
+    'fr': 'fr', 'french': 'fr', 'français': 'fr', 'fra': 'fr',
+    'de': 'de', 'german': 'de', 'deutsch': 'de', 'deu': 'de', 'ger': 'de',
+    'ru': 'ru', 'russian': 'ru', 'русский': 'ru', 'rus': 'ru',
 }
 
 # ── 配置路径 ───────────────────────────────────────────────────────────────
@@ -96,7 +112,7 @@ def set_lang(lang, persist=True):
     """
     设置当前语言。
 
-    :param lang:    'zh' / 'en' / 'zh_tw' / 'ja' / 'ko'（或别名）
+    :param lang:    'zh' / 'en' / 'zh_tw' / 'ja' / 'ko' / 'es' / 'fr' / 'de' / 'ru'（或别名）
     :param persist:  是否写入 dbc_config.json（Web UI 保存时为 True，
                     CLI --lang 参数覆盖时为 False，不影响配置文件）
     """
