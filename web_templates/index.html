@@ -809,6 +809,74 @@ select option { background: var(--surface2); }
 .mkt-btn-uninstall { background:#fff; color:#c62828; border-color:#ef9a9a; }
 .mkt-btn-uninstall:hover { background:#c62828; color:#fff; border-color:#c62828; }
 
+/* ── 插件市场：卡片网格统一排版 ── */
+.market-plugins-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+}
+.market-plugin-card {
+  background: var(--surface2);
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.market-plugin-card .mpc-title {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+  word-break: break-word;
+}
+.market-plugin-card .mpc-tags {
+  font-size: 10px;
+  line-height: 1.7;
+}
+.market-plugin-card .mpc-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  flex: 1;
+  line-height: 1.5;
+  word-break: break-word;
+  overflow: hidden;
+}
+.market-plugin-card .mpc-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  min-width: 0;
+}
+.market-plugin-card .mpc-meta {
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.market-plugin-card .mpc-author {
+  color: var(--text-muted);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.market-plugin-card .mpc-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 /* ─── Status Banner ─── */
 .status-banner {
   display: flex; align-items: center; gap: 10px;
@@ -6060,7 +6128,7 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
         <div class="card">
           <h3 style="margin:0 0 8px 0;font-size:14px;">🛒 市场</h3>
           <div id="market-plugins-loading" style="text-align:center;padding:24px;color:var(--text-muted);">加载中...</div>
-          <div id="market-plugins-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;"></div>
+          <div id="market-plugins-grid" class="market-plugins-grid"></div>
         </div>
       </div><!-- /page-plugin-market -->
       <!-- ══ Page: Data Sources ══ -->
@@ -18789,18 +18857,18 @@ function mkdirRemote() {
         btn = '<button class="mkt-btn mkt-btn-install" onclick="installPlugin(\''+p.id+'\')">安装</button>';
       }
 
-      return '<div style="background:var(--surface2);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;'+typeBorder+'">'+
+      return '<div class="market-plugin-card" style="'+typeBorder+'">'+
         // 第一行：仅插件名称（加粗）
-        '<div style="font-size:15px;font-weight:700;">'+escHtml(p.name||p.id)+'</div>'+
+        '<div class="mpc-title">'+escHtml(p.name||p.id)+'</div>'+
         // 第二行：标签行（移至名称下方，字号 10px）
-        '<div style="font-size:10px;line-height:1.7;">'+tagRow+'</div>'+
+        '<div class="mpc-tags">'+tagRow+'</div>'+
         // 第三行：描述（flex:1 让卡片高度统一）
-        '<div style="font-size:12px;color:var(--text-muted);flex:1;line-height:1.5;">'+escHtml(p.description||'')+'</div>'+
+        '<div class="mpc-desc">'+escHtml(p.description||'')+'</div>'+
         // 第四行：星级/下载量（左） + 作者（中） + 来源 + 按钮（右）
-        '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;">'+
-        '<span style="color:var(--text-muted);white-space:nowrap;">'+stars+' '+(p.downloads||0)+'↓</span>'+
-        '<span style="color:var(--text-muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+escHtml(authorName||'')+'</span>'+
-        '<span style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;">'+sourceTag+btn+'</span></div></div>';
+        '<div class="mpc-footer">'+
+        '<span class="mpc-meta">'+stars+' '+(p.downloads||0)+'↓</span>'+
+        '<span class="mpc-author">'+escHtml(authorName||'')+'</span>'+
+        '<span class="mpc-actions">'+sourceTag+btn+'</span></div></div>';
     }).join('');
   }
 
