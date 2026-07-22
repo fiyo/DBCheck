@@ -1045,7 +1045,7 @@ def api_market_registry():
                         'rating': manifest.get('rating', 0),
                         'downloads': 0,
                         'source': 'local',
-                        'installed': True,
+                        'installed': os.path.isdir(os.path.join(plugins_base, 'enabled', item)),
                         'author_type': 'community',
                     })
                 except Exception as e:

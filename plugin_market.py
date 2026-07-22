@@ -258,6 +258,28 @@ class PluginMarket:
                 return p
         return None
 
+    def _load_local_plugin_meta(self, plugin_id: str) -> Optional[Dict]:
+        """从本地 available/<id>/ 或 enabled/<id>/ 的 plugin.json 读取元数据。
+        用于安装「仅本地存在、未发布到 registry」的插件（如 db2_jdbc）。
+        自动补全 id（取目录名）与 download（本地安装无需下载地址）。"""
+        for base in ('enabled', 'available'):
+            d = os.path.join(self._plugins_dir, base, plugin_id)
+            pj = os.path.join(d, 'plugin.json')
+            if os.path.isfile(pj):
+                try:
+                    with open(pj, 'r', encoding='utf-8') as f:
+                        meta = json.load(f)
+                    meta['id'] = plugin_id
+                    meta['source'] = 'local'
+                    meta['_local_dir'] = d
+                    if not meta.get('download'):
+                        meta['download'] = ''
+                    return meta
+                except Exception as e:
+                    logger.warning(f"读取本地插件元数据失败 {pj}: {e}")
+                    continue
+        return None
+
     def search(self, keyword: str) -> List[Dict]:
         """搜索插件（alias）"""
         return self.list_plugins(keyword=keyword)
@@ -295,11 +317,12 @@ class PluginMarket:
         """
         plugin = self.get_plugin(plugin_id)
         if not plugin:
-            return {'ok': False, 'message': f'插件 {plugin_id} 不在市场中'}
-
-        download_url = plugin.get('download', '')
-        if not download_url:
-            return {'ok': False, 'message': f'插件 {plugin_id} 没有下载地址'}
+            # 兜底：本地 available/ 或 enabled/ 中存在但未发布到 registry 的插件
+            local_meta = self._load_local_plugin_meta(plugin_id)
+            if local_meta:
+                plugin = local_meta
+            else:
+                return {'ok': False, 'message': f'插件 {plugin_id} 不在市场中'}
 
         available_dir = os.path.join(self._plugins_dir, 'available', plugin_id)
         enabled_dir = os.path.join(self._plugins_dir, 'enabled', plugin_id)
@@ -349,6 +372,11 @@ class PluginMarket:
 
         # 安装目标目录：plugins/available/<plugin_id>
         target_dir = available_dir
+
+        # 3. 否则需要下载安装（本地 available/ 复制分支已在上方面处理）
+        download_url = plugin.get('download', '')
+        if not download_url:
+            return {'ok': False, 'message': f'插件 {plugin_id} 没有下载地址'}
 
         # 支持本地路径（用于测试）
         if download_url.startswith('file://') or os.path.isfile(download_url):
