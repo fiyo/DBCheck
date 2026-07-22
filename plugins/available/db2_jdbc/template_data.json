@@ -28,7 +28,7 @@
         },
         {
           "query_key": "db2_dbmembers",
-          "query_sql": "SELECT member, dbpartitionnum, host, port FROM TABLE(SYSPROC.DB_MEMBERS())",
+          "query_sql": "SELECT MEMBER_NUMBER AS member, PARTITION_NUMBER AS dbpartitionnum, HOST_NAME AS host, PORT_NUMBER AS port FROM TABLE(SYSPROC.DB_MEMBERS())",
           "query_description_zh": "成员拓扑",
           "query_description_en": "Member topology"
         }
@@ -62,7 +62,7 @@
       "queries": [
         {
           "query_key": "db2_tablespaces",
-          "query_sql": "SELECT tbsp_name, tbsp_type, tbsp_state, tbsp_total_size, tbsp_used_size, CASE WHEN tbsp_total_size>0 THEN tbsp_used_size*100/tbsp_total_size ELSE 0 END AS used_pct FROM SYSIBMADM.TBSP_UTILIZATION",
+          "query_sql": "SELECT tbsp_name, tbsp_type, tbsp_state, TBSP_TOTAL_SIZE_KB AS tbsp_total_size, TBSP_USED_SIZE_KB AS tbsp_used_size, CASE WHEN TBSP_TOTAL_SIZE_KB>0 THEN TBSP_USED_SIZE_KB*100/TBSP_TOTAL_SIZE_KB ELSE 0 END AS used_pct FROM SYSIBMADM.TBSP_UTILIZATION",
           "query_description_zh": "表空间使用率",
           "query_description_en": "Tablespace usage"
         }
@@ -82,7 +82,7 @@
         },
         {
           "query_key": "db2_locks",
-          "query_sql": "SELECT * FROM SYSIBMADM.LOCKS",
+          "query_sql": "SELECT * FROM SYSIBMADM.LOCKS_HELD",
           "query_description_zh": "当前锁持有",
           "query_description_en": "Current locks held"
         }
@@ -96,7 +96,7 @@
       "queries": [
         {
           "query_key": "db2_pkg_cache_stmt",
-          "query_sql": "SELECT STMT_TEXT, NUM_EXECUTIONS, TOTAL_EXEC_TIME, TOTAL_CPU_TIME, ROWS_READ, ROWS_RETURNED FROM TABLE(MON_GET_PKG_CACHE_STMT(NULL,'N',NULL,-2)) ORDER BY TOTAL_EXEC_TIME DESC FETCH FIRST 50 ROWS ONLY",
+          "query_sql": "SELECT STMT_TEXT, NUM_EXECUTIONS, STMT_EXEC_TIME AS TOTAL_EXEC_TIME, TOTAL_CPU_TIME, ROWS_READ, ROWS_RETURNED FROM TABLE(MON_GET_PKG_CACHE_STMT(NULL,'N',NULL,-2)) ORDER BY TOTAL_EXEC_TIME DESC FETCH FIRST 50 ROWS ONLY",
           "query_description_zh": "Top 慢SQL（按总执行时间）",
           "query_description_en": "Top slow SQL by total exec time"
         }
@@ -116,7 +116,7 @@
         },
         {
           "query_key": "db2_index_runstats",
-          "query_sql": "SELECT indname, tabname, stats_time, nleaf, nused FROM SYSSTAT.INDEXES",
+          "query_sql": "SELECT indname, tabname, stats_time, nleaf FROM SYSCAT.INDEXES",
           "query_description_zh": "RUNSTATS 新鲜度",
           "query_description_en": "RUNSTATS freshness"
         }

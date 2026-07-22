@@ -24,11 +24,39 @@ _PLUGIN_DIR = str(Path(__file__).parent)
 if _PLUGIN_DIR not in sys.path:
     sys.path.insert(0, _PLUGIN_DIR)
 
+import importlib.util
+
+
+def _load_own_connection_config():
+    """按文件绝对路径 + 唯一模块名加载本插件自有的 connection_config 模块。
+
+    每个插件的 connection_config.py 文件同名，若用裸 import 会被缓存进全局
+    sys.modules['connection_config']，导致相互污染（本次 Bug 根因）。
+    改用 importlib 按绝对路径 + 唯一模块名加载，各插件各取所需，与导入顺序无关。
+    """
+    spec = importlib.util.spec_from_file_location(
+        "db2_jdbc_connection_config",
+        os.path.join(_PLUGIN_DIR, "connection_config.py"),
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+# 模块级绑定：connect() 内不再裸导入，避免被其它插件的同名模块污染。
+_Db2CC = _load_own_connection_config()
+Db2ConnectionConfig = _Db2CC.Db2ConnectionConfig
+
 # 项目根目录：main_plugin.py -> db2_jdbc -> available -> plugins -> root
 _PROJECT_ROOT = os.path.abspath(os.path.join(_PLUGIN_DIR, "..", "..", ".."))
 
 # BaseInspectionEngine 必须在模块级导入（类继承需要）
-from inspection_engine import BaseInspectionEngine
+from inspection_engine import (
+    BaseInspectionEngine,
+    LocalSystemInfoCollector,
+    RemoteSystemInfoCollector,
+    get_host_disk_usage,
+)
 
 
 # ── JDBC 连接包装器（兼容 Python DB-API 2.0）────────────────────────
@@ -80,6 +108,21 @@ class JdbcCursorWrapper:
             col_count = meta.getColumnCount()
             return tuple(self._convert_java_obj(self.rs.getObject(i + 1)) for i in range(col_count))
         return None
+
+    def fetchmany(self, n):
+        """分页获取：首次 execute 时把结果全集缓存到 self._rows 并按游标切片。"""
+        if not hasattr(self, '_rows') or self._rows is None:
+            self._rows = self.fetchall() if self.rs else []
+            self._idx = 0
+        if self._idx >= len(self._rows):
+            return []
+        chunk = self._rows[self._idx:self._idx + n]
+        self._idx += len(chunk)
+        return chunk
+
+    @property
+    def rowcount(self):
+        return getattr(self, '_rowcount', -1)
 
     def _convert_java_obj(self, obj):
         """将 Java 对象转换为 Python 对象"""
@@ -194,8 +237,7 @@ class Db2JdbcInspector(BaseInspectionEngine):
             ensure_jvm()
             register_db2_driver()
 
-            # 2. 构建连接配置
-            from connection_config import Db2ConnectionConfig
+            # 2. 构建连接配置（Db2ConnectionConfig 已在模块级按路径绑定，避免同名模块污染）
             cfg = Db2ConnectionConfig(
                 host=self.host,
                 port=int(self.port),
@@ -217,7 +259,13 @@ class Db2JdbcInspector(BaseInspectionEngine):
                     props.setProperty(str(k), str(v))
                 jdbc_conn = DriverManager.getConnection(url, props)
             else:
-                jdbc_conn = DriverManager.getConnection(url, self.user, self.password)
+                # 非 SSL 也统一用 Properties 传 user/password，规避部分驱动下
+                # DriverManager.getConnection(url, user, password) 偶发 -4461
+                # （userid 为空）的握手问题，与 SSL 分支保持一致。
+                props = Properties()
+                props.setProperty("user", self.user)
+                props.setProperty("password", self.password)
+                jdbc_conn = DriverManager.getConnection(url, props)
 
             self.raw_jdbc_conn = jdbc_conn
             self.conn = JdbcConnectionWrapper(jdbc_conn)
@@ -305,18 +353,31 @@ class Db2JdbcInspector(BaseInspectionEngine):
             "SELECT name, value FROM SYSIBMADM.DBCFG")
 
     def _collect_dbmembers(self):
+        # 11.5+：SYSPROC.DB_MEMBERS() 返回列已改名（member→MEMBER_NUMBER、
+        # dbpartitionnum→PARTITION_NUMBER、host→HOST_NAME、port→PORT_NUMBER）。
+        # 用别名保留旧输出 key（member/dbpartitionnum/host/port）。
         self.context['db2_dbmembers'] = self._exec_to_dicts(
-            "SELECT member, dbpartitionnum, host, port FROM TABLE(SYSPROC.DB_MEMBERS())")
+            "SELECT MEMBER_NUMBER AS member, PARTITION_NUMBER AS dbpartitionnum, "
+            "HOST_NAME AS host, PORT_NUMBER AS port FROM TABLE(SYSPROC.DB_MEMBERS())")
 
     def _collect_tablespaces(self):
+        # 11.5+：TBSP_UTILIZATION 的大小列已改名为 TBSP_TOTAL_SIZE_KB /
+        # TBSP_USED_SIZE_KB（9.7 时代的 TBSP_TOTAL_SIZE / TBSP_USED_SIZE 已移除），
+        # 单位仍是 KB，比例不变。用别名保留旧输出 key（tbsp_total_size /
+        # tbsp_used_size / used_pct），以兼容下游 _build_rule_scalars 与规则。
         self.context['db2_tablespaces'] = self._exec_to_dicts(
-            "SELECT tbsp_name, tbsp_type, tbsp_state, tbsp_total_size, tbsp_used_size, "
-            "CASE WHEN tbsp_total_size>0 THEN tbsp_used_size*100/tbsp_total_size ELSE 0 END AS used_pct "
+            "SELECT tbsp_name, tbsp_type, tbsp_state, "
+            "TBSP_TOTAL_SIZE_KB AS tbsp_total_size, "
+            "TBSP_USED_SIZE_KB AS tbsp_used_size, "
+            "CASE WHEN TBSP_TOTAL_SIZE_KB>0 "
+            "THEN TBSP_USED_SIZE_KB*100/TBSP_TOTAL_SIZE_KB ELSE 0 END AS used_pct "
             "FROM SYSIBMADM.TBSP_UTILIZATION")
 
     def _collect_bufferpools(self):
+        # 11.5+：SYSIBMADM.BUFFERPOOLS 管理视图已移除（-204），改用
+        # SYSIBMADM.SNAPBP（缓冲池运行时快照视图，含读写/命中率等指标）。
         self.context['db2_bufferpools'] = self._exec_to_dicts(
-            "SELECT * FROM SYSIBMADM.BUFFERPOOLS")
+            "SELECT * FROM SYSIBMADM.SNAPBP")
 
     def _collect_applications(self):
         self.context['db2_applications'] = self._exec_to_dicts(
@@ -327,8 +388,10 @@ class Db2JdbcInspector(BaseInspectionEngine):
             "SELECT * FROM SYSIBMADM.LOCKWAITS")
 
     def _collect_locks(self):
+        # 11.5+：SYSIBMADM.LOCKS 管理视图已移除（-204），改用
+        # SYSIBMADM.LOCKS_HELD（当前持有锁）。下游仅展示，故返回行即可。
         self.context['db2_locks'] = self._exec_to_dicts(
-            "SELECT * FROM SYSIBMADM.LOCKS")
+            "SELECT * FROM SYSIBMADM.LOCKS_HELD")
 
     def _collect_tables(self):
         self.context['db2_tables'] = self._exec_to_dicts(
@@ -341,13 +404,20 @@ class Db2JdbcInspector(BaseInspectionEngine):
             "FROM SYSCAT.INDEXES WHERE indschema NOT LIKE 'SYS%'")
 
     def _collect_index_runstats(self):
+        # 11.5+：SYSSTAT.INDEXES 已无 STATS_TIME / NUSED 列，STATS_TIME 已迁移到
+        # SYSCAT.INDEXES。改查 SYSCAT.INDEXES，并去掉不存在的 NUSED，保留
+        # stats_time 输出 key 以兼容下游 _build_rule_scalars（stale stats 计数）。
         self.context['db2_index_runstats'] = self._exec_to_dicts(
-            "SELECT indname, tabname, stats_time, nleaf, nused FROM SYSSTAT.INDEXES")
+            "SELECT indname, tabname, stats_time, nleaf FROM SYSCAT.INDEXES")
 
     def _collect_pkg_cache_stmt(self):
+        # 11.5+：MON_GET_PKG_CACHE_STMT 的总执行时间列已改名为 STMT_EXEC_TIME
+        # （9.7 的 TOTAL_EXEC_TIME 已不存在），用别名保留 TOTAL_EXEC_TIME 输出 key
+        # 以兼容下游 _build_rule_scalars（db2_pkg_cache_max_time）。
         self.context['db2_pkg_cache_stmt'] = self._exec_to_dicts(
-            "SELECT STMT_TEXT, NUM_EXECUTIONS, TOTAL_EXEC_TIME, TOTAL_CPU_TIME, "
-            "ROWS_READ, ROWS_RETURNED FROM TABLE(MON_GET_PKG_CACHE_STMT(NULL,'N',NULL,-2)) "
+            "SELECT STMT_TEXT, NUM_EXECUTIONS, STMT_EXEC_TIME AS TOTAL_EXEC_TIME, "
+            "TOTAL_CPU_TIME, ROWS_READ, ROWS_RETURNED "
+            "FROM TABLE(MON_GET_PKG_CACHE_STMT(NULL,'N',NULL,-2)) "
             "ORDER BY TOTAL_EXEC_TIME DESC FETCH FIRST 50 ROWS ONLY")
 
     def _collect_mon_activity(self):
@@ -540,8 +610,9 @@ class Db2JdbcInspector(BaseInspectionEngine):
             '_collect_tables', '_collect_indexes', '_collect_index_runstats',
             '_collect_pkg_cache_stmt', '_collect_mon_activity', '_collect_dbm_memory',
         ]
-        for m in methods:
+        for i, m in enumerate(methods):
             try:
+                self.print_progress_bar(i + 1, len(methods), prefix='[DB2]', suffix=f'{m} ({i+1}/{len(methods)})')
                 getattr(self, m)()
             except Exception as e:
                 key = '_' + m.split('_collect_')[-1]
@@ -552,6 +623,33 @@ class Db2JdbcInspector(BaseInspectionEngine):
             self._build_rule_scalars()
         except Exception as e:
             print(f"[DB2] 构建规则标量失败: {e}")
+
+        # 系统资源采集（Issue 3：所有库型统一补充 system_info，供报告"系统资源"章节使用）
+        try:
+            if getattr(self, 'ssh_info', None) and self.ssh_info.get('ssh_host'):
+                collector = RemoteSystemInfoCollector(
+                    host=self.ssh_info['ssh_host'], port=self.ssh_info.get('ssh_port', 22),
+                    username=self.ssh_info.get('ssh_user', 'root'),
+                    password=self.ssh_info.get('ssh_password'), key_file=self.ssh_info.get('ssh_key_file')
+                )
+                if not collector.connect():
+                    collector = LocalSystemInfoCollector()
+            else:
+                collector = LocalSystemInfoCollector()
+            system_info = collector.get_system_info()
+            disk_list = system_info.get('disk_list') or system_info.get('disk') or get_host_disk_usage()
+            if isinstance(disk_list, dict):
+                disk_list = list(disk_list.values())
+            system_info['disk_list'] = disk_list
+            self.context.update({"system_info": system_info})
+        except Exception as e:
+            print(f"[DB2] 系统信息采集失败: {e}")
+            self.context.update({"system_info": {
+                'platform': '未知', 'boot_time': '未知',
+                'cpu': {}, 'memory': {},
+                'disk_list': [{'device': 'C:', 'mountpoint': 'C:\\', 'fstype': 'NTFS',
+                               'total_gb': 0, 'used_gb': 0, 'free_gb': 0, 'usage_percent': 0}]
+            }})
 
         # 报告章节（从 inspection.db 加载并执行模板 query）
         try:
@@ -596,7 +694,7 @@ class Db2JdbcInspector(BaseInspectionEngine):
 
 
 # ── 测试连接函数（供 web_ui / 自测调用）────────────────────────────
-def test_connection(host, port, user, password, database='', jdbc_url=None, ssl=False):
+def test_connection(host, port, user, password, database='', jdbc_url=None, ssl=False, **kwargs):
     """测试 Db2 JDBC 连接。
 
     Args:
@@ -701,6 +799,14 @@ def _plugin_test_connection(info: dict):
     )
 
 
+def parse_connection_result(ok: bool, msg: Any) -> Dict[str, Any]:
+    """解析 DB2 JDBC 连接测试结果（供 web_ui.py 动态调用）。
+
+    目前仅返回空字典；如需后续提取版本号，可在此解析 msg。
+    """
+    return {}
+
+
 def get_task_config():
     """返回插件任务配置（供 plugin_loader.get_plugin_task_config 调用）。"""
     return {
@@ -743,8 +849,8 @@ try:
         """Db2 JDBC 插件适配器（实现标准接口）。"""
 
         def __init__(self, parse_func=None):
-            self.id = 'db2'
-            self.name = 'Db2 JDBC'
+            self.id = 'db2_jdbc'  # 与目录名 db2_jdbc / plugin.json 逻辑 id 对齐（对齐 oracle_jdbc 做法），避免已安装列表重复与卸载失效
+            self.name = 'DB2（JDBC）'  # 与 plugin.json 的 name 字段保持一致，避免注册名与清单不一致导致的幽灵记录
             self.version = '1.0.0'
             self.db_types = ['db2']
             self.author = 'DBCheck Team'
@@ -907,7 +1013,7 @@ try:
             except Exception as e:
                 print(f"[DB2] 数据清理失败: {e}")
 
-    adapter = Db2JdbcPluginAdapter(parse_func=_plugin_test_connection)
+    adapter = Db2JdbcPluginAdapter(parse_func=parse_connection_result)
     register(adapter)
     print("[DB2] 插件注册成功")
 except Exception as e:

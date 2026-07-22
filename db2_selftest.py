@@ -77,7 +77,7 @@ except Exception as e:
 print("=" * 64)
 print("STEP 3: on_install() 注册模板 + 基线（幂等）")
 try:
-    adapter = PluginRegistry.get_plugin_instance("db2")
+    adapter = PluginRegistry.get_plugin_instance("db2_jdbc")
     check("插件已注册到 PluginRegistry", adapter is not None)
     adapter.on_install()
     check("on_install 执行无异常", True)

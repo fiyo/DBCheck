@@ -1,4 +1,5 @@
 {
+  "id": "db2_jdbc",
   "type": "inspection",
   "db_type": "db2",
   "name": "DB2（JDBC）",
