@@ -4970,7 +4970,7 @@ function formatBytes(bytes) {
 
     <div class="sidebar-footer">
       <button class="sidebar-toggle" onclick="toggleSidebar()" title="折叠/展开菜单" id="sidebar-toggle-btn">«</button>
-      <span class="version-badge" id="version-badge">{{ version }}{% if edition == 'professional' %} · 专业版{% endif %}</span>
+      <span class="version-badge" id="version-badge">{{ version }}{% if edition == 'professional' %} · <span data-i18n="webui.edition_badge">专业版</span>{% endif %}</span>
     </div>
   </aside>
 
@@ -6635,7 +6635,7 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
           <div class="card-title">
             <svg viewBox="0 0 24 24" width="18" height="18" style="stroke:var(--accent2);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M7.6 7.6 11 16M16.4 7.6 13 16M8 6h8"/></svg>
             <span data-i18n="webui.nav_intelligence">智能诊断中心</span>
-            <span class="badge">专业版</span>
+            <span class="badge" data-i18n="webui.edition_badge">专业版</span>
           </div>
           <div style="color:var(--text-muted);font-size:12.5px;margin-bottom:18px" data-i18n="intelligence.subtitle">多专业能力协同，主动发现、定位与处置数据库风险。</div>
 
@@ -6692,7 +6692,7 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
           <div class="card-title">
             <svg viewBox="0 0 24 24" width="18" height="18" style="stroke:var(--accent2);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><path d="M3 3v6h6"/><path d="M3.5 9a9 9 0 1 1-1 5"/><path d="M12 8v4l3 2"/></svg>
             <span data-i18n="webui.nav_diag_history">诊断历史</span>
-            <span class="badge">专业版</span>
+            <span class="badge" data-i18n="webui.edition_badge">专业版</span>
           </div>
           <div style="color:var(--text-muted);font-size:12.5px;margin-bottom:16px" data-i18n="diag_history.subtitle">回看历次协同诊断结果，选中条目可查看完整报告并一键回填工单。</div>
           <div class="form-group" style="margin-bottom:0;max-width:420px">
@@ -18101,7 +18101,7 @@ async function deleteBackupHistory(recordId) {
         <img class="about-logo" src="/dbcheck_logo.png" alt="DBCheck">
         <div class="about-hero-text">
           <h2>DBCheck</h2>
-          <div class="about-sub">Database Intelligent Inspector <span id="about-version">{{ version }}{% if edition == 'professional' %} · 专业版{% endif %}</span></div>
+          <div class="about-sub">Database Intelligent Inspector <span id="about-version">{{ version }}{% if edition == 'professional' %} · <span data-i18n="webui.edition_badge">专业版</span>{% endif %}</span></div>
         </div>
       </div>
     </div>
