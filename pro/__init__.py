@@ -4,14 +4,13 @@ DBCheck Pro Module
 专业版核心模块
 """
 
-# License removed - all Pro features are now free
 def is_pro():
-    """Always return True - Pro features are now free in community edition"""
-    return True
+    """Return True if this is the professional edition"""
+    return False
 
 def get_edition():
     """Return edition name"""
-    return 'community+'
+    return 'community'
 
 from .instance_manager import (
     InstanceManager,

@@ -2181,6 +2181,7 @@ ES.update({
     "webui.ds_select_saved_hint": "(Opcional; al seleccionarlo se rellena automáticamente la información de conexión)",
     "webui.ds_update_success": "Actualizado con éxito",
     "webui.edition_badge": "Edición Pro",
+    "webui.edition_community": "Comunidad",
     "webui.edition_badge_pro": "Edición Pro",
     "webui.email_addr_label": "Dirección de correo",
     "webui.email_btn_save": "💾 Guardar configuración",

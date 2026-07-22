@@ -47,7 +47,6 @@ menus_data = [
     ('data-management',  'menu.data-management', 0, 66),
     ('about',            'menu.about',           0, 67),
     ('disaster-recovery','menu.disaster-recovery',0, 65),
-    ('diag-history',     'menu.diag-history',    0, 53),
 ]
 
 def init_seed_data():

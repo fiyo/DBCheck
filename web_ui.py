@@ -4557,29 +4557,31 @@ def api_pro_status():
 
         im = get_instance_manager()
         stats = im.get_statistics()
+        pro_flag = is_pro()
+        edition_name = get_edition()
 
         return jsonify({
             'ok': True,
-            'is_pro': True,  # 无需许可证，始终为 True
-            'edition': 'community+',
+            'is_pro': pro_flag,
+            'edition': edition_name,
             'version': getattr(pro_version, '__version__', '2.3.8'),
             'release_date': getattr(pro_version, '__release_date__', ''),
             'license': {
-                'valid': True,
-                'type': 'community+',
+                'valid': pro_flag,
+                'type': edition_name,
                 'expires': '',
-                'max_instances': -1,  # 无限制
-                'features': ['all'],
+                'max_instances': -1 if pro_flag else 0,
+                'features': ['all'] if pro_flag else [],
             },
             'instances': stats,
         })
     except ImportError:
         return jsonify({
             'ok': True,
-            'is_pro': True,
-            'edition': 'community+',
+            'is_pro': False,
+            'edition': 'community',
             'version': '2.3.8',
-            'license': {'valid': True, 'type': 'community+', 'features': ['all']},
+            'license': {'valid': False, 'type': 'community', 'features': []},
             'instances': {'total_instances': 0},
         })
     except Exception as e:

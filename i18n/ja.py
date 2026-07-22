@@ -2180,6 +2180,7 @@ JA.update({
     "webui.ds_select_saved_hint": "(オプション、選択後に接続情報が自動的に入力されます)",
     "webui.ds_update_success": "更新に成功しました",
     "webui.edition_badge": "プロフェッショナル版",
+    "webui.edition_community": "コミュニティ版",
     "webui.edition_badge_pro": "プロフェッショナル版",
     "webui.email_addr_label": "メールアドレス",
     "webui.email_btn_save": "💾 設定を保存",

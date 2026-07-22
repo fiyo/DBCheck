@@ -2182,6 +2182,7 @@ FR.update({
     "webui.ds_select_saved_hint": "(Optionnel ; si sélectionné, les informations de connexion sont renseignées automatiquement)",
     "webui.ds_update_success": "Mis à jour avec succès",
     "webui.edition_badge": "Édition Pro",
+    "webui.edition_community": "Communauté",
     "webui.edition_badge_pro": "Édition Pro",
     "webui.email_addr_label": "Adresse e-mail",
     "webui.email_btn_save": "💾 Enregistrer les paramètres",
