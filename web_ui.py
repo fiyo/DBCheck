@@ -552,6 +552,17 @@ def api_shell_instances():
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 # ── 通用巡检任务（MySQL/PG/TiDB/SQLServer/IvorySQL/DM8） ──
+def _web_log_is_console_only(msg):
+    """判断一条日志是否仅输出到后端控制台、不推送到前端巡检日志。
+    包括：后台采集内部日志 [metrics]，以及连接状态类日志（连接成功/连接失败）。"""
+    _m = msg.lstrip()
+    if _m.startswith('[metrics]'):
+        return True
+    if '连接成功' in msg or '连接失败' in msg:
+        return True
+    return False
+
+
 def run_inspection_task(task_id, db_info, inspector_name, template_id=None):
     """
     通用数据库巡检任务函数
@@ -865,8 +876,8 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None):
             _sep = _kw.get('sep', ' ')
             _msg = _sep.join(str(x) for x in _a)
             _msg_clean = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', _msg)
-            # 后台采集/内部日志（如 [metrics]）仅输出到后端控制台，不推送到前端巡检日志
-            if _msg_clean.strip() and not _msg_clean.lstrip().startswith('[metrics]'):
+            # 后台采集/内部日志（如 [metrics]）及连接状态日志（连接成功/连接失败）仅输出到后端控制台，不推送到前端巡检日志
+            if _msg_clean.strip() and not _web_log_is_console_only(_msg_clean):
                 _emit('log', {'msg': _msg_clean})
             _orig_print(*_a, **_kw)
         _bi.print = _web_print
@@ -2581,7 +2592,7 @@ def api_test_db():
                     if extra and isinstance(extra, dict):
                         result.update(extra)
             except Exception as e:
-                logger.warning(f"调用插件 {db_type} 的 parse_connection_result() 失败: {e}")
+                app.logger.warning(f"调用插件 {db_type} 的 parse_connection_result() 失败: {e}")
         else:
             return jsonify({'ok': False, 'msg': _t('webui.err_unknown_db_type')})
     else:
@@ -2607,7 +2618,7 @@ def api_test_db():
                     if extra and isinstance(extra, dict):
                         result.update(extra)
             except Exception as e:
-                logger.warning(f"调用插件 {db_type} 的 parse_connection_result() 失败: {e}")
+                app.logger.warning(f"调用插件 {db_type} 的 parse_connection_result() 失败: {e}")
         else:
             return jsonify({'ok': False, 'msg': _t('webui.err_unknown_db_type')})
 
@@ -5468,7 +5479,24 @@ def api_ds_databases(ds_id):
 
     try:
         databases = []
-        if db_type in ('mysql', 'tidb', 'mariadb', 'oceanbase'):
+        if db_type == 'oceanbase':
+            import pymysql
+            _ob_tenant = inst.get('tenant', '') or ''
+            _ob_user = user + '@' + _ob_tenant if _ob_tenant else user
+            # OceanBase MySQL 租户：用户名须带 @tenant 才能路由到正确租户；
+            # 查询主用 INFORMATION_SCHEMA（与 MySQL/TiDB 一致），SHOW DATABASES
+            # 在部分 OceanBase 环境会触发 2013，作为兜底。
+            conn = pymysql.connect(host=host, port=port, user=_ob_user, password=pwd,
+                                   connect_timeout=timeout, charset='utf8mb4')
+            cur = conn.cursor()
+            try:
+                cur.execute("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA ORDER BY SCHEMA_NAME")
+                databases = [r[0] for r in cur.fetchall()]
+            except Exception:
+                cur.execute("SHOW DATABASES")
+                databases = [r[0] for r in cur.fetchall()]
+            conn.close()
+        elif db_type in ('mysql', 'tidb', 'mariadb'):
             import pymysql
             conn = pymysql.connect(host=host, port=port, user=user, password=pwd,
                                    connect_timeout=timeout, charset='utf8mb4')
@@ -5547,6 +5575,60 @@ def api_ds_databases(ds_id):
             cur.execute("SELECT username FROM SYS.ALL_USERS ORDER BY username")
             databases = [r[0] for r in cur.fetchall()]
             conn.close()
+        elif db_type == 'db2':
+            from plugins.available.db2_jdbc.main_plugin import get_connection
+            # DB2 连接时需指定库；优先用底层 JDBC 的 getMetaData().getCatalogs()
+            # 列出实例下的所有数据库（DB2 的 catalog 即 database）。
+            db_name = inst.get('database') or 'testdb'
+            conn = get_connection(host, int(port), user, pwd, database=db_name)
+            try:
+                meta = conn.jdbc_conn.getMetaData()
+                rs = meta.getCatalogs()
+                databases = []
+                while rs.next():
+                    _c = rs.getString(1)
+                    if _c:  # DB2 getCatalogs() 的 catalog 列为 Java null，跳过
+                        databases.append(str(_c))
+                try:
+                    rs.close()
+                except Exception:
+                    pass
+                if not databases:
+                    databases = [db_name]
+            except Exception:
+                # 兜底：DB2 需在连接时指定库，列出已配置库为可接受的最小实现
+                databases = [db_name]
+            finally:
+                conn.close()
+        elif db_type == 'mongodb':
+            # MongoDB：复用插件 connection_config 构建 URI/client，按 importlib 懒加载规避同名污染
+            import importlib.util, os
+            _plugin_dir = os.path.join(os.path.dirname(__file__), 'plugins', 'available', 'mongodb')
+            _spec = importlib.util.spec_from_file_location(
+                "mongodb_connection_config",
+                os.path.join(_plugin_dir, "connection_config.py"),
+            )
+            _CC = importlib.util.module_from_spec(_spec)
+            _spec.loader.exec_module(_CC)
+            MongoConnectionConfig = _CC.MongoConnectionConfig
+            cfg = MongoConnectionConfig.from_ssh_info(inst)
+            cfg.host = host
+            cfg.port = int(port) if port else 27017
+            cfg.user = user or ""
+            cfg.password = pwd or ""
+            cfg.database = inst.get('database') or 'admin'
+            uri = cfg.build_uri()
+            kwargs = cfg.build_client_kwargs()
+            from pymongo import MongoClient
+            client = MongoClient(uri, **kwargs)
+            try:
+                databases = client.list_database_names()
+                if not databases:
+                    databases = [inst.get('database') or 'admin']
+            except Exception:
+                databases = [inst.get('database') or 'admin']
+            finally:
+                client.close()
         else:
             return jsonify({'error': f'暂不支持该数据库类型: {db_type}'}), 400
 
@@ -5579,7 +5661,34 @@ def api_ds_objects(ds_id):
 
     try:
         tables, views = [], []
-        if db_type in ('mysql', 'tidb', 'mariadb', 'oceanbase'):
+        if db_type == 'oceanbase':
+            import pymysql
+            _ob_tenant = inst.get('tenant', '') or ''
+            _ob_user = user + '@' + _ob_tenant if _ob_tenant else user
+            _db_safe = database.replace('`', '``')   # 反引号转义，防注入
+            conn = pymysql.connect(host=host, port=port, user=_ob_user, password=pwd,
+                                   database=database, connect_timeout=timeout, charset='utf8mb4')
+            cur = conn.cursor()
+            try:
+                cur.execute(
+                    "SELECT TABLE_NAME, TABLE_TYPE FROM INFORMATION_SCHEMA.TABLES "
+                    "WHERE TABLE_SCHEMA=%s ORDER BY TABLE_NAME",
+                    (database,)
+                )
+                for row in cur.fetchall():
+                    if row[1] == 'BASE TABLE':
+                        tables.append(row[0])
+                    elif row[1] == 'VIEW':
+                        views.append(row[0])
+            except Exception:
+                cur.execute(f"SHOW FULL TABLES FROM `{_db_safe}`")
+                for row in cur.fetchall():
+                    if row[1] == 'BASE TABLE':
+                        tables.append(row[0])
+                    elif row[1] == 'VIEW':
+                        views.append(row[0])
+            conn.close()
+        elif db_type in ('mysql', 'tidb', 'mariadb'):
             import pymysql
             conn = pymysql.connect(host=host, port=port, user=user, password=pwd,
                                    database=database, connect_timeout=timeout, charset='utf8mb4')
@@ -5729,6 +5838,58 @@ def api_ds_objects(ds_id):
             except Exception:
                 pass
             conn.close()
+        elif db_type == 'db2':
+            from plugins.available.db2_jdbc.main_plugin import get_connection
+            # DB2 系统目录 SYSCAT.TABLES 拆分表(T)/视图(V)，排除系统 schema
+            conn = get_connection(host, int(port), user, pwd, database=database)
+            try:
+                cur = conn.cursor()
+                cur.execute(
+                    "SELECT TABNAME, TYPE FROM SYSCAT.TABLES "
+                    "WHERE TABSCHEMA NOT LIKE 'SYS%' ORDER BY TABNAME"
+                )
+                for row in cur.fetchall():
+                    if row[1] == 'T':
+                        tables.append(row[0])
+                    elif row[1] == 'V':
+                        views.append(row[0])
+                cur.close()
+            except Exception:
+                pass
+            finally:
+                conn.close()
+        elif db_type == 'mongodb':
+            # MongoDB：复用插件 connection_config 构建 URI/client，按 importlib 懒加载规避同名污染
+            import importlib.util, os
+            _plugin_dir = os.path.join(os.path.dirname(__file__), 'plugins', 'available', 'mongodb')
+            _spec = importlib.util.spec_from_file_location(
+                "mongodb_connection_config",
+                os.path.join(_plugin_dir, "connection_config.py"),
+            )
+            _CC = importlib.util.module_from_spec(_spec)
+            _spec.loader.exec_module(_CC)
+            MongoConnectionConfig = _CC.MongoConnectionConfig
+            cfg = MongoConnectionConfig.from_ssh_info(inst)
+            cfg.host = host
+            cfg.port = int(port) if port else 27017
+            cfg.user = user or ""
+            cfg.password = pwd or ""
+            cfg.database = inst.get('database') or 'admin'
+            uri = cfg.build_uri()
+            kwargs = cfg.build_client_kwargs()
+            from pymongo import MongoClient
+            client = MongoClient(uri, **kwargs)
+            try:
+                db = client[database]
+                try:
+                    tables = db.list_collection_names(filter={'type': 'standard'})
+                    views = db.list_collection_names(filter={'type': 'view'})
+                except Exception:
+                    # 老版本 pymongo 不识别 filter 参数，退化为列出全部集合
+                    tables = db.list_collection_names()
+                    views = []
+            finally:
+                client.close()
         else:
             return jsonify({'error': f'暂不支持该数据库类型: {db_type}'}), 400
 
@@ -5904,6 +6065,16 @@ def api_execute_sql():
         elif db_type == 'yashandb':
             import yasdb
             conn = yasdb.connect(host=host, port=int(port), user=user, password=pwd)
+            cursor = conn.cursor()
+            cursor.execute(sql)
+            columns = [desc[0] for desc in cursor.description] if cursor.description else []
+            rows = cursor.fetchmany(200)
+            has_more = len(rows) >= 200
+
+        elif db_type == 'db2':
+            from plugins.available.db2_jdbc.main_plugin import get_connection
+            db_name = database or 'testdb'
+            conn = get_connection(host, port, user, pwd, database=db_name)
             cursor = conn.cursor()
             cursor.execute(sql)
             columns = [desc[0] for desc in cursor.description] if cursor.description else []
@@ -6637,6 +6808,23 @@ def api_inspection_execute_sql():
                 user=db_info.get('user', ''),
                 password=db_info.get('password', '')
             )
+            cursor = conn.cursor()
+            statements = _split_sql(sql)
+            total_affected = 0
+            for stmt in statements:
+                cursor.execute(stmt)
+                total_affected += cursor.rowcount
+            conn.commit()
+            affected = total_affected
+            cursor.close()
+            conn.close()
+
+        elif db_type == 'db2':
+            from plugins.available.db2_jdbc.main_plugin import get_connection
+            conn = get_connection(
+                db_info.get('host', ''), db_info.get('port'),
+                db_info.get('user', ''), db_info.get('password', ''),
+                database=db_info.get('database', ''))
             cursor = conn.cursor()
             statements = _split_sql(sql)
             total_affected = 0
