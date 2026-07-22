@@ -54,6 +54,22 @@ try:
 except ImportError:
     paramiko = None
 
+# 导入根 inspection_engine 的共享系统资源渲染函数。
+# 注意：本文件自身也叫 inspection_engine.py，若按模块名导入会导入自身（不含该函数），
+# 故先尝试普通导入，失败（AttributeError/ImportError）再按绝对路径加载根模块。
+try:
+    from inspection_engine import render_system_resource_chapter
+except Exception:
+    import importlib.util as _ilu
+    import os as _os
+    _root_ie_path = _os.path.abspath(
+        _os.path.join(_os.path.dirname(__file__), "..", "..", "..", "inspection_engine.py")
+    )
+    _root_ie_spec = _ilu.spec_from_file_location("_root_inspection_engine", _root_ie_path)
+    _root_ie_mod = _ilu.module_from_spec(_root_ie_spec)
+    _root_ie_spec.loader.exec_module(_root_ie_mod)
+    render_system_resource_chapter = _root_ie_mod.render_system_resource_chapter
+
 # ── 健康检查评分阈值 ─────────────────────────────
 HEALTH_THRESHOLD = {'excellent': 90, 'good': 75, 'fair': 60, 'poor': 0}
 
@@ -1708,8 +1724,9 @@ class BaseInspectionEngine:
             chapters = self.context.get('_chapters', [])
             max_ch = max((ch.get('chapter_number', 0) for ch in chapters), default=0)
             ch_bl   = max_ch + 1   # 基线配置检查结果
-            ch_risk = max_ch + 2   # 风险与建议
-            ch_ai   = max_ch + 3   # AI 诊断分析
+            ch_sys  = max_ch + 2   # 系统资源（CPU / 内存 / 硬盘）
+            ch_risk = max_ch + 3   # 风险与建议
+            ch_ai   = max_ch + 4   # AI 诊断分析
             print(f"[INFO] _append_chapters: DB max_ch={max_ch}, bl={ch_bl}, risk={ch_risk}, ai={ch_ai}")
 
             # ── 基线配置检查结果 ───────────────────────────
@@ -1749,6 +1766,19 @@ class BaseInspectionEngine:
                             for run in p.runs:
                                 run.font.size = Pt(9); run.font.name = '微软雅黑'
                 doc.add_paragraph()
+
+            # ── 系统资源（CPU / 内存 / 硬盘）───────────────
+            # Issue 3：所有库型统一补系统资源章节（单一真源 render_system_resource_chapter）
+            try:
+                print(f"[INFO] _append_chapters: 开始添加系统资源章节")
+                render_system_resource_chapter(
+                    doc, self.context, self._lang,
+                    chapter_prefix=_ch_prefix(ch_sys),
+                )
+            except Exception as sys_e:
+                print(f"[ERROR] _append_chapters: 添加系统资源章节失败: {sys_e}")
+                import traceback
+                traceback.print_exc(file=sys.stdout)
 
             # ── 风险与建议 ─────────────────────────────────
             print(f"[INFO] auto_analyze count: {len(self.context.get('auto_analyze', []))}")

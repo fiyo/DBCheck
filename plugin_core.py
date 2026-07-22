@@ -283,6 +283,10 @@ def find_plugins(plugins_dir: str = None) -> List[str]:
             results.append(plugin_dir)
 
     # 2. 扫描 plugins/available/ 和 plugins/enabled/ 子目录
+    #    同一 basename 若同时存在于 available/ 与 enabled/，
+    #    仅保留 enabled/ 下的路径（enabled/ 为运行副本，是活动源），
+    #    避免重复加载同一插件导致注册表中出现重复记录（见 DB2 重复 Bug）。
+    found = {}  # basename -> 优先的 plugin_dir
     for subdir in ('available', 'enabled'):
         sub_path = os.path.join(plugins_dir, subdir)
         if not os.path.isdir(sub_path):
@@ -293,7 +297,9 @@ def find_plugins(plugins_dir: str = None) -> List[str]:
                 continue
             manifest_path = os.path.join(plugin_dir, 'plugin.json')
             if os.path.isfile(manifest_path):
-                results.append(plugin_dir)
+                # enabled/ 在后遍历，若同 basename 同时存在则覆盖为 enabled/ 路径
+                found[entry] = plugin_dir
+    results.extend(found.values())
 
     return results
 
@@ -320,14 +326,16 @@ def load_plugin(plugin_dir: str) -> Optional[Dict]:
         logger.warning(f"解析 plugin.json 失败: {e}")
         return None
 
-    plugin_id = manifest.get('name', os.path.basename(plugin_dir))
-
     # 版本检查
     min_ver = manifest.get('dbcheck', {}).get('minVersion', '0')
     # TODO: 实际版本比较
 
     # 安装 Python 依赖（如果有）
     req_path = os.path.join(plugin_dir, 'requirements.txt')
+
+    # plugin_id 采用目录 basename（稳定、无中文括号/空格），
+    # 用于模块命名与 fallback 注册键，避免显示名不稳定导致的幽灵记录。
+    plugin_id = os.path.basename(plugin_dir)
     if os.path.isfile(req_path):
         try:
             import subprocess
