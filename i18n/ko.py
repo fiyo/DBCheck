@@ -2180,6 +2180,7 @@ KO.update({
     "webui.ds_select_saved_hint": "(선택 사항, 선택 시 연결 정보 자동 입력)",
     "webui.ds_update_success": "업데이트 성공",
     "webui.edition_badge": "전문판",
+    "webui.edition_community": "커뮤니티판",
     "webui.edition_badge_pro": "전문판",
     "webui.email_addr_label": "메일 주소",
     "webui.email_btn_save": "💾 설정 저장",

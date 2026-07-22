@@ -2182,6 +2182,7 @@ RU.update({
     "webui.ds_select_saved_hint": "(необязательно, после выбора подключение заполнится автоматически)",
     "webui.ds_update_success": "Обновлено успешно",
     "webui.edition_badge": "Профессиональная версия",
+    "webui.edition_community": "Сообщество",
     "webui.edition_badge_pro": "Профессиональная версия",
     "webui.email_addr_label": "Почтовый адрес",
     "webui.email_btn_save": "💾 Сохранить настройки",

@@ -4841,7 +4841,7 @@ function formatBytes(bytes) {
     <div class="sidebar-logo">
       <img src="/dbcheck_logo.png" alt="DBCheck" style="width:40px;height:40px;margin-bottom:10px;">
       <span class="sidebar-vertical-text">DBCheck</span>
-      <h1>DBCheck <span class="edition-badge pro" id="sidebar-edition-badge" data-i18n="webui.edition_badge">专业版</span></h1>
+      <h1>DBCheck {% if edition == 'professional' %}<span class="edition-badge pro" id="sidebar-edition-badge" data-i18n="webui.edition_badge">专业版</span>{% else %}<span class="edition-badge community" id="sidebar-edition-badge" data-i18n="webui.edition_community">社区版</span>{% endif %}</h1>
       <p data-i18n="webui.logo_subtitle">基于 AI 的智能数据库巡检工具</p>
     </div>
 
