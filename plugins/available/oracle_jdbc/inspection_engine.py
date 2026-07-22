@@ -654,11 +654,20 @@ class BaseInspectionEngine:
             if os.path.exists(cfg_path):
                 with open(cfg_path, 'r', encoding='utf-8') as f:
                     ai_cfg = _json.load(f).get('ai', {})
+            _online_enabled = ai_cfg.get('online_enabled', False)
+            if _online_enabled:
+                _adv_backend = ai_cfg.get('online_backend', 'openai')
+                _adv_api_url = ai_cfg.get('online_api_url') or None   # 传 None，让 AIAdvisor 用其内部 online_api_url
+                _adv_model = ai_cfg.get('online_model') or None       # 传 None，让 AIAdvisor 用其内部 online_model
+            else:
+                _adv_backend = ai_cfg.get('backend')
+                _adv_api_url = ai_cfg.get('api_url')
+                _adv_model = ai_cfg.get('model')
             advisor = AIAdvisor(
-                backend=ai_cfg.get('backend'),
+                backend=_adv_backend,
                 api_key=ai_cfg.get('api_key'),
-                api_url=ai_cfg.get('api_url'),
-                model=ai_cfg.get('model')
+                api_url=_adv_api_url,
+                model=_adv_model
             )
             if advisor.enabled:
                 label = self.context.get('co_name', [{}])[0].get('DB_NAME', 'Unknown')
@@ -688,11 +697,20 @@ class BaseInspectionEngine:
                     if os.path.exists(cfg_path):
                         with open(cfg_path, 'r', encoding='utf-8') as f:
                             ai_cfg = _json.load(f).get('ai', {})
+                    _online_enabled = ai_cfg.get('online_enabled', False)
+                    if _online_enabled:
+                        _adv_backend = ai_cfg.get('online_backend', 'openai')
+                        _adv_api_url = ai_cfg.get('online_api_url') or None   # 传 None，让 AIAdvisor 用其内部 online_api_url
+                        _adv_model = ai_cfg.get('online_model') or None       # 传 None，让 AIAdvisor 用其内部 online_model
+                    else:
+                        _adv_backend = ai_cfg.get('backend')
+                        _adv_api_url = ai_cfg.get('api_url')
+                        _adv_model = ai_cfg.get('model')
                     ai_advisor = AIAdvisor(
-                        backend=ai_cfg.get('backend'),
+                        backend=_adv_backend,
                         api_key=ai_cfg.get('api_key'),
-                        api_url=ai_cfg.get('api_url'),
-                        model=ai_cfg.get('model')
+                        api_url=_adv_api_url,
+                        model=_adv_model
                     )
                 except Exception:
                     pass

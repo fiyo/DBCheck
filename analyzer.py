@@ -13,7 +13,7 @@ DBCheck 增强智能分析模块
 提供三个核心能力：
 1. smart_analyze_mysql / smart_analyze_pg  —— 16+ 条风险规则 + 修复 SQL
 2. HistoryManager   —— 历史指标存储与趋势数据生成
-3. AIAdvisor        —— 本地 Ollama 诊断适配器（仅支持本地部署）
+3. AIAdvisor        —— AI 诊断适配器（支持本地 Ollama 与在线模型）
 
 安全说明：
 - AI 诊断功能仅支持本地部署的 Ollama，不支持任何远程 AI API
@@ -1255,7 +1255,7 @@ class HistoryManager:
 # ═══════════════════════════════════════════════════════
 #
 # 安全策略：
-# 1. 默认仅支持本地 Ollama（backend='ollama'）或关闭（'disabled'）
+# 1. 支持本地 Ollama（backend='ollama'）、在线模型（online_enabled 时 backend 取 online_backend）或关闭（'disabled'）
 # 2. 必须在 dbc_config.json 的 ai 字段中设置 "online_enabled": true 才能调用远程模型
 # 3. 远程模型支持 OpenAI 协议兼容的 API（OpenAI/DeepSeek/自定义端点）
 # 4. Ollama 模式下 API 地址必须为本地地址（localhost/127.0.0.1）
@@ -2495,7 +2495,7 @@ def run_full_analysis(db_type: str, host: str, port, label: str,
     :param host/port/label: 数据库信息
     :param context: checkdb() 返回的 context
     :param base_dir: 项目根目录（用于存储 history.json）
-    :param ai_*: AI 诊断配置（仅支持本地 Ollama，非本地地址将被拒绝）
+    :param ai_*: AI 诊断配置（支持本地 Ollama 或在线模型，在线模型需在 dbc_config.json 启用 online_enabled）
     :return: {
         'issues': [...],       # 增强风险列表
         'ai_advice': str,      # AI 建议文本（未启用时为空字符串）
@@ -2503,7 +2503,7 @@ def run_full_analysis(db_type: str, host: str, port, label: str,
         'comparison': {...},   # 与上次对比
     }
 
-    安全说明：AI 诊断仅使用本地 Ollama，所有数据不外传。
+    安全说明：本地 Ollama 模式下数据不外传；启用在线模型时会按配置发送至远端 API，请知悉。
     """
     # 1. 增强智能分析
     if db_type == 'mysql':

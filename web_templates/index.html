@@ -10757,6 +10757,9 @@ async function saveAIConfig() {
     backend,
     online_enabled: onlineEnabled,
   };
+  if (onlineEnabled) {
+    cfg.backend = 'openai';
+  }
   if (backend === 'openai' && onlineEnabled) {
     cfg.api_key = document.getElementById('ai-api-key').value;
     cfg.online_backend = 'openai';

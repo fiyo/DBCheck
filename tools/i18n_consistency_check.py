@@ -20,6 +20,14 @@ i18n 一致性检查脚本（验证用，第二阶段 T4：全量译文填充）
 退出码：0 = 通过（仅警告）；1 = 存在 menu.* 未译或拉丁系 CJK 残留等错误。
 """
 
+import os
+import sys
+
+# 本脚本位于 <repo>/tools/ 下；仓库根（含 i18n/ 包）是上一级目录
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
+
 from i18n import ZI, EN, ZH_TW, JA, KO, ES, FR, DE, RU
 
 LANG_DICTS = {

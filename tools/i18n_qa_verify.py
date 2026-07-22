@@ -37,9 +37,10 @@ import os
 import re
 import sys
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-if HERE not in sys.path:
-    sys.path.insert(0, HERE)
+# 本脚本位于 <repo>/tools/ 下；仓库根（含 i18n/ 包、web_templates/）是上一级目录
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
 
 from i18n import ZI, EN, ZH_TW, JA, KO, ES, FR, DE, RU, get_all_translations
 
@@ -155,7 +156,7 @@ def extract_template_keys():
     keys = set()
     per_file = {}
     for f in TEMPLATE_FILES:
-        fp = os.path.join(HERE, f)
+        fp = os.path.join(REPO_ROOT, f)
         if not os.path.exists(fp):
             print("    [警告] 模板文件不存在: %s" % f)
             per_file[f] = set()

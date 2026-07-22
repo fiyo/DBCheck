@@ -4383,9 +4383,10 @@ def _build_awr_ai_summary(awr_data, meta):
 def _awr_report_steps():
     """AWR 报告生成步骤定义"""
     cfg = _load_ai_config()
-    ai_backend = cfg.get('backend', 'ollama')
+    _online_on = cfg.get('online_enabled', False)
+    ai_backend = cfg.get('online_backend', 'openai') if _online_on else cfg.get('backend', 'ollama')
     ai_on = ai_backend in ('ollama', 'openai')
-    if ai_backend == 'openai' and not cfg.get('online_enabled', False):
+    if ai_backend == 'openai' and not _online_on:
         ai_on = False
     steps = ['正在解析 AWR 数据...', '正在生成 Word 报告...', '正在打包下载文件...']
     if ai_on:
@@ -6938,6 +6939,9 @@ def _call_llm(prompt: str, system: str = '', stream_callback=None) -> str:
     cfg = _load_ai_config()
     backend = cfg.get('backend', 'ollama')
     timeout = int(cfg.get('timeout', 600))
+    # 在线模型已启用时，优先走在线后端（online_enabled 开关生效）
+    if cfg.get('online_enabled', False) and backend != 'openai':
+        backend = cfg.get('online_backend', 'openai')
 
     if backend == 'ollama':
         return _call_llm_ollama(cfg, prompt, system, timeout, stream_callback)
