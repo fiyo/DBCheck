@@ -2,7 +2,7 @@
 
 ![logo](snapshot/dbcheck_logo_info.png)
 
-DBCheck Professional is a commercial, cross-platform database health inspection tool supporting **10 mainstream relational databases**. It automatically generates standardized Word inspection reports by executing predefined SQL checks and collecting system resources. Advanced features include a SQL editor, remote terminal, configurable inspection chapters, configuration baseline management, historical trend analysis, AI-powered smart diagnostics, index health analysis, in-depth slow query analysis, server inspection, shareable links, and masked data export.
+DBCheck Professional is a commercial, cross-platform database health inspection tool supporting **13 mainstream relational databases**. It automatically generates standardized Word inspection reports by executing predefined SQL checks and collecting system resources. Advanced features include a SQL editor, remote terminal, configurable inspection chapters, configuration baseline management, historical trend analysis, AI-powered smart diagnostics, index health analysis, in-depth slow query analysis, server inspection, shareable links, and masked data export.
 
 > **Note:** The software names, logos, trademarks, badges, etc. of third parties contained in this article and DBCheck software are the property of the third-party companies or organizations. The display of these items in this article and DBCheck software only indicates that the software supports connection to the corresponding database or platform, and does not imply any affiliation or cooperation with them.
 
@@ -41,6 +41,7 @@ DBCheck Professional is a commercial, cross-platform database health inspection 
 | KingbaseES | psycopg2 (PG protocol) | 54321 | Chinese domestic DB |
 | GBase 8s | JDBC (jaydebeapi + JDK) | 9088 | Chinese domestic DB |
 | MongoDB | pymongo | 27017 | 4.0+ |
+| DB2 (LUW) | JDBC (JPype1 + db2jcc4) | 50000 | 11.5+ / 12.x (LUW) |
 
 > **Note:** Oracle (JDBC) 是基于 JDBC (JPype) 连接的独立插件，提供与 Oracle 原生驱动相同的巡检能力，适合无法安装 Oracle 客户端的场景。
 
@@ -118,7 +119,7 @@ python web_ui.py         # Web interface
 | Feature | Description |
 |---------|-------------|
 | 🗄️ Data Source Manager | Unified management of all database instances, with grouping, batch inspection, CSV import/export |
-| 📋 Database Inspection | 12 database types covered, 160+ enhanced rules, auto-generates Word reports |
+| 📋 Database Inspection | 13 database types covered, 160+ enhanced rules, auto-generates Word reports |
 | 🔌 Plugin System | Extensible plugin architecture with lifecycle management (install/uninstall), independent plugin data, plugin marketplace |
 | 🔍 Deep Slow Query Analysis | Correlates execution plans, I/O patterns, lock waits; AI-assisted root cause analysis |
 | 🔒 Lock Diagnostics | Blocking chain visualization, deadlock stats, long transaction detection, with executable fix scripts |
@@ -239,6 +240,7 @@ For detailed plugin development guide, see [Plugin Development Documentation](do
 |--------|----------|-------------|
 | MongoDB | MongoDB 4.0+ | Basic inspection (connection status, database stats, slow queries) |
 | Oracle (JDBC) | Oracle 11g/12c/19c/21c+ | Complete Oracle 11g template migration (21 chapters, 58 queries, 11 baselines) |
+| DB2 (JDBC) | DB2 LUW 11.5+ / 12.x | JDBC (JPype1 + db2jcc4) LUW inspection, 42 rules, system-catalog SQL |
 
 > **Note:** Plugins are completely independent. Installing a plugin automatically initializes its data; uninstalling a plugin automatically cleans up all associated data.
 
@@ -287,6 +289,24 @@ For detailed plugin development guide, see [Plugin Development Documentation](do
 
 > Report structure varies slightly by database type; all chapters can be freely configured via the Web UI.
 
+### DB2 LUW Inspection (JDBC)
+
+IBM Db2 LUW (Linux/Unix/Windows) **11.5+ / 12.x** is supported through the JDBC plugin (`db2_jdbc`), connecting via **JPype1 + IBM `db2jcc4.jar`** (default port **50000**). It runs a data-driven inspection with **6 chapters** and **42 built-in rules**, all based on Db2 system catalog and monitor views (no legacy 9.7 catalog names).
+
+| Dimension | Coverage |
+|-----------|----------|
+| Version & Instance | DB2 version, instance config (`dbm cfg`), database config (`db cfg`), member/partition topology |
+| Tablespaces & Storage | Tablespace size, usage, auto-resize, container states |
+| Buffer Pools | Buffer pool definitions, hit ratio, sizing suggestions |
+| Sessions & Applications | Active applications, top consumers, connection saturation |
+| Locks & Blocking | Lock waits, held locks, blocking chains, long transactions |
+| Tables & Indexes | Table/row statistics, index RUNSTATS freshness, unused/redundant indexes |
+| Top SQL | High-cost statements from the package cache |
+| Activity Monitoring | Mon-get activity metrics, elapsed-time hotspots |
+| Memory | `MON_GET` memory set, dbm memory distribution |
+
+The generated Word report includes the unified **System Resource** chapter (CPU / memory / disk) plus a **Risks & Recommendations** chapter with one-click fix SQL, and an **AI Diagnostic Suggestions** chapter. A JDBC driver (`db2jcc4.jar`) plus JDK 8/11/17 is required — the Docker image ships both, so Db2 data sources work out of the box.
+
 ---
 
 ## Intelligent Risk Analysis
@@ -309,6 +329,7 @@ Automatically detects potential risks across all database types. **Each risk ite
 | KingbaseES | 19+ | Connections, cache, performance, security, archive, stats |
 | GBase 8s | 6+ | Connections, dbspace, logs, memory, password policies |
 | MongoDB | 10+ | Connections, memory, operations, replication, security |
+| DB2 (LUW) | 42 | Tablespaces, buffer pools, locks, memory, config, top SQL, security |
 
 ### One-Click Fix
 
@@ -340,7 +361,7 @@ python web_ui.py                # Configure in AI Settings page after launching
 
 ### SQL Editor
 
-Built-in interactive SQL editor in Web UI, supporting all 10 database types with syntax highlighting, result tables, and friendly error messages.
+Built-in interactive SQL editor in Web UI, supporting all 13 database types with syntax highlighting, result tables, and friendly error messages.
 
 ### Homepage Live Monitoring
 
@@ -422,7 +443,9 @@ Upload PDF / Word / Markdown / TXT documents for automatic vectorization. AI ret
 
 ### Multi-Language & Themes
 
-- Supports Chinese (default) and English; switchable via CLI argument and Web UI
+- **9 languages supported**: Simplified Chinese (默认), English, Traditional Chinese (繁體中文), Japanese (日本語), Korean (한국어), Spanish (Español), French (Français), German (Deutsch), Russian (Русский)
+- Switch anytime via the Web UI language selector (top-right) or the CLI argument (`python main.py --lang <code>`)
+- UI text, menus, report templates, and AI diagnostic labels are all localized
 - Dark / Light theme support with automatic preference saving
 
 ---
@@ -490,6 +513,7 @@ cd dist
 | **GBase 8s** | **jaydebeapi + JPype1** | **JDK 8/11/17 + JDBC driver jar** |
 | **Oracle (JDBC)** | **jpype1 + ojdbc** | **JDK 8/11/17 + ojdbc6.jar/ojdbc8.jar** |
 | **MongoDB** | **pymongo** | **—** |
+| **DB2 (LUW)** | **jpype1 + db2jcc4** | **JDK 8/11/17 + db2jcc4.jar** |
 
 ---
 
