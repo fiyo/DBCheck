@@ -3,7 +3,7 @@
 # Copyright (c) 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
 #
 # This file is part of DBCheck, an open-source database health inspection tool.
-# DBCheck is released under the MIT License with Attribution Requirements.
+# DBCheck Professional — 专有商业软件，保留一切权利（Proprietary Software, All Rights Reserved）.
 # See LICENSE for full license text.
 #
 
@@ -19,7 +19,6 @@ DBCheck 慢查询深度分析模块
   - Oracle 11g+   （AWR / v$sql / DBA_HIST_SQLTEXT）
   - SQL Server 2012+（sys.dm_exec_query_stats）
   - DM8           （v$sql / v$sql_plan）
-  - MongoDB 5.0+  （system.profile + $currentOp 聚合管道）
 
 核心类：
   SlowQueryAnalyzer    — 工厂类，根据 db_type 返回对应分析器
@@ -29,7 +28,6 @@ DBCheck 慢查询深度分析模块
   OracleSlowQueryAnalyzer
   SQLServerSlowQueryAnalyzer
   DMSlowQueryAnalyzer
-  MongoDBSlowQueryAnalyzer
 
 AI 诊断：
   利用现有 AIAdvisor（analyzer.py），自动注入慢查询指标，
@@ -575,7 +573,8 @@ class SlowQueryResult:
         self.top_sql_by_lock = []         # 按锁等待排序的 Top SQL（MySQL/Oracle）
         self.full_table_scan_sql = []     # 全表扫描 SQL
         self.slow_queries_current = []    # 当前正在执行的慢查询
-        self.ai_diagnosis = ''            # AI 诊断建议（由 AIAdvisor 生成）
+        self.ai_diagnosis = ''            # AI 诊断分析（根因/影响，由 AIAdvisor 生成）
+        self.ai_recommend = ''           # AI 处置建议（可执行动作，由 AIAdvisor 生成）
         self.extension_available = {}      # 各扩展是否可用（如 pg_stat_statements）
         self.summary = {}                  # 汇总统计
 
@@ -588,6 +587,7 @@ class SlowQueryResult:
             'full_table_scan_sql': self.full_table_scan_sql,
             'slow_queries_current': self.slow_queries_current,
             'ai_diagnosis': self.ai_diagnosis,
+            'ai_recommend': self.ai_recommend,
             'extension_available': self.extension_available,
             'summary': self.summary,
         }
@@ -681,24 +681,21 @@ def build_slow_query_ai_prompt(db_type: str, result: SlowQueryResult,
             f"{sep}",
             "【七、诊断要求】",
             "请对以上慢查询数据进行深度分析，要求：",
-            "1. 识别最严重的 3~5 条慢查询，分析其根因（索引缺失？统计信息过时？参数配置不当？）",
+            "1. 必须完整识别并列出最严重的 5 条慢查询（若实际不足 5 条则按实际数量列出），逐一分析其根因（索引缺失？统计信息过时？参数配置不当？）。",
             "2. 全表扫描 queries 分析：评估影响范围，给出添加索引或改写 SQL 的具体建议",
             "3. IO 密集型 queries：分析是否可以通过优化减少磁盘读写",
             "4. 当前长查询：判断是否需要紧急 Kill，并分析阻塞原因",
             "5. 每条 query 给出：根因定位 → 影响评估 → 具体修复方案（含参考 SQL）",
             "6. 最后给出该数据库慢查询整体评价及短期/中期优化路线图",
             "",
-            "格式要求（直接输出 Markdown，不要任何前缀）：",
-            "## 重点慢查询（Top 5）",
-            "### 1. [Query 摘要]",
-            "**根因**: ...",
-            "**影响**: ...",
-            "**优化建议**: ...",
+            "重要约束：不要以 \"...\" 或 \"等\" 省略任何条目；必须逐条完整输出，保证每一条都包含根因、影响、优化建议。",
             "",
-            "## 全表扫描分析",
-            "## IO 优化建议",
-            "## 紧急处理（如有长查询）",
-            "## 整体评价与优化路线图",
+            "输出结构（直接输出 Markdown，不要任何前缀）：",
+            "必须严格包含以下两个固定章节标题，且「处置建议」章节放在「诊断分析」之后：",
+            "## 诊断分析",
+            "（逐条 Top 慢查询分析与整体评价，含根因 / 影响 / 优化方向，可保留 Top 5 结构）",
+            "## 处置建议",
+            "（按优先级列出可执行动作，每条含：动作描述 + 参考 SQL/命令 + 预期收益；建议按「立即 / 短期 / 中期」分组，不要重复诊断分析内容）",
         ]
     else:
         # English
@@ -746,24 +743,21 @@ def build_slow_query_ai_prompt(db_type: str, result: SlowQueryResult,
             f"{sep}",
             "[VII. Diagnosis Requirements]",
             "Provide in-depth analysis of the slow query data above:",
-            "1. Identify the 3~5 most severe slow queries and analyze root causes",
+            "1. Identify and list the top 5 most severe slow queries (list all actual ones if fewer than 5). Analyze each root cause (missing index? stale statistics? parameter misconfiguration?).",
             "2. Full table scan queries: assess impact and provide specific recommendations",
             "3. IO-intensive queries: suggest ways to reduce disk reads",
             "4. Currently running long queries: determine if emergency Kill is needed",
             "5. For each query: Root Cause → Impact → Fix (with reference SQL)",
             "6. Overall slow query health rating and short/medium-term optimization roadmap",
             "",
-            "Format (output Markdown directly, no prefixes):",
-            "## Top Slow Queries (Top 5)",
-            "### 1. [Query Summary]",
-            "**Root Cause**: ...",
-            "**Impact**: ...",
-            "**Recommendation**: ...",
+            "Important: Do not truncate any item with \"...\" or \"etc.\". Every listed query must include root cause, impact, and recommendation.",
             "",
-            "## Full Table Scan Analysis",
-            "## IO Optimization Recommendations",
-            "## Emergency Actions (if any)",
-            "## Overall Assessment & Optimization Roadmap",
+            "Output structure (output Markdown directly, no prefixes):",
+            "You MUST include the following two fixed section headers, with the Recommendations section placed AFTER the Diagnosis section:",
+            "## Diagnosis",
+            "(per-query root cause / impact / remediation direction, may keep Top 5 structure)",
+            "## Recommendations",
+            "(actionable items prioritized; each with: action description + reference SQL/command + expected benefit; group as Immediate / Short-term / Medium-term; do NOT repeat the diagnosis content)",
         ]
 
     return '\n'.join(lines)
@@ -798,9 +792,13 @@ class BaseSlowQueryAnalyzer:
         if ai_advisor and ai_advisor.enabled:
             prompt = build_slow_query_ai_prompt(self.DB_TYPE, self._result, lang)
             try:
-                self._result.ai_diagnosis = ai_advisor._call_llm(prompt, timeout=60)
+                raw = ai_advisor._call_llm(prompt, timeout=60)
+                diag, rec = _split_diag_recommend(raw)
+                self._result.ai_diagnosis = diag
+                self._result.ai_recommend = rec
             except Exception as e:
                 self._result.ai_diagnosis = ''
+                self._result.ai_recommend = ''
                 print("⚠️ 慢查询 AI 诊断失败 [%s]: %s" % (self.DB_TYPE, e))
         return self._result
 
@@ -833,6 +831,40 @@ class BaseSlowQueryAnalyzer:
             except Exception:
                 pass
             return []
+
+
+def _split_diag_recommend(raw: str):
+    """把 AI 慢查询输出拆成 (诊断分析, 处置建议)。
+
+    优先按固定章节标题切分（中文「## 诊断分析」/「## 处置建议」，
+    英文「## Diagnosis」/「## Recommendations」）。兼容旧格式：若未命中
+    任一标题，则整体作为诊断分析返回、处置建议留空。
+    """
+    import re
+    text = (raw or "").strip()
+    if not text:
+        return "", ""
+    # 匹配任意语言的两种章节标题（## 后允许空格）
+    pat = re.compile(
+        r"^##\s*(?:诊断分析|处置建议|Diagnosis|Recommendations)\s*$",
+        re.MULTILINE | re.IGNORECASE,
+    )
+    hits = list(pat.finditer(text))
+    if not hits:
+        return text, ""
+    # 找到「处置建议/Recommendations」起点作为切分点
+    rec_start = None
+    for m in hits:
+        head = m.group(0).lower()
+        if "recommend" in head or "处置建议" in head:
+            rec_start = m.start()
+            break
+    if rec_start is None:
+        # 只有诊断类章节（如只命中「诊断分析」），整体当诊断
+        return text, ""
+    diag = text[:rec_start].strip()
+    rec = text[rec_start:].strip()
+    return diag, rec
 
 
 class MySQLSlowQueryAnalyzer(BaseSlowQueryAnalyzer):
@@ -1298,12 +1330,8 @@ class DMSlowQueryAnalyzer(BaseSlowQueryAnalyzer):
 
 
 # ═══════════════════════════════════════════════════════════
-#  5. 工厂函数
-# ═══════════════════════════════════════════════════════════
-
-# ═══════════════════════════════════════════════════
 #  5. MongoDB 慢查询分析器
-# ═══════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════
 
 def _mongo_to_num(v):
     """把 MongoDB 返回的值尽量转为数字；失败返回 0。"""
@@ -1476,23 +1504,101 @@ class MongoDBSlowQueryAnalyzer(BaseSlowQueryAnalyzer):
         return r
 
 
-# ═══════════════════════════════════════════════════
-#  6. 工厂函数
-# ═══════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════
+#  4.x DB2 LUW 慢查询分析器（JDBC 连接，复用 MON_GET_* 表函数）
+# ═══════════════════════════════════════════════════════════
 
-# 慢查询分析器工厂表：db_type -> 分析器类。
-# 单一事实来源（get_slow_query_analyzer 也引用此表）。
-SLOW_QUERY_ANALYZERS = {
-    'mysql':     MySQLSlowQueryAnalyzer,
-    'mariadb':   MySQLSlowQueryAnalyzer,  # MariaDB 复用 MySQL 慢查询分析器（协议兼容）
-    'oceanbase': OceanBaseSlowQueryAnalyzer,  # OceanBase MySQL 租户走 GV$OB_SQL_AUDIT
-    'pg':        PGSlowQueryAnalyzer,
-    'oracle':    OracleSlowQueryAnalyzer,
-    'sqlserver': SQLServerSlowQueryAnalyzer,
-    'dm':        DMSlowQueryAnalyzer,
-    'mongodb':   MongoDBSlowQueryAnalyzer,
+DB2_SLOW_QUERIES = {
+    # Top SQL by total execution time（MON_GET_PKG_CACHE_STMT，单位毫秒）
+    "db2_top_by_latency": """
+        SELECT STMT_TEXT, NUM_EXECUTIONS, STMT_EXEC_TIME AS TOTAL_EXEC_TIME, TOTAL_CPU_TIME,
+               ROWS_READ, ROWS_RETURNED
+        FROM TABLE(MON_GET_PKG_CACHE_STMT(NULL, 'N', NULL, -2))
+        ORDER BY TOTAL_EXEC_TIME DESC
+        FETCH FIRST 20 ROWS ONLY
+    """,
+    # Top SQL by rows read（IO 密集型）
+    "db2_top_by_io": """
+        SELECT STMT_TEXT, NUM_EXECUTIONS, STMT_EXEC_TIME AS TOTAL_EXEC_TIME, TOTAL_CPU_TIME,
+               ROWS_READ, ROWS_RETURNED
+        FROM TABLE(MON_GET_PKG_CACHE_STMT(NULL, 'N', NULL, -2))
+        ORDER BY ROWS_READ DESC
+        FETCH FIRST 20 ROWS ONLY
+    """,
+    # 当前正在执行且耗时较长的活动（需要 MON_ACT_METRICS 开启）
+    "db2_current_long": """
+        SELECT APPLICATION_HANDLE, TOTAL_ACT_TIME AS ELAPSED_TIME, STMT_TEXT
+        FROM TABLE(MON_GET_ACTIVITY(NULL, -2))
+        WHERE TOTAL_ACT_TIME > 10000
+        FETCH FIRST 20 ROWS ONLY
+    """,
 }
 
+
+class DB2SlowQueryAnalyzer(BaseSlowQueryAnalyzer):
+    """DB2 LUW 慢查询深度分析器（v11+/v12+，基于 JDBC 系统监控表函数）。
+
+    collect(conn) 接收 DB-API 2.0 兼容的 JDBC 连接包装（JdbcConnectionWrapper），
+    与 oracle_jdbc 风格一致：所有查询独立 try/except，视图不存在/权限不足
+    均降级为空列表，绝不抛异常。
+    """
+
+    DB_TYPE = 'db2'
+
+    def collect(self, conn) -> dict:
+        result = {}
+        result['top_by_latency'] = self._exec_sql(conn,
+            DB2_SLOW_QUERIES['db2_top_by_latency'])
+        result['top_by_io'] = self._exec_sql(conn,
+            DB2_SLOW_QUERIES['db2_top_by_io'])
+        result['current_long'] = self._exec_sql(conn,
+            DB2_SLOW_QUERIES['db2_current_long'])
+        return result
+
+    def normalize(self, raw: dict) -> SlowQueryResult:
+        r = SlowQueryResult('db2')
+
+        for row in raw.get('top_by_latency', []):
+            r.top_sql_by_latency.append({
+                'query_text': str(row.get('STMT_TEXT', '') or '')[:300],
+                'exec_count': int(row.get('NUM_EXECUTIONS', 0) or 0),
+                'total_time_sec': round(float(row.get('TOTAL_EXEC_TIME', 0) or 0) / 1000.0, 3),
+                'avg_time_sec': round(
+                    (float(row.get('TOTAL_EXEC_TIME', 0) or 0) /
+                     max(int(row.get('NUM_EXECUTIONS', 1) or 1), 1)) / 1000.0, 3),
+                'cpu_time_sec': round(float(row.get('TOTAL_CPU_TIME', 0) or 0) / 1000.0, 3),
+                'rows_scanned': int(row.get('ROWS_READ', 0) or 0),
+                'rows_returned': int(row.get('ROWS_RETURNED', 0) or 0),
+            })
+
+        for row in raw.get('top_by_io', []):
+            r.top_sql_by_io.append({
+                'query_text': str(row.get('STMT_TEXT', '') or '')[:300],
+                'exec_count': int(row.get('NUM_EXECUTIONS', 0) or 0),
+                'total_time_sec': round(float(row.get('TOTAL_EXEC_TIME', 0) or 0) / 1000.0, 3),
+                'rows_scanned': int(row.get('ROWS_READ', 0) or 0),
+                'rows_returned': int(row.get('ROWS_RETURNED', 0) or 0),
+            })
+
+        for row in raw.get('current_long', []):
+            r.slow_queries_current.append({
+                'application_handle': row.get('APPLICATION_HANDLE', ''),
+                'exec_time_ms': float(row.get('ELAPSED_TIME', 0) or 0),
+                'query_text': str(row.get('STMT_TEXT', '') or '')[:200],
+            })
+
+        if r.top_sql_by_latency:
+            r.extension_available['pkg_cache'] = True
+            r.summary = {
+                'total_sampled_queries': len(r.top_sql_by_latency),
+                'current_long_running': len(r.slow_queries_current),
+            }
+        return r
+
+
+# ═══════════════════════════════════════════════════════════
+#  5. 工厂函数
+# ═══════════════════════════════════════════════════════════
 
 def get_slow_query_analyzer(db_type: str) -> BaseSlowQueryAnalyzer:
     """
@@ -1501,7 +1607,18 @@ def get_slow_query_analyzer(db_type: str) -> BaseSlowQueryAnalyzer:
     :param db_type: 'mysql' | 'pg' | 'oracle' | 'sqlserver' | 'dm'
     :return: 对应数据库的 BaseSlowQueryAnalyzer 子类实例
     """
-    cls = SLOW_QUERY_ANALYZERS.get(str(db_type).lower())
+    TABLE = {
+        'mysql':     MySQLSlowQueryAnalyzer,
+        'mariadb':   MySQLSlowQueryAnalyzer,  # MariaDB 复用 MySQL 慢查询分析器（协议兼容）
+        'oceanbase': OceanBaseSlowQueryAnalyzer,  # OceanBase MySQL 租户走 GV$OB_SQL_AUDIT
+        'pg':        PGSlowQueryAnalyzer,
+        'oracle':    OracleSlowQueryAnalyzer,
+        'sqlserver': SQLServerSlowQueryAnalyzer,
+        'dm':        DMSlowQueryAnalyzer,
+        'mongodb':   MongoDBSlowQueryAnalyzer,
+        'db2':       DB2SlowQueryAnalyzer,
+    }
+    cls = TABLE.get(db_type.lower())
     if cls is None:
         raise ValueError(f"Unsupported db_type for slow query analysis: {db_type}")
     return cls()

@@ -184,8 +184,8 @@ class InstanceManager:
                             d['tags'] = json.loads(d['tags'])
                         except Exception:
                             d['tags'] = []
-                    # sysdba / ssh_enabled / enabled / tls / tls_allow_invalid_certs 从 INTEGER 还原为 bool
-                    for bool_field in ('sysdba', 'ssh_enabled', 'enabled', 'tls', 'tls_allow_invalid_certs'):
+                    # sysdba / ssh_enabled / enabled 从 INTEGER 还原为 bool
+                    for bool_field in ('sysdba', 'ssh_enabled', 'enabled'):
                         d[bool_field] = bool(d.get(bool_field, False))
                     inst = DatabaseInstance.from_dict(d)
                     self._instances[inst.id] = inst
@@ -320,10 +320,14 @@ class InstanceManager:
                     d.get("password", ""), d.get("database", ""), d.get("service_name", ""),
                     d.get("gbase_server_name", ""), d.get("tenant", ""),
                     1 if d.get("sysdba") else 0,
-                    d.get("connect_mode", ""), d.get("auth_source", ""),
-                    d.get("auth_mechanism", ""), d.get("replica_set", ""),
-                    1 if d.get("tls") else 0, d.get("tls_ca_file", ""),
-                    d.get("tls_cert_key_file", ""), 1 if d.get("tls_allow_invalid_certs") else 0,
+                    d.get("connect_mode", ""),
+                    d.get("auth_source", ""),
+                    d.get("auth_mechanism", ""),
+                    d.get("replica_set", ""),
+                    1 if d.get("tls") else 0,
+                    d.get("tls_ca_file", ""),
+                    d.get("tls_cert_key_file", ""),
+                    1 if d.get("tls_allow_invalid_certs") else 0,
                     d.get("ssh_host", ""), d.get("ssh_port", 22),
                     d.get("ssh_user", ""), d.get("ssh_password", ""),
                     d.get("ssh_key_file", ""), 1 if d.get("ssh_enabled") else 0,

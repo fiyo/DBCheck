@@ -634,20 +634,28 @@ def get_plugin_instance(db_type: str) -> Optional[Any]:
     """
     try:
         from plugin_core import PluginRegistry
-        
-        # 从注册表中获取插件
+
+        # 从注册表中获取插件（优先按注册 id 精确匹配，如 'oracle_jdbc' / 'db2_jdbc'）
         plugin_info = PluginRegistry._all_plugins.get(db_type)
-        if not plugin_info:
-            return None
-        
-        # 获取插件实例（从 _inspections 或 _notifiers）
-        plugin = PluginRegistry._inspections.get(db_type)
-        if not plugin:
-            plugin = PluginRegistry._notifiers.get(db_type)
-        
-        return plugin
+        if plugin_info:
+            plugin = PluginRegistry._inspections.get(db_type)
+            if not plugin:
+                plugin = PluginRegistry._notifiers.get(db_type)
+            return plugin
+
+        # 兜底：按 db_types 令牌匹配。
+        # 形如 db2 插件 id='db2_jdbc' 但巡检分派令牌仍为 'db2'，
+        # 外部可能以令牌 'db2' 调用本函数，此时直接按 id 命中不到，需回退到 db_types 检索。
+        for pid, info in PluginRegistry._all_plugins.items():
+            if db_type in (info.get('db_types') or []):
+                plugin = PluginRegistry._inspections.get(pid)
+                if not plugin:
+                    plugin = PluginRegistry._notifiers.get(pid)
+                return plugin
+
+        return None
     except Exception as e:
-        logger.warning(f"获取插件实例失败: {e}")
+        print(f"[Plugin] 获取插件实例失败: {e}")
         return None
 
 

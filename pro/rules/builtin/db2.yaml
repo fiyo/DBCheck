@@ -1,0 +1,780 @@
+# -*- coding: utf-8 -*-
+# DB2 LUW 巡检规则（db_types: [db2]）
+# 条件引用的上下文标量由 plugins/available/db2_jdbc/main_plugin.py::_build_rule_scalars
+# 从 §5 的 db2_* list[dict] 派生：
+#   db2_dbcfg_map   : {参数名(大写): 值} 来自 SYSIBMADM.DBCFG
+#   db2_dbmcfg_map   : {参数名(大写): 值} 来自 SYSIBMADM.DBMCFG
+#   db2_tablespace_max_used : 表空间最大使用率(%)
+#   db2_lockwait_count / db2_applications_count / db2_pkg_cache_max_time /
+#   db2_pkg_cache_count / db2_stale_stats_count / db2_unused_index_count /
+#   db2_version_number / db2_instance_name / db2_database_name
+# 设计原则：
+#   - 数值参数缺失或非数字（如 'AUTOMATIC'）时解析为 None/字符串，
+#     条件用 `x is not None and x < N` 保护，绝不抛异常，最多不命中。
+#   - 缺失上下文键时规则引擎返回 None，整体降级为不命中，不影响巡检。
+rules:
+  # ───────────────────────── 安全 ─────────────────────────
+  - id: db2_auth_none
+    name: 认证方式关闭
+    name_zh: 认证方式关闭
+    category: security
+    db_types: [db2]
+    severity: critical
+    priority: high
+    owner: 安全管理员
+    enabled: true
+    description: 数据库管理器认证方式为 NONE，任意用户可无密码登录
+    description_zh: 数据库管理器认证方式为 NONE，存在严重安全风险
+    condition: "auth is not None and auth == 'NONE'"
+    params:
+      auth: "${context.db2_dbmcfg_map.get('AUTHENTICATION')}"
+    message: "认证方式 AUTHENTICATION={auth}，等于 NONE 表示关闭认证，任意用户可登录"
+    message_zh: "认证方式 AUTHENTICATION={auth}，等于 NONE 表示关闭认证，任意用户可登录"
+    fix_sql: "db2 UPDATE DBM CFG USING AUTHENTICATION SERVER_ENCRYPT;\ndb2stop force; db2start"
+
+  - id: db2_sysadm_empty
+    name: SYSADM 组未配置
+    name_zh: SYSADM 组未配置
+    category: security
+    db_types: [db2]
+    severity: high
+    priority: high
+    owner: 安全管理员
+    enabled: true
+    description: SYSADM_GROUP 为空，无法确定系统管理员组
+    description_zh: SYSADM_GROUP 为空，无法确定系统管理员组
+    condition: "sysadm is not None and str(sysadm).strip() == ''"
+    params:
+      sysadm: "${context.db2_dbmcfg_map.get('SYSADM_GROUP')}"
+    message: "SYSADM_GROUP 未配置（当前值='{sysadm}'），建议设置专用管理员组"
+    message_zh: "SYSADM_GROUP 未配置（当前值='{sysadm}'），建议设置专用管理员组"
+    fix_sql: "db2 UPDATE DBM CFG USING SYSADM_GROUP db2admns;"
+
+  - id: db2_srv_conn_auth_none
+    name: 连接认证关闭
+    name_zh: 连接认证关闭
+    category: security
+    db_types: [db2]
+    severity: high
+    priority: high
+    owner: 安全管理员
+    enabled: true
+    description: SRV_CONN_AUTH 为 NONE，连接时不强制认证
+    description_zh: SRV_CONN_AUTH 为 NONE，连接时不强制认证
+    condition: "srv_auth is not None and str(srv_auth).strip().upper() == 'NONE'"
+    params:
+      srv_auth: "${context.db2_dbmcfg_map.get('SRV_CONN_AUTH')}"
+    message: "SRV_CONN_AUTH={srv_auth}，为 NONE 时连接不进行身份认证"
+    message_zh: "SRV_CONN_AUTH={srv_auth}，为 NONE 时连接不进行身份认证"
+    fix_sql: "db2 UPDATE DBM CFG USING SRV_CONN_AUTH KERBEROS;"
+
+  - id: db2_discover_search
+    name: 实例可被发现
+    name_zh: 实例可被发现
+    category: security
+    db_types: [db2]
+    severity: medium
+    priority: medium
+    owner: 安全管理员
+    enabled: true
+    description: DISCOVER=SEARCH 允许其他实例发现本实例
+    description_zh: DISCOVER=SEARCH 允许其他实例发现本实例
+    condition: "discover is not None and str(discover).strip().upper() == 'SEARCH'"
+    params:
+      discover: "${context.db2_dbmcfg_map.get('DISCOVER')}"
+    message: "DISCOVER={discover}，实例处于可被搜索状态，建议设为 KNOWN 或 NONE"
+    message_zh: "DISCOVER={discover}，实例处于可被搜索状态，建议设为 KNOWN 或 NONE"
+    fix_sql: "db2 UPDATE DBM CFG USING DISCOVER KNOWN;"
+
+  - id: db2_federated_on
+    name: 联邦功能开启
+    name_zh: 联邦功能开启
+    category: security
+    db_types: [db2]
+    severity: low
+    priority: low
+    owner: 安全管理员
+    enabled: true
+    description: FEDERATED=YES 开启联邦访问，扩大潜在攻击面
+    description_zh: FEDERATED=YES 开启联邦访问，扩大潜在攻击面
+    condition: "federated is not None and str(federated).strip().upper() == 'YES'"
+    params:
+      federated: "${context.db2_dbmcfg_map.get('FEDERATED')}"
+    message: "FEDERATED={federated}，联邦访问已开启，请确认其必要性并加固远端凭证"
+    message_zh: "FEDERATED={federated}，联邦访问已开启，请确认其必要性并加固远端凭证"
+    fix_sql: "db2 UPDATE DBM CFG USING FEDERATED NO; db2stop force; db2start"
+
+  # ──────────────────────── 性能 ────────────────────────
+  - id: db2_logfilsiz_low
+    name: 日志文件过小
+    name_zh: 日志文件过小
+    category: performance
+    db_types: [db2]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: 主日志文件大小（4KB 页）小于 1000
+    description_zh: 主日志文件大小（4KB 页）小于 1000
+    condition: "logfilsiz is not None and logfilsiz < 1000"
+    params:
+      logfilsiz: "${context.db2_dbcfg_map.get('LOGFILSIZ')}"
+    message: "LOGFILSIZ={logfilsiz}（4KB 页），建议 >= 1000（约 4MB）以减少日志切换"
+    message_zh: "LOGFILSIZ={logfilsiz}（4KB 页），建议 >= 1000（约 4MB）以减少日志切换"
+    fix_sql: "db2 UPDATE DB CFG FOR {db} USING LOGFILSIZ 1000;"
+
+  - id: db2_logprimary_low
+    name: 主日志文件数偏少
+    name_zh: 主日志文件数偏少
+    category: performance
+    db_types: [db2]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: 主日志文件个数小于 10
+    description_zh: 主日志文件个数小于 10
+    condition: "logprimary is not None and logprimary < 10"
+    params:
+      logprimary: "${context.db2_dbcfg_map.get('LOGPRIMARY')}"
+    message: "LOGPRIMARY={logprimary}，建议 >= 10，避免频繁分配辅助日志"
+    message_zh: "LOGPRIMARY={logprimary}，建议 >= 10，避免频繁分配辅助日志"
+    fix_sql: "db2 UPDATE DB CFG FOR {db} USING LOGPRIMARY 10;"
+
+  - id: db2_logbufsz_low
+    name: 日志缓冲区偏小
+    name_zh: 日志缓冲区偏小
+    category: performance
+    db_types: [db2]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: 日志缓冲区（4KB 页）小于 256
+    description_zh: 日志缓冲区（4KB 页）小于 256
+    condition: "logbufsz is not None and logbufsz < 256"
+    params:
+      logbufsz: "${context.db2_dbcfg_map.get('LOGBUFSZ')}"
+    message: "LOGBUFSZ={logbufsz}（4KB 页），建议 >= 256 以提升提交性能"
+    message_zh: "LOGBUFSZ={logbufsz}（4KB 页），建议 >= 256 以提升提交性能"
+    fix_sql: "db2 UPDATE DB CFG FOR {db} USING LOGBUFSZ 256;"
+
+  - id: db2_logsecond_zero
+    name: 无辅助日志
+    name_zh: 无辅助日志
+    category: performance
+    db_types: [db2]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: 辅助日志文件个数为 0，日志写满时事务将失败
+    description_zh: 辅助日志文件个数为 0，日志写满时事务将失败
+    condition: "logsecond is not None and logsecond == 0"
+    params:
+      logsecond: "${context.db2_dbcfg_map.get('LOGSECOND')}"
+    message: "LOGSECOND={logsecond}，为 0 意味着无可用辅助日志，日志写满将报 SQL0964C"
+    message_zh: "LOGSECOND={logsecond}，为 0 意味着无可用辅助日志，日志写满将报 SQL0964C"
+    fix_sql: "db2 UPDATE DB CFG FOR {db} USING LOGSECOND 10;"
+
+  - id: db2_sortheap_low
+    name: 排序堆偏小
+    name_zh: 排序堆偏小
+    category: performance
+    db_types: [db2]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: 排序堆（4KB 页）小于 256
+    description_zh: 排序堆（4KB 页）小于 256
+    condition: "sortheap is not None and sortheap < 256"
+    params:
+      sortheap: "${context.db2_dbcfg_map.get('SORTHEAP')}"
+    message: "SORTHEAP={sortheap}（4KB 页），过小将导致排序溢出到磁盘（临时表空间）"
+    message_zh: "SORTHEAP={sortheap}（4KB 页），过小将导致排序溢出到磁盘（临时表空间）"
+    fix_sql: "db2 UPDATE DB CFG FOR {db} USING SORTHEAP 256;"
+
+  - id: db2_locklist_low
+    name: 锁列表内存偏小
+    name_zh: 锁列表内存偏小
+    category: performance
+    db_types: [db2]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: 锁列表内存（4KB 页）小于 4096
+    description_zh: 锁列表内存（4KB 页）小于 4096
+    condition: "locklist is not None and locklist < 4096"
+    params:
+      locklist: "${context.db2_dbcfg_map.get('LOCKLIST')}"
+    message: "LOCKLIST={locklist}（4KB 页），偏小易触发锁升级与锁等待"
+    message_zh: "LOCKLIST={locklist}（4KB 页），偏小易触发锁升级与锁等待"
+    fix_sql: "db2 UPDATE DB CFG FOR {db} USING LOCKLIST 4096;"
+
+  - id: db2_maxlocks_low
+    name: 持锁百分比偏低
+    name_zh: 持锁百分比偏低
+    category: performance
+    db_types: [db2]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: 应用程序持锁占锁列表百分比小于 10
+    description_zh: 应用程序持锁占锁列表百分比小于 10
+    condition: "maxlocks is not None and maxlocks < 10"
+    params:
+      maxlocks: "${context.db2_dbcfg_map.get('MAXLOCKS')}"
+    message: "MAXLOCKS={maxlocks}%，偏低会增加锁升级频率"
+    message_zh: "MAXLOCKS={maxlocks}%，偏低会增加锁升级频率"
+    fix_sql: "db2 UPDATE DB CFG FOR {db} USING MAXLOCKS 10;"
+
+  - id: db2_num_iocleaners_zero
+    name: 未配置异步 IO 清理器
+    name_zh: 未配置异步 IO 清理器
+    category: performance
+    db_types: [db2]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: NUM_IOCLEANERS=0，脏页无法异步写盘
+    description_zh: NUM_IOCLEANERS=0，脏页无法异步写盘
+    condition: "num_iocleaners is not None and num_iocleaners == 0"
+    params:
+      num_iocleaners: "${context.db2_dbcfg_map.get('NUM_IOCLEANERS')}"
+    message: "NUM_IOCLEANERS={num_iocleaners}，建议 >= 1 以异步刷脏页，提升写吞吐"
+    message_zh: "NUM_IOCLEANERS={num_iocleaners}，建议 >= 1 以异步刷脏页，提升写吞吐"
+    fix_sql: "db2 UPDATE DB CFG FOR {db} USING NUM_IOCLEANERS 1;"
+
+  - id: db2_pkcachesz_zero
+    name: 包缓存关闭
+    name_zh: 包缓存关闭
+    category: performance
+    db_types: [db2]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: PKGCACHESZ=0，静态/动态 SQL 缓存被禁用
+    description_zh: PKGCACHESZ=0，静态/动态 SQL 缓存被禁用
+    condition: "pkcachesz is not None and pkcachesz == 0"
+    params:
+      pkcachesz: "${context.db2_dbcfg_map.get('PKGCACHESZ')}"
+    message: "PKGCACHESZ={pkcachesz}，包缓存关闭会增加 SQL 重复编译开销"
+    message_zh: "PKGCACHESZ={pkcachesz}，包缓存关闭会增加 SQL 重复编译开销"
+    fix_sql: "db2 UPDATE DB CFG FOR {db} USING PKGCACHESZ 4096;"
+
+  - id: db2_catalogcache_zero
+    name: 编目缓存关闭
+    name_zh: 编目缓存关闭
+    category: performance
+    db_types: [db2]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: CATALOGCACHE_SZ=0，编目缓存被禁用
+    description_zh: CATALOGCACHE_SZ=0，编目缓存被禁用
+    condition: "catcache is not None and catcache == 0"
+    params:
+      catcache: "${context.db2_dbcfg_map.get('CATALOGCACHE_SZ')}"
+    message: "CATALOGCACHE_SZ={catcache}，编目缓存关闭会增加系统编目访问开销"
+    message_zh: "CATALOGCACHE_SZ={catcache}，编目缓存关闭会增加系统编目访问开销"
+    fix_sql: "db2 UPDATE DB CFG FOR {db} USING CATALOGCACHE_SZ 300;"
+
+  - id: db2_chngpgs_low
+    name: 页清理阈值偏低
+    name_zh: 页清理阈值偏低
+    category: performance
+    db_types: [db2]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: 更改页清理阈值小于 30%
+    description_zh: 更改页清理阈值小于 30%
+    condition: "chngpgs is not None and chngpgs < 30"
+    params:
+      chngpgs: "${context.db2_dbcfg_map.get('CHNGPGS_THRESH')}"
+    message: "CHNGPGS_THRESH={chngpgs}%，过低会增加脏页扫描开销"
+    message_zh: "CHNGPGS_THRESH={chngpgs}%，过低会增加脏页扫描开销"
+    fix_sql: "db2 UPDATE DB CFG FOR {db} USING CHNGPGS_THRESH 30;"
+
+  - id: db2_self_tuning_off
+    name: 自调优内存关闭
+    name_zh: 自调优内存关闭
+    category: performance
+    db_types: [db2]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: SELF_TUNING_MEM 未开启
+    description_zh: SELF_TUNING_MEM 未开启
+    condition: "stmem is not None and str(stmem).strip().upper() in ('OFF', 'NO')"
+    params:
+      stmem: "${context.db2_dbcfg_map.get('SELF_TUNING_MEM')}"
+    message: "SELF_TUNING_MEM={stmem}，未开启自调优内存，建议设为 ON"
+    message_zh: "SELF_TUNING_MEM={stmem}，未开启自调优内存，建议设为 ON"
+    fix_sql: "db2 UPDATE DB CFG FOR {db} USING SELF_TUNING_MEM ON;"
+
+  - id: db2_dlchktime_zero
+    name: 死锁检测关闭
+    name_zh: 死锁检测关闭
+    category: performance
+    db_types: [db2]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: DLCHKTIME=0 将关闭死锁检测
+    description_zh: DLCHKTIME=0 将关闭死锁检测
+    condition: "dlchktime is not None and dlchktime == 0"
+    params:
+      dlchktime: "${context.db2_dbcfg_map.get('DLCHKTIME')}"
+    message: "DLCHKTIME={dlchktime}，为 0 表示关闭死锁检测，可能导致死锁永久挂起"
+    message_zh: "DLCHKTIME={dlchktime}，为 0 表示关闭死锁检测，可能导致死锁永久挂起"
+    fix_sql: "db2 UPDATE DB CFG FOR {db} USING DLCHKTIME 10000;"
+
+  - id: db2_dft_degree_one
+    name: 并行度受限
+    name_zh: 并行度受限
+    category: performance
+    db_types: [db2]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: DFT_DEGREE=1 禁用查询内并行
+    description_zh: DFT_DEGREE=1 禁用查询内并行
+    condition: "dft_degree is not None and dft_degree == 1"
+    params:
+      dft_degree: "${context.db2_dbcfg_map.get('DFT_DEGREE')}"
+    message: "DFT_DEGREE={dft_degree}，为 1 时禁用查询内并行，大查询无法利用多核"
+    message_zh: "DFT_DEGREE={dft_degree}，为 1 时禁用查询内并行，大查询无法利用多核"
+    fix_sql: "db2 UPDATE DB CFG FOR {db} USING DFT_DEGREE ANY;"
+
+  # ──────────────────────── 存储 ────────────────────────
+  - id: db2_tablespace_high
+    name: 表空间使用率过高
+    name_zh: 表空间使用率过高
+    category: storage
+    db_types: [db2]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 存在表空间使用率超过 90%
+    description_zh: 存在表空间使用率超过 90%
+    condition: "ts_max is not None and ts_max > 90"
+    params:
+      ts_max: "${context.db2_tablespace_max_used}"
+    message: "表空间最大使用率 {ts_max:.1f}%，超过 90% 可能导致数据无法写入"
+    message_zh: "表空间最大使用率 {ts_max:.1f}%，超过 90% 可能导致数据无法写入"
+    fix_sql: "-- 为使用率最高的表空间扩容或清理数据"
+
+  - id: db2_tablespace_medium
+    name: 表空间使用率预警
+    name_zh: 表空间使用率预警
+    category: storage
+    db_types: [db2]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: 存在表空间使用率超过 80%
+    description_zh: 存在表空间使用率超过 80%
+    condition: "ts_med is not None and ts_med > 80 and ts_med <= 90"
+    params:
+      ts_med: "${context.db2_tablespace_max_used}"
+    message: "表空间最大使用率 {ts_med:.1f}%，建议关注并规划扩容"
+    message_zh: "表空间最大使用率 {ts_med:.1f}%，建议关注并规划扩容"
+    fix_sql: "-- 规划表空间扩容 / 数据归档"
+
+  - id: db2_logarchmeth1_off
+    name: 未开启归档日志
+    name_zh: 未开启归档日志
+    category: storage
+    db_types: [db2]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: LOGARCHMETH1=OFF 表示使用循环日志，无法做时间点恢复
+    description_zh: LOGARCHMETH1=OFF 表示使用循环日志，无法做时间点恢复
+    condition: "logarch is not None and str(logarch).strip().upper() == 'OFF'"
+    params:
+      logarch: "${context.db2_dbcfg_map.get('LOGARCHMETH1')}"
+    message: "LOGARCHMETH1={logarch}，循环日志无法做 PITR，建议配置归档至磁盘/磁带"
+    message_zh: "LOGARCHMETH1={logarch}，循环日志无法做 PITR，建议配置归档至磁盘/磁带"
+    fix_sql: "db2 UPDATE DB CFG FOR {db} USING LOGARCHMETH1 DISK:/db2arch; db2 backup db {db} to /dev/null;"
+
+  - id: db2_trackmod_off
+    name: 未启用增量备份跟踪
+    name_zh: 未启用增量备份跟踪
+    category: storage
+    db_types: [db2]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: TRACKMOD=NO 无法执行增量备份
+    description_zh: TRACKMOD=NO 无法执行增量备份
+    condition: "trackmod is not None and str(trackmod).strip().upper() == 'NO'"
+    params:
+      trackmod: "${context.db2_dbcfg_map.get('TRACKMOD')}"
+    message: "TRACKMOD={trackmod}，未启用增量备份跟踪，只能做全量备份"
+    message_zh: "TRACKMOD={trackmod}，未启用增量备份跟踪，只能做全量备份"
+    fix_sql: "db2 UPDATE DB CFG FOR {db} USING TRACKMOD ON;"
+
+  - id: db2_blocknonlogged_off
+    name: 未阻止非日志操作
+    name_zh: 未阻止非日志操作
+    category: storage
+    db_types: [db2]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: BLOCKNONLOGGED=NO 允许非日志记录操作，破坏可恢复性
+    description_zh: BLOCKNONLOGGED=NO 允许非日志记录操作，破坏可恢复性
+    condition: "blocknl is not None and str(blocknl).strip().upper() == 'NO'"
+    params:
+      blocknl: "${context.db2_dbcfg_map.get('BLOCKNONLOGGED')}"
+    message: "BLOCKNONLOGGED={blocknl}，允许非日志记录操作（如 LOAD NONRECOVERABLE）"
+    message_zh: "BLOCKNONLOGGED={blocknl}，允许非日志记录操作（如 LOAD NONRECOVERABLE）"
+    fix_sql: "db2 UPDATE DB CFG FOR {db} USING BLOCKNONLOGGED YES;"
+
+  - id: db2_mirrorlog_empty
+    name: 未配置日志镜像
+    name_zh: 未配置日志镜像
+    category: storage
+    db_types: [db2]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: MIRRORLOGPATH 为空，日志无镜像保护
+    description_zh: MIRRORLOGPATH 为空，日志无镜像保护
+    condition: "mirrorlog is not None and str(mirrorlog).strip() == ''"
+    params:
+      mirrorlog: "${context.db2_dbcfg_map.get('MIRRORLOGPATH')}"
+    message: "MIRRORLOGPATH 未配置，建议配置日志镜像路径以防日志损坏"
+    message_zh: "MIRRORLOGPATH 未配置，建议配置日志镜像路径以防日志损坏"
+    fix_sql: "db2 UPDATE DB CFG FOR {db} USING MIRRORLOGPATH /db2mirrorlog;"
+
+  # ──────────────────── 备份 / 恢复 ────────────────────
+  - id: db2_rechis_low
+    name: 历史记录保留期偏短
+    name_zh: 历史记录保留期偏短
+    category: backup
+    db_types: [db2]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: REC_HIS_RETENTN 小于 90 天
+    description_zh: REC_HIS_RETENTN 小于 90 天
+    condition: "rechis is not None and rechis < 90"
+    params:
+      rechis: "${context.db2_dbcfg_map.get('REC_HIS_RETENTN')}"
+    message: "REC_HIS_RETENTN={rechis} 天，过短不利于备份/恢复历史追溯"
+    message_zh: "REC_HIS_RETENTN={rechis} 天，过短不利于备份/恢复历史追溯"
+    fix_sql: "db2 UPDATE DB CFG FOR {db} USING REC_HIS_RETENTN 90;"
+
+  # ──────────────────────── 监控 ────────────────────────
+  - id: db2_mon_act_metrics_none
+    name: 活动指标监控关闭
+    name_zh: 活动指标监控关闭
+    category: monitoring
+    db_types: [db2]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: MON_ACT_METRICS=NONE 无法采集活动级监控数据
+    description_zh: MON_ACT_METRICS=NONE 无法采集活动级监控数据
+    condition: "monact is not None and str(monact).strip().upper() == 'NONE'"
+    params:
+      monact: "${context.db2_dbmcfg_map.get('MON_ACT_METRICS')}"
+    message: "MON_ACT_METRICS={monact}，活动级监控关闭，MON_GET_ACTIVITY 将无数据"
+    message_zh: "MON_ACT_METRICS={monact}，活动级监控关闭，MON_GET_ACTIVITY 将无数据"
+    fix_sql: "db2 UPDATE DBM CFG USING MON_ACT_METRICS BASE;"
+
+  - id: db2_mon_req_metrics_none
+    name: 请求指标监控关闭
+    name_zh: 请求指标监控关闭
+    category: monitoring
+    db_types: [db2]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: MON_REQ_METRICS=NONE 无法采集请求级监控数据
+    description_zh: MON_REQ_METRICS=NONE 无法采集请求级监控数据
+    condition: "monreq is not None and str(monreq).strip().upper() == 'NONE'"
+    params:
+      monreq: "${context.db2_dbmcfg_map.get('MON_REQ_METRICS')}"
+    message: "MON_REQ_METRICS={monreq}，请求级监控关闭，影响细粒度诊断"
+    message_zh: "MON_REQ_METRICS={monreq}，请求级监控关闭，影响细粒度诊断"
+    fix_sql: "db2 UPDATE DBM CFG USING MON_REQ_METRICS BASE;"
+
+  - id: db2_dft_mon_stmt_off
+    name: 语句级监控关闭
+    name_zh: 语句级监控关闭
+    category: monitoring
+    db_types: [db2]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: DFT_MON_STMT=OFF 不收集语句监控信息
+    description_zh: DFT_MON_STMT=OFF 不收集语句监控信息
+    condition: "dftmon is not None and str(dftmon).strip().upper() == 'OFF'"
+    params:
+      dftmon: "${context.db2_dbcfg_map.get('DFT_MON_STMT')}"
+    message: "DFT_MON_STMT={dftmon}，语句监控关闭，影响历史语句分析"
+    message_zh: "DFT_MON_STMT={dftmon}，语句监控关闭，影响历史语句分析"
+    fix_sql: "db2 UPDATE DBM CFG USING DFT_MON_STMT ON;"
+
+  - id: db2_health_mon_off
+    name: 健康监控关闭
+    name_zh: 健康监控关闭
+    category: monitoring
+    db_types: [db2]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: HEALTH_MON=OFF 关闭数据库健康监控
+    description_zh: HEALTH_MON=OFF 关闭数据库健康监控
+    condition: "healthmon is not None and str(healthmon).strip().upper() == 'OFF'"
+    params:
+      healthmon: "${context.db2_dbmcfg_map.get('HEALTH_MON')}"
+    message: "HEALTH_MON={healthmon}，健康监控关闭，无法自动告警异常"
+    message_zh: "HEALTH_MON={healthmon}，健康监控关闭，无法自动告警异常"
+    fix_sql: "db2 UPDATE DBM CFG USING HEALTH_MON ON;"
+
+  - id: db2_diaglevel_zero
+    name: 诊断级别过低
+    name_zh: 诊断级别过低
+    category: monitoring
+    db_types: [db2]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: DIAGLEVEL=0 仅记录严重错误
+    description_zh: DIAGLEVEL=0 仅记录严重错误
+    condition: "diaglevel is not None and diaglevel == 0"
+    params:
+      diaglevel: "${context.db2_dbmcfg_map.get('DIAGLEVEL')}"
+    message: "DIAGLEVEL={diaglevel}，诊断级别过低，问题排查时信息不足"
+    message_zh: "DIAGLEVEL={diaglevel}，诊断级别过低，问题排查时信息不足"
+    fix_sql: "db2 UPDATE DBM CFG USING DIAGLEVEL 3;"
+
+  # ──────────────── 锁 / 连接 / 内存 ────────────────
+  - id: db2_lockwait_active
+    name: 存在活跃锁等待
+    name_zh: 存在活跃锁等待
+    category: lock
+    db_types: [db2]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: 巡检时刻存在活跃锁等待事件
+    description_zh: 巡检时刻存在活跃锁等待事件
+    condition: "lockwait_cnt is not None and lockwait_cnt > 0"
+    params:
+      lockwait_cnt: "${context.db2_lockwait_count}"
+    message: "检测到 {lockwait_cnt} 个活跃锁等待事件，可能存在阻塞会话"
+    message_zh: "检测到 {lockwait_cnt} 个活跃锁等待事件，可能存在阻塞会话"
+    fix_sql: "-- 通过 SYSIBMADM.LOCKWAITS 定位持有者并评估 KILL"
+
+  - id: db2_applications_high
+    name: 连接数偏高
+    name_zh: 连接数偏高
+    category: lock
+    db_types: [db2]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: 当前应用连接数超过 500
+    description_zh: 当前应用连接数超过 500
+    condition: "app_cnt is not None and app_cnt > 500"
+    params:
+      app_cnt: "${context.db2_applications_count}"
+    message: "当前应用连接数 {app_cnt}，偏高，建议检查连接池与空闲连接回收"
+    message_zh: "当前应用连接数 {app_cnt}，偏高，建议检查连接池与空闲连接回收"
+    fix_sql: "-- 检查应用连接泄漏，调整 max_connections"
+
+  # ─────────────────────── 慢 SQL ───────────────────────
+  - id: db2_slow_sql_exist
+    name: 存在长时间 SQL
+    name_zh: 存在长时间 SQL
+    category: performance
+    db_types: [db2]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: 包缓存中存在总执行时间超过 10 秒的 SQL
+    description_zh: 包缓存中存在总执行时间超过 10 秒的 SQL
+    condition: "slow_max is not None and slow_max > 10000"
+    params:
+      slow_max: "${context.db2_pkg_cache_max_time}"
+    message: "包缓存中最慢 SQL 累计执行时间 {slow_max:.0f} 毫秒，建议优化"
+    message_zh: "包缓存中最慢 SQL 累计执行时间 {slow_max:.0f} 毫秒，建议优化"
+    fix_sql: "-- 结合 MON_GET_PKG_CACHE_STMT 分析执行计划并加索引/改写"
+
+  - id: db2_slow_sql_many
+    name: 慢 SQL 数量较多
+    name_zh: 慢 SQL 数量较多
+    category: performance
+    db_types: [db2]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: 包缓存中采样到的 SQL 超过 20 条
+    description_zh: 包缓存中采样到的 SQL 超过 20 条
+    condition: "slow_cnt is not None and slow_cnt > 20"
+    params:
+      slow_cnt: "${context.db2_pkg_cache_count}"
+    message: "包缓存采样到 {slow_cnt} 条 SQL，建议定期梳理高频/低效语句"
+    message_zh: "包缓存采样到 {slow_cnt} 条 SQL，建议定期梳理高频/低效语句"
+    fix_sql: "-- 定期导出并分析高频 SQL"
+
+  # ─────────────────────── 维护 ───────────────────────
+  - id: db2_stale_stats
+    name: RUNSTATS 过期
+    name_zh: RUNSTATS 过期
+    category: maintenance
+    db_types: [db2]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: 存在统计信息缺失或超过 90 天未更新的索引
+    description_zh: 存在统计信息缺失或超过 90 天未更新的索引
+    condition: "stale_cnt is not None and stale_cnt > 20"
+    params:
+      stale_cnt: "${context.db2_stale_stats_count}"
+    message: "检测到 {stale_cnt} 个索引的统计信息缺失或过期（>90 天），优化器可能选错计划"
+    message_zh: "检测到 {stale_cnt} 个索引的统计信息缺失或过期（>90 天），优化器可能选错计划"
+    fix_sql: "RUNSTATS ON TABLE <schema>.<table> FOR INDEXES ALL;"
+
+  - id: db2_unused_index
+    name: 存在未使用索引
+    name_zh: 存在未使用索引
+    category: maintenance
+    db_types: [db2]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: 存在从未被使用的索引（LASTUSED 为空）
+    description_zh: 存在从未被使用的索引（LASTUSED 为空）
+    condition: "unused_cnt is not None and unused_cnt > 0"
+    params:
+      unused_cnt: "${context.db2_unused_index_count}"
+    message: "检测到 {unused_cnt} 个索引从未被使用，可评估是否删除以节省维护开销"
+    message_zh: "检测到 {unused_cnt} 个索引从未被使用，可评估是否删除以节省维护开销"
+    fix_sql: "-- 评估并 DROP 长期未使用的索引"
+
+  # ──────────────────── 实例 / 管理器 ────────────────────
+  - id: db2_max_connections_low
+    name: 实例最大连接偏低
+    name_zh: 实例最大连接偏低
+    category: performance
+    db_types: [db2]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: 实例最大连接代理数小于 100
+    description_zh: 实例最大连接代理数小于 100
+    condition: "maxconn is not None and maxconn < 100"
+    params:
+      maxconn: "${context.db2_dbmcfg_map.get('MAX_CONNECTIONS')}"
+    message: "MAX_CONNECTIONS={maxconn}，实例最大连接数偏低，高并发时可能无法接入"
+    message_zh: "MAX_CONNECTIONS={maxconn}，实例最大连接数偏低，高并发时可能无法接入"
+    fix_sql: "db2 UPDATE DBM CFG USING MAX_CONNECTIONS 1000;"
+
+  - id: db2_max_coordagents_low
+    name: 协调代理数偏低
+    name_zh: 协调代理数偏低
+    category: performance
+    db_types: [db2]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: 最大协调代理数小于 100
+    description_zh: 最大协调代理数小于 100
+    condition: "maxcoord is not None and maxcoord < 100"
+    params:
+      maxcoord: "${context.db2_dbmcfg_map.get('MAX_COORDAGENTS')}"
+    message: "MAX_COORDAGENTS={maxcoord}，协调代理数偏低，可能限制并发处理能力"
+    message_zh: "MAX_COORDAGENTS={maxcoord}，协调代理数偏低，可能限制并发处理能力"
+    fix_sql: "db2 UPDATE DBM CFG USING MAX_COORDAGENTS 200;"
+
+  - id: db2_keepfenced_off
+    name: 未保留 fenced 进程
+    name_zh: 未保留 fenced 进程
+    category: security
+    db_types: [db2]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: KEEPFENCED=NO 每次调用都新建 fenced 进程，开销大且不稳定
+    description_zh: KEEPFENCED=NO 每次调用都新建 fenced 进程，开销大且不稳定
+    condition: "keepfenced is not None and str(keepfenced).strip().upper() == 'NO'"
+    params:
+      keepfenced: "${context.db2_dbmcfg_map.get('KEEPFENCED')}"
+    message: "KEEPFENCED={keepfenced}，未保留 fenced 进程，存储过程调用开销增大"
+    message_zh: "KEEPFENCED={keepfenced}，未保留 fenced 进程，存储过程调用开销增大"
+    fix_sql: "db2 UPDATE DBM CFG USING KEEPFENCED YES;"
+
+  - id: db2_fcm_num_buffers_low
+    name: 快速通信缓冲偏低
+    name_zh: 快速通信缓冲偏低
+    category: performance
+    db_types: [db2]
+    severity: low
+    priority: low
+    owner: DBA
+    enabled: true
+    description: FCM_NUM_BUFFERS 小于 4096（分区/DPF 环境尤其重要）
+    description_zh: FCM_NUM_BUFFERS 小于 4096（分区/DPF 环境尤其重要）
+    condition: "fcm is not None and fcm < 4096"
+    params:
+      fcm: "${context.db2_dbmcfg_map.get('FCM_NUM_BUFFERS')}"
+    message: "FCM_NUM_BUFFERS={fcm}，快速通信缓冲偏小，分区间通信可能成瓶颈"
+    message_zh: "FCM_NUM_BUFFERS={fcm}，快速通信缓冲偏小，分区间通信可能成瓶颈"
+    fix_sql: "db2 UPDATE DBM CFG USING FCM_NUM_BUFFERS 4096;"
+
+  # ──────────────────────── 版本 ────────────────────────
+  - id: db2_version_old
+    name: DB2 版本过旧
+    name_zh: DB2 版本过旧
+    category: system
+    db_types: [db2]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: DB2 主版本低于 11（已停止主流支持）
+    description_zh: DB2 主版本低于 11（已停止主流支持）
+    condition: "ver is not None and _int(ver) < 11000000"
+    params:
+      ver: "${context.db2_version_number}"
+    message: "DB2 版本号 {ver}（< v11），建议升级以获得安全补丁与新特性"
+    message_zh: "DB2 版本号 {ver}（< v11），建议升级以获得安全补丁与新特性"
+    fix_sql: "-- 规划升级到 DB2 v11.5 / v12 最新 Fix Pack"

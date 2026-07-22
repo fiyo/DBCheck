@@ -3,7 +3,7 @@
 # Copyright (c) 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
 #
 # This file is part of DBCheck, an open-source database health inspection tool.
-# DBCheck is released under the MIT License with Attribution Requirements.
+# DBCheck Professional — 专有商业软件，保留一切权利（Proprietary Software, All Rights Reserved）.
 # See LICENSE for full license text.
 #
 
@@ -13,7 +13,7 @@ DBCheck 增强智能分析模块
 提供三个核心能力：
 1. smart_analyze_mysql / smart_analyze_pg  —— 16+ 条风险规则 + 修复 SQL
 2. HistoryManager   —— 历史指标存储与趋势数据生成
-3. AIAdvisor        —— 本地 Ollama 诊断适配器（仅支持本地部署）
+3. AIAdvisor        —— AI 诊断适配器（支持本地 Ollama 与在线模型）
 
 安全说明：
 - AI 诊断功能仅支持本地部署的 Ollama，不支持任何远程 AI API
@@ -387,11 +387,13 @@ def smart_analyze_mysql(context: dict) -> list:
 
         # AI 诊断结果（如有）
         ai_diag = sq_result.get('ai_diagnosis', '')
+        ai_rec = sq_result.get('ai_recommend', '')
         if ai_diag:
-            # 将 AI 诊断结果注入到 issues 中（标记为 AI 生成）
+            # col3 = 诊断分析（诊断结果页展示）；fix = 处置建议（处置方案页展示）
             issues.append({
                 'col1': 'AI 慢查询诊断', 'col2': 'AI 建议',
-                'col3': ai_diag[:500],  # 限制长度避免过长
+                'col3': ai_diag,
+                'fix': ai_rec,
                 'col4': '参考', 'col5': 'AI (Ollama)',
                 'fix_sql': ''
             })
@@ -758,10 +760,12 @@ def smart_analyze_pg(context: dict) -> list:
             })
 
         ai_diag = sq_result.get('ai_diagnosis', '')
+        ai_rec = sq_result.get('ai_recommend', '')
         if ai_diag:
             issues.append({
                 'col1': 'AI 慢查询诊断', 'col2': 'AI 建议',
-                'col3': ai_diag[:500],
+                'col3': ai_diag,
+                'fix': ai_rec,
                 'col4': '参考', 'col5': 'AI (Ollama)',
                 'fix_sql': ''
             })
@@ -1251,7 +1255,7 @@ class HistoryManager:
 # ═══════════════════════════════════════════════════════
 #
 # 安全策略：
-# 1. 默认仅支持本地 Ollama（backend='ollama'）或关闭（'disabled'）
+# 1. 支持本地 Ollama（backend='ollama'）、在线模型（online_enabled 时 backend 取 online_backend）或关闭（'disabled'）
 # 2. 必须在 dbc_config.json 的 ai 字段中设置 "online_enabled": true 才能调用远程模型
 # 3. 远程模型支持 OpenAI 协议兼容的 API（OpenAI/DeepSeek/自定义端点）
 # 4. Ollama 模式下 API 地址必须为本地地址（localhost/127.0.0.1）
@@ -1731,21 +1735,19 @@ Format requirement (output Markdown directly, no prefixes like "Here are"):
             'prompt': prompt,
             'stream': False,
             'think': False,
-            'options': {'temperature': 0.3}
+            'options': {
+                'temperature': 0.3,
+                # 扩大上下文窗口与最大生成 token，避免慢查询/综合分析类长输出被截断
+                'num_ctx': 8192,
+                'num_predict': 4096,
+            }
         }).encode('utf-8')
         req = urllib.request.Request(url, data=payload, method='POST')
         req.add_header('Content-Type', 'application/json')
         # 使用较长超时（300s），避免首次加载模型时冷启动超时；qwen3:30b 等大模型加载时间可达数分钟
         with urllib.request.urlopen(req, timeout=max(timeout, 300)) as resp:
             data = _json.loads(resp.read().decode('utf-8'))
-            # 空值安全：本地模型（qwen/deepseek 等）在异常场景下可能返回显式 null
-            raw = data.get('response')
-            if raw is None:
-                print(f"[WARN] AI 诊断返回空内容（{self.backend}），跳过")
-                raw = ''
-            elif not isinstance(raw, str):
-                raw = str(raw)
-            raw = raw.strip()
+            raw = data.get('response', '').strip()
             # 过滤 qwen3 的 thinking 残留（如果 think:false 未生效）
             import re
             raw = re.sub(r'<\|reserved_for_thinking\|>[\s\S]*?<\|end_of_thought\|>', '', raw)
@@ -1770,6 +1772,8 @@ Format requirement (output Markdown directly, no prefixes like "Here are"):
                 {'role': 'user', 'content': prompt}
             ],
             'temperature': 0.3,
+            # 确保长诊断（慢查询 Top 5、整体路线图等）不被截断
+            'max_tokens': 4096,
         }).encode('utf-8')
 
         req = urllib.request.Request(url, data=payload, method='POST')
@@ -1782,14 +1786,7 @@ Format requirement (output Markdown directly, no prefixes like "Here are"):
             # OpenAI 协议响应格式: choices[0].message.content
             choices = data.get('choices', [])
             if choices:
-                message = choices[0].get('message') or {}
-                content = message.get('content')
-                if content is None:
-                    print(f"[WARN] AI 诊断返回空内容（{self.backend}），跳过")
-                    content = ''
-                elif not isinstance(content, str):
-                    content = str(content)
-                return content.strip()
+                return choices[0].get('message', {}).get('content', '').strip()
             return ''
 
 
@@ -2264,6 +2261,11 @@ def smart_analyze_gbase(context: dict) -> list:
     return issues
 
 
+# ═══════════════════════════════════════════════════════
+#  5. 综合分析入口（供 main_mysql.py / main_pg.py 调用）
+# ═══════════════════════════════════════════════════════
+
+
 def smart_analyze_mongodb(context: dict) -> list:
     """MongoDB 智能风险分析：运行 mongodb.yaml 内置规则（80 条，db_types=[mongodb]）。
 
@@ -2279,9 +2281,20 @@ def smart_analyze_mongodb(context: dict) -> list:
     return plugin_issues
 
 
-# ═══════════════════════════════════════════════════════
-#  5. 综合分析入口（供 main_mysql.py / main_pg.py 调用）
-# ═══════════════════════════════════════════════════════
+def smart_analyze_db2(context: dict) -> list:
+    """DB2 智能风险分析：运行 db2.yaml 内置规则（db_types=[db2]）。
+
+    与 mongodb/oracle_jdbc 一致，规则主体放在插件规则引擎
+    （pro/rules/builtin/db2.yaml），此处仅负责调用 analyze_with_plugins
+    汇总规则命中项；任何异常均降级为空列表，保证巡检不中断。
+    """
+    try:
+        from pro.rule_engine import analyze_with_plugins
+        plugin_issues = analyze_with_plugins('db2', context)
+    except Exception as e:
+        print(f"[WARN] smart_analyze_db2 plugin rules failed: {e}")
+        plugin_issues = []
+    return plugin_issues
 
 
 def smart_analyze_mariadb_extras(context: dict, conn=None) -> list:
@@ -2482,7 +2495,7 @@ def run_full_analysis(db_type: str, host: str, port, label: str,
     :param host/port/label: 数据库信息
     :param context: checkdb() 返回的 context
     :param base_dir: 项目根目录（用于存储 history.json）
-    :param ai_*: AI 诊断配置（仅支持本地 Ollama，非本地地址将被拒绝）
+    :param ai_*: AI 诊断配置（支持本地 Ollama 或在线模型，在线模型需在 dbc_config.json 启用 online_enabled）
     :return: {
         'issues': [...],       # 增强风险列表
         'ai_advice': str,      # AI 建议文本（未启用时为空字符串）
@@ -2490,7 +2503,7 @@ def run_full_analysis(db_type: str, host: str, port, label: str,
         'comparison': {...},   # 与上次对比
     }
 
-    安全说明：AI 诊断仅使用本地 Ollama，所有数据不外传。
+    安全说明：本地 Ollama 模式下数据不外传；启用在线模型时会按配置发送至远端 API，请知悉。
     """
     # 1. 增强智能分析
     if db_type == 'mysql':
@@ -2529,6 +2542,8 @@ def run_full_analysis(db_type: str, host: str, port, label: str,
         issues = smart_analyze_gbase(context)
     elif db_type == 'kingbase':
         issues = smart_analyze_kingbase(context)
+    elif db_type == 'db2':
+        issues = smart_analyze_db2(context)
     else:
         issues = []  # 未知类型，返回空列表
 

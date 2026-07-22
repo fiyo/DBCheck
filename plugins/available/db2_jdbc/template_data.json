@@ -1,0 +1,126 @@
+{
+  "template": {
+    "db_type": "db2",
+    "template_name_zh": "DB2 默认巡检模板",
+    "template_name_en": "DB2 Default Inspection Template",
+    "description": "DB2 LUW 巡检模板（v11+/v12+，基于 JDBC 系统目录）",
+    "is_default": 1,
+    "is_preset": 1
+  },
+  "chapters": [
+    {
+      "chapter_number": 1,
+      "chapter_title_zh": "实例概况",
+      "chapter_title_en": "Instance Overview",
+      "description": "版本 / 实例名 / 成员拓扑 / 库规模",
+      "queries": [
+        {
+          "query_key": "db2_version",
+          "query_sql": "SELECT versionnumber FROM sysibm.sysversions",
+          "query_description_zh": "DB2 版本号",
+          "query_description_en": "DB2 version number"
+        },
+        {
+          "query_key": "db2_instance",
+          "query_sql": "SELECT (SELECT value FROM SYSIBMADM.DBMCFG WHERE name='instance_name') AS instance_name, CURRENT SERVER AS db_name FROM sysibm.sysdummy1",
+          "query_description_zh": "实例名与当前库",
+          "query_description_en": "Instance name and current database"
+        },
+        {
+          "query_key": "db2_dbmembers",
+          "query_sql": "SELECT MEMBER_NUMBER AS member, PARTITION_NUMBER AS dbpartitionnum, HOST_NAME AS host, PORT_NUMBER AS port FROM TABLE(SYSPROC.DB_MEMBERS())",
+          "query_description_zh": "成员拓扑",
+          "query_description_en": "Member topology"
+        }
+      ]
+    },
+    {
+      "chapter_number": 2,
+      "chapter_title_zh": "参数配置",
+      "chapter_title_en": "Configuration",
+      "description": "DBM / DB 关键参数",
+      "queries": [
+        {
+          "query_key": "db2_dbmcfg",
+          "query_sql": "SELECT name, value FROM SYSIBMADM.DBMCFG",
+          "query_description_zh": "实例管理器配置参数",
+          "query_description_en": "DBM configuration parameters"
+        },
+        {
+          "query_key": "db2_dbcfg",
+          "query_sql": "SELECT name, value FROM SYSIBMADM.DBCFG",
+          "query_description_zh": "数据库配置参数",
+          "query_description_en": "Database configuration parameters"
+        }
+      ]
+    },
+    {
+      "chapter_number": 3,
+      "chapter_title_zh": "表空间",
+      "chapter_title_en": "Tablespaces",
+      "description": "表空间使用率",
+      "queries": [
+        {
+          "query_key": "db2_tablespaces",
+          "query_sql": "SELECT tbsp_name, tbsp_type, tbsp_state, TBSP_TOTAL_SIZE_KB AS tbsp_total_size, TBSP_USED_SIZE_KB AS tbsp_used_size, CASE WHEN TBSP_TOTAL_SIZE_KB>0 THEN TBSP_USED_SIZE_KB*100/TBSP_TOTAL_SIZE_KB ELSE 0 END AS used_pct FROM SYSIBMADM.TBSP_UTILIZATION",
+          "query_description_zh": "表空间使用率",
+          "query_description_en": "Tablespace usage"
+        }
+      ]
+    },
+    {
+      "chapter_number": 4,
+      "chapter_title_zh": "锁等待",
+      "chapter_title_en": "Lock Waits",
+      "description": "当前锁等待与锁持有",
+      "queries": [
+        {
+          "query_key": "db2_lockwaits",
+          "query_sql": "SELECT * FROM SYSIBMADM.LOCKWAITS",
+          "query_description_zh": "锁等待事件",
+          "query_description_en": "Lock wait events"
+        },
+        {
+          "query_key": "db2_locks",
+          "query_sql": "SELECT * FROM SYSIBMADM.LOCKS_HELD",
+          "query_description_zh": "当前锁持有",
+          "query_description_en": "Current locks held"
+        }
+      ]
+    },
+    {
+      "chapter_number": 5,
+      "chapter_title_zh": "慢SQL",
+      "chapter_title_en": "Slow SQL",
+      "description": "Package Cache 慢语句",
+      "queries": [
+        {
+          "query_key": "db2_pkg_cache_stmt",
+          "query_sql": "SELECT STMT_TEXT, NUM_EXECUTIONS, STMT_EXEC_TIME AS TOTAL_EXEC_TIME, TOTAL_CPU_TIME, ROWS_READ, ROWS_RETURNED FROM TABLE(MON_GET_PKG_CACHE_STMT(NULL,'N',NULL,-2)) ORDER BY TOTAL_EXEC_TIME DESC FETCH FIRST 50 ROWS ONLY",
+          "query_description_zh": "Top 慢SQL（按总执行时间）",
+          "query_description_en": "Top slow SQL by total exec time"
+        }
+      ]
+    },
+    {
+      "chapter_number": 6,
+      "chapter_title_zh": "索引健康",
+      "chapter_title_en": "Index Health",
+      "description": "索引使用与 RUNSTATS",
+      "queries": [
+        {
+          "query_key": "db2_indexes",
+          "query_sql": "SELECT indschema, indname, tabname, indextype, lastused, colnames FROM SYSCAT.INDEXES WHERE indschema NOT LIKE 'SYS%'",
+          "query_description_zh": "索引清单与最后使用",
+          "query_description_en": "Index list and last used"
+        },
+        {
+          "query_key": "db2_index_runstats",
+          "query_sql": "SELECT indname, tabname, stats_time, nleaf FROM SYSCAT.INDEXES",
+          "query_description_zh": "RUNSTATS 新鲜度",
+          "query_description_en": "RUNSTATS freshness"
+        }
+      ]
+    }
+  ]
+}

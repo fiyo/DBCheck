@@ -1,19 +1,26 @@
 # 数据库巡检工具 - DBCheck
 
+> 🦞 **本目录是 OpenClaw Skill 包**：`skill/dbcheck/` 为 DBCheck 的 OpenClaw Skill 发布目录，可被 ClawHub / QClaw 等支持 OpenClaw Skills 的 AI 助手直接加载，通过自然语言触发巡检。下方「AI 模型参数配置」均针对该 Skill 的运行方式。
+
 支持对 **MySQL**、**PostgreSQL**、**Oracle** 和 **达梦 DM8** 四种主流关系型数据库进行自动化健康巡检，生成格式规范的 Microsoft Word 报告，帮助 DBA 和运维人员快速掌握数据库运行状况、发现潜在风险。
 
 ## AI 辅助 · 问题发现即处理
 
 ### 🤖 AI 智能诊断
 
-调用本地 **Ollama**（完全离线），基于当次巡检的指标数据（连接数、缓存命中率、慢查询数、安全风险等），自动生成结构化的优化建议。报告独立成章，方便直接转发给团队或领导审阅。
+调用 **本地 Ollama** 或**在线模型**（OpenAI 协议兼容），基于当次巡检的指标数据（连接数、缓存命中率、慢查询数、安全风险等），自动生成结构化的优化建议。报告独立成章，方便直接转发给团队或领导审阅。
 
 | 后端 | 特点 | 适用场景 |
 |------|------|---------|
 | `ollama` | 本地运行，零成本，无网络依赖 | 内网环境、数据安全要求高 |
+| `openai` | 在线模型（OpenAI 协议兼容，如 OpenAI / DeepSeek） | 需要更强模型能力、可接受数据上云 |
 | `disabled` | 不调用 AI（默认） | 离线环境 / 无需 AI |
 
-> ⚠️ **安全说明**：AI 诊断功能仅支持本地 Ollama（localhost:11434），巡检数据不会发送到任何第三方服务。代码层已做硬性限制，即使配置文件被篡改为远程地址也会自动降级为禁用状态。
+> ⚠️ **安全说明**：AI 诊断支持两种后端——
+> - **本地 Ollama**（默认 `http://localhost:11434`）：零成本、完全离线，数据不出本机；
+> - **在线模型**（OpenAI 协议兼容，如 OpenAI / DeepSeek / 自定义端点）：须在配置中显式填写 `backend`、`api_url`、`api_key`、`model` 后才会启用，数据会按配置发送至你指定的远端 API。
+>
+> 未配置在线模型时，默认仅走本地 Ollama，巡检数据不外传。
 
 ### 🔍 风险与建议
 
@@ -45,7 +52,7 @@
 | 能力 | 说明 |
 |------|------|
 | 📊 历史趋势分析 | 同一数据库多次巡检数据自动汇聚，生成指标趋势折线图，与上次对比发现变化 |
-| 🤖 AI 智能诊断 | 基于巡检指标调用本地 Ollama，生成个性化优化建议 |
+| 🤖 AI 智能诊断 | 基于巡检指标调用本地 Ollama 或在线模型，生成个性化优化建议 |
 | 🔍 80+ 条增强规则 | 覆盖四种数据库全维度风险检测（MySQL 18+ / PG 16+ / Oracle 20+ / DM8 16+） |
 | 🦞 OpenClaw Skill | AI 助手一句话完成巡检，零操作生成报告 |
 
@@ -305,7 +312,7 @@
 
 ### AI 智能诊断 🤖
 
-> 基于巡检数据，调用本地 Ollama 大模型生成个性化优化建议，从"发现问题"升级到"解决问题"。
+> 基于巡检数据，调用本地 Ollama 或在线模型生成个性化优化建议，从"发现问题"升级到"解决问题"。
 
 AI 诊断与智能分析的关系：
 
@@ -316,15 +323,37 @@ AI 诊断与智能分析的关系：
 | 结果 | 确定性结论 + 修复 SQL | 自然语言优化建议 |
 | 调用 | 每次巡检自动执行 | 按需调用（可关闭） |
 
-**AI 后端配置（Web UI 可视化设置）：**
+**AI 模型参数配置（本 Skill 通过 `ai_config.json` 配置）：**
 
-| 参数 | 说明 |
-|------|------|
-| 后端类型 | `ollama` 或 `disabled` |
-| API 地址 | 默认 `http://localhost:11434`（仅允许 localhost）|
-| 模型名称 | 如 `qwen3:8b`、`llama3` 等 |
+在 Skill 的脚本目录（`skill/dbcheck/scripts/`）下放置 `ai_config.json`，按 `backend` 选择后端：
 
-> ⚠️ 出于安全考虑，非 localhost 的 API 地址会被代码自动拒绝，防止敏感数据外传。
+- **本地 Ollama**（默认、零成本、离线）：
+  ```json
+  {
+    "backend": "ollama",
+    "api_url": "http://localhost:11434",
+    "model": "qwen3:8b"
+  }
+  ```
+- **在线模型**（OpenAI 协议兼容，如 OpenAI / DeepSeek / 自建网关）：
+  ```json
+  {
+    "backend": "openai",
+    "api_url": "https://api.openai.com/v1",
+    "api_key": "sk-xxxx",
+    "model": "gpt-4o"
+  }
+  ```
+- **关闭 AI 诊断**：省略该文件，或 `"backend": "disabled"`。
+
+| 参数 | 说明 | 适用后端 |
+|------|------|---------|
+| `backend` | `ollama` / `openai` / `disabled` | 全部 |
+| `api_url` | Ollama 默认 `http://localhost:11434`；在线模型填兼容 OpenAI 的 `/v1` 地址 | 全部 |
+| `api_key` | 在线模型必填；Ollama 留空 | `openai` |
+| `model` | Ollama 如 `qwen3:8b`；在线如 `gpt-4o` / `deepseek-chat` | 全部 |
+
+> ⚠️ **安全提示**：本地 Ollama 模式数据不出本机；启用在线模型后，巡检指标会按照你配置的 `api_url` 发送至对应服务商，请自行评估数据合规风险。
 
 ---
 
@@ -423,7 +452,7 @@ python web_ui.py
 | 6 | 确认信息后一键执行，实时查看日志进度（SSE 推送）|
 | 7 | 巡检完成，在线预览智能分析 + AI 诊断结果 |
 | 8 | 📊 历史趋势分析：查看同一数据库多次巡检的指标趋势 |
-| 9 | 🤖 AI 诊断设置：配置本地 Ollama 参数 |
+| 9 | 🤖 AI 诊断设置：配置本地 Ollama 或在线模型参数 |
 | 10 | 下载 Word 报告，随时查阅历史报告 |
 
 ### OpenClaw Skill（AI 助手直连）
@@ -472,7 +501,7 @@ dbcheck/skill/dbcheck/
     └── main.py             # 统一菜单入口
 ```
 
-> ⚠️ **安全提示**：Skill 凭据仅用于建立本地连接，不会发送到任何第三方。AI 诊断仅使用本地 Ollama。
+> ⚠️ **安全提示**：Skill 凭据仅用于建立本地数据库连接，不会发送到任何第三方。AI 诊断默认使用本地 Ollama（数据不出本机）；若你在 `ai_config.json` 中配置了在线模型，巡检指标会按配置发送至你指定的远端 API。
 
 ---
 
@@ -541,9 +570,9 @@ dbcheck.exe         # Windows
    确认 SSH 服务正常运行、认证信息正确。部分精简版 Linux 可能缺少 `lscpu` 等命令，导致部分 CPU 信息显示为"未获取"，属正常现象。
 
 4. **AI 诊断不生效**
-   - 确认已在 Web UI「AI 诊断设置」中保存了有效配置
-   - 确保 Ollama 已启动：`ollama serve`
-   - 确保模型已下载：`ollama pull qwen3:8b`
+   - 本地 Ollama 模式：确认 Ollama 已启动（`ollama serve`）且模型已下载（`ollama pull qwen3:8b`）
+   - 在线模型模式：确认 `ai_config.json` 中 `backend` 设为 `openai`，且 `api_url` / `api_key` / `model` 填写正确、网络可访问
+   - 若使用 Web UI，确认已在「AI 诊断设置」中保存了有效配置
 
 5. **风险建议仅供参考**
    内置阈值基于通用最佳实践，实际场景中请结合业务负载综合评估。
@@ -619,7 +648,7 @@ dbcheck.exe         # Windows
 *图 11：历史趋势分析*
 
 ![AI 诊断配置](snapshot/webui13.png)
-*图 12：AI 诊断配置，可完全本地运行，无需 API Key，数据不出本机。*
+*图 12：AI 诊断配置——默认本地 Ollama（无需 API Key、数据不出本机），也可切换为在线模型（填写 API Key 与端点）。*
 
 ![Clawhub dbcheck skill](snapshot/skill0.png)
 *图 13：dbcheck 已发布到 Clawhub*

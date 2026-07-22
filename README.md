@@ -1,8 +1,8 @@
-# DBCheck — Open-Source Intelligent Database Inspection Tool
-![logo](snapshot/dbcheck_logo_en.png)
+# DBCheck Professional — Commercial Intelligent Database Inspection Tool
+
 ![logo](snapshot/dbcheck_logo_info.png)
 
-DBCheck is an open-source, cross-platform database health inspection tool supporting **10 mainstream relational databases**. It automatically generates standardized Word inspection reports by executing predefined SQL checks and collecting system resources. Advanced features include a SQL editor, remote terminal, configurable inspection chapters, configuration baseline management, historical trend analysis, AI-powered smart diagnostics, index health analysis, in-depth slow query analysis, server inspection, shareable links, and masked data export.
+DBCheck Professional is a commercial, cross-platform database health inspection tool supporting **10 mainstream relational databases**. It automatically generates standardized Word inspection reports by executing predefined SQL checks and collecting system resources. Advanced features include a SQL editor, remote terminal, configurable inspection chapters, configuration baseline management, historical trend analysis, AI-powered smart diagnostics, index health analysis, in-depth slow query analysis, server inspection, shareable links, and masked data export.
 
 > **Note:** The software names, logos, trademarks, badges, etc. of third parties contained in this article and DBCheck software are the property of the third-party companies or organizations. The display of these items in this article and DBCheck software only indicates that the software supports connection to the corresponding database or platform, and does not imply any affiliation or cooperation with them.
 
@@ -11,7 +11,7 @@ DBCheck is an open-source, cross-platform database health inspection tool suppor
 > Language: [English](./README.md) | 语言：[中文](./README_zh.md)
 
 [![Version](https://img.shields.io/badge/Version-v26.7.21.1-blue.svg)]()
-[![License](https://img.shields.io/badge/License-MIT-green.svg)]()
+[![License](https://img.shields.io/badge/License-Proprietary-red.svg)]()
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)]()
 [![AI](https://img.shields.io/badge/AI-Ollama+OpenAI-orange.svg)]()
 [![RAG](https://img.shields.io/badge/RAG-Knowledge_Base-red.svg)]()
@@ -139,11 +139,51 @@ python web_ui.py         # Web interface
 
 ---
 
-## DBCheck Professional Edition
+## Professional-Only Capabilities
 
-DBCheck also ships a **Professional edition** built for mid-to-large production environments that need deep observability and root-cause localization — going beyond "what's at risk" to answer "why" and "what to fix first".
+> Identified by `EDITION='professional'` in `version.py`; dedicated entries (e.g. the Diagnosis Center) render only in the Professional build.
 
-**Core capability comparison (Community vs Professional):**
+The Professional edition goes beyond *discovering risks* to answer *why* and *what to fix first*. On top of all community capabilities above, it adds:
+
+### Collaborative Diagnosis Hub (Smart Diagnosis Center)
+Hand a single goal plus one data source to a team of five specialized **diagnostic specialists** who collaborate on a **shared context (blackboard)** and produce: anomalies found, root-cause inference, executable remediation plans, plus cost evaluation and tickets.
+
+| Specialist | Responsibility |
+|------------|----------------|
+| Monitoring Sentinel | Watches real host resources and fine-grained DB metrics; raises early warnings on CPU / IO / memory / connection / lock / replication anomalies |
+| Deep-Inspection Analyst | Runs the inspection engine on the target in real time; extracts config / capacity / performance risks with severity |
+| Root-Cause Analyst | Correlates monitoring anomalies with inspection risks, clusters and infers root cause, gives the remediation thread |
+| SQL-Governance Specialist | For slow / high-cost SQL, suggests rewrites, indexes, and change reviews |
+| Lock-Wait Analyst | For lock waits / blocks, traces the holding session and wait chain, suggests unblocking actions |
+
+- **Shared context (blackboard)** — all intermediate conclusions, findings, and plans live in one space; specialists read/write directly, no lossy relay.
+- **Dynamic planning** — monitoring, deep-inspection, and root-cause are always on; SQL-governance and lock analysis join early when relevant phenomena appear.
+- **Fault tolerance** — one specialist failing doesn't abort the diagnosis; the error is noted in context and collaboration continues.
+- **Streaming collaboration** — the hub schedules specialists one by one and emits progress events; the Web UI shows "who is analyzing now" via SSE in real time.
+- **Cost Optimizer** — ranks each remediation by cost / benefit / feasibility, recommends an *easy-before-hard* order, and flags whether a step needs a maintenance window or can be auto-executed.
+- **Ticket closed-loop** — one-click create tickets tracked through `待处理 / 处理中 / 已解决 / 已关闭 / 已取消`, with execution feedback written back — a diagnosis → dispatch → fix → feedback loop.
+- **Diagnosis history** — every collaborative diagnosis is persisted (local SQLite) with a diagnosis number (`diag_no`); filterable by data source, viewable in full, and one-click linkable to a ticket.
+
+### eBPF Kernel-Level Host Collection
+When the target Linux host has **Python3 + bcc + root**, eBPF yields kernel metrics user-space tools can't reach:
+- **Block-device service-time percentiles (p50 / p95 / p99, µs)** via kprobes on `blk_account_io_start` / `blk_account_io_done` — more accurate than psutil's `await`, great at exposing long-tail jitter.
+- **Per-process I/O attribution** — records pid / command at I/O start, correlates at completion; outputs Top I/O processes.
+- **Per-process CPU attribution** — based on `sched:sched_switch`, computes on-CPU time; outputs Top CPU processes, distinguishing "truly busy" from "waiting on I/O".
+
+Safety by design: **opt-in only** (default off, never injects eBPF into production by default), transparent `host_collector_source` tagging (`ebpf` / `psutil` / `unavailable`), full degrade-to-psutil on any failure, and a zero-dependency Shell (`/proc`) fallback when no Python / psutil exists.
+
+### SSH Secure Host Collection
+For hosts where you don't want an agent:
+- **Agentless, no Python required** — a pure Shell (`/proc`) collection script is injected over SSH; the eBPF path engages only if Python3 + bcc is present.
+- **Safety guards** — a global concurrency semaphore (4) limits total SSH; one lock per host (at most 1 connection at a time); `set_keepalive(15)`; bounded channel reads (`settimeout(12)`); a hard 8s timeout watchdog (SIGALRM + thread `os._exit`) so a stuck eBPF never hangs the session; transient errors retry with backoff (max 2), auth failures don't retry.
+- **Credential safety** — instance passwords are **Fernet-encrypted at rest**, decrypted only at collection time; ciphertext is never sent to the remote or the DB as plaintext.
+
+### Unified Observability View
+The Professional edition unifies **host resources (eBPF / psutil / SSH) + DB fine-grained metrics + inspection risks** on one analysis plane. In one collaborative diagnosis you can see both "disk p99 latency spiked" and "the slow SQL and lock waits in that window" — root cause becomes a connected evidence chain, not isolated numbers.
+
+---
+
+## Community vs Professional — Core Capability Comparison
 
 | Capability | Community | Professional |
 |------------|:---------:|:-----------:|
@@ -160,13 +200,7 @@ DBCheck also ships a **Professional edition** built for mid-to-large production 
 | Diagnosis history | — | ✅ |
 | Unified observability view | — | ✅ |
 
-Professional-exclusive highlights:
-- **Collaborative diagnosis hub** — a team of five specialists (monitoring sentinel, deep-inspection analyst, root-cause analyst, SQL-governance specialist, lock-wait analyst) work on a shared context board, streaming progress via SSE and producing root-cause inference plus an executable, cost-ranked remediation plan.
-- **eBPF kernel-level collection** — block-device service-time percentiles (p50 / p95 / p99), per-process I/O and CPU attribution; opt-in only, safe-degrades to psutil.
-- **SSH secure collection** — agentless shell-based collection with concurrency guards, a hard timeout watchdog, and Fernet-encrypted credentials.
-- **Unified observability** — host metrics, DB metrics, and inspection risks on one evidence chain.
-
-> The Community edition focuses on *discovering risks*; the Professional edition further explains *why* and *what to do first*. For Professional licensing, visit [dbcheck.top](https://dbcheck.top) or contact the author.
+> The Community edition focuses on *discovering risks*; the Professional edition further explains *why* and *what to do first*.
 
 ---
 
@@ -430,10 +464,15 @@ Package as a single executable using PyInstaller:
 
 ```bash
 # Windows
-build/build_windows.bat
+rd /s /q build dist __pycache__
+pyinstaller dbcheck.spec
+cd dist
+dbcheck.exe
 
 # Linux
-build/build_linux.sh
+pyinstaller build/dbcheck_linux.spec
+cd dist
+./dbcheck
 ```
 
 ---
@@ -482,13 +521,12 @@ This project references the following works:
 
 - [Zhh9126/MySQLDBCHECK](https://github.com/Zhh9126/MySQLDBCHECK.git)
 - [Zhh9126/SQL-SERVER-CHECK](https://github.com/Zhh9126/SQL-SERVER-CHECK.git)
-- [MMCISAGOODMAN/autobackup](https://github.com/MMCISAGOODMAN/autobackup)
 
 ## Support the Project
 
 > ❤️ Thank you for supporting DBCheck.
 >
-> DBCheck is and will remain open source and free to use. Donations are entirely optional and help cover the time, infrastructure, and ongoing effort required to maintain and improve the project.
+> DBCheck Professional is proprietary commercial software. All rights reserved. No copying, modification, decompiling, or distribution is permitted without prior written authorization.
 >
 > If you find DBCheck useful, your support is appreciated. If not, that's completely okay too. A GitHub Star, bug report, feature suggestion, code contribution, or simply sharing the project with others is equally valuable.
 >

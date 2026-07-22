@@ -17,7 +17,7 @@ data_dirs = [
     'drivers',
     'plugins',          # oracle_jdbc 等插件由 plugin_loader 动态加载，需随包复制
     'user_management',  # RBAC 蓝图模板(html)与初始化库(schema)需随包复制
-    'db',               # RBAC 建表脚本 user_management_schema.sql 需随包复制
+    'db',               # user_management_schema.sql 建表脚本需随包复制
 ]
 
 # JSON config files

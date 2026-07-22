@@ -1,38 +1,45 @@
 # Changelog
 
-## v26.7.21.1 (2026-07-20)
+## v26.7.21.1 (2026-07-19)
 - **版本号统一**：各源文件版本标识 v26.7.19.1 → v26.7.21.1（version.py / version.json / Dockerfile / skill `dbcheck` `_meta` + `_skillhub_meta` + `scripts/version.py` / README + README_zh 徽章 / CHANGELOG 顶段）
+- **合并 main → professional（MongoDB 完整功能）**：将 main 分支的 MongoDB 巡检全链路合并至 professional 分支
+  - **插件接入钩子**：`pro/metrics_collector.py`（mongodb 计数器 + `_connect` 分支 + `_collect_mongodb`）、`index_health.py`（`analyze_mongodb_indexes`）、`slow_query_analyzer.py`（`MongoDBSlowQueryAnalyzer`）、`inspection_engine.py`（db_type 名称映射 + `MONGO_SECTION_TITLES` + `baseline_results` 白名单修复）、`pro/instance_manager.py`（MongoDB 专用连接配置列）、`web_ui.py`（路由/表单/logo/`smart_analyze` 透传）、`web_templates/index.html`（菜单/表单/NoSQL 徽章）、`i18n`（MongoDB 文案）、`builtin_registry.json`（mongodb 注册）、`requirements.txt`（`pymongo>=4.6`）
+  - **插件资产**：`plugins/available/mongodb` 整体升级为社区版（含 80 条 mongodb.yaml 规则）、`pro/rules/builtin/mongodb.yaml`、`templates/mongodb_wordtemplates_v1.0.docx`、`scripts/mongo-test-standalone.*`、`analyzer.py` 新增 `smart_analyze_mongodb`
+  - **intelligence/ 专有模块与其它 db_type 逻辑完整保留**
 
-## v26.7.19.1 (2026-07-19)
-- **版本号统一**：各源文件版本标识 v26.7.15.1 → v26.7.19.1（version.py / version.json / Dockerfile / skill `dbcheck` `_meta` + `_skillhub_meta` + `scripts/version.py` / README + README_zh 徽章 / CHANGELOG 顶段）
+## v26.7.17.1 (2026-07-17)
+- **版本号统一**：各源文件版本标识 v26.7.15.1 → v26.7.17.1（version.py / version.json / Dockerfile / skill `dbcheck` `_meta` + `_skillhub_meta` + `scripts/version.py` / README + README_zh 徽章 / CHANGELOG 顶段）
+- **合并 main → professional**：将 main 分支的容灾备份模块、NOTICE 合规声明、OceanBase 巡检全链路合并至 professional 分支
+  - **容灾备份模块**：基于 autobackup 引擎的定时备份与调度（MySQL/MariaDB/PostgreSQL/文件），含 Cron 调度、保留天数清理、Webhook 通知、健康度评分
+  - **OceanBase 巡检全链路**：新增 `main_oceanbase.py` 巡检实现、oceanbase.yaml 规则、Word 模板、监控扩展、UI 全链路支持（dbIcons/dbLogos/portMap/userMap + compat_tag）
+  - **规则引擎修复**：`eval(tree)` 替换为 `compile(tree) + eval(code)` 安全求值；新增 `_safe_eval_param()` 参数表达式安全求值
+  - **监控扩展**：`pro/metrics_collector.py` 追加 oceanbase 注册与 `_collect_oceanbase()` 方法
+- **NOTICE 合规声明**：新增 NOTICE 文件，声明 vendored autobackup 引擎的 MIT 许可
 
 ## v26.7.15.1 (2026-07-15)
 - **版本号统一**：各源文件版本标识 v26.7.13.1 → v26.7.15.1（version.py / version.json / Dockerfile / skill `dbcheck` `_meta` + `_skillhub_meta` + `scripts/version.py` / README + README_zh 徽章 / CHANGELOG 顶段）
-- **新增 MariaDB 原生巡检支持**：新增 `mariadb` 类型（连接复用 MySQL 框架 `pymysql`），含基线数据 18 条、规则 28+ 条（5 条 MariaDB 专有：Aria/线程池/galera wsrep/query_cache）、`main_mariadb.py` 巡检实现与 Word 模板，监控/基线/索引/慢查询复用 MySQL 逻辑
-- **插件双类型模型**：新增巡检/规则两类插件，`plugin_type.py` 单一判定源、`plugin_core.load_plugins` 启动加载器；规则插件安装/卸载不再初始化模板/基线/规则引擎；修复 `id≠name` 幽灵项
-- **插件市场 UI 优化**：来源标签（社区/数据库/巡检/规则）移至插件名下方、本地标签按线上注册状态判定、去除已安装列表冗余标签、按钮与标签三层视觉分级、标签改为非矩形形态、修巡检结果页智能分析圆环 id 冲突
-- **专业版 README 对比章节**：社区版 README 新增「DBCheck 专业版」导向与核心能力对比表
+- **专业版 README 更新**：新增「专业版专属能力」详节与「社区版 vs 专业版 · 核心能力对比」表；标题/简介校正为 Professional / Commercial 以匹配专有版性质
+- 同步 main 的 MariaDB 原生巡检支持、插件双类型模型（巡检/规则）、插件市场 UI 优化与巡检结果页修复（详见 main 分支发版说明）
 
 ## v26.7.13.1 (2026-07-13)
-
-### 🐛 修复
-- **打包后 RBAC 初始化失败 `no such table: um_user`**：干净机器首次运行打包程序报 RBAC 用户初始化失败。根因为打包 spec 的 `data_dirs` 缺 `db`（建表脚本 `db/user_management_schema.sql` 未随包），且 `auth.py` 用双层 `dirname(__file__)` 解析路径在打包后错位；修复 `build/*.spec` 加入 `db` 目录、`auth.py` 改为单层 `dirname(__file__)`，与 `db_manager` 解析一致
-
-### 🔧 工程
-- **PyInstaller 打包噪音清理**：移除 spec 中无效/错误 hidden-import（`flask_cors`、`dmpython`、`python_docx`（保留 `docx`）、`click._bashcomplete`、`defusedxml`、`gevent.wsgi`/`gevent.http`）；`build/runtime-hook-gevent.py` 删除 gevent 1.4+ 已移除的 `gevent.wsgi`/`gevent.http` 哑弹导入
-- **yasdb 驱动改为可选懒加载**：对齐 `main_dm.py` 的达梦驱动处理——`main_yashandb.py` 移除模块级 `import yasdb` + `sys.exit(1)`（会终止整个 web 进程），改为 `connect()` 内懒加载、缺失时友好报错；`monitor_engine.py` 监控路径 `import yasdb` 加 `try/except` 保护；spec 移除 `'yasdb'`
-- 版本号同步：各源文件版本标识 v26.7.11.1 → v26.7.13.1（version.py / version.json / Dockerfile / skill `dbcheck` `_meta` + `_skillhub_meta` + `scripts/version.py` / README + README_zh 徽章 / CHANGELOG 顶段）
+- **同步 main 分支通用修复至 professional**：
+  - 修复 `web_ui.py` 巡检目标识别中嵌套引号 f-string 在 Python ≤3.11 下的 SyntaxError
+  - 修复打包后 RBAC 初始化失败 `no such table: um_user`（RBAC 库路径改为单层 `dirname(__file__)`，与 `db_manager` 一致；spec `data_dirs` 增加 `db` 目录随包）
+  - 清理 PyInstaller `hiddenimports` 无效/错误条目：`flask_cors`、`dmpython`、`python_docx`(保留 `docx`)、`click._bashcomplete`、`defusedxml`、`gevent.wsgi`/`gevent.http`；`runtime-hook-gevent.py` 移除 gevent 1.4+ 已删除子模块导入（哑弹）
+  - `yasdb` 驱动改为可选懒加载（缺失时友好报错，不再 `sys.exit` 终止 web 进程）；`monitor_engine.py` 监控路径 `import yasdb` 加 `try/except ImportError` 保护
+  - `.gitignore` 增加 `templates/` Word 模板白名单，模板文件纳入版本库
+- 同步 main 的 MariaDB / 双类型支持与多项修复（详见下记历史版本说明）
 
 ## v26.7.11.1 (2026-07-11)
 
 ### 🐛 修复
-- **#28 AI 诊断测试连接 500**：主分支（main）「AI 诊断设置」页面点「测试连接」报 500（`TypeError: _probe_openai_model() missing 3 required positional arguments`）。根因为 `@app.route('/api/test_openai')` 装饰器误挂在辅助函数 `_probe_openai_model` 上，导致请求以无参方式命中该函数；移除误挂装饰器后恢复正常
-- **实时慢查询 / 活跃连接监控数据源下拉框空**：监控未启动时数据源下拉框不显示任何实例。移植 professional 分支已有的占位逻辑——监控未启动 / 无数据时从 `pro.instance_manager` 拉取「已启用且配置了主机地址」的实例，生成 `名称 (host:port)` 占位项，下拉框不再空白
-- **#29 添加 Oracle 数据源 DPY-3015**：添加 Oracle 数据源（thin 模式）连接老版本数据库报 `DPY-3015: password verifier type 0x939 is not supported by python-oracledb in thin mode`。根因为 oracledb thin→thick 回退判定只识别 `DPY-3010`、漏判 `DPY-3015`；在 `web_ui.py`（3 处）与 `pro/instance_manager.py`（1 处）扩展回退判定，命中后自动切 thick 模式（Oracle Instant Client）
-- **#26 插件市场安装 Oracle JDBC 插件回滚**：从插件市场安装 Oracle JDBC 插件提示「插件加载失败，已回滚」。根因为 `load_plugin()` 未将插件目录加入 `sys.path`，导致插件顶层 `from inspection_engine import ...` 导入失败且异常被吞；修复 `plugin_core.py`（加载前注入插件目录到 `sys.path` + 新增 `load_plugin_with_error()` 透出真实异常）与 `plugin_market.py`（4 处回滚点改用新接口并拼入真实异常信息）
+- **#28 AI 诊断测试连接 500**：主分支（main）「AI 诊断设置」页面点「测试连接」报 500（`TypeError: _probe_openai_model() missing 3 required positional arguments`）。根因为 `@app.route('/api/test_openai')` 装饰器误挂在辅助函数 `_probe_openai_model` 上，移除误挂装饰器后恢复正常
+- **实时慢查询 / 活跃连接监控数据源下拉框空**：移植 professional 分支已有的占位逻辑，下拉框不再空白
+- **#29 添加 Oracle 数据源 DPY-3015**：扩展 oracledb thin→thick 回退判定（命中 `DPY-3015`），自动切 thick 模式（Oracle Instant Client）
+- **#26 插件市场安装 Oracle JDBC 插件回滚**：修复 `load_plugin()` 未将插件目录加入 `sys.path`，改用 `load_plugin_with_error()` 透出真实异常
 
 ### 🔧 工程
-- 版本号同步：各源文件版本标识 v26.7.8.1 → v26.7.11.1（version.py / version.json / Dockerfile / skill `dbcheck` `_meta` + `_skillhub_meta` + `scripts/version.py` / README + README_zh 徽章 / CHANGELOG 顶段）
+- 版本号同步：各源文件版本标识 v26.7.11.1 → v26.7.13.1
 
 ## v26.7.8.1 (2026-07-08)
 - **Oracle (JDBC) 插件路由修正**：`oracle_jdbc` 类型数据源的实时监控改为统一走插件 JDBC 连接（JPype + ojdbc8.jar），彻底不再走 python `oracledb`，避免 Oracle 11g 在无 Oracle 客户端环境下连接失败；监控深采逻辑 `_collect_oracle()` 原样复用（插件 `JdbcConnectionWrapper` 为 DB-API 2.0 兼容）

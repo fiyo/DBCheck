@@ -3,7 +3,7 @@
 # Copyright (c) 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
 #
 # This file is part of DBCheck, an open-source database health inspection tool.
-# DBCheck is released under the MIT License with Attribution Requirements.
+# DBCheck Professional — 专有商业软件，保留一切权利（Proprietary Software, All Rights Reserved）.
 # See LICENSE for full license text.
 #
 
@@ -1250,12 +1250,93 @@ def analyze_oceanbase_indexes(conn, days_threshold=90):
     return report
 
 
+def analyze_db2_indexes(conn, days_threshold=90):
+    """
+    分析 DB2 LUW 索引健康状况（v11+/v12+，JDBC 连接）。
+
+    检测：未使用索引（LASTUSED 早于阈值）、冗余索引（同表同列定义）、
+    以及总索引数。所有查询独立 try/except，权限不足/视图缺失不抛异常。
+    """
+    result = {
+        'missing_indexes': [],
+        'redundant_indexes': [],
+        'unused_indexes': [],
+        'summary': {
+            'missing_count': 0,
+            'redundant_count': 0,
+            'unused_count': 0,
+            'total_indexes': 0,
+            'db_size_gb': 0.0,
+        }
+    }
+    cursor = conn.cursor()
+
+    # ── 1. 总索引数 ──
+    try:
+        cursor.execute(
+            "SELECT COUNT(*) FROM SYSCAT.INDEXES WHERE indschema NOT LIKE 'SYS%'")
+        row = cursor.fetchone()
+        result['summary']['total_indexes'] = int(row[0]) if row else 0
+    except Exception:
+        pass
+
+    # ── 2. 未使用索引（LASTUSED 早于阈值天数）──
+    try:
+        cursor.execute(
+            "SELECT indschema, indname, tabname, lastused "
+            "FROM SYSCAT.INDEXES "
+            "WHERE indschema NOT LIKE 'SYS%' "
+            "AND lastused < (CURRENT DATE - %d DAYS)" % int(days_threshold))
+        for row in cursor.fetchall():
+            indschema, indname, tabname, lastused = row
+            result['unused_indexes'].append({
+                'table_schema': indschema,
+                'table_name': tabname,
+                'index_name': indname,
+                'last_used': str(lastused),
+                'days_unused': days_threshold + 1,
+                'index_size_mb': 0.0,
+                'recommendation': '索引 %s 已超过 %d 天未使用，建议评估是否删除' % (
+                    indname, days_threshold),
+            })
+    except Exception:
+        pass
+
+    # ── 3. 冗余索引（相同表 + 相同列定义）──
+    try:
+        cursor.execute(
+            "SELECT tabschema, tabname, colnames, COUNT(*) AS cnt "
+            "FROM SYSCAT.INDEXES "
+            "WHERE indschema NOT LIKE 'SYS%' "
+            "GROUP BY tabschema, tabname, colnames "
+            "HAVING COUNT(*) > 1")
+        for row in cursor.fetchall():
+            tabschema, tabname, colnames, cnt = row
+            result['redundant_indexes'].append({
+                'table_schema': tabschema,
+                'table_name': tabname,
+                'index1': tabname,
+                'index2': colnames,
+                'reason': '表 %s 上存在 %d 个列定义相同的索引 (%s)' % (
+                    tabname, cnt, colnames),
+                'recommendation': '表 %s 存在列定义相同的冗余索引，建议保留一个并删除其余' % tabname,
+            })
+    except Exception:
+        pass
+
+    cursor.close()
+    result['summary']['missing_count'] = len(result['missing_indexes'])
+    result['summary']['redundant_count'] = len(result['redundant_indexes'])
+    result['summary']['unused_count'] = len(result['unused_indexes'])
+    return result
+
+
 def get_index_health(db_type, conn, days_threshold=90):
     """
     统一索引健康分析入口。
 
     参数:
-        db_type: 数据库类型 ('mysql', 'pg', 'oracle', 'dm', 'sqlserver', 'tidb', 'mongodb')
+        db_type: 数据库类型 ('mysql', 'pg', 'oracle', 'dm', 'sqlserver', 'tidb')
         conn: 数据库连接对象
         days_threshold: 未使用索引判定天数
 
@@ -1283,6 +1364,9 @@ def get_index_health(db_type, conn, days_threshold=90):
     elif db_type == 'mongodb':
         # MongoDB 连接为 pymongo.MongoClient（非 DBAPI），conn 参数透传
         return analyze_mongodb_indexes(conn, days_threshold)
+    elif db_type == 'db2':
+        # DB2 LUW 索引健康分析（JDBC 连接，DB-API 兼容）
+        return analyze_db2_indexes(conn, days_threshold)
     else:
         return None
 

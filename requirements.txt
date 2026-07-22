@@ -8,6 +8,18 @@ psutil>=5.9.0
 PyYAML>=6.0.0            # Rule engine YAML parsing (required by pro/rule_engine.py)
 cryptography>=41.0.0     # Password encryption for data source manager
 
+# ── eBPF Host Monitoring (Linux only, optional) ─────────────────────────────
+# bcc 提供 eBPF 内核级宿主资源观测（块设备 IO 时延分布 + 按进程磁盘/CPU 归因）。
+# 它是依赖系统 libbcc + LLVM/Clang 头文件 + 内核头文件的 C 扩展，不能由 pip 可靠
+# 编译，生产环境须由目标 Linux 主机经发行版包管理器提供，例如：
+#   apt install bpfcc-tools libbcc-dev linux-headers-$(uname -r) python3-bcc
+# 本项目以 PyInstaller 分发，bcc 无法打进包，必须由运行时主机提供。
+# pro/remote_host_collector.py 已用 try/except 守卫导入，无任何 bcc 环境时自动降级到
+# psutil；其整份源码经 SSH 推到目标数据库服务器内联执行（目标机只需 python3 + psutil，
+# 启用 eBPF 再加 bcc + root），中心机自身无需加载 eBPF。
+# （故不在此处放置硬依赖行，以免 pip install -r 在无法编译 bcc 时阻断整条安装链。）
+# bcc; sys_platform == 'linux'      # 如需在容器中 pip 安装可取消注释（需先装 libbcc 等系统依赖）
+
 # ── Disaster Recovery (vendored autobackup engine) ───────────────────────────
 croniter>=1.0.0          # Cron scheduling for backup plans (modules/disaster_recovery)
 requests>=2.25.0         # Webhook notifications (DingTalk/WeCom/Feishu) used by vendored autobackup
@@ -27,6 +39,7 @@ dmpython>=1.0.0         # Dameng DM8
 pyodbc>=4.0.0           # SQL Server (also requires ODBC Driver 17)
 gbase8sdb>=0.2.0        # GBase 8s (官方 Python 驱动，需 GBase SDK)
 jaydebeapi>=1.2.0      # GBase 8s JDBC 连接（无需 SDK，需 JDK + JDBC 驱动 jar）
+pymongo>=4.6.0          # MongoDB plugin dependency
 
 # ── SSH & Remote Collection ───────────────────────────────────────────────────
 paramiko>=2.10.0
@@ -45,7 +58,4 @@ PyPDF2>=3.0.1           # PDF manipulation for report generation
 
 # ── RBAC User Management ─────────────────────────────────────────────────────
 bcrypt>=4.0.0           # Password hashing for user management
-PyJWT>=2.7.0            # JWT token generation and validation for user authentication
-
-# MongoDB plugin dependency
-pymongo>=4.6.0
+PyJWT>=2.7.0            # JWT token generation and validation

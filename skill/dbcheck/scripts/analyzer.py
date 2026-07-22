@@ -3,7 +3,7 @@
 # Copyright (c) 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
 #
 # This file is part of DBCheck, an open-source database health inspection tool.
-# DBCheck is released under the MIT License with Attribution Requirements.
+# DBCheck Professional — 专有商业软件，保留一切权利（Proprietary Software, All Rights Reserved）.
 # See LICENSE for full license text.
 #
 
@@ -1224,7 +1224,7 @@ class HistoryManager:
 # ═══════════════════════════════════════════════════════
 #
 # 安全策略：
-# 1. 默认仅支持本地 Ollama（backend='ollama'）或关闭（'disabled'）
+# 1. 支持本地 Ollama（backend='ollama'）、在线模型（online_enabled 时 backend 取 online_backend）或关闭（'disabled'）
 # 2. 必须在 dbc_config.json 的 ai 字段中设置 "online_enabled": true 才能调用远程模型
 # 3. 远程模型支持 OpenAI 协议兼容的 API（OpenAI/DeepSeek/自定义端点）
 # 4. Ollama 模式下 API 地址必须为本地地址（localhost/127.0.0.1）
@@ -1878,7 +1878,7 @@ def run_full_analysis(db_type: str, host: str, port, label: str,
     :param host/port/label: 数据库信息
     :param context: checkdb() 返回的 context
     :param base_dir: 项目根目录（用于存储 history.json）
-    :param ai_*: AI 诊断配置（仅支持本地 Ollama，非本地地址将被拒绝）
+    :param ai_*: AI 诊断配置（支持本地 Ollama 或在线模型，在线模型需在 dbc_config.json 启用 online_enabled）
     :return: {
         'issues': [...],       # 增强风险列表
         'ai_advice': str,      # AI 建议文本（未启用时为空字符串）

@@ -3,7 +3,7 @@
 # Copyright (c) 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
 #
 # This file is part of DBCheck, an open-source database health inspection tool.
-# DBCheck is released under the MIT License with Attribution Requirements.
+# DBCheck Professional — 专有商业软件，保留一切权利（Proprietary Software, All Rights Reserved）.
 # See LICENSE for full license text.
 #
 
@@ -33,7 +33,7 @@ if _script_dir not in sys.path:
     sys.path.insert(0, _script_dir)
 
 from flask import Flask, request, jsonify, render_template, Response, send_file
-from version import __version__
+from version import __version__, EDITION
 from flask_socketio import SocketIO, emit, join_room, leave_room
 import socket
 from i18n import t as _t
@@ -196,8 +196,7 @@ try:
     from apscheduler.schedulers.background import BackgroundScheduler
     from apscheduler.triggers.interval import IntervalTrigger
     _monitor_sched = BackgroundScheduler()
-    _monitor_sched.add_job(_collector.tick, IntervalTrigger(seconds=30),
-                            max_instances=1, coalesce=True)
+    _monitor_sched.add_job(_collector.tick, IntervalTrigger(seconds=30))
     _monitor_sched.start()
     _collector.running = True
     _monitor_started = True
@@ -281,9 +280,9 @@ def _inject_grayscale(response):
 def _verify_agreement_integrity():
     import hashlib, base64, re, os, json, datetime
     _H = {
-        "d5cbb593f58f167b793a94da5d7d2b162adbf0767de32b652b994688d34cad99",
-        "eda53f92f375cbee00318c40d7ad21122489a025ad971dc9f9f4a98350269d23",
-        "14865503b1fcd6fce70215ab57b3fb719d10b0bb271de4b469f9c3894190b8f3",
+        "529f397bf4e575409a55973abb5241995bdc68d1b92ddab675353aebc1113211",
+        "99ba9245b30f43d72c29f6b4ab6b108f0b3849394e2c884a3b8ef93762dd120e",
+        "3196cf07f6d8379855d0884ab440afb56d8f5aa0a0e18e82390d9c62f073b0af",
     }
     _KEY = "x9K#pL2mQvR7tBnW"
     _C = "mqPrzMjDEoX80Lem/q3SzZ6ay8XFx9fl4VYWdTcqCzQTGaK69Km4zbT73d/a7Irv1d7Rp5PMvorr3LeIwaT58p+4+8bK6tTF8JPuuJfC47HlmK2PzqSQxrXJ/NHg+4jf7t7smJnVlo7R9LqYw6fe3ZG+xsb+09bQzZ7SspPY6r/Wh6ON0aiN8Lbjy9jIzojL1N/Es5foiInq87aK6KrD8Z+d8czMwNrQ/pLpgZD547L3lq2O06mK1bnJwt/Vzo3X+g=="
@@ -549,6 +548,17 @@ def api_shell_instances():
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 # ── 通用巡检任务（MySQL/PG/TiDB/SQLServer/IvorySQL/DM8） ──
+def _web_log_is_console_only(msg):
+    """判断一条日志是否仅输出到后端控制台、不推送到前端巡检日志。
+    包括：后台采集内部日志 [metrics]，以及连接状态类日志（连接成功/连接失败）。"""
+    _m = msg.lstrip()
+    if _m.startswith('[metrics]'):
+        return True
+    if '连接成功' in msg or '连接失败' in msg:
+        return True
+    return False
+
+
 def run_inspection_task(task_id, db_info, inspector_name, template_id=None):
     """
     通用数据库巡检任务函数
@@ -862,8 +872,8 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None):
             _sep = _kw.get('sep', ' ')
             _msg = _sep.join(str(x) for x in _a)
             _msg_clean = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', _msg)
-            # 后台采集/内部日志（如 [metrics]）仅输出到后端控制台，不推送到前端巡检日志
-            if _msg_clean.strip() and not _msg_clean.lstrip().startswith('[metrics]'):
+            # 后台采集/内部日志（如 [metrics]）及连接状态日志（连接成功/连接失败）仅输出到后端控制台，不推送到前端巡检日志
+            if _msg_clean.strip() and not _web_log_is_console_only(_msg_clean):
                 _emit('log', {'msg': _msg_clean})
             _orig_print(*_a, **_kw)
         _bi.print = _web_print
@@ -917,7 +927,14 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None):
             from desensitize import apply_desensitization
             context = apply_desensitization(context)
 
-        # 智能分析 + AI 诊断（须在报告生成之前执行，使报告引擎能读取结果填充风险/AI 章节）
+        ofile_result = data.generate_report(ofile, inspector_nm)
+        if not ofile_result:
+            raise RuntimeError(_t('webui.err_report_generate'))
+        _emit('log', {'msg': _t('webui.log_report_ok').format(fname=file_name)})
+        print(f"[REPORT] 报告已生成: {ofile_result}")
+        print(f"[REPORT] 文件是否存在: {os.path.exists(ofile_result)}")
+
+        # 智能分析
         try:
             _analyzer_mod = __import__('analyzer')
             auto_analyze = getattr(_analyzer_mod, cfg['smart_analyze'])(context)
@@ -949,42 +966,12 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None):
                     _emit('log', {'msg': f"[插件] {len(plugin_issues)} 个插件发现附加风险"})
             except Exception as e:
                 _emit('log', {'msg': f"[插件] 执行跳过: {e}"})
-
-            # 写回 context，供报告引擎 _append_chapters 读取（风险/AI 章节填充数据）
-            context['auto_analyze'] = auto_analyze
             if task:
                 task['auto_analyze'] = auto_analyze
             _emit('log', {'msg': f"[智能分析] 完成，发现 {len(auto_analyze)} 个可优化项"})
-
-            # ── AI 诊断（与 MySQL/PG 等库一致，复用 analyzer.AIAdvisor，配置来自 dbc_config.json 的 ai 段）──
-            _lang = get_lang() if 'get_lang' in dir() else 'zh'
-            try:
-                from analyzer import AIAdvisor
-                _ai_cfg = _load_ai_config()
-                _advisor = AIAdvisor(
-                    backend=_ai_cfg.get('backend'),
-                    api_key=_ai_cfg.get('api_key'),
-                    api_url=_ai_cfg.get('api_url'),
-                    model=_ai_cfg.get('model'),
-                )
-                if _advisor.enabled:
-                    ai_advice = _advisor.diagnose('mongodb', label_name, context, auto_analyze, lang=_lang)
-                else:
-                    ai_advice = ''
-            except Exception as _ae:
-                print(f"[警告] MongoDB AI 诊断跳过: {_ae}")
-                ai_advice = ''
-            context['ai_advice'] = ai_advice
         except Exception as e:
             auto_analyze = []
             _emit('log', {'msg': f"[警告] 智能分析失败: {e}"})
-
-        ofile_result = data.generate_report(ofile, inspector_nm)
-        if not ofile_result:
-            raise RuntimeError(_t('webui.err_report_generate'))
-        _emit('log', {'msg': _t('webui.log_report_ok').format(fname=file_name)})
-        print(f"[REPORT] 报告已生成: {ofile_result}")
-        print(f"[REPORT] 文件是否存在: {os.path.exists(ofile_result)}")
 
         # 历史快照
         try:
@@ -1063,10 +1050,17 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None):
         # Pro巡检记录（失败不影响前端结果展示）
         try:
             from pro import get_instance_manager
-            import hashlib
-            raw = f"{cfg['instance_prefix']}-{db_info['ip']}-{db_info['port']}".encode()
-            instance_id = hashlib.md5(raw).hexdigest()[:12]
             im = get_instance_manager()
+            # 优先使用数据源ID，便于后续按数据源做协同诊断与历史查询；
+            # 兼容旧版手动输入模式（无 datasource_id）时退回到 hash(ip:port)
+            task_record = tasks.get(task_id, {})
+            datasource_id = task_record.get('datasource_id')
+            if datasource_id:
+                instance_id = datasource_id
+            else:
+                import hashlib
+                raw = f"{cfg['instance_prefix']}-{db_info['ip']}-{db_info['port']}".encode()
+                instance_id = hashlib.md5(raw).hexdigest()[:12]
             im.record_inspection(
                 instance_id=instance_id,
                 instance_name=label_name,
@@ -1076,6 +1070,7 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None):
                 risk_level=risk_level,
                 report_path=ofile,
                 duration=0,
+                host=db_info.get('ip', ''),
                 auto_analyze=auto_analyze if auto_analyze else []
             )
         except Exception as e:
@@ -1730,7 +1725,7 @@ def index():
         pro_available = True
     except Exception:
         pass
-    return render_template('index.html', version=__version__, lang=lang, i18n_data=i18n_data,
+    return render_template('index.html', version=__version__, edition=EDITION, lang=lang, i18n_data=i18n_data,
                            pro_available=pro_available,
                            admin_token=get_admin_token(),
                            user_role=user_role)
@@ -1970,6 +1965,8 @@ def api_ai_config():
         ai_cfg.setdefault('online_backend', 'openai')
         ai_cfg.setdefault('online_api_url', 'https://api.openai.com/v1')
         ai_cfg.setdefault('online_model', 'gpt-4o-mini')
+        # 注：本地单用户工具，配置存于本机 dbc_config.json，直接返回真实 api_key
+        # 以便前端在重新打开界面时回填已保存的值（不再脱敏成 '***'）。
         return jsonify(ai_cfg)
     return jsonify({
         'enabled': False, 'backend': 'disabled', 'model': '',
@@ -2562,33 +2559,23 @@ def api_test_db():
     elif db_type == 'gbase':
         ok, msg = test_gbase_connection(data['host'], data['port'], data['user'], data['password'], data.get('database', 'gbase01'))
         result = {'ok': ok, 'msg': msg}
-    else:
-        # 尝试使用插件测试连接
-        _plugin_kwargs = dict(
-            service_name=data.get('service_name', ''),
-            sysdba=bool(data.get('sysdba', False)),
-            jdbc_url=data.get('jdbc_url') or None
-        )
-        # MongoDB 专用参数透传
-        if db_type == 'mongodb':
-            _plugin_kwargs.update(
-                database=data.get('database', 'admin'),
-                connect_mode=data.get('connect_mode', 'standard'),
-                auth_source=data.get('auth_source', 'admin'),
-                auth_mechanism=data.get('auth_mechanism', ''),
-                replica_set=data.get('replica_set', ''),
-                tls=bool(data.get('tls', False)),
-                tls_ca_file=data.get('tls_ca_file', ''),
-                tls_cert_key_file=data.get('tls_cert_key_file', ''),
-                tls_allow_invalid_certs=bool(data.get('tls_allow_invalid_certs', False)),
-            )
+    elif db_type == 'mongodb':
+        # MongoDB 连接测试：透传专用参数给插件
         ok, msg = test_plugin_connection(
             db_type,
             data['host'],
             data['port'],
             data['user'],
             data['password'],
-            **_plugin_kwargs
+            database=data.get('database', 'admin'),
+            connect_mode=data.get('connect_mode', 'standard'),
+            auth_source=data.get('auth_source', 'admin'),
+            auth_mechanism=data.get('auth_mechanism', ''),
+            replica_set=data.get('replica_set', ''),
+            tls=bool(data.get('tls', False)),
+            tls_ca_file=data.get('tls_ca_file', ''),
+            tls_cert_key_file=data.get('tls_cert_key_file', ''),
+            tls_allow_invalid_certs=bool(data.get('tls_allow_invalid_certs', False)),
         )
         if ok is not None:
             result = {'ok': ok, 'msg': msg}
@@ -2601,7 +2588,33 @@ def api_test_db():
                     if extra and isinstance(extra, dict):
                         result.update(extra)
             except Exception as e:
-                logger.warning(f"调用插件 {db_type} 的 parse_connection_result() 失败: {e}")
+                app.logger.warning(f"调用插件 {db_type} 的 parse_connection_result() 失败: {e}")
+        else:
+            return jsonify({'ok': False, 'msg': _t('webui.err_unknown_db_type')})
+    else:
+        # 尝试使用插件测试连接
+        ok, msg = test_plugin_connection(
+            db_type,
+            data['host'],
+            data['port'],
+            data['user'],
+            data['password'],
+            service_name=data.get('service_name', ''),
+            sysdba=bool(data.get('sysdba', False)),
+            jdbc_url=data.get('jdbc_url') or None
+        )
+        if ok is not None:
+            result = {'ok': ok, 'msg': msg}
+            # 动态调用插件的 parse_connection_result() 方法（无侵入式架构）
+            try:
+                from plugin_loader import get_plugin_instance
+                plugin = get_plugin_instance(db_type)
+                if plugin and hasattr(plugin, 'parse_connection_result'):
+                    extra = plugin.parse_connection_result(ok, msg)
+                    if extra and isinstance(extra, dict):
+                        result.update(extra)
+            except Exception as e:
+                app.logger.warning(f"调用插件 {db_type} 的 parse_connection_result() 失败: {e}")
         else:
             return jsonify({'ok': False, 'msg': _t('webui.err_unknown_db_type')})
 
@@ -2734,6 +2747,22 @@ def api_test_ssh():
     return jsonify({'ok': ok, 'msg': msg})
 
 
+@app.route('/plugin-logo/<db_type>')
+def plugin_logo(db_type):
+    """从插件目录读取 logo.png（前端 db_type 下拉图标）。404 时前端回退 emoji。"""
+    try:
+        from plugin_loader import discover_plugins
+        for p in discover_plugins():
+            if p.get('enabled') and p.get('db_type') == db_type:
+                logo = os.path.join(p.get('path') or '', 'logo.png')
+                if os.path.exists(logo):
+                    return send_file(logo, mimetype='image/png')
+                break
+    except Exception:
+        pass
+    return '', 404
+
+
 @app.route('/api/start_inspection', methods=['POST'])
 def api_start_inspection():
     try:
@@ -2756,7 +2785,7 @@ def api_start_inspection():
                 'user':      instance.get('user', ''),
                 'tenant':    instance.get('tenant', '') or '',
                 'password':  instance.get('password', ''),
-                'database':  instance.get('database') or ('master' if db_type == 'sqlserver' else ('DAMENG' if db_type == 'dm' else ('testdb' if db_type == 'gbase' else ('admin' if db_type == 'mongodb' else ('' if db_type in ('tidb', 'oceanbase') else 'postgres'))))),
+                'database':  instance.get('database') or ('admin' if db_type == 'mongodb' else ('master' if db_type == 'sqlserver' else ('DAMENG' if db_type == 'dm' else ('testdb' if db_type == 'gbase' else ('' if db_type in ('tidb', 'oceanbase') else 'postgres'))))),
                 'service_name': instance.get('service_name', None),
                 'sysdba':    bool(instance.get('sysdba', False)),  # ← 新增（确保是布尔值）
                 'name':      instance.get('name', ''),
@@ -2776,7 +2805,7 @@ def api_start_inspection():
                 'user':      data.get('user', ''),
                 'tenant':    data.get('tenant', '') or '',
                 'password':  data.get('password', ''),
-                'database':  data.get('database') or ('master' if db_type == 'sqlserver' else ('DAMENG' if db_type == 'dm' else ('testdb' if db_type == 'gbase' else ('admin' if db_type == 'mongodb' else ('' if db_type in ('tidb', 'oceanbase') else 'postgres'))))),
+                'database':  data.get('database') or ('admin' if db_type == 'mongodb' else ('master' if db_type == 'sqlserver' else ('DAMENG' if db_type == 'dm' else ('testdb' if db_type == 'gbase' else ('' if db_type in ('tidb', 'oceanbase') else 'postgres'))))),
                 'service_name': data.get('service_name', None),
                 'sysdba':    bool(data.get('sysdba', False)),  # ← 新增（确保是布尔值）
                 'sid':       data.get('sid', None),
@@ -4002,9 +4031,9 @@ def api_monitor_slow_queries():
         else:
             # 监控未启动/未采集：补占位项，使前端下拉框初始即可选全部数据源
             try:
-                from pro import get_instance_manager
+                from pro.instance_manager import get_instance_manager
                 im = get_instance_manager()
-                for inst in im.get_all_instances(mask_password=True):
+                for inst in im.get_all_instances(mask_password=False):
                     if not inst.get('enabled', True):
                         continue
                     if not inst.get('host'):
@@ -4053,9 +4082,9 @@ def api_monitor_connections():
         else:
             # 监控未启动/未采集：补占位项，使前端下拉框初始即可选全部数据源
             try:
-                from pro import get_instance_manager
+                from pro.instance_manager import get_instance_manager
                 im = get_instance_manager()
-                for inst in im.get_all_instances(mask_password=True):
+                for inst in im.get_all_instances(mask_password=False):
                     if not inst.get('enabled', True):
                         continue
                     if not inst.get('host'):
@@ -4350,9 +4379,10 @@ def _build_awr_ai_summary(awr_data, meta):
 def _awr_report_steps():
     """AWR 报告生成步骤定义"""
     cfg = _load_ai_config()
-    ai_backend = cfg.get('backend', 'ollama')
+    _online_on = cfg.get('online_enabled', False)
+    ai_backend = cfg.get('online_backend', 'openai') if _online_on else cfg.get('backend', 'ollama')
     ai_on = ai_backend in ('ollama', 'openai')
-    if ai_backend == 'openai' and not cfg.get('online_enabled', False):
+    if ai_backend == 'openai' and not _online_on:
         ai_on = False
     steps = ['正在解析 AWR 数据...', '正在生成 Word 报告...', '正在打包下载文件...']
     if ai_on:
@@ -4912,6 +4942,7 @@ def api_pro_datasource_add():
             user=data.get('user', ''),
             password=data.get('password', ''),
             service_name=data.get('service_name', ''),
+            database=data.get('database', ''),
             sysdba=bool(data.get('sysdba', False)),
             jdbc_url=data.get('jdbc_url', ''),
             ssh_host=data.get('ssh_host', ''),
@@ -4922,14 +4953,6 @@ def api_pro_datasource_add():
             ssh_enabled=bool(data.get('ssh_enabled', False)),
             gbase_server_name=data.get('gbase_server_name', ''),
             tenant=data.get('tenant', ''),
-            connect_mode=data.get('connect_mode', 'standard'),
-            auth_source=data.get('auth_source', 'admin'),
-            auth_mechanism=data.get('auth_mechanism', ''),
-            replica_set=data.get('replica_set', ''),
-            tls=int(bool(data.get('tls', False))),
-            tls_ca_file=data.get('tls_ca_file', ''),
-            tls_cert_key_file=data.get('tls_cert_key_file', ''),
-            tls_allow_invalid_certs=int(bool(data.get('tls_allow_invalid_certs', False))),
             tags=data.get('tags', []),
             group=data.get('group', 'default'),
             description=data.get('description', ''),
@@ -4964,28 +4987,6 @@ def api_pro_datasource_update(instance_id):
         import traceback
         traceback.print_exc()
         return jsonify({'ok': False, 'error': str(e)}), 500
-
-
-@app.route('/plugin-logo/<db_type>', methods=['GET'])
-def plugin_logo(db_type):
-    """从插件目录读取插件自带图标（logo.png / icon.png / logo.svg / icon.svg）。
-    enabled 目录优先于 available 目录；找不到返回 404，前端回退到 emoji。"""
-    base = Path(__file__).resolve().parent
-    candidates = [
-        ('png', base / 'plugins' / 'enabled' / db_type / 'logo.png'),
-        ('png', base / 'plugins' / 'available' / db_type / 'logo.png'),
-        ('png', base / 'plugins' / 'enabled' / db_type / 'icon.png'),
-        ('png', base / 'plugins' / 'available' / db_type / 'icon.png'),
-        ('svg', base / 'plugins' / 'enabled' / db_type / 'logo.svg'),
-        ('svg', base / 'plugins' / 'available' / db_type / 'logo.svg'),
-        ('svg', base / 'plugins' / 'enabled' / db_type / 'icon.svg'),
-        ('svg', base / 'plugins' / 'available' / db_type / 'icon.svg'),
-    ]
-    for kind, p in candidates:
-        if p.exists() and p.is_file():
-            mimetype = 'image/png' if kind == 'png' else 'image/svg+xml'
-            return send_file(str(p), mimetype=mimetype)
-    return '', 404
 
 
 @app.route('/api/db_types', methods=['GET'])
@@ -5161,18 +5162,6 @@ def api_pro_datasources_test_conn():
         password = data.get('password', '')
         service_name = data.get('service_name', '')
         jdbc_url = data.get('jdbc_url')
-        # MongoDB 专用连接参数（透传给插件连接测试）
-        mongo_kwargs = {
-            'connect_mode': data.get('connect_mode', 'standard'),
-            'auth_source': data.get('auth_source', 'admin'),
-            'auth_mechanism': data.get('auth_mechanism', ''),
-            'replica_set': data.get('replica_set', ''),
-            'tls': bool(data.get('tls', False)),
-            'tls_ca_file': data.get('tls_ca_file', ''),
-            'tls_cert_key_file': data.get('tls_cert_key_file', ''),
-            'tls_allow_invalid_certs': bool(data.get('tls_allow_invalid_certs', False)),
-            'database': data.get('database', 'admin'),
-        }
 
         if not host:
             return jsonify({'ok': False, 'error': '请输入主机地址'})
@@ -5304,6 +5293,47 @@ def api_pro_datasources_test_conn():
             result = test_gbase_connection(host, int(port), user, password, data.get('database', 'gbase01'), gbase_server)
             if not result[0]:
                 return jsonify({'ok': False, 'error': result[1]})
+        elif db_type == 'mongodb':
+            # MongoDB 连接测试：透传专用参数给插件
+            ok, msg = test_plugin_connection(
+                db_type,
+                host,
+                port,
+                user,
+                password,
+                database=data.get('database', 'admin'),
+                connect_mode=data.get('connect_mode', 'standard'),
+                auth_source=data.get('auth_source', 'admin'),
+                auth_mechanism=data.get('auth_mechanism', ''),
+                replica_set=data.get('replica_set', ''),
+                tls=bool(data.get('tls', False)),
+                tls_ca_file=data.get('tls_ca_file', ''),
+                tls_cert_key_file=data.get('tls_cert_key_file', ''),
+                tls_allow_invalid_certs=bool(data.get('tls_allow_invalid_certs', False)),
+            )
+            if ok:
+                return jsonify({'ok': True, 'message': msg})
+            else:
+                if msg:
+                    return jsonify({'ok': False, 'error': msg})
+                else:
+                    return jsonify({'ok': False, 'error': f'不支持的数据库类型: {db_type}'})
+        elif db_type == 'db2':
+            # DB2 (JDBC) 插件：走统一插件连接入口；database/jdbc_url 透传
+            ok, msg = test_plugin_connection(
+                db_type,
+                host,
+                port,
+                user,
+                password,
+                database=data.get('database', ''),
+                jdbc_url=jdbc_url,
+                ssl=bool(data.get('ssl', False)),
+            )
+            if ok:
+                return jsonify({'ok': True, 'message': msg})
+            else:
+                return jsonify({'ok': False, 'error': msg}) if msg else jsonify({'ok': False, 'error': f'不支持的数据库类型: {db_type}'})
         else:
             # 尝试使用插件测试连接
             ok, msg = test_plugin_connection(
@@ -5314,8 +5344,7 @@ def api_pro_datasources_test_conn():
                 password,
                 service_name=service_name,
                 sysdba=data.get('sysdba', False),
-                jdbc_url=jdbc_url,
-                **mongo_kwargs
+                jdbc_url=jdbc_url
             )
             if ok:
                 return jsonify({'ok': True, 'message': msg})
@@ -5447,7 +5476,24 @@ def api_ds_databases(ds_id):
 
     try:
         databases = []
-        if db_type in ('mysql', 'tidb', 'mariadb', 'oceanbase'):
+        if db_type == 'oceanbase':
+            import pymysql
+            _ob_tenant = inst.get('tenant', '') or ''
+            _ob_user = user + '@' + _ob_tenant if _ob_tenant else user
+            # OceanBase MySQL 租户：用户名须带 @tenant 才能路由到正确租户；
+            # 查询主用 INFORMATION_SCHEMA（与 MySQL/TiDB 一致），SHOW DATABASES
+            # 在部分 OceanBase 环境会触发 2013，作为兜底。
+            conn = pymysql.connect(host=host, port=port, user=_ob_user, password=pwd,
+                                   connect_timeout=timeout, charset='utf8mb4')
+            cur = conn.cursor()
+            try:
+                cur.execute("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA ORDER BY SCHEMA_NAME")
+                databases = [r[0] for r in cur.fetchall()]
+            except Exception:
+                cur.execute("SHOW DATABASES")
+                databases = [r[0] for r in cur.fetchall()]
+            conn.close()
+        elif db_type in ('mysql', 'tidb', 'mariadb'):
             import pymysql
             conn = pymysql.connect(host=host, port=port, user=user, password=pwd,
                                    connect_timeout=timeout, charset='utf8mb4')
@@ -5526,6 +5572,60 @@ def api_ds_databases(ds_id):
             cur.execute("SELECT username FROM SYS.ALL_USERS ORDER BY username")
             databases = [r[0] for r in cur.fetchall()]
             conn.close()
+        elif db_type == 'db2':
+            from plugins.available.db2_jdbc.main_plugin import get_connection
+            # DB2 连接时需指定库；优先用底层 JDBC 的 getMetaData().getCatalogs()
+            # 列出实例下的所有数据库（DB2 的 catalog 即 database）。
+            db_name = inst.get('database') or 'testdb'
+            conn = get_connection(host, int(port), user, pwd, database=db_name)
+            try:
+                meta = conn.jdbc_conn.getMetaData()
+                rs = meta.getCatalogs()
+                databases = []
+                while rs.next():
+                    _c = rs.getString(1)
+                    if _c:  # DB2 getCatalogs() 的 catalog 列为 Java null，跳过
+                        databases.append(str(_c))
+                try:
+                    rs.close()
+                except Exception:
+                    pass
+                if not databases:
+                    databases = [db_name]
+            except Exception:
+                # 兜底：DB2 需在连接时指定库，列出已配置库为可接受的最小实现
+                databases = [db_name]
+            finally:
+                conn.close()
+        elif db_type == 'mongodb':
+            # MongoDB：复用插件 connection_config 构建 URI/client，按 importlib 懒加载规避同名污染
+            import importlib.util, os
+            _plugin_dir = os.path.join(os.path.dirname(__file__), 'plugins', 'available', 'mongodb')
+            _spec = importlib.util.spec_from_file_location(
+                "mongodb_connection_config",
+                os.path.join(_plugin_dir, "connection_config.py"),
+            )
+            _CC = importlib.util.module_from_spec(_spec)
+            _spec.loader.exec_module(_CC)
+            MongoConnectionConfig = _CC.MongoConnectionConfig
+            cfg = MongoConnectionConfig.from_ssh_info(inst)
+            cfg.host = host
+            cfg.port = int(port) if port else 27017
+            cfg.user = user or ""
+            cfg.password = pwd or ""
+            cfg.database = inst.get('database') or 'admin'
+            uri = cfg.build_uri()
+            kwargs = cfg.build_client_kwargs()
+            from pymongo import MongoClient
+            client = MongoClient(uri, **kwargs)
+            try:
+                databases = client.list_database_names()
+                if not databases:
+                    databases = [inst.get('database') or 'admin']
+            except Exception:
+                databases = [inst.get('database') or 'admin']
+            finally:
+                client.close()
         else:
             return jsonify({'error': f'暂不支持该数据库类型: {db_type}'}), 400
 
@@ -5558,7 +5658,34 @@ def api_ds_objects(ds_id):
 
     try:
         tables, views = [], []
-        if db_type in ('mysql', 'tidb', 'mariadb', 'oceanbase'):
+        if db_type == 'oceanbase':
+            import pymysql
+            _ob_tenant = inst.get('tenant', '') or ''
+            _ob_user = user + '@' + _ob_tenant if _ob_tenant else user
+            _db_safe = database.replace('`', '``')   # 反引号转义，防注入
+            conn = pymysql.connect(host=host, port=port, user=_ob_user, password=pwd,
+                                   database=database, connect_timeout=timeout, charset='utf8mb4')
+            cur = conn.cursor()
+            try:
+                cur.execute(
+                    "SELECT TABLE_NAME, TABLE_TYPE FROM INFORMATION_SCHEMA.TABLES "
+                    "WHERE TABLE_SCHEMA=%s ORDER BY TABLE_NAME",
+                    (database,)
+                )
+                for row in cur.fetchall():
+                    if row[1] == 'BASE TABLE':
+                        tables.append(row[0])
+                    elif row[1] == 'VIEW':
+                        views.append(row[0])
+            except Exception:
+                cur.execute(f"SHOW FULL TABLES FROM `{_db_safe}`")
+                for row in cur.fetchall():
+                    if row[1] == 'BASE TABLE':
+                        tables.append(row[0])
+                    elif row[1] == 'VIEW':
+                        views.append(row[0])
+            conn.close()
+        elif db_type in ('mysql', 'tidb', 'mariadb'):
             import pymysql
             conn = pymysql.connect(host=host, port=port, user=user, password=pwd,
                                    database=database, connect_timeout=timeout, charset='utf8mb4')
@@ -5708,6 +5835,58 @@ def api_ds_objects(ds_id):
             except Exception:
                 pass
             conn.close()
+        elif db_type == 'db2':
+            from plugins.available.db2_jdbc.main_plugin import get_connection
+            # DB2 系统目录 SYSCAT.TABLES 拆分表(T)/视图(V)，排除系统 schema
+            conn = get_connection(host, int(port), user, pwd, database=database)
+            try:
+                cur = conn.cursor()
+                cur.execute(
+                    "SELECT TABNAME, TYPE FROM SYSCAT.TABLES "
+                    "WHERE TABSCHEMA NOT LIKE 'SYS%' ORDER BY TABNAME"
+                )
+                for row in cur.fetchall():
+                    if row[1] == 'T':
+                        tables.append(row[0])
+                    elif row[1] == 'V':
+                        views.append(row[0])
+                cur.close()
+            except Exception:
+                pass
+            finally:
+                conn.close()
+        elif db_type == 'mongodb':
+            # MongoDB：复用插件 connection_config 构建 URI/client，按 importlib 懒加载规避同名污染
+            import importlib.util, os
+            _plugin_dir = os.path.join(os.path.dirname(__file__), 'plugins', 'available', 'mongodb')
+            _spec = importlib.util.spec_from_file_location(
+                "mongodb_connection_config",
+                os.path.join(_plugin_dir, "connection_config.py"),
+            )
+            _CC = importlib.util.module_from_spec(_spec)
+            _spec.loader.exec_module(_CC)
+            MongoConnectionConfig = _CC.MongoConnectionConfig
+            cfg = MongoConnectionConfig.from_ssh_info(inst)
+            cfg.host = host
+            cfg.port = int(port) if port else 27017
+            cfg.user = user or ""
+            cfg.password = pwd or ""
+            cfg.database = inst.get('database') or 'admin'
+            uri = cfg.build_uri()
+            kwargs = cfg.build_client_kwargs()
+            from pymongo import MongoClient
+            client = MongoClient(uri, **kwargs)
+            try:
+                db = client[database]
+                try:
+                    tables = db.list_collection_names(filter={'type': 'standard'})
+                    views = db.list_collection_names(filter={'type': 'view'})
+                except Exception:
+                    # 老版本 pymongo 不识别 filter 参数，退化为列出全部集合
+                    tables = db.list_collection_names()
+                    views = []
+            finally:
+                client.close()
         else:
             return jsonify({'error': f'暂不支持该数据库类型: {db_type}'}), 400
 
@@ -5883,6 +6062,16 @@ def api_execute_sql():
         elif db_type == 'yashandb':
             import yasdb
             conn = yasdb.connect(host=host, port=int(port), user=user, password=pwd)
+            cursor = conn.cursor()
+            cursor.execute(sql)
+            columns = [desc[0] for desc in cursor.description] if cursor.description else []
+            rows = cursor.fetchmany(200)
+            has_more = len(rows) >= 200
+
+        elif db_type == 'db2':
+            from plugins.available.db2_jdbc.main_plugin import get_connection
+            db_name = database or 'testdb'
+            conn = get_connection(host, port, user, pwd, database=db_name)
             cursor = conn.cursor()
             cursor.execute(sql)
             columns = [desc[0] for desc in cursor.description] if cursor.description else []
@@ -6627,6 +6816,23 @@ def api_inspection_execute_sql():
             cursor.close()
             conn.close()
 
+        elif db_type == 'db2':
+            from plugins.available.db2_jdbc.main_plugin import get_connection
+            conn = get_connection(
+                db_info.get('host', ''), db_info.get('port'),
+                db_info.get('user', ''), db_info.get('password', ''),
+                database=db_info.get('database', ''))
+            cursor = conn.cursor()
+            statements = _split_sql(sql)
+            total_affected = 0
+            for stmt in statements:
+                cursor.execute(stmt)
+                total_affected += cursor.rowcount
+            conn.commit()
+            affected = total_affected
+            cursor.close()
+            conn.close()
+
         else:
             return jsonify({'ok': False, 'error': f'不支持的数据库类型: {db_type}'})
 
@@ -6729,6 +6935,9 @@ def _call_llm(prompt: str, system: str = '', stream_callback=None) -> str:
     cfg = _load_ai_config()
     backend = cfg.get('backend', 'ollama')
     timeout = int(cfg.get('timeout', 600))
+    # 在线模型已启用时，优先走在线后端（online_enabled 开关生效）
+    if cfg.get('online_enabled', False) and backend != 'openai':
+        backend = cfg.get('online_backend', 'openai')
 
     if backend == 'ollama':
         return _call_llm_ollama(cfg, prompt, system, timeout, stream_callback)

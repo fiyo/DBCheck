@@ -31,8 +31,23 @@ _plugin_dir = str(Path(__file__).parent)
 if _plugin_dir not in sys.path:
     sys.path.insert(0, _plugin_dir)
 
-from inspection_engine import BaseInspectionEngine
-from connection_config import MongoConnectionConfig
+from inspection_engine import (
+    BaseInspectionEngine,
+    LocalSystemInfoCollector,
+    RemoteSystemInfoCollector,
+    get_host_disk_usage,
+)
+import importlib.util
+
+# 按文件绝对路径 + 唯一模块名加载本插件自有的 connection_config，
+# 避免与 db2_jdbc 等插件的同名模块在全局 sys.modules 互相污染（本次 Bug 根因）。
+_spec = importlib.util.spec_from_file_location(
+    "mongodb_connection_config",
+    os.path.join(_plugin_dir, "connection_config.py"),
+)
+_CC = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_CC)
+MongoConnectionConfig = _CC.MongoConnectionConfig
 from version_adapter import MongoVersionAdapter
 
 
@@ -225,37 +240,68 @@ class MongodbInspector(BaseInspectionEngine):
 
         # 2. 采集各项数据
         try:
-            # 基础信息
-            self._collect_version()
-            self._collect_server_status()
-            self._collect_connections()
-            self._collect_memory()
-            self._collect_db_stats()
-            self._collect_collections()
+            # 采集步骤清单（标签用于进度日志），部分方法需传入 self.context
+            _ctx_methods = {'_collect_sharded_dbs', '_collect_sharded_collections',
+                            '_collect_chunk_distribution', '_collect_balancer_status'}
+            collect_steps = [
+                ('_collect_version', '版本信息'),
+                ('_collect_server_status', '服务器状态'),
+                ('_collect_connections', '连接信息'),
+                ('_collect_memory', '内存使用'),
+                ('_collect_db_stats', '数据库统计'),
+                ('_collect_collections', '集合信息'),
+                ('_collect_users', '用户列表'),
+                ('_collect_roles', '角色列表'),
+                ('_collect_opcounters', '操作计数器'),
+                ('_collect_global_lock', '全局锁'),
+                ('_collect_wired_tiger', 'WiredTiger'),
+                ('_collect_repl_status', '副本集状态'),
+                ('_collect_shards', '分片信息'),
+                ('_collect_sharded_dbs', '分片数据库'),
+                ('_collect_sharded_collections', '分片集合'),
+                ('_collect_chunk_distribution', 'Chunk 分布'),
+                ('_collect_balancer_status', '均衡器状态'),
+                ('_collect_profile', 'Profiler'),
+                ('_collect_slow_queries', '慢查询'),
+            ]
+            total = len(collect_steps) + 1  # +1 用于基线检查
+            for i, (method, label) in enumerate(collect_steps, 1):
+                self.print_progress_bar(i, total, prefix='[MongoDB]', suffix=f'{label} ({i}/{len(collect_steps)})')
+                if method in _ctx_methods:
+                    getattr(self, method)(self.context)
+                else:
+                    getattr(self, method)()
 
-            # 安全信息
-            self._collect_users()
-            self._collect_roles()
-
-            # 性能指标
-            self._collect_opcounters()
-            self._collect_global_lock()
-            self._collect_wired_tiger()
-
-            # 高可用
-            self._collect_repl_status()
-            self._collect_shards()
-            self._collect_sharded_dbs(self.context)
-            self._collect_sharded_collections(self.context)
-            self._collect_chunk_distribution(self.context)
-            self._collect_balancer_status(self.context)
-
-            # 慢查询 / Profiler
-            self._collect_profile()
-            self._collect_slow_queries()
-
-            # 基线检查
+            # 基线检查（末步进度）
+            self.print_progress_bar(total, total, prefix='[MongoDB]', suffix='基线检查')
             self._check_baselines()
+
+            # 系统资源采集（Issue 3：所有库型统一补充 system_info，供报告"系统资源"章节使用）
+            try:
+                if getattr(self, 'ssh_info', None) and self.ssh_info.get('ssh_host'):
+                    _collector = RemoteSystemInfoCollector(
+                        host=self.ssh_info['ssh_host'], port=self.ssh_info.get('ssh_port', 22),
+                        username=self.ssh_info.get('ssh_user', 'root'),
+                        password=self.ssh_info.get('ssh_password'), key_file=self.ssh_info.get('ssh_key_file')
+                    )
+                    if not _collector.connect():
+                        _collector = LocalSystemInfoCollector()
+                else:
+                    _collector = LocalSystemInfoCollector()
+                _sys_info = _collector.get_system_info()
+                _disk_list = _sys_info.get('disk_list') or _sys_info.get('disk') or get_host_disk_usage()
+                if isinstance(_disk_list, dict):
+                    _disk_list = list(_disk_list.values())
+                _sys_info['disk_list'] = _disk_list
+                self.context.update({"system_info": _sys_info})
+            except Exception as e:
+                print(f"[MongoDB] 系统信息采集失败: {e}")
+                self.context.update({"system_info": {
+                    'platform': '未知', 'boot_time': '未知',
+                    'cpu': {}, 'memory': {},
+                    'disk_list': [{'device': 'C:', 'mountpoint': 'C:\\', 'fstype': 'NTFS',
+                                   'total_gb': 0, 'used_gb': 0, 'free_gb': 0, 'usage_percent': 0}]
+                }})
 
             print("[MongoDB] 数据采集完成，context keys: %s" % list(self.context.keys()))
             return self.context

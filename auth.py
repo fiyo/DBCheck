@@ -4,7 +4,7 @@
 # Copyright (c) 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
 #
 # This file is part of DBCheck, an open-source database health inspection tool.
-# DBCheck is released under the MIT License with Attribution Requirements.
+# DBCheck Professional — 专有商业软件，保留一切权利（Proprietary Software, All Rights Reserved）.
 # See LICENSE for full license text.
 #
 
@@ -24,10 +24,7 @@ from datetime import datetime
 from functools import wraps
 from flask import session, request, jsonify, redirect
 
-# RBAC 数据库路径（项目根目录）
-# dev 下 auth.py 位于仓库根，dirname(__file__) 即仓库根；
-# 打包后 auth.py 位于 <dist>/_internal/auth.py，dirname(__file__) 即 <dist>/_internal（数据随包复制于此），
-# 与 user_management/models/db_manager.py 解析出的路径一致。
+# RBAC 数据库路径（项目目录，跟着项目走）
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UM_RBAC_DB_PATH = os.path.join(_BASE_DIR, 'user_management', 'db', 'um_rbac.db')
 USERS_DB_PATH   = os.path.join(_BASE_DIR, 'user_management', 'db', 'users.db')
@@ -150,64 +147,7 @@ def init_default_user():
                     (admin_user_id, admin_role['id'])
                 )
                 print("  [OK] 已为 admin 用户分配 admin 角色")
-        # 初始化菜单数据（补充缺失的菜单项，已存在的不会重复插入）
-        try:
-            menus_data = [
-                    ('home',             '首页',            0, 10),
-                    ('wizard',           '数据库巡检',       0, 21),
-                    ('dm8-offline',      'DM8离线存储检查',   0, 22),
-                    ('server-inspect',   '服务器巡检',       0, 23),
-                    ('scheduler',        '任务调度',         0, 24),
-                    ('awr',              'AWR报告',         0, 25),
-                    ('reports',          '巡检报告',         0, 26),
-                    ('server-history',   '历史记录',         0, 27),
-                    ('trend',            '趋势分析',         0, 28),
-                    ('datasources',     '数据源管理',       0, 31),
-                    ('inspection-config','巡检配置',         0, 32),
-                    ('baseline-config',  '基线配置',         0, 33),
-                    ('server-thresholds', '阈值设置',        0, 34),
-                    ('rules',            '规则管理',         0, 35),
-                    ('rag',              '知识库',          0, 36),
-                    ('plugin-market',    '插件市场',         0, 41),
-                    ('sql-editor',       'SQL编辑器',       0, 42),
-                    ('remote-shell',     '远程终端',         0, 43),
-                    ('monitor-slow',     '慢查询监控',       0, 51),
-                    ('monitor-conn',     '连接池监控',       0, 52),
-                    ('ai',               'AI助手',          0, 53),
-                    ('oracle-client',    'Oracle客户端',     0, 54),
-                    ('notifier',         '通知管理',         0, 55),
-                    ('apikey',           'API密钥',         0, 56),
-                    ('shares',           '共享管理',         0, 57),
-                    ('data-management',   '数据管理',         0, 66),
-                    ('about',            '关于DBCheck',      0, 67),
-                ]
-            new_menu_ids = []
-            for code, name, pid, order in menus_data:
-                try:
-                    cur = conn.execute(
-                        "INSERT OR IGNORE INTO um_menu(menu_code, menu_name, parent_id, sort_order, menu_type) VALUES(?,?,?,?,?)",
-                        (code, name, pid, order, 1)
-                    )
-                    if cur.rowcount > 0:
-                        new_menu_ids.append(cur.lastrowid)
-                        print(f"  [OK] 新增菜单: {code} ({name})")
-                except Exception:
-                    pass
-
-            # 给 admin 角色分配新菜单的管理权限
-            if new_menu_ids:
-                admin_role = conn.execute("SELECT id FROM um_role WHERE role_code='admin'").fetchone()
-                admin_perm = conn.execute("SELECT id FROM um_permission WHERE perm_level=1").fetchone()
-                if admin_role and admin_perm:
-                    for mid in new_menu_ids:
-                        conn.execute(
-                            "INSERT OR IGNORE INTO um_role_menu_perm(role_id, menu_id, perm_id) VALUES(?,?,?)",
-                            (admin_role['id'], mid, admin_perm['id'])
-                        )
-                    print(f"  [OK] admin 角色已分配 {len(new_menu_ids)} 个新菜单权限")
-        except Exception as e:
-            print(f"  [WARN] 菜单初始化失败: {e}")
-
+        # 菜单数据统一由 user_management/seed.py 的 sync_menus() 管理，此处不再插入；此处仅提交用户/角色变更
         conn.commit()
     except Exception as e:
         print(f"  [WARN] RBAC 用户初始化失败: {e}")

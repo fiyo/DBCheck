@@ -1,145 +1,93 @@
-MIT License with Attribution Requirements
+专有软件许可协议
+PROPRIETARY SOFTWARE LICENSE AGREEMENT
 
-Copyright (c) 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
-Original Project: DBCheck — https://github.com/fiyo/DBCheck
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the following conditions:
+版权所有 © 2025-2026 fiyo（Jack Ge）<sdfiyon@gmail.com>
+原始项目：DBCheck — https://github.com/fiyo/DBCheck
+官方网站：https://dbcheck.top
 
 ───────────────────────────────────────────────
-STANDARD MIT CONDITIONS
+重要提示
 ───────────────────────────────────────────────
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+本软件为专有商业软件。本协议构成您与软件著作权人之间的法律协议。
+下载、安装、复制或使用本软件之任何部分，即表示您同意受本协议全部条款约束。
+如您不同意本协议任何条款，请勿下载、安装或使用本软件。
 
 ───────────────────────────────────────────────
-ADDITIONAL TERMS (permitted under MIT §Additional Terms)
+第一条  授权与权利保留
 ───────────────────────────────────────────────
 
-The following additional terms supplement the MIT License above. By using,
-copying, modifying, or distributing the Software, you agree to comply with
-these additional requirements:
+1.1 本软件及其全部副本、文档、源代码、目标代码及相关材料（统称"软件"）的
+    著作权、商业秘密及其他一切知识产权，均归 fiyo（Jack Ge）所有。
+    著作权人保留一切未在本协议中明确授予之权利。
 
-1. ATTRIBUTION — PROMINENT DISPLAY OF ORIGINAL AUTHORSHIP
-
-   Any product, service, or derivative work that incorporates or is derived
-   from this Software must include a clearly visible attribution statement in
-   at least one of the following locations:
-
-     (a) An "About" screen, "Credits" section, or equivalent user-facing page;
-     (b) The product's official documentation or README file;
-     (c) The software's splash screen or startup interface (if applicable).
-
-   The attribution must read substantially as follows:
-
-     "Powered by DBCheck, originally developed by fiyo (Jack Ge).
-      Source: https://github.com/fiyo/DBCheck"
-
-   The attribution must not be hidden, rendered in a font size smaller than
-   the surrounding text, or placed in a location that a typical user would
-   not reasonably encounter.
-
-2. MODIFIED VERSION NOTICE
-
-   If you distribute a modified version of the Software, you must:
-
-     (a) Clearly state in your documentation, README, and user interface that
-         your version is a fork or modified derivative of DBCheck;
-     (b) Include a notice such as: "This is a modified version of DBCheck.
-         The original project is maintained by fiyo at
-         https://github.com/fiyo/DBCheck";
-     (c) Not represent your modified version as the official DBCheck release.
-
-   You may not use the name "DBCheck" as the primary product name of your
-   modified distribution in a manner that could cause confusion about the
-   origin of the software.
-
-3. TRADEMARK AND BRAND PROTECTION
-
-   The name "DBCheck", the DBCheck logo, and associated branding are the
-   trademarks of fiyo (Jack Ge). These terms do not grant you any right to use
-   such trademarks except as required for reasonable and customary use in
-   describing the origin of the Software and reproducing the content of the
-   attribution notice.
-
-   You may not:
-
-     (a) Use "DBCheck" as the product name for a competing commercial product
-         without prior written permission from the copyright holder;
-     (b) Represent that your product is officially endorsed, certified, or
-         maintained by the original author(s) without written permission.
-
-4. NO IMPERSONATION
-
-   You may not claim to be the original author of this Software. You may not
-   remove, alter, or obscure the original copyright notice, author information,
-   or any indication of origin from any source files, documentation, or
-   user-facing materials.
-
-5. COMMERCIAL USE — NOTIFICATION ENCOURAGED
-
-   Commercial use (including SaaS, embedded use in commercial products, and
-   enterprise deployments) is permitted under this license. However, the
-   copyright holder kindly requests that commercial users notify the original
-   author via email at sdfiyon@gmail.com. This is a courtesy request, not a
-   legal requirement.
-
-6. USER SHOWCASE RIGHTS
-
-   By using this Software in a publicly accessible product, service, or
-   deployment, you grant the original author the right to:
-
-     (a) Display your organization's name, trademark, and logo on the
-         DBCheck project repository (e.g., GitHub README), official website
-         (dbcheck.top), documentation, and related promotional materials
-         as a user of the Software;
-
-     (b) Reference your use of the Software in case studies, presentations,
-         and articles, provided that such references do not disclose
-         confidential information about your implementation.
-
-   If you do not wish to be listed, you may opt out by sending a written
-   request to sdfiyon@gmail.com. The original author will remove the listing
-        within 30 days of receiving such request.
-
-7. MEMORIAL GRAYSCALE MODE (DESIGN RETENTION)
-
-   Every year from May 19 to May 21, the DBCheck interface enters a forced
-   grayscale mode and users cannot switch themes. This is an intentional
-   design commemorating the project's anniversary, not a defect.
-
-   You are permitted to modify or remove this behavior in your own fork.
-   However, the original author kindly requests that downstream
-   distributions preserve this design as a tribute to the project. Removal
-   is allowed but respectfully discouraged.
-
-   ── 纪念日灰度模式（设计保留）──
-
-   每年 5 月 19 日至 5 月 25 日，DBCheck 界面将强制以灰度模式显示，用户
-   无法切换主题。这是为纪念项目周年而刻意保留的设计，并非缺陷。
-
-   你有权在自己的分支中修改或移除该行为。但原作者恳请下游发行版保留此
-   设计，作为对项目的致敬。允许移除，但恳请勿轻易去掉。
+1.2 著作权人仅授予您一项有限、非独占、不可转让、不可再许可的使用许可，
+    允许您在遵守本协议全部条款的前提下，将本软件用于您自身的内部业务用途。
 
 ───────────────────────────────────────────────
-CONTACT
+第二条  禁止行为（核心限制）
 ───────────────────────────────────────────────
 
-For licensing inquiries, commercial partnerships, or attribution questions:
+未经著作权人书面事先授权，您不得，且不得允许任何第三方：
+
+  (a) 复制、传播、分发、发布、出租、出借、转售或再许可本软件或其任何部分；
+  (b) 对本软件进行修改、翻译、改编、整合，或创作任何衍生作品；
+  (c) 对本软件进行反向工程、反编译、反汇编，或试图提取其源代码、算法
+      与数据结构；
+  (d) 移除、遮盖或更改本软件中任何著作权声明、商标、标识或权属信息；
+  (e) 将本软件用于任何商业再分发、SaaS 化对外服务，或嵌入其他产品进行分发。
+
+───────────────────────────────────────────────
+第三条  商标与品牌
+───────────────────────────────────────────────
+
+"DBCheck"名称、标识及相关品牌资产为 fiyo（Jack Ge）之商标。本协议不授予
+任何商标使用权。未经书面许可，您不得在任何产品中暗示与 DBCheck 的关联、
+合作或官方背书。
+
+───────────────────────────────────────────────
+第四条  保密
+───────────────────────────────────────────────
+
+本软件包含商业秘密。您应采取合理措施，防止其被未经授权地披露、复制或使用。
+
+───────────────────────────────────────────────
+第五条  无担保与责任限制
+───────────────────────────────────────────────
+
+本软件按"现状"提供，不作任何明示或默示担保。在任何情况下，著作权人及
+其供应商均不对因使用或无法使用本软件所导致的任何直接、间接、附带、特殊或
+后果性损失承担责任，即使已被告知该等损失之可能性。
+
+───────────────────────────────────────────────
+第六条  协议终止
+───────────────────────────────────────────────
+
+若您违反本协议任一条款，本授权将自动终止，您须立即停止使用并销毁所持有的
+全部软件副本。终止不影响著作权人寻求其他法律救济之权利。
+
+───────────────────────────────────────────────
+第七条  纪念日灰度模式（设计保留）
+───────────────────────────────────────────────
+
+每年 5 月 19 日至 5 月 21 日，DBCheck 界面将强制以灰度模式显示，用户无法
+切换主题。此为纪念项目周年而刻意保留之设计。本商业发行版同样保留此行为，
+不得修改或绕过。
+
+───────────────────────────────────────────────
+第八条  适用法律与联系方式
+───────────────────────────────────────────────
+
+本协议受相关司法管辖区法律约束。商业授权、合作与定制事宜，请联系：
 
   Author : fiyo (Jack Ge)
   Email  : sdfiyon@gmail.com
   Project: https://github.com/fiyo/DBCheck
   Website: https://dbcheck.top
+
+───────────────────────────────────────────────
+免责声明
+───────────────────────────────────────────────
+
+本协议文本由著作权人拟订，旨在明确软件之专有属性与使用限制。正式商业授权
+以双方签署的书面许可协议为准；如有疑问，建议咨询法律专业人士。

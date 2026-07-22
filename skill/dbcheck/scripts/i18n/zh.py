@@ -3,7 +3,7 @@
 # Copyright (c) 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
 #
 # This file is part of DBCheck, an open-source database health inspection tool.
-# DBCheck is released under the MIT License with Attribution Requirements.
+# DBCheck Professional — 专有商业软件，保留一切权利（Proprietary Software, All Rights Reserved）.
 # See LICENSE for full license text.
 #
 """DBCheck 中文翻译数据"""
@@ -498,7 +498,7 @@ ZI = {
     "report.fix_chapter": "修复速查",
     "report.ai_chapter": "AI 智能诊断建议",
     "report.ai_disclaimer": "以下建议由 AI 大模型基于本次巡检数据自动生成，仅供参考，实际操作请结合业务场景谨慎评估。",
-    "report.ai_disabled": "AI 诊断未启用。如需开启，请在 Web UI「AI 诊断设置」中配置后端（仅支持本地 Ollama）",
+    "report.ai_disabled": "AI 诊断未启用。如需开启，请在 Web UI「AI 诊断设置」中配置后端（支持本地 Ollama 或在线模型）",
     # P3: 配置基线和索引健康章节
     "report.config_baseline_chapter": "配置基线检查",
     "report.config_baseline_summary": "共 {critical} 项严重偏离 / {warning} 项警告 / {info} 项提示",
@@ -1234,7 +1234,7 @@ ZI = {
     "report.html_db_jobs":         "数据库作业",
     "report.html_alert":           "Alert 日志错误（近7天）",
     "report.html_ai":             "AI 诊断建议",
-    "report.html_ai_disabled":     "AI 诊断未启用或无可用建议。请在 ai_config.json 中配置 Ollama 后重新巡检以获取 AI 诊断。",
+    "report.html_ai_disabled":     "AI 诊断未启用或无可用建议。请在 ai_config.json 中配置 Ollama 或在线模型后重新巡检以获取 AI 诊断。",
     "report.html_no_data":        "无数据",
     "report.html_no_rman":        "近30天无RMAN备份记录",
     "report.html_no_rac":         "非RAC环境或无数据",

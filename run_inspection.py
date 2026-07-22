@@ -4,7 +4,7 @@
 # Copyright (c) 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
 #
 # This file is part of DBCheck, an open-source database health inspection tool.
-# DBCheck is released under the MIT License with Attribution Requirements.
+# DBCheck Professional — 专有商业软件，保留一切权利（Proprietary Software, All Rights Reserved）.
 # See LICENSE for full license text.
 #
 
@@ -161,7 +161,7 @@ def run_mysql(db_info, inspector_name, ssh_info=None):
     # 保存巡检记录到 Pro 模块
     _record_inspection('mysql', db_info, ret, ofile)
 
-    return ofile, file_name
+    return ofile, file_name, ret
 
 
 def run_mariadb(db_info, inspector_name, ssh_info=None):
@@ -340,7 +340,7 @@ def run_pg(db_info, inspector_name, ssh_info=None):
     # 保存巡检记录到 Pro 模块
     _record_inspection('pg', db_info, ret, ofile)
 
-    return ofile, file_name
+    return ofile, file_name, ret
 
 
 def run_oracle_full(db_info, inspector_name, ssh_info=None):
@@ -389,8 +389,8 @@ def run_oracle_full(db_info, inspector_name, ssh_info=None):
     args.desensitize = bool(db_info.get('desensitize', False))
 
     # ── 调用 single_inspection() ─────────────────────────────
-    context = mod.single_inspection(args)
-    if context is None:
+    ret = mod.single_inspection(args)
+    if ret is None:
         raise RuntimeError("无法建立数据库连接，请检查连接参数")
 
     # ── 查找刚生成的报告文件 ─────────────────────────────
@@ -416,9 +416,9 @@ def run_oracle_full(db_info, inspector_name, ssh_info=None):
             file_name = None
 
     # ── 保存巡检记录到 Pro 模块 ─────────────────────────────
-    _record_inspection('oracle', db_info, context, ofile)
+    _record_inspection('oracle', db_info, ret, ofile)
 
-    return ofile, file_name
+    return ofile, file_name, ret
 
 
 def run_dm(db_info, inspector_name, ssh_info=None):
@@ -466,7 +466,7 @@ def run_dm(db_info, inspector_name, ssh_info=None):
     # 保存巡检记录到 Pro 模块
     _record_inspection('dm', db_info, ret, ofile)
 
-    return ofile, file_name
+    return ofile, file_name, ret
 
 
 def run_sqlserver(db_info, inspector_name, ssh_info=None):
@@ -501,7 +501,7 @@ def run_sqlserver(db_info, inspector_name, ssh_info=None):
     # 保存巡检记录到 Pro 模块
     _record_inspection('sqlserver', db_info, data.data, data.report_path)
 
-    return data.report_path, os.path.basename(data.report_path)
+    return data.report_path, os.path.basename(data.report_path), data.data
 
 
 def run_tidb(db_info, inspector_name, ssh_info=None):
@@ -560,7 +560,7 @@ def run_tidb(db_info, inspector_name, ssh_info=None):
     # 保存巡检记录到 Pro 模块
     _record_inspection('tidb', db_info, ret, ofile)
 
-    return ofile, file_name
+    return ofile, file_name, ret
 
 
 def run_ivorysql(db_info, inspector_name, ssh_info=None):
@@ -620,7 +620,7 @@ def run_ivorysql(db_info, inspector_name, ssh_info=None):
 
     _record_inspection('ivorysql', db_info, ret, ofile)
 
-    return ofile, file_name
+    return ofile, file_name, ret
 
 
 def run_yashandb(db_info, inspector_name, ssh_info=None):
@@ -666,7 +666,7 @@ def run_yashandb(db_info, inspector_name, ssh_info=None):
 
     _record_inspection('yashandb', db_info, ret, ofile)
 
-    return ofile, file_name
+    return ofile, file_name, ret
 
 
 def run_gbase(db_info, inspector_name, ssh_info=None):
@@ -707,7 +707,7 @@ def run_gbase(db_info, inspector_name, ssh_info=None):
         raise RuntimeError("Word 报告渲染失败")
 
     _record_inspection('gbase', db_info, ret, output_file)
-    return output_file, file_name
+    return output_file, file_name, ret
 
 
 
@@ -755,7 +755,7 @@ def run_kingbase(db_info, inspector_name, ssh_info=None):
 
     _record_inspection('kingbase', db_info, ret, ofile)
 
-    return ofile, file_name
+    return ofile, file_name, ret
 
 
 def run_config_baseline(db_info, db_type, output_format='txt'):

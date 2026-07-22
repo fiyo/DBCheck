@@ -3,7 +3,7 @@
 # Copyright (c) 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
 #
 # This file is part of DBCheck, an open-source database health inspection tool.
-# DBCheck is released under the MIT License with Attribution Requirements.
+# DBCheck Professional — 专有商业软件，保留一切权利（Proprietary Software, All Rights Reserved）.
 # See LICENSE for full license text.
 #
 
@@ -1045,7 +1045,7 @@ def api_market_registry():
                         'rating': manifest.get('rating', 0),
                         'downloads': 0,
                         'source': 'local',
-                        'installed': True,
+                        'installed': os.path.isdir(os.path.join(plugins_base, 'enabled', item)),
                         'author_type': 'community',
                     })
                 except Exception as e:

@@ -7,6 +7,11 @@ __pycache__/
 *.orig
 copyright_registration/
 *.docx
+# 顶层与插件 Word 模板（*.docx 全局忽略，但模板需纳入版本库）
+!templates/
+!templates/*.docx
+!plugins/available/oracle_jdbc/templates/
+!plugins/available/oracle_jdbc/templates/*.docx
 *.pdf
 PUBLISH*.md
 test_dm_*.py
@@ -46,6 +51,7 @@ drivers/oracle_client/darwin_x64
 awr_uploads/
 data/*.db
 data/agreement_violation.json
+data/autobackup/
 drivers_bak/*
 commit_msg.txt
 docker_images/*
@@ -72,3 +78,22 @@ export_*.py
 # oracle_jdbc 插件源（available）所需的同名模板；启用时复制到 enabled 运行态
 !plugins/available/oracle_jdbc/templates/
 !plugins/available/oracle_jdbc/templates/*.docx
+
+# ═══════════════════════════════════════════════════════════════════
+#  禁止提交 / 推送（硬性安全规则）：以下任何内容都不得纳入版本库
+#    · 含密码 / 密钥 / 凭据的配置文件（dbc_config.json、ai_config.json、
+#      .env、.db_key、license.key、notifier_config.json、instances.json 等）
+#    · 设计文档（docs/design/：架构 / 方案 / 设计稿）
+#    · 构建产物（dist/）
+#    · 版权登记 / 软著材料（copyright_registration/）
+#    · 运行时数据与日志（data/、history.json、*.log 等）
+#  提交时须用显式文件列表 `git add <具体文件>`，禁止 `git add .` / `git add -A`
+# ═══════════════════════════════════════════════════════════════════
+
+# 设计文档：禁止提交
+docs/design/
+
+# 临时 QA/调试脚本：禁止提交
+# 说明：开发期一次性验证脚本、调试片段请统一放在 qa-temp/ 目录下，
+#       该目录整体被 git 忽略，避免污染版本库。
+qa-temp/

@@ -3,7 +3,7 @@
 # Copyright (c) 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
 #
 # This file is part of DBCheck, an open-source database health inspection tool.
-# DBCheck is released under the MIT License with Attribution Requirements.
+# DBCheck Professional — 专有商业软件，保留一切权利（Proprietary Software, All Rights Reserved）.
 # See LICENSE for full license text.
 #
 
@@ -423,7 +423,7 @@ class MonitorEngine:
             try:
                 import yasdb
             except ImportError:
-                raise RuntimeError("YashanDB 驱动未安装，请执行: pip install yasdb")
+                raise RuntimeError("YashanDB 驱动未安装，请先安装 yasdb 驱动后再使用崖山数据库监控。")
             return yasdb.connect(host=host, port=port, user=user, password=password)
 
         else:

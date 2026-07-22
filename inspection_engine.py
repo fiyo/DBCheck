@@ -3,7 +3,7 @@
 # Copyright (c) 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
 #
 # This file is part of DBCheck, an open-source database health inspection tool.
-# DBCheck is released under the MIT License with Attribution Requirements.
+# DBCheck Professional — 专有商业软件，保留一切权利（Proprietary Software, All Rights Reserved）.
 # See LICENSE for full license text.
 #
 
@@ -263,6 +263,161 @@ def get_host_disk_usage():
                 except (PermissionError, OSError): continue
     except Exception: pass
     return disks
+
+
+# ============================================================
+# 系统资源章节渲染（单一真源，供各库型 _append_chapters 调用）
+# ============================================================
+def render_system_resource_chapter(doc, context, lang, chapter_prefix=''):
+    """在 doc 末尾追加「系统资源（CPU / 内存 / 硬盘）」章节与 4 张表。
+
+    单一真源：被 BaseInspectionEngine._append_chapters 与 oracle_jdbc 自有
+    _append_chapters 调用，禁止两处各写一份（避免漂移）。
+    所有展示字符串均走 i18n._t(key, default=...)，任意语言缺键都不崩溃。
+
+    Args:
+        doc: python-docx Document 对象（已加载报告）。
+        context: 巡检上下文 dict，需含 'system_info'。
+        lang: 语言代码（'zh' 等）。
+        chapter_prefix: 章节号前缀，如 "第N章" / "Chapter N:"（可空）。
+    """
+    try:
+        from docx.shared import RGBColor, Pt
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        from docx.oxml.ns import qn
+        from docx.oxml import parse_xml
+        from docx.oxml.ns import nsdecls
+    except Exception:
+        return
+
+    def _t(key, default=''):
+        try:
+            from i18n import t as _i18n_t
+            return _i18n_t(key, lang=lang, default=default)
+        except Exception:
+            return default
+
+    def _set_cell_bg(cell, hex_color):
+        shading = parse_xml(f'<w:shd {nsdecls("w")} w:fill="{hex_color}"/>')
+        cell._tc.get_or_add_tcPr().append(shading)
+
+    def _add_heading(text, level=1):
+        h = doc.add_heading(text, level=level)
+        for run in h.runs:
+            run.font.name = '微软雅黑'
+            run._element.rPr.rFonts.set(qn('w:eastAsia'), '微软雅黑')
+            run.font.color.rgb = RGBColor(0, 51, 102)
+            run.font.size = Pt(14) if level == 1 else Pt(12)
+        return h
+
+    def _fmt_kv_table(rows):
+        """生成 2 列表（项目 / 值），带表头与底色。"""
+        tbl = doc.add_table(rows=1 + len(rows), cols=2, style='Table Grid')
+        headers = [_t('report.system_resource_col_item', default='项目'),
+                   _t('report.system_resource_col_value', default='值')]
+        for j, htext in enumerate(headers):
+            cell = tbl.rows[0].cells[j]
+            cell.text = htext
+            _set_cell_bg(cell, '336699')
+            for p in cell.paragraphs:
+                for run in p.runs:
+                    run.font.size = Pt(9); run.font.name = '微软雅黑'; run.bold = True
+                    run.font.color.rgb = RGBColor(255, 255, 255)
+        for i, (k, v) in enumerate(rows, 1):
+            tbl.rows[i].cells[0].text = '' if k is None else str(k)
+            tbl.rows[i].cells[1].text = '' if v is None else str(v)
+            for j in (0, 1):
+                for p in tbl.rows[i].cells[j].paragraphs:
+                    for run in p.runs:
+                        run.font.size = Pt(9); run.font.name = '微软雅黑'
+        doc.add_paragraph()
+        return tbl
+
+    system_info = context.get('system_info') or {}
+
+    # ── 章节标题 ──
+    title = _t('report.system_resource_title', default='系统资源（CPU / 内存 / 硬盘）')
+    if chapter_prefix:
+        title = f"{chapter_prefix} {title}"
+    _add_heading(title)
+
+    # ── 表1：主机概览 ──
+    _add_heading(_t('report.system_resource_host', default='主机概览'), 2)
+    _fmt_kv_table([
+        (_t('report.system_resource_col_platform', default='平台'), system_info.get('platform', '未知')),
+        (_t('report.system_resource_col_os', default='系统'), system_info.get('platform_text', '未知')),
+        (_t('report.system_resource_col_boot', default='启动时间'), system_info.get('boot_time', '未知')),
+    ])
+
+    # ── 表2：CPU ──
+    cpu = system_info.get('cpu') or {}
+    cpu_model = cpu.get('Model name') or cpu.get('model') or '未知'
+    cpu_usage = cpu.get('usage_percent', '未知')
+    _add_heading(_t('report.system_resource_cpu', default='CPU'), 2)
+    _fmt_kv_table([
+        (_t('report.system_resource_col_model', default='型号'), cpu_model),
+        (_t('report.system_resource_col_usage', default='使用率'), f"{cpu_usage}%"),
+    ])
+
+    # ── 表3：内存 ──
+    memory = system_info.get('memory') or {}
+    _add_heading(_t('report.system_resource_memory', default='内存'), 2)
+    _fmt_kv_table([
+        (_t('report.system_resource_col_total', default='总内存(MB)'), memory.get('total_mb', '未知')),
+        (_t('report.system_resource_col_used', default='已用内存(MB)'), memory.get('used_mb', '未知')),
+        (_t('report.system_resource_col_usage', default='使用率'), f"{memory.get('usage_percent', '未知')}%"),
+    ])
+
+    # ── 表4：磁盘 ──
+    disk_list = system_info.get('disk_list') or []
+    if isinstance(disk_list, dict):
+        disk_list = list(disk_list.values())
+    _add_heading(_t('report.system_resource_disk', default='磁盘'), 2)
+    disk_headers = [
+        _t('report.system_resource_col_mount', default='挂载点'),
+        _t('report.system_resource_col_total_gb', default='总容量(GB)'),
+        _t('report.system_resource_col_used_gb', default='已用(GB)'),
+        _t('report.system_resource_col_free_gb', default='可用(GB)'),
+        _t('report.system_resource_col_usage', default='使用率(%)'),
+    ]
+
+    def _render_disk_header(tbl):
+        for j, htext in enumerate(disk_headers):
+            cell = tbl.rows[0].cells[j]
+            cell.text = htext
+            _set_cell_bg(cell, '336699')
+            for p in cell.paragraphs:
+                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                for run in p.runs:
+                    run.font.size = Pt(9); run.font.name = '微软雅黑'; run.bold = True
+                    run.font.color.rgb = RGBColor(255, 255, 255)
+
+    if disk_list:
+        tbl = doc.add_table(rows=1 + len(disk_list), cols=5, style='Table Grid')
+        _render_disk_header(tbl)
+        for i, d in enumerate(disk_list, 1):
+            row = tbl.rows[i].cells
+            row[0].text = str(d.get('mountpoint', d.get('device', '未知')))
+            row[1].text = str(d.get('total_gb', '未知'))
+            row[2].text = str(d.get('used_gb', '未知'))
+            row[3].text = str(d.get('free_gb', '未知'))
+            row[4].text = f"{d.get('usage_percent', '未知')}%"
+            for j in range(5):
+                for p in row[j].paragraphs:
+                    for run in p.runs:
+                        run.font.size = Pt(9); run.font.name = '微软雅黑'
+        doc.add_paragraph()
+    else:
+        # 兜底占位行（对齐 inspection_engine.collect_data 的 disk 兜底逻辑）
+        tbl = doc.add_table(rows=2, cols=5, style='Table Grid')
+        _render_disk_header(tbl)
+        placeholder = tbl.rows[1].cells
+        placeholder[0].text = _t('report.system_resource_col_no_disk', default='无磁盘信息')
+        for j in range(5):
+            for p in placeholder[j].paragraphs:
+                for run in p.runs:
+                    run.font.size = Pt(9); run.font.name = '微软雅黑'
+        doc.add_paragraph()
 
 
 # ============================================================
@@ -651,11 +806,20 @@ class BaseInspectionEngine:
             if os.path.exists(cfg_path):
                 with open(cfg_path, 'r', encoding='utf-8') as f:
                     ai_cfg = _json.load(f).get('ai', {})
+            _online_enabled = ai_cfg.get('online_enabled', False)
+            if _online_enabled:
+                _adv_backend = ai_cfg.get('online_backend', 'openai')
+                _adv_api_url = ai_cfg.get('online_api_url') or None   # 传 None，让 AIAdvisor 用其内部 online_api_url
+                _adv_model = ai_cfg.get('online_model') or None       # 传 None，让 AIAdvisor 用其内部 online_model
+            else:
+                _adv_backend = ai_cfg.get('backend')
+                _adv_api_url = ai_cfg.get('api_url')
+                _adv_model = ai_cfg.get('model')
             advisor = AIAdvisor(
-                backend=ai_cfg.get('backend'),
+                backend=_adv_backend,
                 api_key=ai_cfg.get('api_key'),
-                api_url=ai_cfg.get('api_url'),
-                model=ai_cfg.get('model')
+                api_url=_adv_api_url,
+                model=_adv_model
             )
             if advisor.enabled:
                 label = self.context.get('co_name', [{}])[0].get('DB_NAME', 'Unknown')
@@ -685,11 +849,20 @@ class BaseInspectionEngine:
                     if os.path.exists(cfg_path):
                         with open(cfg_path, 'r', encoding='utf-8') as f:
                             ai_cfg = _json.load(f).get('ai', {})
+                    _online_enabled = ai_cfg.get('online_enabled', False)
+                    if _online_enabled:
+                        _adv_backend = ai_cfg.get('online_backend', 'openai')
+                        _adv_api_url = ai_cfg.get('online_api_url') or None   # 传 None，让 AIAdvisor 用其内部 online_api_url
+                        _adv_model = ai_cfg.get('online_model') or None       # 传 None，让 AIAdvisor 用其内部 online_model
+                    else:
+                        _adv_backend = ai_cfg.get('backend')
+                        _adv_api_url = ai_cfg.get('api_url')
+                        _adv_model = ai_cfg.get('model')
                     ai_advisor = AIAdvisor(
-                        backend=ai_cfg.get('backend'),
+                        backend=_adv_backend,
                         api_key=ai_cfg.get('api_key'),
-                        api_url=ai_cfg.get('api_url'),
-                        model=ai_cfg.get('model')
+                        api_url=_adv_api_url,
+                        model=_adv_model
                     )
                 except Exception:
                     pass
@@ -1158,7 +1331,7 @@ class BaseInspectionEngine:
         
         # 创建模板（中文封面）
         doc = Document()
-
+        
         db_type_display = {
             'dm8': 'DM8', 'mysql': 'MySQL', 'mariadb': 'MariaDB', 'postgresql': 'PostgreSQL',
             'oracle': 'Oracle', 'sqlserver': 'SQL Server',
@@ -1750,8 +1923,9 @@ class BaseInspectionEngine:
             chapters = self.context.get('_chapters', [])
             max_ch = max((ch.get('chapter_number', 0) for ch in chapters), default=0)
             ch_bl   = max_ch + 1   # 基线配置检查结果
-            ch_risk = max_ch + 2   # 风险与建议
-            ch_ai   = max_ch + 3   # AI 诊断分析
+            ch_sys  = max_ch + 2   # 系统资源（CPU / 内存 / 硬盘）
+            ch_risk = max_ch + 3   # 风险与建议
+            ch_ai   = max_ch + 4   # AI 诊断分析
             print(f"[INFO] _append_chapters: DB max_ch={max_ch}, bl={ch_bl}, risk={ch_risk}, ai={ch_ai}")
 
             # ── 基线配置检查结果 ───────────────────────────
@@ -1791,6 +1965,19 @@ class BaseInspectionEngine:
                             for run in p.runs:
                                 run.font.size = Pt(9); run.font.name = '微软雅黑'
                 doc.add_paragraph()
+
+            # ── 系统资源（CPU / 内存 / 硬盘）───────────────
+            # Issue 3：所有库型统一补系统资源章节（单一真源 render_system_resource_chapter）
+            try:
+                print(f"[INFO] _append_chapters: 开始添加系统资源章节")
+                render_system_resource_chapter(
+                    doc, self.context, self._lang,
+                    chapter_prefix=_ch_prefix(ch_sys),
+                )
+            except Exception as sys_e:
+                print(f"[ERROR] _append_chapters: 添加系统资源章节失败: {sys_e}")
+                import traceback
+                traceback.print_exc(file=sys.stdout)
 
             # ── 风险与建议 ─────────────────────────────────
             print(f"[INFO] auto_analyze count: {len(self.context.get('auto_analyze', []))}")
@@ -1875,132 +2062,9 @@ class BaseInspectionEngine:
             traceback.print_exc(file=sys.stdout)
             return False
     
-    def _build_cover(self, doc, inspector_name="Jack"):
-        """构建报告封面（子类可重写以定制品牌色/标题）。基类默认蓝色主题。
-
-        从 _fallback_render 中提取（行为保持），其它 db_type 渲染结果不变。
-        """
-        # 延迟导入 docx 相关模块
-        from docx import Document
-        from docx.shared import Pt, RGBColor, Inches, Cm
-        from docx.enum.text import WD_ALIGN_PARAGRAPH
-        from docx.enum.table import WD_TABLE_ALIGNMENT
-        from docx.oxml.ns import qn, nsdecls
-        from docx.oxml import parse_xml
-
-        def _set_cell_bg(cell, hex_color):
-            shading = parse_xml(f'<w:shd {nsdecls("w")} w:fill="{hex_color}"/>')
-            cell._tc.get_or_add_tcPr().append(shading)
-
-        # ── 封面 ────────────────────────────────────────
-        logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dbcheck_logo.png')
-        if os.path.exists(logo_path):
-            logo_para = doc.add_paragraph()
-            logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            logo_run = logo_para.add_run()
-            logo_run.add_picture(logo_path, width=Cm(3.5))
-
-        # 封面标题（根据语言）
-        is_zh = self._lang == 'zh'
-        db_type_display = {
-            'dm8': 'DM8', 'mysql': 'MySQL', 'mariadb': 'MariaDB', 'postgresql': 'PostgreSQL',
-            'oracle': 'Oracle', 'sqlserver': 'SQL Server',
-            'tidb': 'TiDB', 'ivorysql': 'IvorySQL',
-            'mongodb': 'MongoDB'
-        }.get(self.db_type, self.db_type.upper())
-
-        title_text = f'{db_type_display} 数据库健康巡检报告' if is_zh else f'{db_type_display} Database Health Inspection Report'
-        subtitle_text = 'Database Health Inspection Report' if is_zh else ''
-
-        title_para = doc.add_paragraph()
-        title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        title_run = title_para.add_run(title_text)
-        title_run.font.size = Pt(28)
-        title_run.font.bold = True
-        title_run.font.color.rgb = RGBColor(15, 75, 135)
-        title_run.font.name = '微软雅黑'
-        title_run._element.rPr.rFonts.set(qn('w:eastAsia'), '微软雅黑')
-
-        if subtitle_text:
-            sub_para = doc.add_paragraph()
-            sub_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            sub_run = sub_para.add_run(subtitle_text)
-            sub_run.font.size = Pt(14)
-            sub_run.font.italic = True
-            sub_run.font.color.rgb = RGBColor(100, 100, 100)
-            sub_run.font.name = 'Times New Roman'
-
-        doc.add_paragraph()  # 空行
-
-        # 封面信息表格
-        report_time = self.context.get('report_time', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-        health = self.context.get('health_status', 'Unknown')
-
-        # 获取实例启动时间
-        sys_info = self.context.get('system_info', {})
-        boot_time = sys_info.get('boot_time', 'Unknown') if isinstance(sys_info, dict) else 'Unknown'
-
-        cover_labels = {
-            'zh': ['服务器地址', '实例启动时间', '巡检结果', '巡检人员', '报告生成时间'],
-            'en': ['Server Address', 'Instance Start Time', 'Status', 'Inspector', 'Report Time']
-        }
-        cover_data = [
-            f"{self.host}:{self.port}",
-            boot_time,
-            health,
-            inspector_name,
-            report_time
-        ]
-
-        labels = cover_labels['zh'] if is_zh else cover_labels['en']
-        tbl = doc.add_table(rows=len(labels), cols=2, style='Table Grid')
-        tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
-        for i, (label, value) in enumerate(zip(labels, cover_data)):
-            tbl.rows[i].cells[0].text = label
-            tbl.rows[i].cells[1].text = str(value)
-            for cell in tbl.rows[i].cells:
-                cell.paragraphs[0].runs[0].font.name = '微软雅黑'
-                cell.paragraphs[0].runs[0]._element.rPr.rFonts.set(qn('w:eastAsia'), '微软雅黑')
-                cell.paragraphs[0].runs[0].font.size = Pt(10.5)
-                if cell == tbl.rows[i].cells[0]:
-                    _set_cell_bg(cell, '336699')
-                    cell.paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
-                    cell.paragraphs[0].runs[0].font.bold = True
-
     def _fallback_render(self, output_file, inspector_name="Jack"):
         """动态渲染：纯 python-docx 构建报告（无模板依赖，支持中英文）"""
         try:
-            # 语言判定：fallback 渲染单独调用，需自行定义 is_zh（主渲染方法在别处定义）
-            is_zh = self._lang == 'zh'
-
-            # MongoDB 字段 key → 中文章节子标题映射（fallback 渲染常用）
-            MONGO_SECTION_TITLES = {
-                'mongodb_version': '数据库版本',
-                'mongodb_server_status': '服务器状态',
-                'mongodb_connections': '连接信息',
-                'mongodb_memory': '内存使用情况',
-                'mongodb_db_stats': '数据库统计',
-                'mongodb_collections': '集合信息',
-                'mongodb_users': '用户列表',
-                'mongodb_roles': '角色列表',
-                'mongodb_opcounters': '操作计数器',
-                'mongodb_global_lock': '全局锁',
-                'mongodb_wired_tiger': 'WiredTiger 存储引擎',
-                'mongodb_repl_status': '副本集状态',
-                'mongodb_shards': '分片信息',
-                'mongodb_sharded_dbs': '分片数据库',
-                'mongodb_sharded_collections': '分片集合',
-                'mongodb_chunk_distribution': 'Chunk 分布',
-                'mongodb_balancer_status': '均衡器状态',
-            }
-
-            def _humanize_key(k):
-                """将 mongodb_xxx 字段 key 转为可读中文子标题。"""
-                if k in MONGO_SECTION_TITLES:
-                    return MONGO_SECTION_TITLES[k]
-                s = k[9:] if k.startswith('mongodb_') else k
-                return s.replace('_', ' ').title()
-
             # 延迟导入 docx 相关模块
             from docx import Document
             from docx.shared import Pt, RGBColor, Inches, Cm
@@ -2039,8 +2103,108 @@ class BaseInspectionEngine:
                 return p
             
             # ── 封面 ────────────────────────────────────────
-            self._build_cover(doc, inspector_name)
+            logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dbcheck_logo.png')
+            if os.path.exists(logo_path):
+                logo_para = doc.add_paragraph()
+                logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                logo_run = logo_para.add_run()
+                logo_run.add_picture(logo_path, width=Cm(3.5))
+            
+            # 封面标题（根据语言）
+            is_zh = self._lang == 'zh'
 
+            # MongoDB 字段 key → 中文章节子标题映射（fallback 渲染常用）
+            MONGO_SECTION_TITLES = {
+                'mongodb_version': '数据库版本',
+                'mongodb_server_status': '服务器状态',
+                'mongodb_connections': '连接信息',
+                'mongodb_memory': '内存使用情况',
+                'mongodb_db_stats': '数据库统计',
+                'mongodb_collections': '集合信息',
+                'mongodb_users': '用户列表',
+                'mongodb_roles': '角色列表',
+                'mongodb_opcounters': '操作计数器',
+                'mongodb_global_lock': '全局锁',
+                'mongodb_wired_tiger': 'WiredTiger 存储引擎',
+                'mongodb_repl_status': '副本集状态',
+                'mongodb_shards': '分片信息',
+                'mongodb_sharded_dbs': '分片数据库',
+                'mongodb_sharded_collections': '分片集合',
+                'mongodb_chunk_distribution': 'Chunk 分布',
+                'mongodb_balancer_status': '均衡器状态',
+            }
+
+            def _mongo_section_title(k):
+                """将 mongodb_xxx 字段 key 转为可读中文子标题。"""
+                if k in MONGO_SECTION_TITLES:
+                    return MONGO_SECTION_TITLES[k]
+                s = k[9:] if k.startswith('mongodb_') else k
+                return s.replace('_', ' ').title()
+
+            db_type_display = {
+                'dm8': 'DM8', 'mysql': 'MySQL', 'mariadb': 'MariaDB', 'postgresql': 'PostgreSQL',
+                'oracle': 'Oracle', 'sqlserver': 'SQL Server',
+                'tidb': 'TiDB', 'ivorysql': 'IvorySQL'
+            }.get(self.db_type, self.db_type.upper())
+            
+            title_text = f'{db_type_display} 数据库健康巡检报告' if is_zh else f'{db_type_display} Database Health Inspection Report'
+            subtitle_text = 'Database Health Inspection Report' if is_zh else ''
+            
+            title_para = doc.add_paragraph()
+            title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            title_run = title_para.add_run(title_text)
+            title_run.font.size = Pt(28)
+            title_run.font.bold = True
+            title_run.font.color.rgb = RGBColor(15, 75, 135)
+            title_run.font.name = '微软雅黑'
+            title_run._element.rPr.rFonts.set(qn('w:eastAsia'), '微软雅黑')
+            
+            if subtitle_text:
+                sub_para = doc.add_paragraph()
+                sub_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                sub_run = sub_para.add_run(subtitle_text)
+                sub_run.font.size = Pt(14)
+                sub_run.font.italic = True
+                sub_run.font.color.rgb = RGBColor(100, 100, 100)
+                sub_run.font.name = 'Times New Roman'
+            
+            doc.add_paragraph()  # 空行
+            
+            # 封面信息表格
+            report_time = self.context.get('report_time', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            health = self.context.get('health_status', 'Unknown')
+
+            # 获取实例启动时间
+            sys_info = self.context.get('system_info', {})
+            boot_time = sys_info.get('boot_time', 'Unknown') if isinstance(sys_info, dict) else 'Unknown'
+
+            cover_labels = {
+                'zh': ['服务器地址', '实例启动时间', '巡检结果', '巡检人员', '报告生成时间'],
+                'en': ['Server Address', 'Instance Start Time', 'Status', 'Inspector', 'Report Time']
+            }
+            cover_data = [
+                f"{self.host}:{self.port}",
+                boot_time,
+                health,
+                inspector_name,
+                report_time
+            ]
+            
+            labels = cover_labels['zh'] if is_zh else cover_labels['en']
+            tbl = doc.add_table(rows=len(labels), cols=2, style='Table Grid')
+            tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+            for i, (label, value) in enumerate(zip(labels, cover_data)):
+                tbl.rows[i].cells[0].text = label
+                tbl.rows[i].cells[1].text = str(value)
+                for cell in tbl.rows[i].cells:
+                    cell.paragraphs[0].runs[0].font.name = '微软雅黑'
+                    cell.paragraphs[0].runs[0]._element.rPr.rFonts.set(qn('w:eastAsia'), '微软雅黑')
+                    cell.paragraphs[0].runs[0].font.size = Pt(10.5)
+                    if cell == tbl.rows[i].cells[0]:
+                        _set_cell_bg(cell, '336699')
+                        cell.paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
+                        cell.paragraphs[0].runs[0].font.bold = True
+            
             doc.add_page_break()
             
             # ── 章节内容 ────────────────────────────────────
@@ -2137,16 +2301,14 @@ class BaseInspectionEngine:
                             doc.add_paragraph()
             else:
                 # 如果没有章节结构，直接渲染所有列表数据
-                _prefix1 = ('第1章 ' if is_zh else 'Chapter 1: ') + (self._t(f'report.{self.db_type}_ch_data', default='巡检数据' if is_zh else 'Inspection Data'))
-                _fmt_heading(_prefix1, level=1)
-                # 将数据段登记为第1章，避免与基线章节重复编号
-                self.context.setdefault('_chapters', []).append({'chapter_number': 1})
+                _fmt_heading(self._t(f'report.{self.db_type}_ch_data', default='巡检数据' if is_zh else 'Inspection Data'), level=1)
                 for key in sorted(self.context.keys()):
                     if key.startswith('_') or key in ('auto_analyze', 'baseline_results', 'system_info', 'health_analysis', 'report_time', 'inspector_name', 'problem_count', 'health_status', 'co_name', 'version'):
                         continue
                     val = self.context.get(key)
                     if val and isinstance(val, list) and len(val) > 0 and isinstance(val[0], dict):
-                        _fmt_heading(_humanize_key(key), level=2)
+                        _heading_key = _mongo_section_title(key) if key.startswith('mongodb_') else key
+                        _fmt_para(_heading_key, bold=True, size=11)
                         headers = list(val[0].keys())
                         qt = doc.add_table(rows=1+len(val), cols=len(headers), style='Table Grid')
                         for j, h in enumerate(headers):

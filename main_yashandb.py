@@ -4,7 +4,7 @@
 # Copyright (c) 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
 #
 # This file is part of DBCheck, an open-source database health inspection tool.
-# DBCheck is released under the MIT License with Attribution Requirements.
+# DBCheck Professional — 专有商业软件，保留一切权利（Proprietary Software, All Rights Reserved）.
 # See LICENSE for full license text.
 #
 
@@ -76,9 +76,13 @@ def saveDoc(context, ofile, ifile, inspector_name, **kwargs):
     return CompatWrapper(context, ofile, inspector, inspector_name)
 
 
-# 崖山 YashanDB 驱动（懒加载：缺失时由 connect() 友好报错，而非进程退出）
-# 与 main_dm.py 的达梦驱动处理保持一致——可选驱动，未安装即静默跳过。
-YASHANDB_DRIVER = None
+# 崖山 YashanDB 驱动（可选，未安装时不影响其它功能）
+try:
+    import yasdb as yashandb_driver
+    YASHANDB_DRIVER = 'yasdb'
+except ImportError:
+    yashandb_driver = None
+    YASHANDB_DRIVER = None
 
 
 class YashanDbInspector(BaseInspectionEngine):
@@ -100,12 +104,8 @@ class YashanDbInspector(BaseInspectionEngine):
         注意：yasdb.connect() 不需要 database 参数
         """
         try:
-            import yasdb as yashandb_driver
-        except ImportError:
-            err = _t("yashandb_driver_missing") + " 请执行: pip install yasdb"
-            print(err)
-            return False, err
-        try:
+            if yashandb_driver is None:
+                return False, _t("yashandb_driver_missing") + " 请先安装 yasdb 驱动（pip install yasdb）。"
             self.conn = yashandb_driver.connect(
                 host=self.host,
                 port=int(self.port),
