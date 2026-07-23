@@ -245,6 +245,10 @@ class MariaDBInspector(BaseInspectionEngine):
                 "SELECT 'NO_MULTI_INSTANCE' AS note WHERE 1=0;"
             )
 
+        # 单库巡检：在 MariaDB 原有覆写之后，对结果再做单库过滤。
+        from inspection_engine import scope_mysql_schema
+        scope_mysql_schema(sql_dict, self.database)
+
     def _resolve_innodb_table(self, modern, legacy):
         """解析 MariaDB 的 information_schema InnoDB 表名。
 
@@ -355,14 +359,14 @@ class MariaDBInspector(BaseInspectionEngine):
 
 
 # ── 保留原有 API 兼容性（供 web_ui.py / run_inspection.py 旧代码调用）────────
-def getData(ip, port, user, password, ssh_info=None, template_id=None):
+def getData(ip, port, user, password, ssh_info=None, template_id=None, database=None):
     """
     原有 API - 创建 MariaDBInspector 实例
 
     注意：这个函数在重构过程中保留，用于兼容 run_inspection.py 中的旧代码。
     新代码应该直接使用 MariaDBInspector 类。
     """
-    inspector = MariaDBInspector(ip, port, user, password, None, ssh_info, template_id)
+    inspector = MariaDBInspector(ip, port, user, password, database, ssh_info, template_id)
     ok, ver = inspector.connect()
     if not ok:
         return None

@@ -2333,3 +2333,104 @@ class BaseInspectionEngine:
             print(f"[ERROR] 动态渲染失败: {e}")
             import traceback; traceback.print_exc(file=sys.stdout)
             return False
+
+
+# ── MySQL/MariaDB 单库巡检：SQL 注入式过滤（代码层，不改 inspection.db）────────
+# 这些函数由 MySQLInspector / MariaDBInspector 的 _customize_queries 钩子在
+# collect_data() 加载完 sql_dict、执行前调用，原地修改 sql_dict（该函数忽略返回值，靠副作用）。
+def _mysql_escape(value):
+    """转义单库名，避免注入并破坏 SQL 字符串引号。优先使用 pymysql.escape_string。"""
+    try:
+        import pymysql
+        return pymysql.escape_string(str(value))
+    except Exception:
+        return str(value).replace("\\", "\\\\").replace("'", "''")
+
+
+def _inject_tables_schema(sql, db):
+    """把 information_schema.TABLES 来源的查询过滤到指定 schema。"""
+    if re.search(r'table_schema\s+NOT\s+IN\s*\(', sql, re.IGNORECASE):
+        return re.sub(r'table_schema\s+NOT\s+IN\s*\([^)]*\)', "table_schema = '%s'" % db, sql, flags=re.IGNORECASE)
+    if re.search(r'table_schema\s*=\s*\'', sql, re.IGNORECASE):
+        return re.sub(r"table_schema\s*=\s*'[^']*'", "table_schema = '%s'" % db, sql, flags=re.IGNORECASE)
+    m = re.search(r'FROM\s+`?information_schema`?\s*\.`?TABLES`?', sql, re.IGNORECASE)
+    if m:
+        kw = re.search(r'\b(GROUP BY|ORDER BY|LIMIT)\b', sql, re.IGNORECASE)
+        if kw:
+            return sql[:kw.start()] + " WHERE table_schema = '%s' " % db + sql[kw.start():]
+        return sql.rstrip().rstrip(';').rstrip() + " WHERE table_schema = '%s';" % db
+    return sql
+
+
+def _inject_db_privileges(sql, db):
+    """把 mysql.db 来源的查询过滤到指定 schema。"""
+    if re.search(r'FROM\s+`?mysql`?\s*\.`?db`?', sql, re.IGNORECASE):
+        if re.search(r'\bWHERE\b', sql, re.IGNORECASE):
+            return re.sub(r'\bWHERE\b', "WHERE db = '%s' AND" % db, sql, flags=re.IGNORECASE, count=1)
+        kw = re.search(r'\b(ORDER BY|LIMIT)\b', sql, re.IGNORECASE)
+        if kw:
+            return sql[:kw.start()] + " WHERE db = '%s' " % db + sql[kw.start():]
+        return sql.rstrip().rstrip(';').rstrip() + " WHERE db = '%s';" % db
+    return sql
+
+
+def _inject_object_schema(sql, db):
+    """把 performance_schema 来源的查询（object_schema）过滤到指定 schema。"""
+    if re.search(r'object_schema\s+NOT\s+IN\s*\(', sql, re.IGNORECASE):
+        return re.sub(r'object_schema\s+NOT\s+IN\s*\([^)]*\)', "object_schema = '%s'" % db, sql, flags=re.IGNORECASE)
+    return sql
+
+
+def _inject_index_stats_schema(sql, db):
+    """MariaDB 的 index_stats/unused_indexes 被覆写为 information_schema.INDEX_STATISTICS，
+    使用 table_schema（而非 object_schema）。注入单库过滤。"""
+    if not re.search(r'FROM\s+`?information_schema`?\s*\.`?INDEX_STATISTICS`?', sql, re.IGNORECASE):
+        return sql
+    if re.search(r'\bWHERE\b', sql, re.IGNORECASE):
+        return re.sub(r'\bWHERE\b', "WHERE table_schema = '%s' AND" % db, sql, flags=re.IGNORECASE, count=1)
+    kw = re.search(r'\b(ORDER BY|LIMIT)\b', sql, re.IGNORECASE)
+    if kw:
+        return sql[:kw.start()] + " WHERE table_schema = '%s' " % db + sql[kw.start():]
+    return sql.rstrip().rstrip(';').rstrip() + " WHERE table_schema = '%s';" % db
+
+
+def _inject_tidb_indexes_schema(sql, db):
+    """TiDB 的 index_stats/unused_indexes 使用 information_schema.tidb_indexes（含 TABLE_SCHEMA 列），
+    注入单库过滤。"""
+    if not re.search(r'FROM\s+`?information_schema`?\s*\.`?tidb_indexes`?', sql, re.IGNORECASE):
+        return sql
+    if re.search(r'\bWHERE\b', sql, re.IGNORECASE):
+        return re.sub(r'\bWHERE\b', "WHERE TABLE_SCHEMA = '%s' AND" % db, sql, flags=re.IGNORECASE, count=1)
+    kw = re.search(r'\b(ORDER BY|LIMIT)\b', sql, re.IGNORECASE)
+    if kw:
+        return sql[:kw.start()] + " WHERE TABLE_SCHEMA = '%s' " % db + sql[kw.start():]
+    return sql.rstrip().rstrip(';').rstrip() + " WHERE TABLE_SCHEMA = '%s';" % db
+
+
+def scope_mysql_schema(sql_dict, database):
+    """MySQL/MariaDB 单库巡检：把相关查询过滤到指定 schema。database 为空/None 时不过滤。
+
+    :param sql_dict: {query_key: sql_text}，原地修改
+    :param database: 指定数据库名；为空或 None 表示整实例巡检（不过滤）
+    """
+    if not database:
+        return sql_dict
+    db = _mysql_escape(database)
+    # information_schema.TABLES 来源（库大小 / 表大小 / 陈旧表 / 表碎片）
+    for k in ('db_size', 'table_size', 'stale_tables', 'table_fragmentation'):
+        if k in sql_dict and sql_dict[k]:
+            sql_dict[k] = _inject_tables_schema(sql_dict[k], db)
+    # mysql.db 来源（库级权限）
+    if 'db_privileges' in sql_dict and sql_dict['db_privileges']:
+        sql_dict['db_privileges'] = _inject_db_privileges(sql_dict['db_privileges'], db)
+    # 索引统计 / 未使用索引：MySQL 用 performance_schema(object_schema)，
+    # MariaDB 被覆写为 information_schema.INDEX_STATISTICS(table_schema)，两者都覆盖。
+    for k in ('index_stats', 'unused_indexes'):
+        if k in sql_dict and sql_dict[k]:
+            new_sql = _inject_object_schema(sql_dict[k], db)
+            if new_sql == sql_dict[k]:
+                new_sql = _inject_index_stats_schema(sql_dict[k], db)
+            if new_sql == sql_dict[k]:
+                new_sql = _inject_tidb_indexes_schema(sql_dict[k], db)
+            sql_dict[k] = new_sql
+    return sql_dict

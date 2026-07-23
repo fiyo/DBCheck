@@ -582,7 +582,7 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None):
             connect_test=test_mysql_connection,
             connect_test_args=lambda info: [info['ip'], info['port'], info['user'], info['password']],
             getdata_args=lambda info: ([info['ip'], info['port'], info['user'], info['password']],
-                                       {'ssh_info': {}, 'template_id': template_id}),
+                                       {'ssh_info': {}, 'template_id': template_id, 'database': info.get('database')}),
             conn_attr='conn_db2',
             smart_analyze='smart_analyze_mysql',
             filename_key='webui.mysql_report_filename',
@@ -599,7 +599,7 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None):
             connect_test=test_mysql_connection,
             connect_test_args=lambda info: [info['ip'], info['port'], info['user'], info['password']],
             getdata_args=lambda info: ([info['ip'], info['port'], info['user'], info['password']],
-                                       {'ssh_info': {}, 'template_id': template_id}),
+                                       {'ssh_info': {}, 'template_id': template_id, 'database': info.get('database')}),
             conn_attr='conn_db2',
             smart_analyze='smart_analyze_mariadb',
             filename_key='webui.mariadb_report_filename',
@@ -654,7 +654,7 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None):
             connect_test=test_tidb_connection,
             connect_test_args=lambda info: [info['ip'], info['port'], info['user'], info['password'], info.get('database', 'mysql')],
             getdata_args=lambda info: ([info['ip'], info['port'], info['user'], info['password']],
-                                       {'ssh_info': {}, 'template_id': template_id}),
+                                       {'ssh_info': {}, 'template_id': template_id, 'database': info.get('database')}),
             conn_attr='conn_db2',
             smart_analyze='smart_analyze_tidb',
             filename_key='webui.tidb_report_filename',
@@ -2785,7 +2785,7 @@ def api_start_inspection():
                 'user':      instance.get('user', ''),
                 'tenant':    instance.get('tenant', '') or '',
                 'password':  instance.get('password', ''),
-                'database':  instance.get('database') or ('admin' if db_type == 'mongodb' else ('master' if db_type == 'sqlserver' else ('DAMENG' if db_type == 'dm' else ('testdb' if db_type == 'gbase' else ('' if db_type in ('tidb', 'oceanbase') else 'postgres'))))),
+                'database':  instance.get('database') or ('admin' if db_type == 'mongodb' else ('master' if db_type == 'sqlserver' else ('DAMENG' if db_type == 'dm' else ('testdb' if db_type == 'gbase' else ('' if db_type in ('tidb', 'oceanbase', 'mysql', 'mariadb') else 'postgres'))))),
                 'service_name': instance.get('service_name', None),
                 'sysdba':    bool(instance.get('sysdba', False)),  # ← 新增（确保是布尔值）
                 'name':      instance.get('name', ''),
@@ -2805,7 +2805,7 @@ def api_start_inspection():
                 'user':      data.get('user', ''),
                 'tenant':    data.get('tenant', '') or '',
                 'password':  data.get('password', ''),
-                'database':  data.get('database') or ('admin' if db_type == 'mongodb' else ('master' if db_type == 'sqlserver' else ('DAMENG' if db_type == 'dm' else ('testdb' if db_type == 'gbase' else ('' if db_type in ('tidb', 'oceanbase') else 'postgres'))))),
+                'database':  data.get('database') or ('admin' if db_type == 'mongodb' else ('master' if db_type == 'sqlserver' else ('DAMENG' if db_type == 'dm' else ('testdb' if db_type == 'gbase' else ('' if db_type in ('tidb', 'oceanbase', 'mysql', 'mariadb') else 'postgres'))))),
                 'service_name': data.get('service_name', None),
                 'sysdba':    bool(data.get('sysdba', False)),  # ← 新增（确保是布尔值）
                 'sid':       data.get('sid', None),
@@ -5176,7 +5176,11 @@ def api_pro_datasources_test_conn():
             conn.close()
         elif db_type in ('mysql', 'tidb', 'mariadb'):
             import pymysql
-            conn = pymysql.connect(host=host, port=port, user=user, password=password, connect_timeout=10)
+            _db = data.get('database') or None
+            _conn_kwargs = dict(host=host, port=port, user=user, password=password, connect_timeout=10)
+            if _db:
+                _conn_kwargs['database'] = _db
+            conn = pymysql.connect(**_conn_kwargs)
             conn.close()
         elif db_type in ('pg', 'postgresql', 'ivorysql', 'kingbase'):
             import psycopg2

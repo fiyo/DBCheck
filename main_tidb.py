@@ -86,6 +86,10 @@ class TiDBInspector(BaseInspectionEngine):
         # STATEMENTS_SUMMARY 列名在不同 TiDB 版本差异很大，运行时动态探测
         self._fix_stmt_summary(sql_dict)
 
+        # 单库巡检过滤（与 MySQL/MariaDB 一致）：指定库名时只巡检该库
+        from inspection_engine import scope_mysql_schema
+        scope_mysql_schema(sql_dict, self.database)
+
     def _fix_stmt_summary(self, sql_dict):
         """动态探测 STATEMENTS_SUMMARY 列名并生成兼容 SQL"""
         try:
@@ -155,14 +159,14 @@ class TiDBInspector(BaseInspectionEngine):
 
 
 # ── 保留原有 API 兼容性（供 web_ui.py 旧代码调用）────────────────────
-def getData(ip, port, user, password, ssh_info=None, template_id=None):
+def getData(ip, port, user, password, ssh_info=None, template_id=None, database=None):
     """
     原有 API - 创建 TiDBInspector 实例
 
     注意：这个函数在重构过程中保留，用于兼容 web_ui.py 中的旧代码。
     新代码应该直接使用 TiDBInspector 类。
     """
-    inspector = TiDBInspector(ip, port, user, password, None, ssh_info, template_id)
+    inspector = TiDBInspector(ip, port, user, password, database, ssh_info, template_id)
     ok, ver = inspector.connect()
     if not ok:
         return None

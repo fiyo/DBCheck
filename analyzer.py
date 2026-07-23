@@ -1781,13 +1781,26 @@ Format requirement (output Markdown directly, no prefixes like "Here are"):
         if self.api_key:
             req.add_header('Authorization', f'Bearer {self.api_key}')
 
-        with urllib.request.urlopen(req, timeout=max(timeout, 300)) as resp:
-            data = _json.loads(resp.read().decode('utf-8'))
-            # OpenAI 协议响应格式: choices[0].message.content
-            choices = data.get('choices', [])
-            if choices:
-                return choices[0].get('message', {}).get('content', '').strip()
-            return ''
+        import urllib.error
+        try:
+            with urllib.request.urlopen(req, timeout=max(timeout, 300)) as resp:
+                data = _json.loads(resp.read().decode('utf-8'))
+        except urllib.error.HTTPError as e:
+            # 服务端返回 4xx/5xx：默认 urllib 只抛 "HTTP Error 500:"（reason 为空、响应体被丢弃），
+            # 真实错误原因（如上下文超长、模型名不匹配）藏在响应体里。这里读出并带进异常，
+            # 让 diagnose() 的 except 能打印出可诊断的信息。
+            _body = ''
+            try:
+                _body = e.read().decode('utf-8', errors='replace')
+            except Exception:
+                pass
+            _detail = _body[:2000] if _body else (e.reason or '')
+            raise RuntimeError(f"AI 诊断 HTTP {e.code} @ {url}: {_detail}") from e
+        # OpenAI 协议响应格式: choices[0].message.content
+        choices = data.get('choices', [])
+        if choices:
+            return choices[0].get('message', {}).get('content', '').strip()
+        return ''
 
 
 # ═══════════════════════════════════════════════════════

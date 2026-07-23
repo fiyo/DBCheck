@@ -133,7 +133,9 @@ def run_mysql(db_info, inspector_name, ssh_info=None):
     data = mod.getData(
         db_info['host'], db_info['port'],
         db_info['user'], db_info['password'],
-        ssh_info or {}
+        ssh_info or {},
+        db_info.get('template_id'),
+        db_info.get('database')
     )
     if data is None or data.conn_db2 is None:
         raise RuntimeError("无法建立数据库连接，请检查连接参数")
@@ -192,7 +194,9 @@ def run_mariadb(db_info, inspector_name, ssh_info=None):
     data = mod.getData(
         db_info['host'], db_info['port'],
         db_info['user'], db_info['password'],
-        ssh_info or {}
+        ssh_info or {},
+        db_info.get('template_id'),
+        db_info.get('database')
     )
     if data is None or data.conn_db2 is None:
         raise RuntimeError("无法建立数据库连接，请检查连接参数")
@@ -532,7 +536,9 @@ def run_tidb(db_info, inspector_name, ssh_info=None):
     data = mod.getData(
         db_info['host'], db_info['port'],
         db_info['user'], db_info['password'],
-        ssh_info or {}
+        ssh_info or {},
+        db_info.get('template_id'),
+        db_info.get('database')
     )
     if data is None or data.conn_db2 is None:
         raise RuntimeError("无法建立数据库连接，请检查连接参数")

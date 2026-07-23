@@ -97,3 +97,10 @@ docs/design/
 # 说明：开发期一次性验证脚本、调试片段请统一放在 qa-temp/ 目录下，
 #       该目录整体被 git 忽略，避免污染版本库。
 qa-temp/
+
+# 正式 pytest 测试套件（tests/）需纳入版本控制：
+# 上面全局忽略的 test_*.py / check_*.py 等针对仓库根目录的临时脚本，
+# 不应用于 tests/ 下的规范测试用例，故在此显式放行。
+!tests/
+!tests/test_*.py
+!tests/conftest.py

@@ -59,3 +59,6 @@ PyPDF2>=3.0.1           # PDF manipulation for report generation
 # ── RBAC User Management ─────────────────────────────────────────────────────
 bcrypt>=4.0.0           # Password hashing for user management
 PyJWT>=2.7.0            # JWT token generation and validation
+
+# ── Testing（开发/CI 依赖，非运行期必需）─────────────────────────────────
+pytest>=7.0.0           # 单元测试 / 集成测试套件（tests/）

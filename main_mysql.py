@@ -72,16 +72,21 @@ class MySQLInspector(BaseInspectionEngine):
         except Exception as e:
             return False, str(e)
 
+    def _customize_queries(self, sql_dict):
+        """覆盖基类空实现：MySQL 单库巡检时，把相关查询过滤到指定 schema。"""
+        from inspection_engine import scope_mysql_schema
+        scope_mysql_schema(sql_dict, self.database)
+
 
 # ── 保留原有 API 兼容性（供 web_ui.py 旧代码调用）────────────────────
-def getData(ip, port, user, password, ssh_info=None, template_id=None):
+def getData(ip, port, user, password, ssh_info=None, template_id=None, database=None):
     """
     原有 API - 创建 MySQLInspector 实例
 
     注意：这个函数在重构过程中保留，用于兼容 web_ui.py 中的旧代码。
     新代码应该直接使用 MySQLInspector 类。
     """
-    inspector = MySQLInspector(ip, port, user, password, None, ssh_info, template_id)
+    inspector = MySQLInspector(ip, port, user, password, database, ssh_info, template_id)
     ok, ver = inspector.connect()
     if not ok:
         return None
