@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DBCheck · 开源数据库智能巡检与实时监控平台</title>
-  <meta name="description" content="DBCheck v26.7.21.1 是一款开源、跨平台、支持 12 种主流与国产数据库的智能巡检与实时监控平台。内置 160+ 增强规则、实时监控大屏、本地 AI 诊断与一键报告，让数据库运维可知、可控、可防。">
+  <meta name="description" content="DBCheck v26.7.23.1 是一款开源、跨平台、支持 12 种主流与国产数据库的智能巡检与实时监控平台。内置 160+ 增强规则、实时监控大屏、本地 AI 诊断与一键报告，让数据库运维可知、可控、可防。">
   <meta name="keywords" content="数据库巡检, 数据库监控, 信创, 国产化替代, DBA工具, Kingbase, 达梦, Oracle, MySQL, PostgreSQL, 开源, 数据库可观测性">
   <meta name="author" content="Jack Ge (fiyo)">
   <meta name="robots" content="index, follow">
 
   <!-- Open Graph -->
   <meta property="og:title" content="DBCheck · 开源数据库巡检与实时监控平台">
-  <meta property="og:description" content="开源跨平台数据库智能巡检与实时监控平台 v26.7.21.1，本地 AI 诊断、数据不出网。">
+  <meta property="og:description" content="开源跨平台数据库智能巡检与实时监控平台 v26.7.23.1，本地 AI 诊断、数据不出网。">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://fiyo.github.io/DBCheck">
   <meta property="og:image" content="https://fiyo.github.io/DBCheck/dbcheck_logo_banner.png">
@@ -529,7 +529,7 @@
   <section class="hero">
     <div class="hero-inner">
       <div class="hero-copy">
-        <div class="hero-badge"><span class="pulse"></span> 社区版 · 开源 MIT 协议 · <span id="verBadge">v26.7.21.1</span></div>
+        <div class="hero-badge"><span class="pulse"></span> 社区版 · 开源 MIT 协议 · <span id="verBadge">v26.7.23.1</span></div>
         <h1>让数据库运维<br><span class="gradient-text">可知 · 可控 · 可防</span></h1>
         <p class="sub">DBCheck 是一款<strong>开源、跨平台</strong>、支持 <strong>12 种</strong>主流与国产数据库的智能巡检与实时监控平台。内置 160+ 增强规则、实时监控大屏、本地 AI 诊断与一键报告，把 DBA 的重复劳动变成一键流程。</p>
         <div class="hero-tags">
@@ -1258,7 +1258,7 @@ python web_ui.py</pre>
       'use strict';
       var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-      // ---- version badge (from version.json, fallback v26.7.21.1) ----
+      // ---- version badge (from version.json, fallback v26.7.23.1) ----
       fetch('version.json').then(function(r){return r.json();}).then(function(d){ if(d&&d.version){ var el=document.getElementById('verBadge'); if(el) el.textContent=d.version; } }).catch(function(){});
 
       // ---- mobile menu ----
