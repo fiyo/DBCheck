@@ -369,7 +369,8 @@ def getData(ip, port, user, password, ssh_info=None, template_id=None, database=
     inspector = MariaDBInspector(ip, port, user, password, database, ssh_info, template_id)
     ok, ver = inspector.connect()
     if not ok:
-        return None
+        # 不再吞掉真实错误：直接抛出，由上层（web_ui.run_inspection_task / run_inspection.py）捕获并展示真实原因
+        raise ConnectionError("MariaDB 连接失败: " + str(ver))
     # 为了兼容旧代码，返回一个对象，其中包含 conn_db2 属性
     class CompatWrapper:
         def __init__(self, inspector):
