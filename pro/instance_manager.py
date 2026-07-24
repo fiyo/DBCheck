@@ -101,6 +101,8 @@ class DatabaseInstance:
     tls_ca_file: str = ""  # TLS CA 证书路径
     tls_cert_key_file: str = ""  # TLS 客户端证书路径
     tls_allow_invalid_certs: int = 0  # 是否允许无效证书（0/1）
+    # Redis / Redis Cluster 专用
+    seed_nodes: str = ""    # 集群种子节点（逗号分隔 host:port，或 JSON 数组）
 
     def __post_init__(self):
         if self.tags is None:

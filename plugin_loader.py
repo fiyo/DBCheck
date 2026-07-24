@@ -210,10 +210,10 @@ def _init_plugin_templates(plugin_dir: Path) -> None:
             print(f"[Plugin] 模板已存在（ID: {existing[0]['id']}），跳过")
             return
         
-        # 创建模板
+        # 创建模板（is_default=1：供 get_default_template 命中，报告才能渲染章节）
         template_name_zh = f"{db_type.upper()} 默认巡检模板"
         template_name_en = f"{db_type.upper()} Default Inspection Template"
-        template_id = create_template(db_type, template_name_zh, template_name_en)
+        template_id = create_template(db_type, template_name_zh, template_name_en, is_default=1)
         print(f"[Plugin] 已创建模板（ID: {template_id}）")
         
         # 创建章节和查询

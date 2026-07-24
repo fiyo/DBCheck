@@ -40,6 +40,7 @@ pyodbc>=4.0.0           # SQL Server (also requires ODBC Driver 17)
 gbase8sdb>=0.2.0        # GBase 8s (官方 Python 驱动，需 GBase SDK)
 jaydebeapi>=1.2.0      # GBase 8s JDBC 连接（无需 SDK，需 JDK + JDBC 驱动 jar）
 pymongo>=4.6.0          # MongoDB plugin dependency
+redis>=5.0.0            # Redis / Redis Cluster plugin dependency
 
 # ── SSH & Remote Collection ───────────────────────────────────────────────────
 paramiko>=2.10.0

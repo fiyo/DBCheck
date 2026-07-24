@@ -1,0 +1,90 @@
+# -*- coding: utf-8 -*-
+# Redis 集群专属巡检规则（db_types=[redis-cluster]）
+#
+# 说明：通用规则（内存/连接/持久化/复制等）在 redis.yaml 中定义且 db_types
+#       已含 redis-cluster，集群巡检时一并生效；本文件只放集群拓扑相关规则。
+rules:
+  - id: redis_cluster_state_not_ok
+    name: Cluster state is not ok
+    name_zh: 集群状态异常
+    category: ha
+    db_types: [redis-cluster]
+    severity: critical
+    priority: critical
+    owner: DBA
+    enabled: true
+    description: cluster_state != ok
+    description_zh: cluster_state 不为 ok
+    condition: "ci is not None and len(ci)>0 and ci[0].get('CLUSTER_STATE')!='ok'"
+    params:
+      ci: "${context.redis_cluster_info}"
+    message: "Redis 集群状态异常（cluster_state != ok），请立即排查"
+    message_zh: "Redis 集群状态异常（cluster_state != ok），请立即排查"
+
+  - id: redis_cluster_slots_fail
+    name: Cluster has fail/pfail slots
+    name_zh: 集群存在故障槽位
+    category: ha
+    db_types: [redis-cluster]
+    severity: critical
+    priority: critical
+    owner: DBA
+    enabled: true
+    description: cluster_slots_fail or slots_pfail > 0
+    description_zh: 存在 fail 或 pfail 状态的槽位
+    condition: "ci is not None and len(ci)>0 and ((int(ci[0].get('CLUSTER_SLOTS_FAIL') or 0) > 0) or (int(ci[0].get('CLUSTER_SLOTS_PFAIL') or 0) > 0))"
+    params:
+      ci: "${context.redis_cluster_info}"
+    message: "Redis 集群存在故障（fail/pfail）槽位，部分数据可能不可写"
+    message_zh: "Redis 集群存在故障（fail/pfail）槽位，部分数据可能不可写"
+
+  - id: redis_cluster_slots_incomplete
+    name: Cluster slots not fully assigned
+    name_zh: 集群槽位未全部分配
+    category: ha
+    db_types: [redis-cluster]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: cluster_slots_assigned != 16384
+    description_zh: 已分配槽位不等于 16384
+    condition: "ci is not None and len(ci)>0 and (int(ci[0].get('CLUSTER_SLOTS_ASSIGNED') or 0) != 16384)"
+    params:
+      ci: "${context.redis_cluster_info}"
+    message: "Redis 集群槽位未全部分配（应 16384），集群不完整"
+    message_zh: "Redis 集群槽位未全部分配（应 16384），集群不完整"
+
+  - id: redis_cluster_node_link_down
+    name: Cluster node link not connected
+    name_zh: 集群节点连接异常
+    category: ha
+    db_types: [redis-cluster]
+    severity: critical
+    priority: critical
+    owner: DBA
+    enabled: true
+    description: any node link-state != connected
+    description_zh: 存在连接状态非 connected 的节点
+    condition: "cn is not None and len(cn)>0 and any((n.get('LINK') != 'connected') for n in cn)"
+    params:
+      cn: "${context.redis_cluster_nodes}"
+    message: "Redis 集群存在连接异常的节点，请检查网络与节点状态"
+    message_zh: "Redis 集群存在连接异常的节点，请检查网络与节点状态"
+
+  - id: redis_cluster_no_nodes
+    name: Cluster has zero known nodes
+    name_zh: 集群无可用节点
+    category: ha
+    db_types: [redis-cluster]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: cluster_known_nodes == 0 or cluster_size == 0
+    description_zh: 已知节点数或集群规模为空
+    condition: "ci is not None and len(ci)>0 and ((int(ci[0].get('CLUSTER_KNOWN_NODES') or 0) == 0) or (int(ci[0].get('CLUSTER_SIZE') or 0) == 0))"
+    params:
+      ci: "${context.redis_cluster_info}"
+    message: "Redis 集群未发现任何节点，集群可能无法正常工作"
+    message_zh: "Redis 集群未发现任何节点，集群可能无法正常工作"

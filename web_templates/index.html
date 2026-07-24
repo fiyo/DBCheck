@@ -3948,6 +3948,9 @@ function formatBytes(bytes) {
                   '<label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="ds-tls-allow-invalid" style="width:16px;height:16px;accent-color:var(--accent)" /><span style="font-size:13px;color:var(--text-muted)">允许无效证书</span></label>' +
                 '</div>' +
               '</div>' +
+              '<div id="ds-redis-seed-wrap" style="display:none">' +
+                '<label style="font-size:12px;color:var(--text-muted)">集群种子节点 <span style="color:var(--text-muted);font-weight:normal">（多个用逗号分隔 host:port）</span></label>' +
+                '<input id="ds-redis-seed-nodes" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="127.0.0.1:6379,127.0.0.1:6380"></div>' +
               '<div><label style="font-size:12px;color:var(--text-muted)">' + i18n('webui.pro_ds_group') + '</label>' +
                 '<select id="ds-group" style="width:100%;margin-top:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px">' +
                 '<option value="default">default</option></select></div>' +
@@ -4016,12 +4019,28 @@ function formatBytes(bytes) {
         // 优先从 data 属性读取（插件类型），其次用硬编码映射
         const defaultPort = opt?.getAttribute('data-port') || '';
         const defaultUser = opt?.getAttribute('data-user') || '';
-        const portMap = {mysql:3306, mariadb:3306, oceanbase:2881, pg:5432, dm:5236, oracle:1521, oracle_jdbc:1521, sqlserver:1433, tidb:4000, ivorysql:5432, yashandb:1688, kingbase:54321, gbase:9088, db2:50000};
-        const userMap = {mysql:'root', mariadb:'root', oceanbase:'root@test', pg:'postgres', dm:'SYSDBA', oracle:'system', oracle_jdbc:'system', sqlserver:'sa', tidb:'root', ivorysql:'postgres', yashandb:'sys', kingbase:'kingbase', gbase:'gbasedbt', db2:'db2inst1'};
+        const portMap = {mysql:3306, mariadb:3306, oceanbase:2881, pg:5432, dm:5236, oracle:1521, oracle_jdbc:1521, sqlserver:1433, tidb:4000, ivorysql:5432, yashandb:1688, kingbase:54321, gbase:9088, db2:50000, redis:6379, 'redis-cluster':6379};
+        const userMap = {mysql:'root', mariadb:'root', oceanbase:'root@test', pg:'postgres', dm:'SYSDBA', oracle:'system', oracle_jdbc:'system', sqlserver:'sa', tidb:'root', ivorysql:'postgres', yashandb:'sys', kingbase:'kingbase', gbase:'gbasedbt', db2:'db2inst1', redis:'', 'redis-cluster':''};
         document.getElementById('ds-port').value = (defaultPort && parseInt(defaultPort)) || portMap[dbType] || 3306;
         const userEl = document.getElementById('ds-user');
         if (dbType !== _currentDbType || !userEl.value) {
-          userEl.value = defaultUser || userMap[dbType] || 'root';
+          // redis/redis-cluster 用户名默认空（仅 ACL 场景需要），不能用 || 回退到 root
+          if (dbType === 'redis' || dbType === 'redis-cluster') {
+            userEl.value = defaultUser || '';
+          } else {
+            userEl.value = defaultUser || userMap[dbType] || 'root';
+          }
+        }
+        // Redis 用户名仅 ACL 场景需要，placeholder 提示"可选"
+        if (dbType === 'redis' || dbType === 'redis-cluster') {
+          userEl.placeholder = i18n('webui.placeholder_redis_user_opt') || '可选，仅 Redis 6.0+ ACL 用户名';
+          // 隐藏数据源表单用户名 label 的必填星号
+          var _dsUserLabel = document.querySelector('#dsForm label[data-i18n="webui.label_username"] .req');
+          if (_dsUserLabel) _dsUserLabel.style.display = 'none';
+        } else {
+          userEl.placeholder = i18n('webui.pro_ds_placeholder_user') || 'root / postgres';
+          var _dsUserLabel2 = document.querySelector('#dsForm label[data-i18n="webui.label_username"] .req');
+          if (_dsUserLabel2) _dsUserLabel2.style.display = '';
         }
         _currentDbType = dbType;
         const showDsDbField = (dbType === 'pg' || dbType === 'ivorysql' || dbType === 'kingbase' || dbType === 'gbase' || dbType === 'oceanbase' || dbType === 'db2' || dbType === 'mysql' || dbType === 'mariadb' || dbType === 'tidb');
@@ -4056,6 +4075,8 @@ function formatBytes(bytes) {
         if (gbaseWrap) gbaseWrap.style.display = dbType === 'gbase' ? '' : 'none';
         var mongoWrap = document.getElementById('ds-mongo-wrap');
         if (mongoWrap) mongoWrap.style.display = dbType === 'mongodb' ? '' : 'none';
+        var seedWrap = document.getElementById('ds-redis-seed-wrap');
+        if (seedWrap) seedWrap.style.display = dbType === 'redis-cluster' ? '' : 'none';
         // 根据数据库类型更新 database 输入框的 placeholder
         var dbInput = document.getElementById('ds-database');
         if (dbInput) {
@@ -4112,20 +4133,22 @@ function formatBytes(bytes) {
         const mongoTlsCaFile = document.getElementById('ds-tls-ca-file')?.value.trim() || '';
         const mongoTlsCertKeyFile = document.getElementById('ds-tls-cert-key-file')?.value.trim() || '';
         const mongoTlsAllowInvalid = document.getElementById('ds-tls-allow-invalid')?.checked || false;
+        const redisSeedNodes = document.getElementById('ds-redis-seed-nodes')?.value.trim() || '';
         const sshHost = document.getElementById('ds-ssh-host')?.value || '';
         const sshPort = document.getElementById('ds-ssh-port')?.value || 22;
         const sshUser = document.getElementById('ds-ssh-user')?.value || '';
         let sshPass = document.getElementById('ds-ssh-password')?.value || '';
         if (!sshPass) sshPass = _editSshPassword;
         if (!host) { msgEl.style.color = 'var(--danger)'; msgEl.textContent = '❌ 请输入主机地址'; return; }
-        if (!user) { msgEl.style.color = 'var(--danger)'; msgEl.textContent = '❌ 请输入用户名'; return; }
+        // Redis 传统模式无用户名，仅 ACL 场景需要，允许留空
+        if (!user && dbType !== 'redis' && dbType !== 'redis-cluster') { msgEl.style.color = 'var(--danger)'; msgEl.textContent = '❌ 请输入用户名'; return; }
         msgEl.style.color = 'var(--text-muted)';
         msgEl.textContent = '⏳ 测试连接中...';
         try {
           const res = await fetch('/api/pro/datasources/test-connection', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ db_type: dbType, host, port: parseInt(port), user, password, service_name: svcName, database: dbName, tenant: tenant, sysdba, jdbc_url: jdbcUrl, gbase_server_name: gbaseServer, ssh_host: sshHost, ssh_port: parseInt(sshPort), ssh_user: sshUser, ssh_password: sshPass, connect_mode: mongoConnectMode, auth_source: mongoAuthSource, auth_mechanism: mongoAuthMechanism, replica_set: mongoReplicaSet, tls: mongoTls, tls_ca_file: mongoTlsCaFile, tls_cert_key_file: mongoTlsCertKeyFile, tls_allow_invalid_certs: mongoTlsAllowInvalid })
+            body: JSON.stringify({ db_type: dbType, host, port: parseInt(port), user, password, service_name: svcName, database: dbName, tenant: tenant, sysdba, jdbc_url: jdbcUrl, gbase_server_name: gbaseServer, ssh_host: sshHost, ssh_port: parseInt(sshPort), ssh_user: sshUser, ssh_password: sshPass, connect_mode: mongoConnectMode, auth_source: mongoAuthSource, auth_mechanism: mongoAuthMechanism, replica_set: mongoReplicaSet, tls: mongoTls, tls_ca_file: mongoTlsCaFile, tls_cert_key_file: mongoTlsCertKeyFile, tls_allow_invalid_certs: mongoTlsAllowInvalid, seed_nodes: redisSeedNodes })
           });
           const data = await res.json();
           msgEl.style.color = data.ok ? 'var(--success)' : 'var(--danger)';
@@ -4187,7 +4210,11 @@ function formatBytes(bytes) {
           payload.tls_cert_key_file = document.getElementById('ds-tls-cert-key-file')?.value.trim() || '';
           payload.tls_allow_invalid_certs = document.getElementById('ds-tls-allow-invalid')?.checked ? 1 : 0;
         }
-        if (!payload.name || !payload.host || !payload.user) {
+        if (payload.db_type === 'redis-cluster') {
+          payload.seed_nodes = document.getElementById('ds-redis-seed-nodes')?.value.trim() || '';
+        }
+        var _skipUser = (payload.db_type === 'redis' || payload.db_type === 'redis-cluster');
+        if (!payload.name || !payload.host || (!_skipUser && !payload.user)) {
           msgEl.style.color = 'var(--danger)';
           msgEl.textContent = i18n('webui.pro_ds_required_hint');
           return;
@@ -4901,7 +4928,7 @@ function formatBytes(bytes) {
               <input type="number" id="f-port" value="3306" />
             </div>
             <div class="field" id="f-user-wrap">
-              <label data-i18n="webui.label_username">用户名 <span class="req">*</span></label>
+              <label id="f-user-label" data-i18n="webui.label_username">用户名 <span class="req">*</span></label>
               <input type="text" id="f-user" data-i18n="webui.placeholder_username" placeholder="root / postgres" />
             </div>
             <div class="field">
@@ -5236,7 +5263,7 @@ function formatBytes(bytes) {
               <input type="number" id="job-port" value="3306" />
             </div>
             <div class="field">
-              <label data-i18n="webui.label_username">用户名 <span class="req">*</span></label>
+              <label id="job-user-label" data-i18n="webui.label_username">用户名 <span class="req">*</span></label>
               <input type="text" id="job-user" data-i18n="webui.placeholder_username" placeholder="root" autocomplete="off" />
             </div>
             <div class="field">
@@ -8016,7 +8043,9 @@ function gotoStep(n) {
       const host  = (document.getElementById('f-host')  || {}).value.trim();
       const port  = (document.getElementById('f-port')  || {}).value.trim();
       const user  = (document.getElementById('f-user')  || {}).value.trim();
-      if (!name || !host || !port || !user) {
+      // Redis 传统模式无用户名，仅 ACL 场景需要，允许留空
+      const _userReq = dbType !== 'redis' && dbType !== 'redis-cluster';
+      if (!name || !host || !port || (_userReq && !user)) {
         toast(i18n('webui.wizard_conn_required') || '请选择已保存的数据源，或填写完整的数据库连接信息（实例标签、主机地址、端口、用户名）', 'warning');
         return;
       }
@@ -8259,6 +8288,19 @@ async function selectDbType(type, skipReload) {
   const dbInfo = (window.dbTypes || []).find(t => t.value === type) || {};
   document.getElementById('f-port').value = dbInfo.port || 3306;
   document.getElementById('f-user').value = dbInfo.user || 'root';
+  // Redis 用户名仅 ACL 场景需要，清空默认值并提示"可选"
+  var fUserEl = document.getElementById('f-user');
+  var fUserReqSpan = document.querySelector('#f-user-label .req');
+  if (fUserEl) {
+    if (type === 'redis' || type === 'redis-cluster') {
+      fUserEl.value = '';
+      fUserEl.placeholder = i18n('webui.placeholder_redis_user_opt') || '可选，仅 Redis 6.0+ ACL 用户名';
+      if (fUserReqSpan) fUserReqSpan.style.display = 'none';
+    } else {
+      fUserEl.placeholder = i18n('webui.placeholder_username') || 'root / postgres';
+      if (fUserReqSpan) fUserReqSpan.style.display = '';
+    }
+  }
   document.getElementById('f-database-wrap').style.display = (type === 'pg' || type === 'ivorysql' || type === 'kingbase' || type === 'gbase' || type === 'oceanbase' || type === 'mongodb' || type === 'mysql' || type === 'mariadb' || type === 'tidb') ? '' : 'none';
   document.getElementById('f-tenant-wrap').style.display = (type === 'oceanbase') ? '' : 'none';
   // Oracle全面巡检：显示服务名输入框
@@ -8354,8 +8396,9 @@ async function testDb() {
   try {
     const host = document.getElementById('f-host').value.trim();
     const user = document.getElementById('f-user').value.trim();
-    if (!host || !user) {
-      el.innerHTML = '<div class="status-banner err">' + i18n('webui.connection_fail') + '：请填写主机地址和用户名</div>';
+    // Redis 传统模式无用户名，仅 ACL 场景需要，允许留空
+    if (!host || (!user && dbType !== 'redis' && dbType !== 'redis-cluster')) {
+      el.innerHTML = '<div class="status-banner err">' + i18n('webui.connection_fail') + '：请填写主机地址' + (dbType === 'redis' || dbType === 'redis-cluster' ? '' : '和用户名') + '</div>';
       return;
     }
     const res = await fetch('/api/test_db', {
@@ -8757,6 +8800,9 @@ async function executeFixSql(taskId, sql) {
 //  i18n 初始化
 // ══════════════════════════════════════════════════════════════
 
+// ─── 模块级默认值（供 fillConfirmPanel / startInspection 共用） ───
+const userDefaults = { mysql: 'root', pg: 'postgres', oracle: 'system', dm: 'SYSDBA', sqlserver: 'sa', tidb: 'root', ivorysql: 'postgres', yashandb: 'sys' };
+
 // ─── Confirm Panel ───
 function fillConfirmPanel() {
   const typeLabels = {
@@ -8770,7 +8816,6 @@ function fillConfirmPanel() {
   };
   const nameDefaults = { mysql: 'MySQL_Server', pg: 'PG_Server', oracle: 'Oracle_Server', dm: 'DM8_Server', sqlserver: 'SQLServer', tidb: 'TiDB_Cluster', mongodb: 'MongoDB_Server' };
   const portDefaults = { mysql: '3306', pg: '5432', oracle: '1521', dm: '5236', sqlserver: '1433', tidb: '4000', mongodb: '27017' };
-  const userDefaults = { mysql: 'root', pg: 'postgres', oracle: 'system', dm: 'SYSDBA', sqlserver: 'sa', tidb: 'root', ivorysql: 'postgres', yashandb: 'sys' };
   const typeLabel = typeLabels[dbType] || dbType;
   const name = document.getElementById('f-name').value.trim() || (nameDefaults[dbType]||'_Server');
   const host = document.getElementById('f-host').value.trim() || 'localhost';
@@ -10598,6 +10643,19 @@ async function onJobDbTypeChange() {
   };
   portInput.value = defaultPorts[dbType] || 3306;
   dbWrap.style.display = (dbType === 'pg' || dbType === 'ivorysql' || dbType === 'sqlserver' || dbType === 'kingbase' || dbType === 'mysql' || dbType === 'mariadb' || dbType === 'tidb') ? 'block' : 'none';
+  // Redis 用户名仅 ACL 场景需要，清空默认值并提示"可选"
+  var jobUserEl = document.getElementById('job-user');
+  var jobUserReqSpan = document.querySelector('#job-user-label .req');
+  if (jobUserEl) {
+    if (dbType === 'redis' || dbType === 'redis-cluster') {
+      jobUserEl.value = '';
+      jobUserEl.placeholder = i18n('webui.placeholder_redis_user_opt') || '可选，仅 Redis 6.0+ ACL 用户名';
+      if (jobUserReqSpan) jobUserReqSpan.style.display = 'none';
+    } else {
+      jobUserEl.placeholder = i18n('webui.placeholder_username') || 'root';
+      if (jobUserReqSpan) jobUserReqSpan.style.display = '';
+    }
+  }
   // Oracle: show service name and SYSDBA fields
   var jobSvcWrap = document.getElementById('job-service-wrap');
   if (jobSvcWrap) jobSvcWrap.style.display = (dbType === 'oracle' || dbType === 'oracle_jdbc') ? 'block' : 'none';

@@ -2310,6 +2310,37 @@ def smart_analyze_db2(context: dict) -> list:
     return plugin_issues
 
 
+def smart_analyze_redis(context: dict) -> list:
+    """Redis 单机智能风险分析：运行 redis.yaml 内置规则（db_types=[redis, redis-cluster]）。
+
+    与 mongodb/oracle_jdbc/db2 一致，规则主体放在插件规则引擎
+    （pro/rules/builtin/redis.yaml），此处仅负责调用 analyze_with_plugins
+    汇总规则命中项；任何异常均降级为空列表，保证巡检不中断。
+    """
+    try:
+        from pro.rule_engine import analyze_with_plugins
+        plugin_issues = analyze_with_plugins('redis', context)
+    except Exception as e:
+        print(f"[WARN] smart_analyze_redis plugin rules failed: {e}")
+        plugin_issues = []
+    return plugin_issues
+
+
+def smart_analyze_redis_cluster(context: dict) -> list:
+    """Redis 集群智能风险分析：运行 redis-cluster.yaml + redis.yaml 内置规则。
+
+    redis.yaml 的 db_types 已含 redis-cluster，故调用 analyze_with_plugins('redis-cluster')
+    会同时命中通用规则与集群专属规则；任何异常均降级为空列表。
+    """
+    try:
+        from pro.rule_engine import analyze_with_plugins
+        plugin_issues = analyze_with_plugins('redis-cluster', context)
+    except Exception as e:
+        print(f"[WARN] smart_analyze_redis_cluster plugin rules failed: {e}")
+        plugin_issues = []
+    return plugin_issues
+
+
 def smart_analyze_mariadb_extras(context: dict, conn=None) -> list:
     """
     MariaDB 专有参数/特性补充检查（低风险探测，不覆盖 MySQL 主规则结果）。

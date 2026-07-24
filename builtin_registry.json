@@ -22,6 +22,34 @@
       "featured": true
     },
     {
+      "id": "redis",
+      "name": "Redis 巡检",
+      "description": "Redis 单机巡检插件，支持连接检测、版本、内存、客户端、持久化、性能、复制、CPU、键空间、慢查询、配置基线等",
+      "version": "1.0.0",
+      "category": "db",
+      "tags": ["redis", "kv", "缓存", "巡检"],
+      "author": "DBCheck Team",
+      "official": true,
+      "download": "file://D:/DBCheck/plugins/available/redis",
+      "sha256": "",
+      "min_version": "5.0",
+      "featured": false
+    },
+    {
+      "id": "redis-cluster",
+      "name": "Redis 集群巡检",
+      "description": "Redis Cluster 集群巡检插件，在单机能力基础上增加集群拓扑（CLUSTER INFO / NODES）、槽位与节点健康巡检",
+      "version": "1.0.0",
+      "category": "db",
+      "tags": ["redis", "cluster", "kv", "缓存", "巡检"],
+      "author": "DBCheck Team",
+      "official": true,
+      "download": "file://D:/DBCheck/plugins/available/redis-cluster",
+      "sha256": "",
+      "min_version": "5.0",
+      "featured": false
+    },
+    {
       "id": "oracle_jdbc",
       "name": "Oracle (JDBC)",
       "description": "使用 JDBC 连接 Oracle 数据库（支持 11g/12c/19c/21c+），无需安装 Oracle 客户端，数据驱动运行模式",

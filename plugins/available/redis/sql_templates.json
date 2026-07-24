@@ -1,0 +1,158 @@
+{
+  "chapters": [
+    {
+      "chapter_number": 1,
+      "chapter_title_zh": "数据库版本信息",
+      "chapter_title_en": "Database Version Information",
+      "queries": [
+        {
+          "key": "redis_version",
+          "desc_zh": "Redis 版本与运行模式（INFO server）",
+          "desc_en": "Redis version and mode (INFO server)",
+          "command": "INFO server",
+          "category": "basic"
+        }
+      ]
+    },
+    {
+      "chapter_number": 2,
+      "chapter_title_zh": "服务概览",
+      "chapter_title_en": "Server Overview",
+      "queries": [
+        {
+          "key": "redis_server",
+          "desc_zh": "运行 ID / 端口 / 配置文件等（INFO server）",
+          "desc_en": "Run ID / port / config file (INFO server)",
+          "command": "INFO server",
+          "category": "basic"
+        }
+      ]
+    },
+    {
+      "chapter_number": 3,
+      "chapter_title_zh": "内存使用",
+      "chapter_title_en": "Memory Usage",
+      "queries": [
+        {
+          "key": "redis_memory",
+          "desc_zh": "内存占用 / 峰值 / 最大内存 / 碎片率（INFO memory）",
+          "desc_en": "Used / peak / maxmemory / fragmentation (INFO memory)",
+          "command": "INFO memory",
+          "category": "performance"
+        }
+      ]
+    },
+    {
+      "chapter_number": 4,
+      "chapter_title_zh": "客户端与连接",
+      "chapter_title_en": "Clients & Connections",
+      "queries": [
+        {
+          "key": "redis_clients",
+          "desc_zh": "已连接客户端 / 阻塞客户端 / 最大连接数（INFO clients）",
+          "desc_en": "Connected / blocked / max clients (INFO clients)",
+          "command": "INFO clients",
+          "category": "connection"
+        }
+      ]
+    },
+    {
+      "chapter_number": 5,
+      "chapter_title_zh": "持久化",
+      "chapter_title_en": "Persistence",
+      "queries": [
+        {
+          "key": "redis_persistence",
+          "desc_zh": "RDB/AOF 状态与最近保存时间（INFO persistence）",
+          "desc_en": "RDB/AOF status and last save (INFO persistence)",
+          "command": "INFO persistence",
+          "category": "storage"
+        }
+      ]
+    },
+    {
+      "chapter_number": 6,
+      "chapter_title_zh": "性能统计",
+      "chapter_title_en": "Performance Stats",
+      "queries": [
+        {
+          "key": "redis_stats",
+          "desc_zh": "命令数 / OPS / 网络流量 / 过期与驱逐键（INFO stats）",
+          "desc_en": "Commands / OPS / net / expired & evicted (INFO stats)",
+          "command": "INFO stats",
+          "category": "performance"
+        }
+      ]
+    },
+    {
+      "chapter_number": 7,
+      "chapter_title_zh": "复制与高可用",
+      "chapter_title_en": "Replication & HA",
+      "queries": [
+        {
+          "key": "redis_replication",
+          "desc_zh": "角色 / 从节点数 / 主从同步状态（INFO replication）",
+          "desc_en": "Role / slaves / master link (INFO replication)",
+          "command": "INFO replication",
+          "category": "high_availability"
+        }
+      ]
+    },
+    {
+      "chapter_number": 8,
+      "chapter_title_zh": "CPU 使用",
+      "chapter_title_en": "CPU Usage",
+      "queries": [
+        {
+          "key": "redis_cpu",
+          "desc_zh": "CPU sys/user 及子进程占用（INFO cpu）",
+          "desc_en": "CPU sys/user and children (INFO cpu)",
+          "command": "INFO cpu",
+          "category": "performance"
+        }
+      ]
+    },
+    {
+      "chapter_number": 9,
+      "chapter_title_zh": "键空间",
+      "chapter_title_en": "Keyspace",
+      "queries": [
+        {
+          "key": "redis_keyspace",
+          "desc_zh": "各 DB 的键数 / 过期键 / 平均 TTL（INFO keyspace）",
+          "desc_en": "Keys / expires / avg_ttl per DB (INFO keyspace)",
+          "command": "INFO keyspace",
+          "category": "basic"
+        }
+      ]
+    },
+    {
+      "chapter_number": 10,
+      "chapter_title_zh": "慢查询日志",
+      "chapter_title_en": "Slow Log",
+      "queries": [
+        {
+          "key": "redis_slowlog",
+          "desc_zh": "最近 10 条慢查询（SLOWLOG GET）",
+          "desc_en": "Top 10 slow queries (SLOWLOG GET)",
+          "command": "SLOWLOG GET 10",
+          "category": "performance"
+        }
+      ]
+    },
+    {
+      "chapter_number": 11,
+      "chapter_title_zh": "配置基线",
+      "chapter_title_en": "Config Baseline",
+      "queries": [
+        {
+          "key": "redis_config",
+          "desc_zh": "关键配置参数（CONFIG GET）",
+          "desc_en": "Key config parameters (CONFIG GET)",
+          "command": "CONFIG GET *",
+          "category": "security"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,230 @@
+# -*- coding: utf-8 -*-
+# Redis 内置巡检规则
+#
+# 规则引擎约束（pro/rule_engine.py）：
+#   * condition 走 safe_eval：白名单 min/max/len/int/float/str/abs/round/any/all/sum。
+#   * params 通过 ${context.xxx} 提取 context 值（list-of-dicts 直接引用）。
+#   * message 仅替换 resolved_params，勿含 {} 占位符（否则 .format 报错）。
+#
+# 说明：本文件 db_types 含 redis 与 redis-cluster，集群巡检时通用规则一并生效；
+#       集群专属规则见 redis-cluster.yaml（db_types=[redis-cluster]）。
+rules:
+  # ==============================================================
+  # Security (2)
+  # ==============================================================
+  - id: redis_no_password
+    name: Redis authentication not enabled
+    name_zh: 未设置访问密码
+    category: security
+    db_types: [redis, redis-cluster]
+    severity: critical
+    priority: critical
+    owner: DBA
+    enabled: true
+    description: requirepass is empty, anyone can access the instance
+    description_zh: requirepass 为空，实例可被任意访问
+    condition: "cfg is not None and len(cfg)>0 and any(c.get('PARAM_NAME')=='requirepass' and (c.get('PARAM_VALUE') is None or c.get('PARAM_VALUE')=='') for c in cfg)"
+    params:
+      cfg: "${context.redis_config}"
+    message: "Redis 未设置 requirepass 密码，存在未授权访问风险"
+    message_zh: "Redis 未设置 requirepass 密码，存在未授权访问风险"
+    fix_sql: "# redis.conf: requirepass <strong_password>  然后 CONFIG REWRITE"
+
+  - id: redis_no_maxmemory
+    name: maxmemory not configured
+    name_zh: 未配置最大内存
+    category: security
+    db_types: [redis, redis-cluster]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: maxmemory is 0, OOM may kill the instance
+    description_zh: maxmemory 为 0，内存超限可能被 OOM 杀掉
+    condition: "mem is not None and len(mem)>0 and (int(mem[0].get('MAXMEMORY_MB') or 0) == 0)"
+    params:
+      mem: "${context.redis_memory}"
+    message: "Redis 未配置 maxmemory，内存无上限，存在被 OOM 杀掉风险"
+    message_zh: "Redis 未配置 maxmemory，内存无上限，存在被 OOM 杀掉风险"
+
+  # ==============================================================
+  # Performance (6)
+  # ==============================================================
+  - id: redis_memory_high
+    name: Memory usage high
+    name_zh: 内存使用率过高
+    category: performance
+    db_types: [redis, redis-cluster]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: used memory exceeds 85% of maxmemory
+    description_zh: 已用内存超过 maxmemory 的 85%
+    condition: "mem is not None and len(mem)>0 and (int(mem[0].get('MAXMEMORY_MB') or 0) > 0) and (int(mem[0].get('USED_MB') or 0) > 0.85 * int(mem[0].get('MAXMEMORY_MB') or 0))"
+    params:
+      mem: "${context.redis_memory}"
+    message: "Redis 内存使用率超过 maxmemory 的 85%，请扩容或清理数据"
+    message_zh: "Redis 内存使用率超过 maxmemory 的 85%，请扩容或清理数据"
+
+  - id: redis_frag_high
+    name: Memory fragmentation high
+    name_zh: 内存碎片率过高
+    category: performance
+    db_types: [redis, redis-cluster]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: mem_fragmentation_ratio > 1.5
+    description_zh: 内存碎片率大于 1.5
+    condition: "mem is not None and len(mem)>0 and (float(mem[0].get('FRAG_RATIO') or 0) > 1.5)"
+    params:
+      mem: "${context.redis_memory}"
+    message: "Redis 内存碎片率偏高（>1.5），可考虑重启或开启 activedefrag"
+    message_zh: "Redis 内存碎片率偏高（>1.5），可考虑重启或开启 activedefrag"
+
+  - id: redis_conn_high
+    name: Connected clients near maxclients
+    name_zh: 连接数接近上限
+    category: connection
+    db_types: [redis, redis-cluster]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: connected clients usage percent exceeds 85%
+    description_zh: 已连接客户端占 maxclients 超过 85%
+    condition: "conn_pct is not None and conn_pct > 85"
+    params:
+      conn_pct: "${context.redis_conn_pct}"
+    message: "Redis 连接数使用率超过 85%，存在连接耗尽风险"
+    message_zh: "Redis 连接数使用率超过 85%，存在连接耗尽风险"
+
+  - id: redis_rejected_conn
+    name: Rejected connections detected
+    name_zh: 出现拒绝连接
+    category: connection
+    db_types: [redis, redis-cluster]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: rejected_connections > 0
+    description_zh: 拒绝连接数大于 0
+    condition: "st is not None and len(st)>0 and (int(st[0].get('REJECTED_CONNECTIONS') or 0) > 0)"
+    params:
+      st: "${context.redis_stats}"
+    message: "Redis 已出现拒绝连接，maxclients 可能过小"
+    message_zh: "Redis 已出现拒绝连接，maxclients 可能过小"
+
+  - id: redis_evicted_keys
+    name: Many keys evicted
+    name_zh: 大量键被驱逐
+    category: performance
+    db_types: [redis, redis-cluster]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: evicted_keys > 10000
+    description_zh: 被驱逐的键数大于 10000
+    condition: "st is not None and len(st)>0 and (int(st[0].get('EVICTED_KEYS') or 0) > 10000)"
+    params:
+      st: "${context.redis_stats}"
+    message: "Redis 已驱逐大量键（>10000），maxmemory 不足或淘汰策略不当"
+    message_zh: "Redis 已驱逐大量键（>10000），maxmemory 不足或淘汰策略不当"
+
+  - id: redis_slowlog_many
+    name: Many or long slow queries
+    name_zh: 慢查询过多或过长
+    category: performance
+    db_types: [redis, redis-cluster]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: more than 5 slow queries or any slower than 100ms
+    description_zh: 慢查询超过 5 条或单条超过 100ms
+    condition: "sl is not None and len(sl)>0 and (len(sl) > 5 or max(int(s.get('DURATION_MS') or 0) for s in sl) > 100)"
+    params:
+      sl: "${context.redis_slowlog}"
+    message: "Redis 存在较多或较长的慢查询，请检查大键或复杂命令"
+    message_zh: "Redis 存在较多或较长的慢查询，请检查大键或复杂命令"
+
+  # ==============================================================
+  # Storage (2)
+  # ==============================================================
+  - id: redis_rdb_bgsave_fail
+    name: RDB background save failed
+    name_zh: RDB 后台保存失败
+    category: storage
+    db_types: [redis, redis-cluster]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: rdb_last_bgsave_status is err
+    description_zh: RDB 最近一次后台保存状态为 err
+    condition: "p is not None and len(p)>0 and p[0].get('RDB_LAST_BGSAVE_STATUS')=='err'"
+    params:
+      p: "${context.redis_persistence}"
+    message: "Redis RDB 后台保存失败，存在数据丢失风险"
+    message_zh: "Redis RDB 后台保存失败，存在数据丢失风险"
+
+  - id: redis_aof_write_fail
+    name: AOF last write failed
+    name_zh: AOF 最近写入失败
+    category: storage
+    db_types: [redis, redis-cluster]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: aof enabled but last write status is err
+    description_zh: 已开启 AOF 但最近一次写入状态为 err
+    condition: "p is not None and len(p)>0 and (int(p[0].get('AOF_ENABLED') or 0)==1) and p[0].get('AOF_LAST_WRITE_STATUS')=='err'"
+    params:
+      p: "${context.redis_persistence}"
+    message: "Redis 已开启 AOF 但最近写入失败，持久化异常"
+    message_zh: "Redis 已开启 AOF 但最近写入失败，持久化异常"
+
+  # ==============================================================
+  # Replication / HA (1)
+  # ==============================================================
+  - id: redis_replica_link_down
+    name: Replica master link down
+    name_zh: 从节点与主节点连接断开
+    category: ha
+    db_types: [redis, redis-cluster]
+    severity: critical
+    priority: critical
+    owner: DBA
+    enabled: true
+    description: role is slave and master_link_status is down
+    description_zh: 角色为从节点且主从连接状态为 down
+    condition: "r is not None and len(r)>0 and r[0].get('ROLE')=='slave' and r[0].get('MASTER_LINK_STATUS')=='down'"
+    params:
+      r: "${context.redis_replication}"
+    message: "Redis 从节点与主节点连接断开，高可用失效"
+    message_zh: "Redis 从节点与主节点连接断开，高可用失效"
+
+  # ==============================================================
+  # Basic (1)
+  # ==============================================================
+  - id: redis_keyspace_huge
+    name: Single DB has too many keys
+    name_zh: 单个库键数量过大
+    category: basic
+    db_types: [redis, redis-cluster]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: any db keys > 1000000
+    description_zh: 任一库的键数超过 100 万
+    condition: "ks is not None and any((int(k.get('KEYS') or 0) > 1000000) for k in ks)"
+    params:
+      ks: "${context.redis_keyspace}"
+    message: "Redis 存在键数超过 100 万的库，建议拆分或清理"
+    message_zh: "Redis 存在键数超过 100 万的库，建议拆分或清理"

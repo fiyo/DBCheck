@@ -864,6 +864,11 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None):
                         'tls_allow_invalid_certs'):
                 if _mk in db_info:
                     ssh_info[_mk] = db_info[_mk]
+        # Redis / Redis Cluster 专用参数透传到 ssh_info（供插件 getData 使用）
+        if db_type in ('redis', 'redis-cluster'):
+            for _mk in ('database', 'seed_nodes'):
+                if _mk in db_info:
+                    ssh_info[_mk] = db_info[_mk]
 
         # 激活 print 拦截器（需在 getData 之前就激活，因为 Oracle 的日志在 getData 内部产生）
         import builtins as _bi
@@ -2559,6 +2564,17 @@ def api_test_db():
     elif db_type == 'gbase':
         ok, msg = test_gbase_connection(data['host'], data['port'], data['user'], data['password'], data.get('database', 'gbase01'))
         result = {'ok': ok, 'msg': msg}
+    elif db_type in ('redis', 'redis-cluster'):
+        ok, msg = test_plugin_connection(
+            db_type,
+            data['host'],
+            data['port'],
+            data['user'],
+            data['password'],
+            database=data.get('database', ''),
+            seed_nodes=data.get('seed_nodes', ''),
+        )
+        result = {'ok': ok, 'msg': msg}
     elif db_type == 'mongodb':
         # MongoDB 连接测试：透传专用参数给插件
         ok, msg = test_plugin_connection(
@@ -2785,7 +2801,7 @@ def api_start_inspection():
                 'user':      instance.get('user', ''),
                 'tenant':    instance.get('tenant', '') or '',
                 'password':  instance.get('password', ''),
-                'database':  instance.get('database') or ('admin' if db_type == 'mongodb' else ('master' if db_type == 'sqlserver' else ('DAMENG' if db_type == 'dm' else ('testdb' if db_type == 'gbase' else ('' if db_type in ('tidb', 'oceanbase', 'mysql', 'mariadb') else 'postgres'))))),
+                'database':  instance.get('database') or ('admin' if db_type == 'mongodb' else ('master' if db_type == 'sqlserver' else ('DAMENG' if db_type == 'dm' else ('testdb' if db_type == 'gbase' else ('' if db_type in ('tidb', 'oceanbase', 'mysql', 'mariadb', 'redis', 'redis-cluster') else 'postgres'))))),
                 'service_name': instance.get('service_name', None),
                 'sysdba':    bool(instance.get('sysdba', False)),  # ← 新增（确保是布尔值）
                 'name':      instance.get('name', ''),
@@ -2797,6 +2813,9 @@ def api_start_inspection():
                             'tls', 'tls_ca_file', 'tls_cert_key_file', 'tls_allow_invalid_certs'):
                     if instance.get(_mk) is not None:
                         db_info[_mk] = instance[_mk]
+            # Redis / Redis Cluster 专用参数透传
+            if db_type in ('redis', 'redis-cluster'):
+                db_info['seed_nodes'] = instance.get('seed_nodes', '')
         else:
             # 原有逻辑：使用手动输入的连接信息
             db_info = {
@@ -2805,7 +2824,7 @@ def api_start_inspection():
                 'user':      data.get('user', ''),
                 'tenant':    data.get('tenant', '') or '',
                 'password':  data.get('password', ''),
-                'database':  data.get('database') or ('admin' if db_type == 'mongodb' else ('master' if db_type == 'sqlserver' else ('DAMENG' if db_type == 'dm' else ('testdb' if db_type == 'gbase' else ('' if db_type in ('tidb', 'oceanbase', 'mysql', 'mariadb') else 'postgres'))))),
+                'database':  data.get('database') or ('admin' if db_type == 'mongodb' else ('master' if db_type == 'sqlserver' else ('DAMENG' if db_type == 'dm' else ('testdb' if db_type == 'gbase' else ('' if db_type in ('tidb', 'oceanbase', 'mysql', 'mariadb', 'redis', 'redis-cluster') else 'postgres'))))),
                 'service_name': data.get('service_name', None),
                 'sysdba':    bool(data.get('sysdba', False)),  # ← 新增（确保是布尔值）
                 'sid':       data.get('sid', None),
@@ -2822,6 +2841,9 @@ def api_start_inspection():
                 db_info['replica_set'] = data.get('replica_set', '')
                 db_info['tls'] = bool(data.get('tls', False))
                 db_info['tls_ca_file'] = data.get('tls_ca_file', '')
+            # Redis / Redis Cluster 专用参数透传
+            if db_type in ('redis', 'redis-cluster'):
+                db_info['seed_nodes'] = data.get('seed_nodes', '')
                 db_info['tls_cert_key_file'] = data.get('tls_cert_key_file', '')
                 db_info['tls_allow_invalid_certs'] = bool(data.get('tls_allow_invalid_certs', False))
 
@@ -4955,6 +4977,7 @@ def api_pro_datasource_add():
             ssh_enabled=bool(data.get('ssh_enabled', False)),
             gbase_server_name=data.get('gbase_server_name', ''),
             tenant=data.get('tenant', ''),
+            seed_nodes=data.get('seed_nodes', ''),
             tags=data.get('tags', []),
             group=data.get('group', 'default'),
             description=data.get('description', ''),
@@ -5299,6 +5322,20 @@ def api_pro_datasources_test_conn():
             result = test_gbase_connection(host, int(port), user, password, data.get('database', 'gbase01'), gbase_server)
             if not result[0]:
                 return jsonify({'ok': False, 'error': result[1]})
+        elif db_type in ('redis', 'redis-cluster'):
+            ok, msg = test_plugin_connection(
+                db_type,
+                host,
+                port,
+                user,
+                password,
+                database=data.get('database', ''),
+                seed_nodes=data.get('seed_nodes', ''),
+            )
+            if ok:
+                return jsonify({'ok': True, 'message': msg})
+            else:
+                return jsonify({'ok': False, 'error': msg}) if msg else jsonify({'ok': False, 'error': f'不支持的数据库类型: {db_type}'})
         elif db_type == 'mongodb':
             # MongoDB 连接测试：透传专用参数给插件
             ok, msg = test_plugin_connection(
