@@ -111,7 +111,7 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONMEMORYLIMIT=2g
 
 # Create VERSION.txt (without v prefix, matches Docker tag format)
-RUN echo 26.7.21.1 > /app/VERSION.txt
+RUN echo 26.7.24.0 > /app/VERSION.txt
 
 # Ensure data and pro_data directories exist for volume mounts
 RUN mkdir -p /app/data /app/pro_data /app/reports

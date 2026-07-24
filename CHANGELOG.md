@@ -1,5 +1,9 @@
 # Changelog
 
+## v26.7.24.0 (2026-07-24)
+- **版本号统一**：各源文件版本标识 v26.7.21.1 → v26.7.24.0（version.py / version.json / Dockerfile / skill `dbcheck` `_meta` + `_skillhub_meta` + `scripts/version.py` / README + README_zh 徽章 / CHANGELOG 顶段）
+- **新增 Redis 单机与集群巡检**：新增 `plugins/available/redis` 与 `redis-cluster` 巡检插件（采集 11+ 章节、集群 seed-node 自动发现、规则引擎 `redis.yaml`/`redis-cluster.yaml`、智能分析 + AI 诊断接入），详见公众号文章《DBCheck v26.7.24.0：新增 Redis 单机与集群巡检，KV 版图正式补齐》
+
 ## v26.7.21.1 (2026-07-19)
 - **版本号统一**：各源文件版本标识 v26.7.19.1 → v26.7.21.1（version.py / version.json / Dockerfile / skill `dbcheck` `_meta` + `_skillhub_meta` + `scripts/version.py` / README + README_zh 徽章 / CHANGELOG 顶段）
 - **合并 main → professional（MongoDB 完整功能）**：将 main 分支的 MongoDB 巡检全链路合并至 professional 分支
