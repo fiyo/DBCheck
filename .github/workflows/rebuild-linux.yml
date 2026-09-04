@@ -16,6 +16,10 @@ on:
 permissions:
   contents: write
 
+# 临时屏蔽：与 build-release.yml 的 Linux 构建一并停用（manylinux 容器内 Pillow/JPype1
+# 源码编译缺 jpeg 等系统库持续失败）。恢复时删除下面这行 `if: false` 即可重新启用单独补 Linux 包的能力。
+if: false
+
 env:
   PY_VERSION: "3.11"
   DBCHECK_CI_LENIENT: "1"

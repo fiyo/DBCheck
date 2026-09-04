@@ -75,6 +75,9 @@ jobs:
           path: dist/RaccoonX-Windows-x86_64-*.zip
 
   build-linux:
+    # 临时屏蔽：manylinux2014 容器内 Pillow/JPype1 源码编译缺 jpeg 等系统库持续失败，
+    # 先仅出 Windows / macOS 包。恢复方法：删除下面这行 `if: false` 即可重新启用。
+    if: false
     name: Build Linux (manylinux2014 / glibc 2.17)
     runs-on: ubuntu-latest
     steps:
@@ -199,7 +202,7 @@ jobs:
 
   release:
     name: Attach to Release
-    needs: [build-windows, build-linux, build-macos]
+    needs: [build-windows, build-macos]
     # 部分构建失败时也尝试运行（有 artifact 就上传，没有则跳过）
     if: always()
     runs-on: ubuntu-latest
@@ -219,9 +222,9 @@ jobs:
         with:
           tag_name: ${{ env.TAG }}
           generate_release_notes: true
+          allowUpdates: true
           files: |
             artifacts/windows/*.zip
-            artifacts/linux/*.tar.gz
             artifacts/macos-arm64/*.tar.gz
             artifacts/macos-x86_64/*.tar.gz
 
@@ -230,7 +233,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          NOTE=$'\n---\n\n## ⚠️ 安装注意事项\n\n- **macOS**：当前分发包**未做 Apple 公证（二进制未签名）**。首次打开若被 Gatekeeper 拦截，请右键点击 App / 可执行文件 →「打开」并在弹窗中确认即可运行；如需彻底消除提示，后续可接入 Apple 开发者证书做正式公证。\n- **Linux**：基于 manylinux2014（glibc 2.17）构建，兼容 CentOS 7 / RHEL 7 及更高版本发行版。\n- **Windows**：解压后双击 `start.bat` 启动，浏览器访问 http://localhost:5003 。'
+          NOTE=$'\n---\n\n## ⚠️ 安装注意事项\n\n- **macOS**：当前分发包**未做 Apple 公证（二进制未签名）**。首次打开若被 Gatekeeper 拦截，请右键点击 App / 可执行文件 →「打开」并在弹窗中确认即可运行；如需彻底消除提示，后续可接入 Apple 开发者证书做正式公证。\n- **Windows**：解压后双击 `start.bat` 启动，浏览器访问 http://localhost:5003 。（注：Linux 客户端暂未发布，当前仅提供 Windows / macOS 安装包。）'
           BODY=$(gh release view "$TAG" --json body --jq '.body')
           printf '%s%s\n' "$BODY" "$NOTE" > release_notes.md
           gh release edit "$TAG" --notes-file release_notes.md
