@@ -26,6 +26,9 @@ permissions:
 
 jobs:
   build:
+    # 临时屏蔽：与 build-release.yml 的 Linux 构建一并停用（多架构 Docker 镜像在 Linux 阶段同样受
+    # Pillow/JPype1 源码编译缺 jpeg 等系统库影响）。恢复时删除下面这行 `if: false` 即可重新启用。
+    if: false
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
