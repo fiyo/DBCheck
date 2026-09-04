@@ -93,7 +93,7 @@ case "$ARCH" in
     aarch64|arm64) ARCH="arm64" ;;
     x86_64) ARCH="x86_64" ;;
 esac
-VERSION=$($PYTHON_CMD -c "import json; print(json.load(open('modules/config/version.json', encoding='utf-8'))['version'])")
+VERSION=$($PYTHON_CMD -c "import json; print(json.load(open('modules/config/version.json', encoding='utf-8-sig'))['version'])")
 RELEASE_NAME="RaccoonX-macOS-$ARCH-$VERSION"
 
 # Create start script

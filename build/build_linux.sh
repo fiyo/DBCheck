@@ -93,7 +93,7 @@ STARTEOF
 chmod +x "$BUILDDIR/start.sh"
 
 # Create tar.gz
-VERSION=$($PYTHON_CMD -c "import json; print(json.load(open('modules/config/version.json', encoding='utf-8'))['version'])")
+VERSION=$($PYTHON_CMD -c "import json; print(json.load(open('modules/config/version.json', encoding='utf-8-sig'))['version'])")
 RELEASE_NAME="RaccoonX-Linux-x86_64-$VERSION"
 cd dist
 tar czf "$RELEASE_NAME.tar.gz" RaccoonX-Linux/
