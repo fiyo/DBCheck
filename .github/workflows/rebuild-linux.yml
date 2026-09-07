@@ -11,7 +11,7 @@ on:
       version:
         description: "Target Release tag to attach the Linux binary to, e.g. v26.9.3.0"
         required: true
-        default: "v26.9.6.0"
+        default: "v26.9.8.0"
 
 permissions:
   contents: write

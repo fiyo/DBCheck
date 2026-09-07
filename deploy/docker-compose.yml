@@ -6,7 +6,7 @@ services:
       context: ..
       dockerfile: deploy/Dockerfile
       # 自定义版本号可在此传参（不传则使用 Dockerfile 内 ARG DBCHECK_VERSION 默认值）：
-      # args: { DBCHECK_VERSION: "v26.9.6" }
+      # args: { DBCHECK_VERSION: "v26.9.8.0" }
     image: jackge12345/dbcheck:latest
     container_name: dbcheck
     restart: unless-stopped

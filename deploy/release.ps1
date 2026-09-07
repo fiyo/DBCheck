@@ -1,5 +1,5 @@
 ﻿# DBCheck Release Script (simplified)
-# Usage: .\release.ps1 -Version "26.9.6"  (or date-based "26.7.8.1")
+# Usage: .\release.ps1 -Version "26.9.8"  (or date-based "26.7.8.1")
 # GitHub Actions will handle Docker build/push and GitHub Release automatically.
 
 param(

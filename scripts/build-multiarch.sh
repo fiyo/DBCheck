@@ -51,7 +51,7 @@ cd "$PROJECT_DIR"
 VERSION="$(grep -m1 '__version__' "$PROJECT_DIR/modules/config/version.py" 2>/dev/null \
             | sed -E "s/.*=[[:space:]]*['\"]//; s/['\"].*//")"
 if [ -z "$VERSION" ]; then
-    VERSION="v26.9.6"
+    VERSION="v26.9.8.0"
     echo "WARNING: 未能从 version.py 解析版本号，回退到 $VERSION"
 fi
 
