@@ -3208,6 +3208,7 @@ ZI = {
 # ── 菜单 i18n key（menu.*，第一阶段结构性对齐；值为原中文菜单名）──
 ZI.update({
     "menu.about": "关于RaccoonX",
+    "menu.bicqa": "BIC-QA 知识库",
     "menu.ai": "AI助手",
     "menu.apikey": "API密钥",
     "menu.awr": "AWR报告",
@@ -3320,6 +3321,7 @@ ZI.update({
     "webui.user_menu_logged_in": "已登录",
     "webui.user_menu_account": "用户中心",
     "webui.user_menu_admin": "系统管理",
+    "webui.user_menu_about": "关于",
     "webui.user_menu_logout": "退出登录",
     "webui.account_title": "用户中心",
     "webui.account_loading": "加载中...",

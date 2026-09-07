@@ -617,3 +617,214 @@ def workflow_task_runs_ep(task_id: int):
         return jsonify({"ok": True, "runs": runs})
     except Exception as e:
         return jsonify({"ok": False, "msg": str(e)}), 500
+
+
+# ═══ BIC-QA 知识问答（阶段 1：诊断中心面板后端）════════════════════════════
+# 仅做「协议调用外部 SaaS + 配置隔离 + 优雅降级」，绝不内置 BIC-QA 代码/硬编码 Key。
+# 配置存于 dbc_config.json 的 bicqa 字段（该文件已被 .gitignore 忽略，不进版本库）。
+import os as _os
+
+_PROJECT_ROOT = _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+_DBCONFIG_PATH = _os.path.join(_PROJECT_ROOT, "dbc_config.json")
+
+# API Key 占位符：前端回填时若仍是此值表示「不修改」；绝不回传明文
+_API_KEY_SENTINEL = "***SET***"
+
+
+def _bicqa_load_cfg() -> dict:
+    if not _os.path.exists(_DBCONFIG_PATH):
+        return {}
+    try:
+        with open(_DBCONFIG_PATH, "r", encoding="utf-8") as f:
+            return json.load(f).get("bicqa", {}) or {}
+    except Exception:
+        return {}
+
+
+def _bicqa_save_cfg(bicqa: dict) -> None:
+    cfg = {}
+    if _os.path.exists(_DBCONFIG_PATH):
+        try:
+            with open(_DBCONFIG_PATH, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+        except Exception:
+            cfg = {}
+    cfg["bicqa"] = bicqa
+    with open(_DBCONFIG_PATH, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, ensure_ascii=False, indent=4)
+
+
+@intelligence_bp.route("/api/bicqa/config", methods=["GET"])
+def bicqa_config_get():
+    """返回 BIC-QA 配置；api_key 仅暴露是否已配置，绝不回传明文。"""
+    b = _bicqa_load_cfg()
+    api_key = (b.get("api_key") or "").strip()
+    return jsonify({
+        "enabled": bool(b.get("enabled", False)),
+        "api_base": b.get("api_base") or "https://api.bic-qa.com",
+        "default_dbtype": b.get("default_dbtype", "") or "",
+        "enable_masking": b.get("enable_masking", True),
+        "has_key": bool(api_key),
+        "api_key_masked": _API_KEY_SENTINEL if api_key else "",
+    })
+
+
+@intelligence_bp.route("/api/bicqa/config", methods=["POST"])
+def bicqa_config_post():
+    data = request.json or {}
+    b = _bicqa_load_cfg()
+    if "enabled" in data:
+        b["enabled"] = bool(data["enabled"])
+    if "api_base" in data:
+        b["api_base"] = (data["api_base"] or "https://api.bic-qa.com").strip()
+    if "default_dbtype" in data:
+        b["default_dbtype"] = (data.get("default_dbtype") or "").strip()
+    if "enable_masking" in data:
+        b["enable_masking"] = bool(data["enable_masking"])
+    # api_key：仅当传入「新值」（非占位符、非空）时更新；占位符/空表示保持原值
+    if "api_key" in data:
+        k = (data.get("api_key") or "").strip()
+        if k and k != _API_KEY_SENTINEL:
+            b["api_key"] = k
+    _bicqa_save_cfg(b)
+    # 配置变更后清空桥接单例缓存，下次调用重新读配置
+    try:
+        from modules.mcp_server.bicqa_bridge import reset_bridge
+        reset_bridge()
+    except Exception:
+        pass
+    return jsonify({"ok": True, "has_key": bool(b.get("api_key"))})
+
+
+@intelligence_bp.route("/api/bicqa/ask", methods=["POST"])
+def bicqa_ask():
+    """转发知识问答到 BIC-QA；未配置/不可达时优雅降级（ok:false + error_code）。"""
+    data = request.json or {}
+    question = (data.get("question") or "").strip()
+    if not question:
+        return jsonify({"ok": False, "error_code": "BICQA_BAD_REQUEST", "error": "问题不能为空"}), 400
+    dbtype = (data.get("dbtype") or "").strip()
+    # 脱敏：未显式指定时回落到配置里的 enable_masking
+    if "mask" in data:
+        mask = bool(data["mask"])
+    else:
+        mask = bool(_bicqa_load_cfg().get("enable_masking", True))
+    try:
+        from modules.mcp_server.bicqa_bridge import get_bridge, BICQAUnavailable, BICQAError
+        try:
+            bridge = get_bridge()
+        except BICQAUnavailable as e:
+            return jsonify({"ok": False, "error_code": e.error_code, "error": str(e)})
+        try:
+            result = bridge.ask(question, dbtype=dbtype, mask=mask)
+        except BICQAUnavailable as e:
+            return jsonify({"ok": False, "error_code": e.error_code, "error": str(e)})
+        except BICQAError as e:
+            return jsonify({"ok": False, "error_code": e.error_code, "error": str(e)})
+        return jsonify({"ok": True, "result": result, "dbtype": dbtype})
+    except Exception as e:  # 兜底：任何意外都不击穿通道
+        return jsonify({"ok": False, "error_code": "BICQA_ERROR", "error": str(e)})
+
+
+# ── 阶段 3：AWR 报告脱敏直传 BIC-QA 分析 ──────────────────────────────────────
+# 主链路走官方契约 /skills/qa：AWR HTML → 本地解析 → 指标摘要 → 脱敏 → 问答。
+# 不使用 BIC-QA 抓包发现的 multipart 上传端点（非官方契约，稳定性无保障）。
+
+def _bicqa_awr_uploads_dir():
+    from modules.core.paths import AWR_UPLOADS_DIR
+    return str(AWR_UPLOADS_DIR)
+
+
+@intelligence_bp.route("/api/bicqa/awr", methods=["GET"])
+def bicqa_awr_list():
+    """列出可分析的 AWR 报告（awr_uploads 目录下的 .html/.htm）。"""
+    try:
+        import os
+        d = _bicqa_awr_uploads_dir()
+        items = []
+        if os.path.isdir(d):
+            for name in sorted(os.listdir(d)):
+                if not name.lower().endswith((".html", ".htm")):
+                    continue
+                p = os.path.join(d, name)
+                try:
+                    st = os.stat(p)
+                except OSError:
+                    continue
+                # 文件名约定 awr_<task_id>.htm[l]
+                task_id = name[4:].rsplit(".", 1)[0] if name.lower().startswith("awr_") else name.rsplit(".", 1)[0]
+                items.append({
+                    "task_id": task_id,
+                    "filename": name,
+                    "size": st.st_size,
+                    "mtime": int(st.st_mtime),
+                })
+        items.sort(key=lambda x: x["mtime"], reverse=True)
+        return jsonify({"ok": True, "reports": items[:50]})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@intelligence_bp.route("/api/bicqa/awr", methods=["POST"])
+def bicqa_awr_analyze():
+    """AWR 报告指标摘要脱敏后经 /skills/qa 直传 BIC-QA 四段式分析。
+
+    未配置 Key / 用户关闭 / 不可达时优雅降级（ok:false + error_code）。
+    """
+    data = request.json or {}
+    task_id = (data.get("task_id") or "").strip()
+    if not task_id or any(c in task_id for c in "/\\."):
+        return jsonify({"ok": False, "error_code": "BICQA_BAD_REQUEST", "error": "task_id 非法"}), 400
+
+    # 用户显式关闭 → 拒绝外发
+    if _bicqa_load_cfg().get("enabled") is False:
+        return jsonify({"ok": False, "error_code": "BICQA_DISABLED",
+                        "error": "BIC-QA 已在配置页关闭，不向外部发送任何数据"})
+
+    import os
+    path = None
+    d = _bicqa_awr_uploads_dir()
+    for ext in (".html", ".htm"):
+        cand = os.path.join(d, f"awr_{task_id}{ext}")
+        if os.path.exists(cand):
+            path = cand
+            break
+    if not path:
+        return jsonify({"ok": False, "error_code": "BICQA_BAD_REQUEST", "error": "AWR 报告不存在"}), 404
+
+    try:
+        from modules.web.awr_parser import parse_awr_report, build_awr_ai_summary
+        awr_data = parse_awr_report(path)
+        meta = awr_data.get("metadata", {}) or {}
+        summary = build_awr_ai_summary(awr_data, meta)
+        if not summary.strip():
+            return jsonify({"ok": False, "error_code": "BICQA_BAD_REQUEST", "error": "AWR 解析结果为空"}), 400
+    except Exception as e:
+        return jsonify({"ok": False, "error_code": "BICQA_BAD_REQUEST", "error": f"AWR 解析失败：{e}"})
+
+    question = (
+        "以下是 Oracle AWR 报告的指标摘要（已脱敏）。请作为 Oracle 性能专家，"
+        "按 现象解读 / 根因排序 / 定位命令 / 处置建议 四段给出分析。\n\n" + summary
+    )
+    dbtype = (data.get("dbtype") or "oracle").strip() or "oracle"
+    if "mask" in data:
+        mask = bool(data["mask"])
+    else:
+        mask = bool(_bicqa_load_cfg().get("enable_masking", True))
+
+    try:
+        from modules.mcp_server.bicqa_bridge import get_bridge, BICQAUnavailable, BICQAError
+        try:
+            bridge = get_bridge()
+        except BICQAUnavailable as e:
+            return jsonify({"ok": False, "error_code": e.error_code, "error": str(e)})
+        try:
+            result = bridge.ask(question, dbtype=dbtype, mask=mask)
+        except BICQAUnavailable as e:
+            return jsonify({"ok": False, "error_code": e.error_code, "error": str(e)})
+        except BICQAError as e:
+            return jsonify({"ok": False, "error_code": e.error_code, "error": str(e)})
+        return jsonify({"ok": True, "result": result, "task_id": task_id,
+                        "meta": {k: meta.get(k, "") for k in ("db_name", "instance", "snap_range")}})
+    except Exception as e:  # 兜底：任何意外都不击穿通道
+        return jsonify({"ok": False, "error_code": "BICQA_ERROR", "error": str(e)})

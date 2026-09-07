@@ -50,6 +50,7 @@ menus_data = [
     ('apikey',           'menu.apikey',          0, 56),
     ('shares',           'menu.shares',          0, 57),
     ('intelligence',      'menu.intelligence',     0, 58),
+    ('bicqa',             'menu.bicqa',            0, 582),
     ('workflow',          'menu.workflow',         0, 585),
     ('workflow-task',     'menu.workflow_task',    0, 586),
     ('schema-dict',       'menu.schema-dict',      0, 581),

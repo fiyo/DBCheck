@@ -252,6 +252,28 @@ def nl2sql_tool(question: str, datasource_id: str = None,
     return {"ok": True, "datasource_id": ds, "sql": sql}
 
 
+def bicqa_ask_tool(question: str, dbtype: str = "", mask: bool = True,
+                   principal=None) -> dict:
+    """BIC-QA 知识问答：桥接外部知识库（协议层，零代码嵌入）。
+
+    不绑定具体实例（纯知识检索），无需可见性校验；但任何外部 API 调用都写审计。
+    BIC-QA 未配置/不可用 → 清晰错误（error_code=BICQA_UNAVAILABLE），不击穿通道。
+    """
+    if not question or not str(question).strip():
+        return {"ok": False, "error_code": "BAD_REQUEST", "error": "question 不能为空"}
+    try:
+        from modules.mcp_server.bicqa_bridge import get_bridge
+        result = get_bridge().ask(
+            str(question).strip(), dbtype=str(dbtype or ""), mask=bool(mask)
+        )
+    except Exception as e:
+        code = getattr(e, "error_code", None) or "BICQA_UNAVAILABLE"
+        return {"ok": False, "error_code": code, "error": f"BIC-QA 调用失败: {e}"}
+    _audit(principal, "mcp.bicqa_ask", "bicqa",
+           "allow" if result else "deny", detail=f"q={str(question)[:60]}")
+    return {"ok": True, "answer": result}
+
+
 # handler_key -> 实现函数（供 server.dispatch_tool 接线；与 registry 共用注册表）
 HANDLERS = {
     "list_instances": list_instances_tool,
@@ -262,4 +284,5 @@ HANDLERS = {
     "baseline_check": baseline_check_tool,
     "ai_diagnose": ai_diagnose_tool,
     "nl2sql": nl2sql_tool,
+    "bicqa_ask": bicqa_ask_tool,
 }

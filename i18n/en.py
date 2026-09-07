@@ -3178,6 +3178,7 @@ EN = {
 # ── 菜单 i18n 翻译（menu.*，第一阶段补齐；草稿待人工校对）──
 EN.update({
     "menu.about": "About RaccoonX",
+    "menu.bicqa": "BIC-QA Knowledge Base",
     "menu.ai": "AI Assistant",
     "menu.apikey": "API Keys",
     "menu.awr": "AWR Report",
@@ -3319,6 +3320,7 @@ EN.update({
     "webui.user_menu_logged_in": "Logged in",
     "webui.user_menu_account": "Account",
     "webui.user_menu_admin": "System Admin",
+    "webui.user_menu_about": "About",
     "webui.user_menu_logout": "Logout",
     "webui.account_title": "Account",
     "webui.account_loading": "Loading...",

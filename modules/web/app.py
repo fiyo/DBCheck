@@ -6154,88 +6154,10 @@ def api_awr_upload():
 
 
 def _build_awr_ai_summary(awr_data, meta):
-    """从 AWR 解析数据中构建 AI 诊断摘要"""
-    lines = []
-    lines.append(f"数据库: {meta.get('db_name', 'N/A')}, 实例: {meta.get('instance', 'N/A')}")
-    lines.append(f"快照范围: {meta.get('snap_range', 'N/A')}, 分析时段: {meta.get('elapsed', 'N/A')}")
-    lines.append(f"数据库版本: {meta.get('db_version', 'N/A')}")
-    lines.append("")
-
-    # 实例效率
-    eff = awr_data.get('instance_efficiency', [])
-    if isinstance(eff, list) and eff:
-        lines.append("=== 实例效率 ===")
-        for tdata in eff:
-            if not isinstance(tdata, dict):
-                continue
-            headers = tdata.get('headers', [])
-            rows = tdata.get('rows', [])
-            for row in rows[:10]:
-                lines.append(" | ".join(str(c) for c in row))
-        lines.append("")
-
-    # 前台等待事件
-    fg = awr_data.get('fg_wait_events', [])
-    if fg:
-        lines.append("=== 前台等待事件 Top10 ===")
-        for tdata in fg:
-            if not isinstance(tdata, dict):
-                continue
-            headers = tdata.get('headers', [])
-            rows = tdata.get('rows', [])
-            if headers:
-                lines.append(" | ".join(str(h) for h in headers))
-                for row in rows[:10]:
-                    lines.append(" | ".join(str(c) for c in row))
-        lines.append("")
-
-    # Top SQL
-    top_sql = awr_data.get('top_sql', {})
-    elapsed = top_sql.get('elapsed', [])
-    if elapsed:
-        lines.append("=== Top SQL (Elapsed Time) ===")
-        for tdata in elapsed:
-            if not isinstance(tdata, dict):
-                continue
-            headers = tdata.get('headers', [])
-            rows = tdata.get('rows', [])
-            if headers:
-                lines.append(" | ".join(str(h) for h in headers))
-                for row in rows[:5]:
-                    lines.append(" | ".join(str(c) for c in row))
-        lines.append("")
-
-    # 负载概况
-    lp = awr_data.get('load_profile', [])
-    if isinstance(lp, list) and lp:
-        lines.append("=== 负载概况 ===")
-        for tdata in lp:
-            if not isinstance(tdata, dict):
-                continue
-            headers = tdata.get('headers', [])
-            rows = tdata.get('rows', [])
-            if headers:
-                lines.append(" | ".join(str(h) for h in headers))
-                for row in rows[:5]:
-                    lines.append(" | ".join(str(c) for c in row))
-        lines.append("")
-
-    # 时间模型
-    tm = awr_data.get('time_model', [])
-    if tm:
-        lines.append("=== DB Time 模型 ===")
-        for tdata in tm:
-            if not isinstance(tdata, dict):
-                continue
-            headers = tdata.get('headers', [])
-            rows = tdata.get('rows', [])
-            if headers:
-                lines.append(" | ".join(str(h) for h in headers))
-                for row in rows[:10]:
-                    lines.append(" | ".join(str(c) for c in row))
-        lines.append("")
-
-    return "\n".join(lines)
+    """从 AWR 解析数据中构建 AI 诊断摘要（实现已抽至 awr_parser.build_awr_ai_summary，
+    与 BIC-QA AWR 分析共用同一实现；保留此别名以兼容既有调用点）。"""
+    from modules.web.awr_parser import build_awr_ai_summary
+    return build_awr_ai_summary(awr_data, meta)
 
 
 def _awr_report_steps():

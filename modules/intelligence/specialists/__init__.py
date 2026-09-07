@@ -18,6 +18,7 @@ from .index_advisor import IndexAdvisor
 from .baseline_compare import BaselineCompare
 from .capacity_analyst import CapacityAnalyst
 from .native_db import NativeDbExpert
+from .bicqa_expert import BicqaKnowledgeExpert
 
 _registered = False
 
@@ -39,6 +40,8 @@ def register_all() -> None:
         BaselineCompare(),
         CapacityAnalyst(),
         NativeDbExpert(),
+        # ── 阶段 2：BIC-QA 知识检索（replan 依发现标签动态追加）──
+        BicqaKnowledgeExpert(),
     ):
         registry.register(s)
     _registered = True

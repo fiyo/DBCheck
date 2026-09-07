@@ -356,6 +356,51 @@ _TOOL_SPECS: List[Dict[str, Any]] = [
             "tags": ["nl2sql"],
         },
     },
+    {
+        "name": "dbcheck.bicqa_ask",
+        "title": "BIC-QA 知识问答",
+        "domain": "knowledge",
+        "handler_key": "bicqa_ask",
+        "description": (
+            "调用外部 BIC-QA 知识库（用户自带 API Key，注册 https://www.bic-qa.com 获取）"
+            "回答数据库领域知识问题：Oracle AWR 怎么读、MySQL 慢查询怎么定位、金仓 work_mem "
+            "怎么调、各类报错根因等。DBCheck 仅做协议桥接与脱敏/审计留痕，不嵌入 BIC-QA 任何"
+            "代码（遵守 Apache-2.0 许可边界）。默认对问题文本做敏感信息脱敏后再外发（IP/邮箱/"
+            "连接串/口令打码）。BIC-QA 未配置/不可用时本工具返回清晰错误而非击穿通道，与本地 11 "
+            "专家互补（本地做现场数据分析，BIC-QA 提供知识库支撑）。"
+        ),
+        "tags": ["knowledge", "ai", "read"],
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "question": {
+                    "type": "string",
+                    "description": "数据库领域知识问题，如「Oracle AWR 报告里 DB Time 很高怎么分析」",
+                },
+                "dbtype": {
+                    "type": "string",
+                    "description": "数据库/主题类型（mysql|oracle|postgresql|kingbase|...），用于知识库定向检索",
+                    "default": "",
+                },
+                "mask": {
+                    "type": "boolean",
+                    "description": "外发前是否对问题文本脱敏（默认 true；强烈建议保持开启）",
+                    "default": True,
+                },
+            },
+            "required": ["question"],
+        },
+        "risk": {
+            "risk_level": "medium",
+            "access_mode": "read",
+            "requires_approval": False,
+            "destructive": False,
+            "reversible": True,
+            "runs_on": "llm",
+            "side_effects": "调用外部 BIC-QA API（用户自带 Key，不外发敏感信息）；写入 um_audit_log + 外部调用留痕",
+            "tags": ["knowledge"],
+        },
+    },
 ]
 
 
