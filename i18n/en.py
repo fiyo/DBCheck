@@ -2980,6 +2980,7 @@ EN = {
     "intelligence.run_first": "Run a diagnosis first",
     "intelligence.done": "Diagnosis complete",
     "webui.nav_intelligence": "Diagnostic Center",
+    "webui.badge_wip": "WIP",
     "webui.nav_flow": "Inspection Orchestration",
     "webui.nav_diag_history": "Diagnosis History",
     "diag_history.subtitle": "Review past diagnoses; select an entry to view the full report and create a ticket in one click.",

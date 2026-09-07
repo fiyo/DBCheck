@@ -3016,8 +3016,7 @@ async function executeFixSql(taskId, sql) {
         }
         .intel-cap .cap-desc {
             font-size: 12px; color: var(--text-muted); margin-top: 6px; line-height: 1.55;
-            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-            overflow: hidden; min-height: 37px;
+            word-break: break-word;
         }
         .intel-cap .cap-tags { margin-top: auto; padding-top: 8px; }
         .intel-cap .cap-tag {
@@ -6050,7 +6049,7 @@ function formatBytes(bytes) {
         const modalTitle = isEdit ? i18n('webui.pro_datasource_edit_title') : i18n('webui.pro_datasource_add_title');
         const saveBtnText = isEdit ? i18n('webui.pro_datasource_save_update') : i18n('webui.pro_datasource_save_create');
         const html = '<div id="datasource-modal-backdrop" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:999999;display:flex;align-items:center;justify-content:center">' +
-          '<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;min-width:420px;max-width:520px;z-index:999999">' +
+          '<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;min-width:420px;max-width:520px;max-height:calc(100vh - 40px);overflow-y:auto;z-index:999999">' +
             '<div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:16px">' + modalTitle + '</div>' +
             '<div style="display:grid;gap:12px">' +
               '<div><label style="font-size:12px;color:var(--text-muted)">' + i18n('webui.pro_ds_db_type_req') + '</label>' +
@@ -7025,7 +7024,7 @@ function wfCloseRunDrawer() {
       <span class="icon" data-page-node-id="EF6W16iTlpwu0smlKAoZUV"><svg viewBox="0 0 24 24" aria-hidden="true" data-page-node-id="pDkI4sw5kBnJWbyMRnWM4V"><circle cx="6" cy="6" r="2.5" data-page-node-id="XzVoWicgp6Pesg9dzyClnD"/><circle cx="18" cy="6" r="2.5" data-page-node-id="zVPWuuzyUMCDlIhs9uaQGL"/><circle cx="12" cy="18" r="2.5" data-page-node-id="1uqM8MxbolGvabd6PYSu4l"/><path d="M7.6 7.6 11 16M16.4 7.6 13 16M8 6h8" data-page-node-id="HFrh6zcV9MHKPuCu5sDfCd"/></svg></span> <span data-i18n="webui.nav_intelligence" data-page-node-id="GBjTMOMkjtYBHwYXNVtAw7">智能诊断中心</span>
     </div>
     <div class="nav-item" onclick="showPage('bicqa'); loadBicqaPage()" id="nav-bicqa" data-page-node-id="bicqaNavX1">
-      <span class="icon" data-page-node-id="bicqaNavX2"><svg viewBox="0 0 24 24" aria-hidden="true" data-page-node-id="bicqaNavX3"><path d="M4 5a2 2 0 0 1 2-2h6v16H6a2 2 0 0 0-2 2V5Z" data-page-node-id="bicqaNavX4"/><path d="M20 5a2 2 0 0 0-2-2h-6v16h6a2 2 0 0 1 2 2V5Z" data-page-node-id="bicqaNavX5"/><path d="M12 3v16" data-page-node-id="bicqaNavX6"/></svg></span> <span>BIC-QA 知识库</span>
+      <span class="icon" data-page-node-id="bicqaNavX2"><svg viewBox="0 0 24 24" aria-hidden="true" data-page-node-id="bicqaNavX3"><path d="M4 5a2 2 0 0 1 2-2h6v16H6a2 2 0 0 0-2 2V5Z" data-page-node-id="bicqaNavX4"/><path d="M20 5a2 2 0 0 0-2-2h-6v16h6a2 2 0 0 1 2 2V5Z" data-page-node-id="bicqaNavX5"/><path d="M12 3v16" data-page-node-id="bicqaNavX6"/></svg></span> <span data-i18n="menu.bicqa">BIC-QA 知识库</span> <span style="font-size:9.5px;padding:1px 6px;border-radius:8px;background:rgba(249,115,22,.15);color:#f97316;border:1px solid rgba(249,115,22,.45);font-weight:600;white-space:nowrap" data-i18n="webui.badge_wip">开发中</span>
     </div>
     <div class="nav-item" onclick="showPage('workflow'); loadWorkflowPage()" id="nav-workflow" data-page-node-id="lRYSpwfXIiRwD9wk7jWXLc">
       <span class="icon" data-page-node-id="TVLByGecnHsrv4HwEdCiBd"><svg viewBox="0 0 24 24" aria-hidden="true" data-page-node-id="jTiDZ9H8tgPgjGsBqB5IhA"><rect x="3" y="3" width="7" height="7" rx="1.5" data-page-node-id="wfHAkgWcTZgpHEW4dk4x6a"/><rect x="14" y="14" width="7" height="7" rx="1.5" data-page-node-id="AEugzkcy05RyFBH4FW85Ey"/><path d="M10 6.5h4a3 3 0 0 1 3 3v4.5" data-page-node-id="DCofAALriWUM7uokQEyfGz"/></svg></span> <span data-i18n="menu.workflow" data-page-node-id="RYulMmgqoznUv3g7bZzlZI">工作流编排</span>
@@ -10362,7 +10361,7 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
         <div class="card" id="bicqa-card" data-page-node-id="bicqaCardA1">
           <div class="card-title" data-page-node-id="bicqaCardA2">
             <svg viewBox="0 0 24 24" width="18" height="18" style="stroke:var(--accent2);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round" data-page-node-id="bicqaCardA3"><path d="M4 5a2 2 0 0 1 2-2h6v16H6a2 2 0 0 0-2 2V5Z" data-page-node-id="bicqaCardA4"/><path d="M20 5a2 2 0 0 0-2-2h-6v16h6a2 2 0 0 1 2 2V5Z" data-page-node-id="bicqaCardA5"/><path d="M12 3v16" data-page-node-id="bicqaCardA6"/></svg>
-            <span data-page-node-id="bicqaCardA7">BIC-QA 知识库</span>
+            <span data-i18n="menu.bicqa" data-page-node-id="bicqaCardA7">BIC-QA 知识库</span>
             <span class="badge" id="bicqa-status" style="background:var(--warn);color:#fff" data-page-node-id="bicqaCardA8">加载中…</span>
             <span style="font-size:11.5px;color:var(--text-muted);margin-left:auto" data-page-node-id="bicqaCardA9">外部知识库 · 协议接入</span>
           </div>
@@ -10408,7 +10407,7 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
               <select id="bicqa-chat-dbtype" class="form-input" data-page-node-id="bicqaD4"></select>
             </div>
             <div id="bicqa-chat-history" class="bicqa-history" data-page-node-id="bicqaD5"></div>
-            <textarea id="bicqa-chat-input" class="form-input" rows="3" placeholder="例如：MySQL 主从延迟突然增大，如何排查？"></textarea>
+            <textarea id="bicqa-chat-input" class="form-textarea" rows="3" style="width:100%" placeholder="例如：MySQL 主从延迟突然增大，如何排查？" data-page-node-id="bicqaD8"></textarea>
             <button id="bicqa-chat-send" class="btn btn-primary" onclick="bicqaAsk('chat')" data-page-node-id="bicqaD6">发送</button>
             <div id="bicqa-chat-result" data-page-node-id="bicqaD7"></div>
           </div>
@@ -10421,7 +10420,7 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
             </div>
             <div class="form-group" data-page-node-id="bicqaE5">
               <label data-page-node-id="bicqaE6">告警 / 日志内容</label>
-              <textarea id="bicqa-alert-input" class="form-input" rows="6" placeholder="粘贴告警信息、错误日志或巡检异常描述…"></textarea>
+              <textarea id="bicqa-alert-input" class="form-textarea" rows="6" style="width:100%" placeholder="粘贴告警信息、错误日志或巡检异常描述…" data-page-node-id="bicqaE10"></textarea>
               <button id="bicqa-alert-import" class="btn btn-ghost" style="margin-top:6px;font-size:12px;padding:4px 10px" onclick="bicqaImportLatestDiag()" data-page-node-id="bicqaE7">导入最近一次诊断发现</button>
             </div>
             <button id="bicqa-alert-send" class="btn btn-primary" onclick="bicqaAsk('alert')" data-page-node-id="bicqaE8">分析告警</button>

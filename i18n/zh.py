@@ -3010,6 +3010,7 @@ ZI = {
     "intelligence.run_first": "请先完成一次协同诊断",
     "intelligence.done": "诊断完成",
     "webui.nav_intelligence": "智能诊断中心",
+    "webui.badge_wip": "开发中",
     "webui.nav_flow": "巡检编排",
     "webui.nav_diag_history": "诊断历史",
     "diag_history.subtitle": "回看历次协同诊断结果，选中条目可查看完整报告并一键回填工单。",
