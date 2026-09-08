@@ -8,9 +8,9 @@
 -----------------------------------------
 BIC-QA 是第三方 SaaS 知识问答服务（注册 https://www.bic-qa.com 得 API Key，
 新户赠 1 亿 Token）。DBCheck 社区版 Apache-2.0，**绝不嵌入 BIC-QA 任何代码、
-绝不硬编码 Key**；本模块仅作为「协议层 HTTP 客户端」，按官方契约
-``POST https://api.bic-qa.com/skills/qa`` 调用其知识问答接口，把返回的知识
-结论回灌给本地诊断流程。
+绝不硬编码 Key**；本模块仅作为「协议层 HTTP 客户端」，按官方 Open API
+（文档 https://api.bic-qa.com/bic-qa-html/apikey-guide.zhcn.html）调用其知识
+问答接口，把返回的知识结论回灌给本地诊断流程。
 
 「复用 MCP 通道」含义
 ---------------------
@@ -20,14 +20,18 @@ BIC-QA 是第三方 SaaS 知识问答服务（注册 https://www.bic-qa.com 得 
 可见性/审计留痕。本工具只读（不触达生产库），与本地 11 专家互补：本地专家
 做现场数据分析，BIC-QA 提供知识库支撑。
 
-依赖：纯标准库（urllib + json），不引入任何第三方 HTTP 包，避免污染运行环境。
+官方 Open API 契约（v1.1，2026-08-25）
+-------------------------------------
+* 基础地址：``https://api.bic-qa.com``
+* 接口前缀：``/open-api/v1``（注意：不是 ``/skills/qa``）
+* 认证：``Authorization: Bearer sk-xxxxxxxx``（Key 仅存 gitignored
+  ``dbc_config.json`` 的 ``bicqa.api_key``，绝不进版本库）
+* 调用顺序：``POST /open-api/v1/session/create`` 取得 ``conversationId``
+  → ``POST /open-api/v1/chat``（SSE 流式）按 ``delta.content`` 累积回答
+* 流式响应为标准 SSE：``meta`` / ``delta`` / ``file`` / ``error`` / ``done``
+  五类事件，回答文本在 ``delta.delta.content`` 中增量下发。
 
-配置（隔离存储，绝不提交）
--------------------------
-* ``BICQA_API_KEY``  : BIC-QA API Key（优先读环境变量；或落地 dbc_config.json 的
-                       ``bicqa.api_key`` 字段，该文件已被 .gitignore 忽略，不进版本库）
-* ``BICQA_API_BASE`` : 接口地址（可选，默认 https://api.bic-qa.com）
-未配置 API Key → get_bridge() 抛 BICQAUnavailable（通道优雅降级，不击穿 MCP 协议流）。
+依赖：纯标准库（urllib + json），不引入任何第三方 HTTP 包，避免污染运行环境。
 """
 
 from __future__ import annotations
@@ -38,14 +42,17 @@ import re
 import socket
 import urllib.error
 import urllib.request
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 
 DEFAULT_API_BASE = "https://api.bic-qa.com"
-QA_PATH = "/skills/qa"
+SESSION_CREATE_PATH = "/open-api/v1/session/create"
+CHAT_PATH = "/open-api/v1/chat"
 
 # 超时（秒）：外部 SaaS 不可达时快速失败，不阻塞主流程
-DEFAULT_TIMEOUT = 20
+DEFAULT_TIMEOUT = 60
+# 单次对话最大等待（秒）：SSE 流式可能较慢，给足余量
+STREAM_TIMEOUT = 120
 
 
 class BICQAError(Exception):
@@ -110,58 +117,173 @@ def mask_sensitive(text: str) -> str:
 
 # ── 业务桥接 ───────────────────────────────────────────────────────────────────
 class BICQABridge:
-    """BIC-QA 能力桥：把外部知识问答包装为 DBCheck 友好的 Python 方法。"""
+    """BIC-QA 能力桥：把外部知识问答包装为 DBCheck 友好的 Python 方法。
+
+    真实调用顺序（官方 Open API v1）：
+      1. POST /open-api/v1/session/create  -> data.conversationId
+      2. POST /open-api/v1/chat (SSE)      -> 累积 delta.delta.content
+    """
 
     def __init__(self, api_base: str, api_key: str):
         self._api_base = api_base
         self._api_key = api_key
 
+    # ── 底层 HTTP ──────────────────────────────────────────────────────────
+    def _auth_headers(self, extra: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+        h = {
+            "Authorization": f"Bearer {self._api_key}",
+            "Content-Type": "application/json",
+        }
+        if extra:
+            h.update(extra)
+        return h
+
+    def _post_json(self, path: str, payload: Dict[str, Any],
+                   timeout: int = DEFAULT_TIMEOUT) -> Tuple[int, bytes]:
+        """普通 JSON POST，返回 (status, body_bytes)。"""
+        url = self._api_base + path
+        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        req = urllib.request.Request(
+            url, data=data, headers=self._auth_headers(), method="POST"
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return resp.getcode(), resp.read()
+        except urllib.error.HTTPError as e:  # 4xx/5xx：先读错误体再抛出
+            body = b""
+            try:
+                body = e.read() or b""
+            except Exception:
+                pass
+            raise BICQAError(
+                f"BIC-QA HTTP {e.code}: {body.decode('utf-8', 'replace')[:300]}"
+            ) from e
+        except (urllib.error.URLError, socket.timeout, OSError) as e:
+            raise BICQAUnavailable(f"BIC-QA 不可达（{url}）：{e}") from e
+
+    # ── 步骤 1：创建会话 ────────────────────────────────────────────────────
+    def _create_session(self, title: str = "DBCheck 知识检索",
+                        timeout: int = DEFAULT_TIMEOUT) -> str:
+        status, body = self._post_json(
+            SESSION_CREATE_PATH, {"title": title}, timeout=timeout
+        )
+        try:
+            obj = json.loads(body.decode("utf-8", "replace"))
+        except Exception as e:
+            raise BICQAError(f"BIC-QA 创建会话返回非 JSON：{body.decode('utf-8','replace')[:200]}") from e
+        if obj.get("status") != "success" or not isinstance(obj.get("data"), dict):
+            msg = obj.get("message") or obj.get("code") or "未知错误"
+            raise BICQAError(f"BIC-QA 创建会话失败：{msg}")
+        cid = obj["data"].get("conversationId")
+        if not cid:
+            raise BICQAError("BIC-QA 创建会话未返回 conversationId")
+        return cid
+
+    # ── 步骤 2：流式聊天（SSE） ─────────────────────────────────────────────
+    def _chat_stream(self, question: str, conversation_id: str,
+                     timeout: int = STREAM_TIMEOUT) -> str:
+        url = self._api_base + CHAT_PATH
+        payload = {"question": question, "conversationId": conversation_id}
+        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        req = urllib.request.Request(
+            url, data=data,
+            headers=self._auth_headers({
+                "Accept": "text/event-stream",
+                "Cache-Control": "no-cache",
+            }),
+            method="POST",
+        )
+        parts: List[str] = []  # 累积的回答文本
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                ctype = resp.headers.get("Content-Type", "")
+                if "text/event-stream" not in ctype:
+                    # 非 SSE：可能是建流前的 JSON 错误信封
+                    err_body = resp.read().decode("utf-8", "replace")[:300]
+                    raise BICQAError(f"BIC-QA 聊天未返回 SSE 流：{err_body}")
+                self._consume_sse(resp, parts)
+        except urllib.error.HTTPError as e:
+            body = b""
+            try:
+                body = e.read() or b""
+            except Exception:
+                pass
+            raise BICQAError(
+                f"BIC-QA HTTP {e.code}: {body.decode('utf-8', 'replace')[:300]}"
+            ) from e
+        except (urllib.error.URLError, socket.timeout, OSError) as e:
+            raise BICQAUnavailable(f"BIC-QA 不可达（{url}）：{e}") from e
+        return "".join(parts).strip()
+
+    @staticmethod
+    def _consume_sse(resp, parts: List[str]) -> None:
+        """逐行解析 SSE；把 delta.delta.content 累加到 parts。
+
+        事件以空行分隔；每个事件可能含多行 ``data:``，拼接后整体解析为一个 JSON。
+        容忍 delta.thinking 与未知字段；遇到 type=error 直接抛出。
+        """
+        data_lines: List[str] = []
+        for raw in resp:
+            line = raw.decode("utf-8", "replace")
+            if line in ("\n", "\r\n", ""):
+                # 事件结束：处理已收集的 data 行
+                if data_lines:
+                    BICQABridge._dispatch_event(data_lines, parts)
+                    data_lines = []
+                continue
+            if line.startswith("data:"):
+                payload = line[5:]
+                if payload.startswith(" "):
+                    payload = payload[1:]
+                data_lines.append(payload)
+            # 其它字段（event:/id:/retry:）忽略
+        # 连接关闭时 flush 残余
+        if data_lines:
+            BICQABridge._dispatch_event(data_lines, parts)
+
+    @staticmethod
+    def _dispatch_event(data_lines: List[str], parts: List[str]) -> None:
+        blob = "\n".join(data_lines).strip()
+        if not blob:
+            return
+        try:
+            evt = json.loads(blob)
+        except Exception:
+            return  # 非 JSON 片段，忽略
+        if not isinstance(evt, dict):
+            return
+        etype = evt.get("type")
+        if etype == "error":
+            content = evt.get("content") or evt.get("message") or "未知错误"
+            code = evt.get("errorCode") or ""
+            raise BICQAError(f"BIC-QA 流式错误（{code}）：{content}")
+        if etype == "delta":
+            delta = evt.get("delta") or {}
+            if isinstance(delta, dict):
+                # 回答文本
+                if isinstance(delta.get("content"), str):
+                    parts.append(delta["content"])
+                # 思考过程（不计入最终回答，但可作为调试；此处不附加）
+        # meta / file / done 等事件忽略
+
+    # ── 对外主方法 ─────────────────────────────────────────────────────────
     def ask(self, question: str, dbtype: str = "", mask: bool = True,
-            timeout: int = DEFAULT_TIMEOUT) -> str:
-        """调用 /skills/qa 返回知识结论文本（result 字段）。"""
+            timeout: int = STREAM_TIMEOUT) -> str:
+        """向 BIC-QA 提问，返回知识结论文本。
+
+        流程：创建会话 -> 流式聊天 -> 累积 delta.content。
+        ``dbtype`` 官方 API 无原生参数，这里作为上下文前缀拼进问题，
+        让模型按数据库类型给出更贴切的知识；``mask`` 控制外发前脱敏。
+        """
         q = str(question).strip()
         if not q:
             raise BICQAError("question 不能为空")
         if mask:
             q = mask_sensitive(q)
-        payload = {"question": q}
         if dbtype:
-            payload["dbtype"] = str(dbtype).strip()
-        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-        url = self._api_base + QA_PATH
-        req = urllib.request.Request(
-            url,
-            data=data,
-            headers={
-                "Authorization": f"Bearer {self._api_key}",
-                "Content-Type": "application/json",
-            },
-            method="POST",
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                raw = resp.read().decode("utf-8", "replace")
-        except urllib.error.HTTPError as e:
-            body = ""
-            try:
-                body = e.read().decode("utf-8", "replace")[:300]
-            except Exception:
-                pass
-            raise BICQAError(f"BIC-QA HTTP {e.code}: {body}") from e
-        except (urllib.error.URLError, socket.timeout, OSError) as e:
-            raise BICQAUnavailable(f"BIC-QA 不可达（{url}）：{e}") from e
-        try:
-            obj = json.loads(raw)
-        except Exception:
-            # 非 JSON 也尽量回传原文，避免信息丢失
-            return raw
-        # 优先取 result；兼容 {data:{result}} 等形态
-        if isinstance(obj, dict):
-            if "result" in obj:
-                return obj["result"]
-            if isinstance(obj.get("data"), dict) and "result" in obj["data"]:
-                return obj["data"]["result"]
-        return raw
+            q = f"[数据库类型: {str(dbtype).strip()}]\n{q}"
+        cid = self._create_session()
+        return self._chat_stream(q, cid, timeout=timeout)
 
 
 # ── 单例工厂（读配置，未配置即不可用） ─────────────────────────────────────────

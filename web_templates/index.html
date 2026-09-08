@@ -4368,7 +4368,7 @@ async function loadBicqaConfig() {
     bicqaSetReady(ready);
     const st = document.getElementById('bicqa-status');
     if (st) {
-      st.textContent = ready ? '已启用' : '未启用';
+      st.textContent = ready ? (i18n('webui.bicqa_status_enabled') || '已启用') : (i18n('webui.bicqa_status_disabled') || '未启用');
       st.style.background = ready ? 'var(--ok, #16a34a)' : 'var(--warn)';
     }
   } catch (e) {
@@ -4415,10 +4415,10 @@ async function loadBicqaAwrList() {
   try {
     const res = await fetch('/api/bicqa/awr', { credentials: 'include' });
     const d = await res.json();
-    if (!d.ok) { sel.innerHTML = '<option value="">加载失败</option>'; return; }
+    if (!d.ok) { sel.innerHTML = '<option value="">' + (i18n('webui.bicqa_awr_load_fail') || '加载失败') + '</option>'; return; }
     const items = d.reports || [];
     if (!items.length) {
-      sel.innerHTML = '<option value="">暂无已上传的 AWR 报告（请先到「AWR 报告」页上传）</option>';
+      sel.innerHTML = '<option value="">' + (i18n('webui.bicqa_awr_no_reports') || '暂无已上传的 AWR 报告（请先到「AWR 报告」页上传）') + '</option>';
       return;
     }
     sel.innerHTML = items.map(function(r) {
@@ -4427,7 +4427,7 @@ async function loadBicqaAwrList() {
       return '<option value="' + escHtml(r.task_id) + '">' + escHtml(label) + '</option>';
     }).join('');
   } catch (e) {
-    sel.innerHTML = '<option value="">加载失败：' + escHtml(e.message || String(e)) + '</option>';
+    sel.innerHTML = '<option value="">' + (i18n('webui.bicqa_awr_load_fail') || '加载失败') + '：' + escHtml(e.message || String(e)) + '</option>';
   }
 }
 
@@ -4547,11 +4547,83 @@ async function bicqaImportLatestDiag() {
     const rows = d.history || [];
     const last = rows[0];
     if (!last) { toastError('暂无诊断历史'); return; }
-    const findings = last.findings || last.result || last;
-    const text = (typeof findings === 'string') ? findings : JSON.stringify(findings, null, 2);
-    input.value = text;
+    // 摘要不含完整 findings → 拉取该条完整记录（含 result.findings / plan / 采集数据包）
+    let record = last;
+    try {
+      const rd = await (await fetch('/api/intelligence/history/' + encodeURIComponent(last.id))).json();
+      if (rd.ok && rd.record) record = rd.record;
+    } catch (e) { /* 退化：使用摘要记录，至少含元数据 */ }
+    input.value = buildBicqaDiagText(record);
     toastSuccess('已导入最近一次诊断发现');
   } catch(e) { toastError('导入失败：'+e.message); }
+}
+
+// 将一条完整诊断记录（result 含 findings/plan/inputs）整理为可读的告警分析文本。
+// 注意：刻意只取 target_meta / inspection_report，不 dump target_instance（含连接口令）。
+function buildBicqaDiagText(record) {
+  record = record || {};
+  const res = record.result || {};
+  const lines = [];
+  lines.push('# 智能诊断发现导入');
+  lines.push('诊断编号：' + (record.diag_no || '-'));
+  lines.push('数据库类型：' + (record.db_type || '-'));
+  lines.push('目标实例：' + (record.instance_name || record.instance_id || '-'));
+  lines.push('诊断目标：' + (record.goal || res.goal || '-'));
+  lines.push('严重级别：' + (record.severity || '-'));
+  const fc = (record.finding_count != null) ? record.finding_count : (res.findings || []).length;
+  lines.push('发现项数量：' + fc);
+  lines.push('');
+
+  const findings = res.findings || [];
+  if (findings.length) {
+    lines.push('## 一、巡检发现项明细');
+    findings.forEach(function (f, i) {
+      const sev = f.severity || 'info';
+      const cat = f.category || '';
+      lines.push((i + 1) + '. 【' + sev + (cat ? '/' + cat : '') + '】' + (f.title || '未命名发现'));
+      if (f.detail) lines.push('   现象/描述：' + f.detail);
+      if (f.suggestion) lines.push('   处置建议：' + f.suggestion);
+      if (f.tags && f.tags.length) lines.push('   标签：' + f.tags.join(', '));
+      lines.push('');
+    });
+  }
+
+  const plan = res.plan || [];
+  if (plan.length) {
+    lines.push('## 二、执行计划');
+    plan.forEach(function (p, i) {
+      let t;
+      if (typeof p === 'string') t = p;
+      else if (p && (p.title || p.step)) t = (p.title || p.step);
+      else t = JSON.stringify(p);
+      lines.push((i + 1) + '. ' + t);
+    });
+    lines.push('');
+  }
+
+  const inputs = res.inputs || {};
+  const meta = inputs.target_meta || {};
+  const report = inputs.inspection_report;
+  lines.push('## 三、采集数据包概要');
+  if (meta.instance_id || meta.instance_name || meta.db_type) {
+    lines.push('实例：' + (meta.instance_name || '') + ' (' + (meta.instance_id || '') + ') · 类型：' + (meta.db_type || ''));
+  }
+  if (report !== undefined && report !== null) {
+    let s;
+    try { s = (typeof report === 'string') ? report : JSON.stringify(report, null, 2); }
+    catch (e) { s = String(report); }
+    const MAX = 8000;
+    if (s.length > MAX) {
+      lines.push('原始巡检报告较大（' + s.length + ' 字符），已截断展示前部供分析：');
+      lines.push(s.slice(0, MAX));
+    } else {
+      lines.push(s);
+    }
+  }
+  if (!findings.length && !plan.length && report === undefined) {
+    lines.push('（该记录未包含详细发现数据，仅导入元数据。）');
+  }
+  return lines.join('\n');
 }
 
 // ═══ Workflow Builder（阶段 D）═══
@@ -10362,84 +10434,84 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
           <div class="card-title" data-page-node-id="bicqaCardA2">
             <svg viewBox="0 0 24 24" width="18" height="18" style="stroke:var(--accent2);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round" data-page-node-id="bicqaCardA3"><path d="M4 5a2 2 0 0 1 2-2h6v16H6a2 2 0 0 0-2 2V5Z" data-page-node-id="bicqaCardA4"/><path d="M20 5a2 2 0 0 0-2-2h-6v16h6a2 2 0 0 1 2 2V5Z" data-page-node-id="bicqaCardA5"/><path d="M12 3v16" data-page-node-id="bicqaCardA6"/></svg>
             <span data-i18n="menu.bicqa" data-page-node-id="bicqaCardA7">BIC-QA 知识库</span>
-            <span class="badge" id="bicqa-status" style="background:var(--warn);color:#fff" data-page-node-id="bicqaCardA8">加载中…</span>
-            <span style="font-size:11.5px;color:var(--text-muted);margin-left:auto" data-page-node-id="bicqaCardA9">外部知识库 · 协议接入</span>
+            <span class="badge" id="bicqa-status" data-i18n="webui.bicqa_loading" style="background:var(--warn);color:#fff" data-page-node-id="bicqaCardA8">加载中…</span>
+            <span style="font-size:11.5px;color:var(--text-muted);margin-left:auto" data-i18n="webui.bicqa_tag" data-page-node-id="bicqaCardA9">外部知识库 · 协议接入</span>
           </div>
-          <div style="color:var(--text-muted);font-size:12.5px;margin-bottom:16px" data-page-node-id="bicqaCardA10">对接 BIC-QA 云端知识库，作为本地 11 专家的能力补充；未配置 Key 时完全离线，不向外部发送任何数据。</div>
+          <div style="color:var(--text-muted);font-size:12.5px;margin-bottom:16px" data-i18n="webui.bicqa_desc" data-page-node-id="bicqaCardA10">对接 BIC-QA 云端知识库，作为本地 12 专家的能力补充；未配置 Key 时完全离线，不向外部发送任何数据。</div>
 
-          <div id="bicqa-notready" style="display:none;font-size:12.5px;color:var(--warn);margin-bottom:12px;padding:8px 10px;border:1px dashed var(--warn);border-radius:8px" data-page-node-id="bicqaB1">BIC-QA 尚未启用或未配置 API Key。请先在「配置」页填写 API Key 并启用（源自 <a href="https://www.bic-qa.com" target="_blank" rel="noopener" data-page-node-id="bicqaB2">bic-qa.com</a>）。启用前不向外部发送任何数据。</div>
+          <div id="bicqa-notready" style="display:none;font-size:12.5px;color:var(--warn);margin-bottom:12px;padding:8px 10px;border:1px dashed var(--warn);border-radius:8px" data-i18n-html="webui.bicqa_not_ready" data-page-node-id="bicqaB1">BIC-QA 尚未启用或未配置 API Key。请先在「配置」页填写 API Key 并启用（源自 <a href="https://www.bic-qa.com" target="_blank" rel="noopener" data-page-node-id="bicqaB2">bic-qa.com</a>）。启用前不向外部发送任何数据。</div>
           <div class="bicqa-tabs" data-page-node-id="bicqaB3">
-            <button class="bicqa-tab active" data-tab="config" onclick="bicqaSwitchTab('config')" data-page-node-id="bicqaB4">配置</button>
-            <button class="bicqa-tab" data-tab="chat" onclick="bicqaSwitchTab('chat')" data-page-node-id="bicqaB5">对话</button>
-            <button class="bicqa-tab" data-tab="alert" onclick="bicqaSwitchTab('alert')" data-page-node-id="bicqaB6">告警分析</button>
-            <button class="bicqa-tab" data-tab="awr" onclick="bicqaSwitchTab('awr')" data-page-node-id="bicqaF1">AWR 分析</button>
+            <button class="bicqa-tab active" data-tab="chat" onclick="bicqaSwitchTab('chat')" data-i18n="webui.bicqa_tab_chat" data-page-node-id="bicqaB5">对话</button>
+            <button class="bicqa-tab" data-tab="alert" onclick="bicqaSwitchTab('alert')" data-i18n="webui.bicqa_tab_alert" data-page-node-id="bicqaB6">告警分析</button>
+            <button class="bicqa-tab" data-tab="awr" onclick="bicqaSwitchTab('awr')" data-i18n="webui.bicqa_tab_awr" data-page-node-id="bicqaF1">AWR 分析</button>
+            <button class="bicqa-tab" data-tab="config" onclick="bicqaSwitchTab('config')" data-i18n="webui.bicqa_tab_config" data-page-node-id="bicqaB4">配置</button>
           </div>
 
           <!-- 配置 Tab -->
-          <div id="bicqa-tab-config" data-page-node-id="bicqaC1">
+          <div id="bicqa-tab-config" style="display:none" data-page-node-id="bicqaC1">
             <div class="form-group" data-page-node-id="bicqaC2">
-              <label style="display:flex;align-items:center;gap:8px" data-page-node-id="bicqaC3"><input type="checkbox" id="bicqa-enabled" style="width:auto" data-page-node-id="bicqaC4"/> 启用 BIC-QA 知识问答</label>
-              <div style="font-size:11.5px;color:var(--text-muted);margin-top:4px" data-page-node-id="bicqaC5">启用后，诊断中心可调用 BIC-QA 知识库作为本地 11 专家的补充；关闭则完全离线，不向外部发送任何数据。</div>
+              <label style="display:flex;align-items:center;gap:8px" data-page-node-id="bicqaC3"><input type="checkbox" id="bicqa-enabled" style="width:auto" data-page-node-id="bicqaC4"/> <span data-i18n="webui.bicqa_config_enable">启用 BIC-QA 知识问答</span></label>
+              <div style="font-size:11.5px;color:var(--text-muted);margin-top:4px" data-i18n="webui.bicqa_config_enable_hint" data-page-node-id="bicqaC5">启用后，诊断中心可调用 BIC-QA 知识库作为本地 12 专家的能力补充；关闭则完全离线，不向外部发送任何数据。</div>
             </div>
             <div class="form-group" data-page-node-id="bicqaC6">
-              <label data-page-node-id="bicqaC7">API 地址</label>
-              <input id="bicqa-api-base" class="form-input" placeholder="https://api.bic-qa.com" data-page-node-id="bicqaC8" />
+              <label data-i18n="webui.bicqa_config_api_base" data-page-node-id="bicqaC7">API 地址</label>
+              <input id="bicqa-api-base" class="form-input" data-i18n="webui.bicqa_config_api_base_placeholder" placeholder="https://api.bic-qa.com" data-page-node-id="bicqaC8" />
             </div>
             <div class="form-group" data-page-node-id="bicqaC9">
-              <label data-page-node-id="bicqaC10">API Key</label>
-              <input id="bicqa-api-key" type="password" class="form-input" placeholder="在此粘贴 BIC-QA API Key（已配置则留空不修改）" autocomplete="off" data-page-node-id="bicqaC11" />
-              <div style="font-size:11.5px;color:var(--text-muted);margin-top:4px" data-page-node-id="bicqaC12">Key 仅存于本地 dbc_config.json（已被 .gitignore 忽略，绝不上传）。</div>
+              <label data-i18n="webui.bicqa_config_api_key" data-page-node-id="bicqaC10">API Key</label>
+              <input id="bicqa-api-key" type="password" class="form-input" data-i18n="webui.bicqa_config_api_key_placeholder" placeholder="在此粘贴 BIC-QA API Key（已配置则留空不修改）" autocomplete="off" data-page-node-id="bicqaC11" />
+              <div style="font-size:11.5px;color:var(--text-muted);margin-top:4px" data-i18n="webui.bicqa_config_api_key_hint" data-page-node-id="bicqaC12">Key 仅存于本地 dbc_config.json（已被 .gitignore 忽略，绝不上传）。</div>
             </div>
             <div class="form-group" data-page-node-id="bicqaC13">
-              <label data-page-node-id="bicqaC14">默认数据库类型</label>
+              <label data-i18n="webui.bicqa_config_dbtype" data-page-node-id="bicqaC14">默认数据库类型</label>
               <select id="bicqa-default-dbtype" class="form-input" data-page-node-id="bicqaC15"></select>
             </div>
             <div class="form-group" data-page-node-id="bicqaC16">
-              <label style="display:flex;align-items:center;gap:8px" data-page-node-id="bicqaC17"><input type="checkbox" id="bicqa-mask" style="width:auto" checked data-page-node-id="bicqaC18"/> 外发内容自动脱敏（IP / 邮箱 / 连接串 / 口令）</label>
+              <label style="display:flex;align-items:center;gap:8px" data-page-node-id="bicqaC17"><input type="checkbox" id="bicqa-mask" style="width:auto" checked data-page-node-id="bicqaC18"/> <span data-i18n="webui.bicqa_config_mask">外发内容自动脱敏（IP / 邮箱 / 连接串 / 口令）</span></label>
             </div>
-            <button class="btn btn-primary" onclick="saveBicqaConfig()" data-page-node-id="bicqaC19">保存配置</button>
+            <button class="btn btn-primary" onclick="saveBicqaConfig()" data-i18n="webui.bicqa_config_save" data-page-node-id="bicqaC19">保存配置</button>
           </div>
 
           <!-- 对话 Tab -->
-          <div id="bicqa-tab-chat" style="display:none" data-page-node-id="bicqaD1">
+          <div id="bicqa-tab-chat" data-page-node-id="bicqaD1">
             <div class="form-group" data-page-node-id="bicqaD2">
-              <label data-page-node-id="bicqaD3">数据库类型</label>
+              <label data-i18n="webui.bicqa_chat_dbtype" data-page-node-id="bicqaD3">数据库类型</label>
               <select id="bicqa-chat-dbtype" class="form-input" data-page-node-id="bicqaD4"></select>
             </div>
             <div id="bicqa-chat-history" class="bicqa-history" data-page-node-id="bicqaD5"></div>
-            <textarea id="bicqa-chat-input" class="form-textarea" rows="3" style="width:100%" placeholder="例如：MySQL 主从延迟突然增大，如何排查？" data-page-node-id="bicqaD8"></textarea>
-            <button id="bicqa-chat-send" class="btn btn-primary" onclick="bicqaAsk('chat')" data-page-node-id="bicqaD6">发送</button>
+            <textarea id="bicqa-chat-input" class="form-textarea" rows="3" style="width:100%" data-i18n="webui.bicqa_chat_placeholder" placeholder="例如：MySQL 主从延迟突然增大，如何排查？" data-page-node-id="bicqaD8"></textarea>
+            <button id="bicqa-chat-send" class="btn btn-primary" onclick="bicqaAsk('chat')" data-i18n="webui.bicqa_chat_send" data-page-node-id="bicqaD6">发送</button>
             <div id="bicqa-chat-result" data-page-node-id="bicqaD7"></div>
           </div>
 
           <!-- 告警分析 Tab -->
           <div id="bicqa-tab-alert" style="display:none" data-page-node-id="bicqaE1">
             <div class="form-group" data-page-node-id="bicqaE2">
-              <label data-page-node-id="bicqaE3">数据库类型</label>
+              <label data-i18n="webui.bicqa_alert_dbtype" data-page-node-id="bicqaE3">数据库类型</label>
               <select id="bicqa-alert-dbtype" class="form-input" data-page-node-id="bicqaE4"></select>
             </div>
             <div class="form-group" data-page-node-id="bicqaE5">
-              <label data-page-node-id="bicqaE6">告警 / 日志内容</label>
-              <textarea id="bicqa-alert-input" class="form-textarea" rows="6" style="width:100%" placeholder="粘贴告警信息、错误日志或巡检异常描述…" data-page-node-id="bicqaE10"></textarea>
-              <button id="bicqa-alert-import" class="btn btn-ghost" style="margin-top:6px;font-size:12px;padding:4px 10px" onclick="bicqaImportLatestDiag()" data-page-node-id="bicqaE7">导入最近一次诊断发现</button>
+              <label data-i18n="webui.bicqa_alert_label" data-page-node-id="bicqaE6">告警 / 日志内容</label>
+              <textarea id="bicqa-alert-input" class="form-textarea" rows="6" style="width:100%" data-i18n="webui.bicqa_alert_placeholder" placeholder="粘贴告警信息、错误日志或巡检异常描述…" data-page-node-id="bicqaE10"></textarea>
+              <button id="bicqa-alert-import" class="btn btn-ghost" style="margin-top:6px;font-size:12px;padding:4px 10px" onclick="bicqaImportLatestDiag()" data-i18n="webui.bicqa_alert_import" data-page-node-id="bicqaE7">导入最近一次诊断发现</button>
             </div>
-            <button id="bicqa-alert-send" class="btn btn-primary" onclick="bicqaAsk('alert')" data-page-node-id="bicqaE8">分析告警</button>
+            <button id="bicqa-alert-send" class="btn btn-primary" onclick="bicqaAsk('alert')" data-i18n="webui.bicqa_alert_send" data-page-node-id="bicqaE8">分析告警</button>
             <div id="bicqa-alert-result" style="margin-top:12px" data-page-node-id="bicqaE9"></div>
           </div>
           <div id="bicqa-tab-awr" style="display:none" data-page-node-id="bicqaG1">
-            <div style="color:var(--text-muted);font-size:12.5px;margin-bottom:10px" data-page-node-id="bicqaG2">选择已上传的 Oracle AWR 报告，本地解析为指标摘要并<b>脱敏后</b>直传 BIC-QA 知识库，返回四段式（现象解读 / 根因排序 / 定位命令 / 处置建议）性能分析。</div>
+            <div style="color:var(--text-muted);font-size:12.5px;margin-bottom:10px" data-i18n-html="webui.bicqa_awr_desc" data-page-node-id="bicqaG2">选择已上传的 Oracle AWR 报告，本地解析为指标摘要并<b>脱敏后</b>直传 BIC-QA 知识库，返回四段式（现象解读 / 根因排序 / 定位命令 / 处置建议）性能分析。</div>
             <div class="form-group" data-page-node-id="bicqaG3">
-              <label data-page-node-id="bicqaG4">AWR 报告</label>
+              <label data-i18n="webui.bicqa_awr_report" data-page-node-id="bicqaG4">AWR 报告</label>
               <div style="display:flex;gap:8px" data-page-node-id="bicqaG5">
-                <select id="bicqa-awr-select" class="form-input" style="flex:1" data-page-node-id="bicqaG6"><option value="">加载中…</option></select>
-                <button class="btn btn-ghost" style="font-size:12px;padding:4px 10px" onclick="loadBicqaAwrList()" data-page-node-id="bicqaG7">刷新</button>
+                <select id="bicqa-awr-select" class="form-input" style="flex:1" data-page-node-id="bicqaG6"><option value="" data-i18n="webui.bicqa_awr_report_loading">加载中…</option></select>
+                <button class="btn btn-ghost" style="font-size:12px;padding:4px 10px" onclick="loadBicqaAwrList()" data-i18n="webui.bicqa_awr_refresh" data-page-node-id="bicqaG7">刷新</button>
               </div>
             </div>
             <div class="form-group" data-page-node-id="bicqaG8">
-              <label data-page-node-id="bicqaG9">数据库类型</label>
+              <label data-i18n="webui.bicqa_awr_dbtype" data-page-node-id="bicqaG9">数据库类型</label>
               <select id="bicqa-awr-dbtype" class="form-input" data-page-node-id="bicqaG10"></select>
             </div>
-            <button id="bicqa-awr-send" class="btn btn-primary" onclick="bicqaAwrAnalyze()" data-page-node-id="bicqaG11">🤖 直传 BIC-QA 分析</button>
+            <button id="bicqa-awr-send" class="btn btn-primary" onclick="bicqaAwrAnalyze()" data-i18n="webui.bicqa_awr_send" data-page-node-id="bicqaG11">🤖 直传 BIC-QA 分析</button>
             <div id="bicqa-awr-result" style="margin-top:12px" data-page-node-id="bicqaG12"></div>
           </div>
         </div>
@@ -11053,7 +11125,7 @@ function applyI18N() {
     if (key === 'webui.step_badge') return;  // 由 gotoStep() 负责带参数格式化
     const _v = i18n(key);
     if (_v === undefined || _v === '') return;  // 缺键/空值：保留元素原文本，避免显示 undefined/空白
-    if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) {
+    if ((el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && el.hasAttribute('placeholder')) {
       el.placeholder = _v;
     } else {
       el.textContent = _v;
@@ -11468,6 +11540,7 @@ function showPage(name) {
     'data-management': [i18n('webui.data_management_title') || '数据管理', i18n('webui.data_management_desc') || '管理 {{ product_name }} 自身数据文件'],
     'disaster-recovery': [i18n('webui.nav_disaster_recovery') || '容灾备份', i18n('dr.page_subtitle') || '基于 autobackup 的定时备份与调度'],
     'awr': [i18n('webui.awr_nav') || 'AWR 报告分析', i18n('webui.awr_desc') || '上传 Oracle AWR HTML 报告自动生成分析报告'],
+    'bicqa': [i18n('menu.bicqa') || 'BIC-QA 知识库', ''],
     'oracle-client': [i18n('webui.oracle_client_title') || '数据库驱动设置', ''],
     'plugin-market': [i18n('webui.plugin_market_title') || '插件市场', ''],
     'rag': [i18n('webui.rag_page_title') || 'RAG 知识库', ''],
@@ -20653,6 +20726,48 @@ function _markdownToHtml(text) {
     .replace(/^### (.*?)$/gm, '<h3 style="margin:14px 0 10px;font-size:15px;color:var(--accent2);font-weight:600">$1</h3>')
     .replace(/^## (.*?)$/gm, '<h2 style="margin:16px 0 12px;font-size:16px;color:var(--accent2);font-weight:600">$1</h2>')
     .replace(/^# (.*?)$/gm, '<h1 style="margin:18px 0 14px;font-size:18px;color:var(--accent2);font-weight:700">$1</h1>')
+    // Markdown 表格（逐行扫描，兼容末尾无换行、多内容行）
+    .replace(/[\s\S]*/, function(t) {
+      var lines = t.split('\n');
+      var out = [];
+      var i = 0;
+      while (i < lines.length) {
+        var line = lines[i];
+        if (/^\s*\|/.test(line) && /\|\s*$/.test(line)) {
+          var rows = [];
+          while (i < lines.length && /^\s*\|/.test(lines[i]) && /\|\s*$/.test(lines[i])) {
+            rows.push(lines[i]); i++;
+          }
+          if (rows.length >= 2) {
+            var sepIdx = -1;
+            for (var k = 1; k < rows.length; k++) {
+              var inner = rows[k].replace(/^\s*\|/,'').replace(/\|\s*$/,'');
+              var cells = inner.split('|').map(function(c){ return c.trim(); });
+              if (cells.every(function(c){ return /^:?-+:?$/.test(c); })) { sepIdx = k; break; }
+            }
+            if (sepIdx !== -1) {
+              var headerCells = rows[0].replace(/^\s*\|/,'').replace(/\|\s*$/,'').split('|').map(function(c){ return c.trim(); });
+              var bodyRows = rows.slice(sepIdx + 1);
+              var thead = '<thead><tr>' + headerCells.map(function(c){
+                return '<th style="border-bottom:2px solid var(--border);padding:6px 8px;text-align:left;background:var(--surface2);font-weight:600">' + c + '</th>';
+              }).join('') + '</tr></thead>';
+              var tbody = '<tbody>' + bodyRows.map(function(row){
+                var cells = row.replace(/^\s*\|/,'').replace(/\|\s*$/,'').split('|').map(function(c){ return c.trim(); });
+                return '<tr>' + cells.map(function(c){
+                  return '<td style="border-bottom:1px solid var(--border);padding:6px 8px;vertical-align:top">' + c + '</td>';
+                }).join('') + '</tr>';
+              }).join('') + '</tbody>';
+              out.push('<table style="width:100%;border-collapse:collapse;margin:10px 0;font-size:13px">' + thead + tbody + '</table>');
+              continue;
+            }
+          }
+          out.push(rows.join('\n'));
+        } else {
+          out.push(line); i++;
+        }
+      }
+      return out.join('\n');
+    })
     // 行内代码 `...`
     .replace(/`([^`]+)`/g, '<code style="background:var(--surface2);padding:2px 6px;border-radius:4px;font-size:12px">$1</code>')
     // 加粗 **...**

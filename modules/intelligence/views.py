@@ -727,8 +727,9 @@ def bicqa_ask():
 
 
 # ── 阶段 3：AWR 报告脱敏直传 BIC-QA 分析 ──────────────────────────────────────
-# 主链路走官方契约 /skills/qa：AWR HTML → 本地解析 → 指标摘要 → 脱敏 → 问答。
-# 不使用 BIC-QA 抓包发现的 multipart 上传端点（非官方契约，稳定性无保障）。
+# 主链路走官方 Open API（/open-api/v1）：AWR HTML → 本地解析 → 指标摘要 → 脱敏
+# → 创建会话 + 流式聊天问答。不使用 BIC-QA 抓包发现的 multipart 上传端点
+# （非官方契约，稳定性无保障）。
 
 def _bicqa_awr_uploads_dir():
     from modules.core.paths import AWR_UPLOADS_DIR
@@ -767,7 +768,7 @@ def bicqa_awr_list():
 
 @intelligence_bp.route("/api/bicqa/awr", methods=["POST"])
 def bicqa_awr_analyze():
-    """AWR 报告指标摘要脱敏后经 /skills/qa 直传 BIC-QA 四段式分析。
+    """AWR 报告指标摘要脱敏后经 BIC-QA Open API（创建会话 + 流式聊天）四段式分析。
 
     未配置 Key / 用户关闭 / 不可达时优雅降级（ok:false + error_code）。
     """
