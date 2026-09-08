@@ -68,9 +68,8 @@ def _load_config() -> Dict[str, str]:
     if not api_key:
         # 回落 dbc_config.json 的 bicqa 字段（该文件已被 .gitignore 忽略，绝不进版本库）
         try:
-            here = os.path.dirname(os.path.abspath(__file__))
-            # bicqa_bridge.py -> mcp_server -> modules -> DBCheck
-            root = os.path.dirname(os.path.dirname(os.path.dirname(here)))
+            # bicqa_bridge.py -> modules/mcp_server -> modules -> DBCheck
+            root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             cfg_path = os.path.join(root, "dbc_config.json")
             if os.path.exists(cfg_path):
                 with open(cfg_path, "r", encoding="utf-8") as f:
