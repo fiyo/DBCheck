@@ -72,6 +72,8 @@ fix_*.py
 test_*.py
 export_*.py
 *.md
+# 发版说明片段：由 deploy/release.ps1 在打 tag 时生成并提交，供 CI 追加到 Release 备注
+!/.github/release_append.md
 *.mermaid
 tests/*.*
 pro_data/*
