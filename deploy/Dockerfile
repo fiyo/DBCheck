@@ -128,10 +128,10 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONMEMORYLIMIT=2g
 
 # Create VERSION.txt (without v prefix, matches Docker tag format)
-# DBCHECK_VERSION 可在构建时覆盖: --build-arg DBCHECK_VERSION=v26.9.8.0
-# 注意：CI / build-multiarch.sh 传入的值带 v 前缀（如 v26.9.8.0），
+# DBCHECK_VERSION 可在构建时覆盖: --build-arg DBCHECK_VERSION=v26.9.9.0
+# 注意：CI / build-multiarch.sh 传入的值带 v 前缀（如 v26.9.9.0），
 # 这里用 ${DBCHECK_VERSION#v} 去掉前缀，保证镜像内 VERSION.txt 与标签一致。
-ARG DBCHECK_VERSION=26.9.8.0
+ARG DBCHECK_VERSION=26.9.9.0
 RUN echo "${DBCHECK_VERSION#v}" > /app/VERSION.txt
 
 # Ensure data and pro_data directories exist for volume mounts

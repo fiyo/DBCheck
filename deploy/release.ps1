@@ -1,5 +1,5 @@
 ﻿# DBCheck Release Script (simplified)
-# Usage: .\release.ps1 -Version "26.9.8"  (or date-based "26.7.8.1")
+# Usage: .\release.ps1 -Version "26.9.9"  (or date-based "26.7.8.1")
 # GitHub Actions will handle Docker build/push and GitHub Release automatically.
 
 param(
@@ -47,7 +47,7 @@ Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
 
 # Step 1: Check Git status
-Write-Host "[1/4] Checking Git status..." -ForegroundColor Yellow
+Write-Host "[1/5] Checking Git status..." -ForegroundColor Yellow
 $gitStatus = git status --porcelain
 if ($gitStatus) {
     Write-Host "WARNING: Uncommitted changes found:" -ForegroundColor Yellow
@@ -60,7 +60,7 @@ if ($gitStatus) {
 }
 
 # Step 2: Pull latest code (stash if needed)
-Write-Host "[2/4] Pulling latest code..." -ForegroundColor Yellow
+Write-Host "[2/5] Pulling latest code..." -ForegroundColor Yellow
 $stashed = $false
 git diff --quiet 2>$null
 if ($LASTEXITCODE -ne 0) {
@@ -81,7 +81,7 @@ if ($stashed) {
 Write-Host "  OK: Pulled latest code" -ForegroundColor Green
 
 # Step 3: Update version.py and Dockerfile
-Write-Host "[3/4] Updating version files..." -ForegroundColor Yellow
+Write-Host "[3/5] Updating version files..." -ForegroundColor Yellow
 
 # Update version.py
 $VersionPy = Join-Path $ProjectRoot "..\modules\config\version.py"
@@ -105,11 +105,63 @@ if (Test-Path $VersionPy) {
 # （RUN echo "${DBCHECK_VERSION#v}"）。CI 与 scripts/build-multiarch.sh 会从
 # modules/config/version.py 解析版本并以 --build-arg 传入，此处无需改写 Dockerfile。
 
-# Step 4: Commit, push, and create tag
-Write-Host "[4/4] Committing, pushing, and creating tag..." -ForegroundColor Yellow
+# Step 4: Generate release notes append (consumed by build-release.yml)
+Write-Host "[4/5] Generating release notes append..." -ForegroundColor Yellow
 
-# Commit and push (only version files, avoid staging runtime data/ or untracked files)
-git add modules/config/version.py
+$ReleaseAppendDir = Join-Path $ProjectRoot "..\.github"
+$ReleaseAppendPath = Join-Path $ReleaseAppendDir "release_append.md"
+if (-not (Test-Path $ReleaseAppendDir)) {
+    New-Item -ItemType Directory -Path $ReleaseAppendDir -Force | Out-Null
+}
+
+$ReleaseAppend = @"
+---
+
+## ✨ 主要更新
+- 接入 BIC-QA 云端知识库（官方 `/open-api/v1`，SSE 流式返回），作为本地 12 专家的能力补充。
+- 智能诊断中心 BIC-QA 页 Tab 重排、国际化、Markdown 表格渲染、诊断发现导入等 UI/UX 修复。
+
+## 🐳 Docker 镜像
+
+推荐使用 Docker Hub（国内可用）：
+
+```powershell
+docker pull jackge12345/dbcheck:$VersionWithV
+docker pull jackge12345/dbcheck:latest
+```
+
+或 GitHub Container Registry：
+
+```powershell
+docker pull ghcr.io/fiyo/dbcheck:$VersionWithV
+docker pull ghcr.io/fiyo/dbcheck:latest
+```
+
+运行示例：
+
+```powershell
+docker run -d -p 5003:5003 --name raccoonx jackge12345/dbcheck:$VersionWithV
+```
+
+> 镜像同时支持 `linux/amd64` 与 `linux/arm64`（ARM64 信创主机）。
+
+## ⚠️ 安装注意事项
+- **macOS**：当前分发包**未做 Apple 公证（二进制未签名）**。首次打开若被 Gatekeeper 拦截，请右键点击 App / 可执行文件 →「打开」并在弹窗中确认即可运行；如需彻底消除提示，后续可接入 Apple 开发者证书做正式公证。
+- **Windows**：解压后双击 `start.bat` 启动，浏览器访问 http://localhost:5003 。
+- **Linux**：客户端安装包暂未发布，当前仅提供 Windows / macOS 安装包；Linux 用户请直接使用上方 Docker 镜像。
+
+## 📦 二进制包
+下方 Assets 提供 Windows / macOS 客户端压缩包；需要源码编译的请下载 `Source code`。
+"@
+
+Set-Content -Path $ReleaseAppendPath -Value $ReleaseAppend -Encoding UTF8
+Write-Host "  OK: release_append.md generated at .github/release_append.md" -ForegroundColor Green
+
+# Step 5: Commit, push, and create tag
+Write-Host "[5/5] Committing, pushing, and creating tag..." -ForegroundColor Yellow
+
+# Commit and push version file + release notes append (avoid staging runtime data/ or untracked files)
+git add modules/config/version.py .github/release_append.md
 git diff --cached --quiet 2>$null
 if ($LASTEXITCODE -eq 0) {
     Write-Host "  WARN: Nothing to commit, skipping commit" -ForegroundColor Yellow

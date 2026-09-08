@@ -526,6 +526,9 @@ app = Flask(__name__, template_folder=str(PROJECT_ROOT / 'web_templates'), stati
 # 会话密钥取自环境变量 DBCheck_SECRET_KEY（已在启动时为未设置的情况种入进程级随机值）。
 # 重启后旧会话 cookie 失效，需重新登录；生产可固定该环境变量保持登录态。
 app.config['SECRET_KEY'] = os.environ['DBCheck_SECRET_KEY']
+# 模板自动重载：开发/迭代阶段避免 Flask 缓存旧版 index.html，修改前端后无需重启进程即可生效
+app.config['TEMPLATES_AUTO_RELOAD'] = True
+app.config['EXPLAIN_TEMPLATE_LOADING'] = False
 socketio.init_app(app)
 
 # ── 实时监控采集器（v2.10）────────────────────────────────────

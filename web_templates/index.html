@@ -20726,42 +20726,58 @@ function _markdownToHtml(text) {
     .replace(/^### (.*?)$/gm, '<h3 style="margin:14px 0 10px;font-size:15px;color:var(--accent2);font-weight:600">$1</h3>')
     .replace(/^## (.*?)$/gm, '<h2 style="margin:16px 0 12px;font-size:16px;color:var(--accent2);font-weight:600">$1</h2>')
     .replace(/^# (.*?)$/gm, '<h1 style="margin:18px 0 14px;font-size:18px;color:var(--accent2);font-weight:700">$1</h1>')
-    // Markdown 表格（逐行扫描，兼容末尾无换行、多内容行）
+    // Markdown 表格（逐行扫描；兼容「带首尾竖线」与「无竖线」两种写法；并支持 ---/***/___ 水平分隔线）
     .replace(/[\s\S]*/, function(t) {
       var lines = t.split('\n');
       var out = [];
       var i = 0;
+      var preDepth = 0; // 避免把 <pre> 代码块内的 | 误判为表格
+      function stripPipes(l) {
+        var m = String(l).match(/^\s*\|?(.*?)\|?\s*$/);
+        return m ? m[1] : String(l);
+      }
+      function cellsOf(l) {
+        return stripPipes(l).split('|').map(function(c){ return c.trim(); });
+      }
+      function isSep(l) {
+        var cs = cellsOf(l);
+        return cs.length >= 1 && cs.every(function(c){ return /^:?-+:?$/.test(c); });
+      }
+      function isRow(l) { return /\|/.test(l); }
+      function isHr(l) { return /^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/.test(l); }
       while (i < lines.length) {
         var line = lines[i];
-        if (/^\s*\|/.test(line) && /\|\s*$/.test(line)) {
+        preDepth += (line.match(/<pre/g) || []).length - (line.match(/<\/pre>/g) || []).length;
+        if (preDepth > 0) { out.push(line); i++; continue; }
+        if (isRow(line)) {
           var rows = [];
-          while (i < lines.length && /^\s*\|/.test(lines[i]) && /\|\s*$/.test(lines[i])) {
-            rows.push(lines[i]); i++;
+          var j = i;
+          while (j < lines.length && isRow(lines[j])) { rows.push(lines[j]); j++; }
+          var sepIdx = -1;
+          for (var k = 1; k < rows.length; k++) {
+            if (isSep(rows[k])) { sepIdx = k; break; }
           }
-          if (rows.length >= 2) {
-            var sepIdx = -1;
-            for (var k = 1; k < rows.length; k++) {
-              var inner = rows[k].replace(/^\s*\|/,'').replace(/\|\s*$/,'');
-              var cells = inner.split('|').map(function(c){ return c.trim(); });
-              if (cells.every(function(c){ return /^:?-+:?$/.test(c); })) { sepIdx = k; break; }
-            }
-            if (sepIdx !== -1) {
-              var headerCells = rows[0].replace(/^\s*\|/,'').replace(/\|\s*$/,'').split('|').map(function(c){ return c.trim(); });
-              var bodyRows = rows.slice(sepIdx + 1);
-              var thead = '<thead><tr>' + headerCells.map(function(c){
-                return '<th style="border-bottom:2px solid var(--border);padding:6px 8px;text-align:left;background:var(--surface2);font-weight:600">' + c + '</th>';
-              }).join('') + '</tr></thead>';
-              var tbody = '<tbody>' + bodyRows.map(function(row){
-                var cells = row.replace(/^\s*\|/,'').replace(/\|\s*$/,'').split('|').map(function(c){ return c.trim(); });
-                return '<tr>' + cells.map(function(c){
-                  return '<td style="border-bottom:1px solid var(--border);padding:6px 8px;vertical-align:top">' + c + '</td>';
-                }).join('') + '</tr>';
-              }).join('') + '</tbody>';
-              out.push('<table style="width:100%;border-collapse:collapse;margin:10px 0;font-size:13px">' + thead + tbody + '</table>');
-              continue;
-            }
+          if (sepIdx !== -1) {
+            var headerCells = cellsOf(rows[0]);
+            var bodyRows = rows.slice(sepIdx + 1);
+            var thead = '<thead><tr>' + headerCells.map(function(c){
+              return '<th style="border-bottom:2px solid var(--border);padding:6px 8px;text-align:left;background:var(--surface2);font-weight:600">' + c + '</th>';
+            }).join('') + '</tr></thead>';
+            var tbody = '<tbody>' + bodyRows.map(function(row){
+              var cells = cellsOf(row);
+              return '<tr>' + cells.map(function(c){
+                return '<td style="border-bottom:1px solid var(--border);padding:6px 8px;vertical-align:top">' + c + '</td>';
+              }).join('') + '</tr>';
+            }).join('') + '</tbody>';
+            out.push('<table style="width:100%;border-collapse:collapse;margin:10px 0;font-size:13px">' + thead + tbody + '</table>');
+            i = j; continue;
+          } else {
+            for (var r = 0; r < rows.length; r++) out.push(rows[r]);
+            i = j; continue;
           }
-          out.push(rows.join('\n'));
+        } else if (isHr(line)) {
+          out.push('<hr style="border:none;border-top:1px solid var(--border);margin:12px 0">');
+          i++;
         } else {
           out.push(line); i++;
         }

@@ -34,7 +34,7 @@ if errorlevel 1 (
 
 :: --- Read version ---
 for /f "tokens=*" %%v in ('python -c "import json,sys; d=json.load(open('modules/config/version.json','r',encoding='utf-8-sig')); print(d['version'])"') do set VERSION=%%v
-if not defined VERSION set VERSION=v26.9.8.0
+if not defined VERSION set VERSION=v26.9.9.0
 echo [    ] RaccoonX version: %VERSION%
 echo.
 
