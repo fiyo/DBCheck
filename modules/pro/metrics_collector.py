@@ -1186,7 +1186,11 @@ class MetricsCollector:
         }
         if ssh['key_file'] and os.path.isfile(ssh['key_file']):
             try:
-                pkey = paramiko.RSAKey.from_private_key_file(ssh['key_file'])
+                if ssh['key_password']:
+                    key_password = ssh['key_password']
+                else:
+                    key_password = None
+                pkey = paramiko.RSAKey.from_private_key_file(ssh['key_file'], key_password)
                 kwargs['pkey'] = pkey
             except Exception:
                 try:

@@ -171,3 +171,6 @@ _tmp_*.js
 data/drivers.db-shm
 data/drivers.db-wal
 docs/release/*.png
+/startDBCheck.sh
+/.venv/
+/.idea

@@ -216,6 +216,7 @@ class DatabaseInstance:
     ssh_user: str = ""     # SSH 用户
     ssh_password: str = "" # SSH 密码（加密存储）
     ssh_key_file: str = "" # SSH 私钥路径
+    ssh_key_password: str = "" # SSH 私钥密码
     ssh_enabled: bool = False  # 是否启用 SSH
     tags: List[str] = None  # 标签列表
     group: str = "default"  # 分组

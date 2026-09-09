@@ -280,7 +280,7 @@ platform_info = select variable_name, variable_value from performance_schema.ses
 class RemoteSystemInfoCollector:
     """远程系统信息收集器 - 通过SSH连接获取远程主机信息"""
     
-    def __init__(self, host, port=22, username='root', password=None, key_file=None):
+    def __init__(self, host, port=22, username='root', password=None, key_file=None, key_password=None):
         """
         初始化远程系统信息收集器。
 
@@ -295,6 +295,7 @@ class RemoteSystemInfoCollector:
         self.username = username
         self.password = password
         self.key_file = key_file
+        self.key_password = key_password
         self.ssh_client = None
     
     def connect(self):
@@ -310,7 +311,7 @@ class RemoteSystemInfoCollector:
             self.ssh_client = paramiko.SSHClient()
             self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             if self.key_file:
-                private_key = paramiko.RSAKey.from_private_key_file(self.key_file)
+                private_key = paramiko.RSAKey.from_private_key_file(self.key_file, self.key_password)
                 self.ssh_client.connect(hostname=self.host, port=self.port, username=self.username, pkey=private_key, timeout=10)
             else:
                 self.ssh_client.connect(hostname=self.host, port=self.port, username=self.username, password=self.password, timeout=10)

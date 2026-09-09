@@ -5072,7 +5072,9 @@ function formatBytes(bytes) {
                   '<div id="ds-ssh-password-wrap"><label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">SSH 密码</label>' +
                     '<input id="ds-ssh-password" type="password" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="SSH 登录密码"></div>' +
                   '<div id="ds-ssh-key-wrap" style="display:none"><label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">私钥文件路径</label>' +
-                    '<input id="ds-ssh-key" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="C:\\Users\\xxx\\.ssh\\id_rsa"></div>' +
+                    '<input id="ds-ssh-key" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="C:\\Users\\xxx\\.ssh\\id_rsa">' +
+                    '<label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;margin-top:10px;">私钥文件密码</label>' +
+                    '<input id="ds-ssh-key-password" type="password" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="私钥文件的密码（如果私钥加密）"></div>' +
                 '</div>' +
               '</div>' +
             '</div>' +
@@ -5368,6 +5370,7 @@ function formatBytes(bytes) {
         payload.ssh_user = sshOn ? document.getElementById('ds-ssh-user').value.trim() : '';
         payload.ssh_password = sshOn ? (document.getElementById('ds-ssh-password').value || undefined) : '';
         payload.ssh_key_file = sshOn ? document.getElementById('ds-ssh-key').value.trim() : '';
+        payload.ssh_key_password = sshOn ? document.getElementById('ds-ssh-key-password').value.trim() : '';
         if (payload.db_type === 'pg' || payload.db_type === 'ivorysql' || payload.db_type === 'kingbase' || payload.db_type === 'mysql' || payload.db_type === 'mariadb' || payload.db_type === 'tidb') payload.database = document.getElementById('ds-database').value.trim();
         if (payload.db_type === 'oracle' || payload.db_type === 'oracle_jdbc') {
           payload.service_name = document.getElementById('ds-service-name').value.trim();
@@ -5530,6 +5533,7 @@ function formatBytes(bytes) {
                 document.getElementById('ds-ssh-password').placeholder = '（不修改请留空）';
                 document.getElementById('ds-ssh-password').value = '';
                 document.getElementById('ds-ssh-key').value = ds.ssh_key_file || '';
+                document.getElementById('ds-ssh-key-password').value = ds.ssh_key_password || '';
                 if (ds.ssh_key_file && !ds.ssh_password) {
                   document.getElementById('ds-ssh-auth').value = 'key';
                 }
@@ -9353,6 +9357,7 @@ function dm8OfflineCheck() {
     postData.ssh_user = document.getElementById('dm8-ssh-user').value.trim() || 'root';
     postData.ssh_password = document.getElementById('dm8-ssh-password').value;
     postData.ssh_key_file = document.getElementById('dm8-ssh-key').value.trim();
+    postData.ssh_key_password = document.getElementById('dm8-ssh-key-password').value.trim();
   }
 
   var btn = document.getElementById('btn-dm8-offline-run');
@@ -10212,6 +10217,7 @@ async function onDatasourceChange() {
         document.getElementById('f-ssh-user').value = ds.ssh_user || 'root';
         document.getElementById('f-ssh-password').value = ds.ssh_password || '';
         document.getElementById('f-ssh-key').value = ds.ssh_key_file || '';
+        document.getElementById('f-ssh-key-password').value = ds.ssh_key_password || '';
         _inspSshPassword = ds.ssh_password || '';  // 缓存供 testSsh 兜底
         // 自动启用 SSH
         if (!sshEnabled) toggleSsh();
@@ -10773,6 +10779,7 @@ async function testSsh() {
         ssh_user:     document.getElementById('f-ssh-user').value.trim(),
         ssh_password: document.getElementById('f-ssh-password').value || _inspSshPassword,
         ssh_key_file: document.getElementById('f-ssh-key').value.trim(),
+        ssh_key_password: document.getElementById('f-ssh-key-password').value.trim(),
       })
     });
     const data = await res.json();
@@ -11048,6 +11055,7 @@ async function startInspection() {
     payload.ssh_user     = document.getElementById('f-ssh-user').value.trim() || 'root';
     payload.ssh_password = document.getElementById('f-ssh-password').value;
     payload.ssh_key_file = document.getElementById('f-ssh-key').value.trim();
+    payload.ssh_key_password = document.getElementById('f-ssh-key-password').value.trim();
     payload.ssh_ebpf = ebpfEnabled;
   }
   // 附加巡检模板 ID
@@ -19849,6 +19857,7 @@ async function runBackup() {
                 user: inst.ssh_user || 'root',
                 password: inst.ssh_password || '',
                 key_file: inst.ssh_key_file || '',
+                key_password: inst.ssh_key_password || '',
             };
         }
 
@@ -20043,6 +20052,7 @@ async function deleteBackupHistory(recordId) {
           ssh_user: document.getElementById('si-ssh-user').value.trim() || 'root',
           ssh_password: document.getElementById('si-ssh-password').value || '',
           ssh_key_file: document.getElementById('si-ssh-key').value.trim() || '',
+          ssh_key_password: document.getElementById('si-ssh-key-password').value.trim() || '',
         })
       });
       const data = await res.json();
@@ -20078,6 +20088,7 @@ async function deleteBackupHistory(recordId) {
       ssh_user: document.getElementById('si-ssh-user').value.trim() || 'root',
       ssh_password: document.getElementById('si-ssh-password').value || '',
       ssh_key_file: document.getElementById('si-ssh-key').value.trim() || '',
+      ssh_key_password: document.getElementById('si-ssh-key-password').value.trim() || '',
     };
 
     try {

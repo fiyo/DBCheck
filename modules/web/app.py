@@ -3358,7 +3358,7 @@ register_connection_tester('clickhouse', _ct_clickhouse)
 register_connection_tester('uxdb', _ct_uxdb)
 
 
-def test_ssh_connection(host, port=22, username='root', password=None, key_file=None):
+def test_ssh_connection(host, port=22, username='root', password=None, key_file=None, key_password=None):
     """测试 SSH 连接，返回 (ok: bool, msg: str)"""
     try:
         import paramiko
@@ -3366,7 +3366,7 @@ def test_ssh_connection(host, port=22, username='root', password=None, key_file=
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
         if key_file and os.path.isfile(key_file):
-            pkey = paramiko.RSAKey.from_private_key_file(key_file)
+            pkey = paramiko.RSAKey.from_private_key_file(key_file, key_password)
             client.connect(hostname=host, port=int(port), username=username,
                            pkey=pkey, timeout=10, look_for_keys=False, allow_agent=False,
                            disabled_algorithms={'pubkeys': ['ssh-rsa']})
@@ -4605,6 +4605,7 @@ def api_start_inspection():
                 'ssh_user':     data.get('ssh_user', 'root'),
                 'ssh_password': data.get('ssh_password', ''),
                 'ssh_key_file': data.get('ssh_key_file', ''),
+                'ssh_key_password': data.get('ssh_key_password',''),
                 'ssh_ebpf':     data.get('ssh_ebpf', True),
             })
 
