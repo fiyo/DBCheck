@@ -1670,27 +1670,31 @@ Format requirement (output Markdown directly, no prefixes like "Here are"):
             import traceback; traceback.print_exc()
             return ''
 
-    def _call_llm(self, prompt: str, timeout: int = 60) -> str:
+    def _call_llm(self, prompt: str, timeout: int = 60, response_format=None) -> str:
         """通用 LLM 调用入口，根据 backend 自动路由到对应后端方法"""
         if self.backend == 'ollama':
-            return self._call_ollama(prompt, timeout)
+            return self._call_ollama(prompt, timeout, response_format=response_format)
         elif self.backend == 'openai':
-            return self._call_openai(prompt, timeout)
+            return self._call_openai(prompt, timeout, response_format=response_format)
         else:
             return ''
 
-    def _call_ollama(self, prompt: str, timeout: int) -> str:
+    def _call_ollama(self, prompt: str, timeout: int, response_format=None) -> str:
         """调用本地 Ollama API"""
         import urllib.request
         import json as _json
         url = self.api_url.rstrip('/') + '/api/generate'
-        payload = _json.dumps({
+        _payload = {
             'model': self.model,
             'prompt': prompt,
             'stream': False,
             'think': False,
             'options': {'temperature': 0.3}
-        }).encode('utf-8')
+        }
+        # 强制 JSON 输出（structured outputs）：解决小模型不遵守 JSON 指令的问题
+        if response_format:
+            _payload['format'] = response_format
+        payload = _json.dumps(_payload).encode('utf-8')
         req = urllib.request.Request(url, data=payload, method='POST')
         req.add_header('Content-Type', 'application/json')
         # 使用较长超时（300s），避免首次加载模型时冷启动超时；qwen3:30b 等大模型加载时间可达数分钟
@@ -1702,12 +1706,13 @@ Format requirement (output Markdown directly, no prefixes like "Here are"):
             raw = re.sub(r'<\|reserved_for_thinking\|>[\s\S]*?<\|end_of_thought\|>', '', raw)
             return raw
 
-    def _call_openai(self, prompt: str, timeout: int) -> str:
+    def _call_openai(self, prompt: str, timeout: int, response_format=None) -> str:
         """调用 OpenAI 协议兼容的远程 API（/v1/chat/completions）"""
         import urllib.request
+        import urllib.error
         import json as _json
-        # 规范化 URL：去掉尾部斜杠，确保以 /v1 结尾，追加 /chat/completions
-        url = self.api_url.rstrip('/')
+        # 规范化 URL：去掉首尾空白与尾部斜杠，确保以 /v1 结尾，追加 /chat/completions
+        url = self.api_url.strip().rstrip('/')
         if not url.endswith('/v1'):
             if '/v1/' in url:
                 url = url[:url.index('/v1') + 3]
@@ -1715,26 +1720,75 @@ Format requirement (output Markdown directly, no prefixes like "Here are"):
                 url = url + '/v1'
         url = url + '/chat/completions'
 
-        payload = _json.dumps({
+        body = {
             'model': self.model,
             'messages': [
                 {'role': 'user', 'content': prompt}
             ],
             'temperature': 0.3,
-        }).encode('utf-8')
+            # 确保长诊断（慢查询 Top 5、整体路线图等）不被截断
+            'max_tokens': 4096,
+        }
+        # 统一入口会传入 response_format；OpenAI 协议支持 json_object / json_schema
+        if response_format:
+            rf = response_format
+            if isinstance(rf, dict):
+                rf_type = rf.get('type', '')
+                if rf_type in ('json_object', 'json_schema'):
+                    body['response_format'] = rf
+                elif rf_type:
+                    # Ollama 风格的 JSON Schema（如 crawler 的 {"type":"array", ...}）
+                    # 包装为 OpenAI structured outputs 格式
+                    body['response_format'] = {
+                        'type': 'json_schema',
+                        'json_schema': {
+                            'name': 'result',
+                            'strict': True,
+                            'schema': rf,
+                        }
+                    }
+            elif isinstance(rf, str) and rf.lower() == 'json':
+                body['response_format'] = {'type': 'json_object'}
+        payload = _json.dumps(body).encode('utf-8')
 
         req = urllib.request.Request(url, data=payload, method='POST')
         req.add_header('Content-Type', 'application/json')
         if self.api_key:
             req.add_header('Authorization', f'Bearer {self.api_key}')
 
-        with urllib.request.urlopen(req, timeout=max(timeout, 300)) as resp:
-            data = _json.loads(resp.read().decode('utf-8'))
-            # OpenAI 协议响应格式: choices[0].message.content
-            choices = data.get('choices', [])
-            if choices:
-                return choices[0].get('message', {}).get('content', '').strip()
-            return ''
+        try:
+            with urllib.request.urlopen(req, timeout=max(timeout, 300)) as resp:
+                data = _json.loads(resp.read().decode('utf-8'))
+        except urllib.error.HTTPError as e:
+            # 服务端返回 4xx/5xx：默认 urllib 只抛 "HTTP Error 500:"（reason 为空、响应体被丢弃），
+            # 真实错误原因（如上下文超长、模型名不匹配）藏在响应体里。这里读出并带进异常，
+            # 让调用方 except 能打印出可诊断的信息。
+            _body = ''
+            try:
+                _body = e.read().decode('utf-8', errors='replace')
+            except Exception:
+                pass
+            _detail = _body[:2000] if _body else (e.reason or '')
+            raise RuntimeError(f"AI 诊断 HTTP {e.code} @ {url}: {_detail}") from e
+        # OpenAI 协议响应格式: choices[0].message.content
+        # ── 失败原因显式暴露：避免 HTTP 200 时的静默吞错 ──
+        _error = data.get('error')
+        if _error:
+            if isinstance(_error, dict):
+                _err_msg = _error.get('message') or str(_error)
+            else:
+                _err_msg = str(_error)
+            raise RuntimeError("AI 服务返回错误: " + _err_msg)
+        choices = data.get('choices', [])
+        if not choices:
+            raise RuntimeError(
+                "AI 服务返回空结果（choices 为空），请检查模型名称/API Key/网络或适当增大超时")
+        _content = choices[0].get('message', {}).get('content')
+        if _content is None or str(_content).strip() == '':
+            raise RuntimeError(
+                "AI 返回内容为空（可能触发内容过滤或 max_tokens 不足），finish_reason=%s"
+                % choices[0].get('finish_reason'))
+        return str(_content).strip()
 
 
 # ═══════════════════════════════════════════════════════

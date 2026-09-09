@@ -11,7 +11,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field, asdict
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -43,11 +43,23 @@ class SharedContext:
     started_at: str = ""
     finished_at: str = ""
 
+    # ── 迭代重规划相关（对标 Ongrid Coordinator 闭环；详见规划文档 4.3）──
+    iteration: int = 0                        # 当前已完成的迭代轮次
+    revision_log: List[Dict[str, Any]] = field(default_factory=list)  # 每次重规划的决策记录
+    # 以下字段为 Phase C/D（拓扑编排 / Reviewer 审计链）预留 schema，当前留空
+    topology: Dict[str, Any] = field(default_factory=dict)   # 实例拓扑/依赖关系
+    dep_graph: Dict[str, Any] = field(default_factory=dict)  # 专家协作依赖图
+    review: Optional[Dict[str, Any]] = None                  # Reviewer 结论（Phase B 填充）
+
     def add(self, finding: Finding) -> None:
         self.findings.append(finding)
 
     def by_category(self, category: str) -> List[Finding]:
         return [f for f in self.findings if f.category == category]
+
+    def by_tags(self, tags: set) -> List[Finding]:
+        """返回带有任一指定标签的发现。"""
+        return [f for f in self.findings if set(f.tags or []) & tags]
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -59,4 +71,9 @@ class SharedContext:
             "notes": self.notes,
             "started_at": self.started_at,
             "finished_at": self.finished_at,
+            "iteration": self.iteration,
+            "revision_log": self.revision_log,
+            "topology": self.topology,
+            "dep_graph": self.dep_graph,
+            "review": self.review,
         }

@@ -52,7 +52,7 @@ DB_TYPE_CATALOG: List[Dict] = [
     {'key': 'oscar',         'name_zh': 'Oscar',         'name_en': 'Oscar (神州通用)', 'driver_class_hint': 'com.oscar.Driver',                 'is_jdbc': True,  'order': 9},
     {'key': 'gbase8a',       'name_zh': 'GBase8A',       'name_en': 'GBase 8a',      'driver_class_hint': 'com.gbase.jdbc.Driver',              'is_jdbc': True,  'order': 10},
     {'key': 'gbase8s',       'name_zh': 'GBase8S',       'name_en': 'GBase 8s',      'driver_class_hint': 'com.gbasedbt.jdbc.Driver',            'is_jdbc': True,  'order': 11},
-    {'key': 'highgo',        'name_zh': 'HighGo',        'name_en': 'HighGo (瀚高)', 'driver_class_hint': 'com.highgo.jdbc.Driver',             'is_jdbc': True,  'order': 12},
+    {'key': 'highgo',        'name_zh': 'HighGo',        'name_en': 'HighGo (瀚高)', 'driver_class_hint': 'org.postgresql.Driver',              'is_jdbc': True,  'order': 12},
     {'key': 'sybase',        'name_zh': 'Sybase',        'name_en': 'Sybase ASE',    'driver_class_hint': 'com.sybase.jdbc4.jdbc.SybDriver',    'is_jdbc': True,  'order': 13},
     {'key': 'hive',          'name_zh': 'Hive',          'name_en': 'Apache Hive',   'driver_class_hint': 'org.apache.hive.jdbc.HiveDriver',    'is_jdbc': True,  'order': 14},
     {'key': 'sqlite3',       'name_zh': 'Sqlite3',       'name_en': 'SQLite',        'driver_class_hint': 'org.sqlite.JDBC',                    'is_jdbc': True,  'order': 15},

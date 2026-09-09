@@ -17,6 +17,7 @@ class InspectionExpert(Specialist):
     name = "深度巡检分析专员"
     description = "实时调用巡检引擎对目标数据源产出报告，提炼配置、容量、性能等维度的风险项并标注等级。"
     tags = ["inspection", "risk"]
+    domain = "inspection"
 
     def analyze(self, ctx: SharedContext) -> List[Finding]:
         out: List[Finding] = []

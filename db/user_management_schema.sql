@@ -14,6 +14,10 @@ CREATE TABLE IF NOT EXISTS um_user (
     nickname    VARCHAR(64)  DEFAULT '',
     email       VARCHAR(128) DEFAULT '',
     status      TINYINT      DEFAULT 1,  -- 1=启用 0=禁用
+    -- 多租户归属（阶段 0）：租户为最高隔离边界，部门为主协作粒度
+    tenant_id       INTEGER NOT NULL DEFAULT 1,   -- 见 um_tenant.id
+    department_id   INTEGER NOT NULL DEFAULT 1,   -- 见 um_department.id
+    is_tenant_admin INTEGER NOT NULL DEFAULT 0,   -- 1=租户管理员，可见本租户全部资源
     created_at  DATETIME     DEFAULT CURRENT_TIMESTAMP,
     updated_at  DATETIME     DEFAULT CURRENT_TIMESTAMP
 );
@@ -152,5 +156,67 @@ CREATE TABLE IF NOT EXISTS um_audit_log (
     target      VARCHAR(128),   -- 操作对象
     detail      TEXT,
     ip_address  VARCHAR(64),
+    -- 阶段 0 扩展：每次资源访问都要能追溯「谁、对哪个资源、判定结果是什么」
+    resource_type VARCHAR(64),    -- instance / snapshot / template ...
+    resource_id   VARCHAR(128),   -- 资源主键
+    result        VARCHAR(32),    -- allow / deny / not_visible
+    client        VARCHAR(64),    -- web / mcp / scheduler
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX IF NOT EXISTS idx_audit_user ON um_audit_log(user_id, created_at);
+-- idx_audit_resource 依赖阶段 0 扩展列(resource_type/resource_id)，这些列由
+-- modules.access_schema.ensure_schema 在补列后创建，避免旧库升级时
+-- "CREATE TABLE IF NOT EXISTS 跳过补列 → CREATE INDEX 引用缺失列" 报错。
+
+-- ============================================
+-- 10. 租户（最高隔离边界）
+-- ============================================
+CREATE TABLE IF NOT EXISTS um_tenant (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    code        VARCHAR(64)  NOT NULL UNIQUE,
+    name        VARCHAR(128) NOT NULL,
+    status      TINYINT      DEFAULT 1,
+    created_at  DATETIME     DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT OR IGNORE INTO um_tenant(code, name) VALUES ('default', '默认企业');
+
+-- ============================================
+-- 11. 部门（主协作粒度）
+-- ============================================
+CREATE TABLE IF NOT EXISTS um_department (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id   INTEGER      NOT NULL DEFAULT 1,
+    code        VARCHAR(64)  NOT NULL,
+    name        VARCHAR(128) NOT NULL,
+    status      TINYINT      DEFAULT 1,
+    created_at  DATETIME     DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(tenant_id, code)
+);
+
+INSERT OR IGNORE INTO um_department(tenant_id, code, name)
+SELECT id, 'default', '默认部门' FROM um_tenant WHERE code='default';
+
+-- ============================================
+-- 12. 资源归属登记表（多租户数据隔离的核心）
+-- ============================================
+-- 各类实体（数据源/快照/模板/基线/规则/知识库）的拥有者与可见范围集中登记，
+-- 由 modules/access.py 的 PDP 层统一判定，避免给 6 张异构实体表各自改结构。
+CREATE TABLE IF NOT EXISTS um_resource_owner (
+    entity_type         VARCHAR(64)  NOT NULL,  -- instance/snapshot/template/...
+    entity_id           VARCHAR(128) NOT NULL,
+    owner_user_id       INTEGER,                       -- 拥有者
+    owner_tenant_id     INTEGER      NOT NULL DEFAULT 1, -- 跨租户硬不可见
+    owner_department_id INTEGER,                       -- scope=department 时比对
+    scope               VARCHAR(32)  NOT NULL DEFAULT 'private',
+        -- private=仅本人 / department=同部门 / enterprise=租户内 / specific=白名单
+    shared_with         TEXT         DEFAULT '[]',     -- JSON 数组：["7","dept:2"]
+    created_at          DATETIME     DEFAULT CURRENT_TIMESTAMP,
+    updated_at          DATETIME     DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (entity_type, entity_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ro_owner ON um_resource_owner(owner_user_id);
+CREATE INDEX IF NOT EXISTS idx_ro_dept  ON um_resource_owner(owner_department_id);
+CREATE INDEX IF NOT EXISTS idx_ro_scope ON um_resource_owner(entity_type, scope);

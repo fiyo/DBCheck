@@ -26,6 +26,7 @@ class Coordinator(Specialist):
         "理解诊断目标，调用大模型判断该由哪些协同能力角色参与、以什么顺序处理，"
         "并把调度决策下达给各角色执行。"
     )
+    domain = "orchestration"
     tags = ["coordinator", "orchestration"]
 
     def analyze(self, ctx: SharedContext) -> List[Finding]:

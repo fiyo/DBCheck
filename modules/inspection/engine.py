@@ -1134,7 +1134,13 @@ class BaseInspectionEngine:
                         print(f"[Report] ⚠️  警告：报告生成后内存使用较高 ({mem_after:.1f} MB)")
                 except Exception as e:
                     print(f"[Report] 内存监控失败: {e}")
-            
+
+            # ── 返回前校验：文件必须真实生成（防止静默返回路径但磁盘无文件）──
+            if not os.path.exists(output_file):
+                raise RuntimeError(
+                    f"[generate_report] 报告文件未生成: {output_file} "
+                    f"(success={success}, template={getattr(self, 'template_file', 'N/A')})"
+                )
             return output_file
         except MemoryError as e:
             print(f"[ERROR] 内存不足，报告生成失败: {e}")
@@ -1143,6 +1149,11 @@ class BaseInspectionEngine:
         except Exception as e:
             print(f"[ERROR] 生成报告失败: {e}")
             import traceback; traceback.print_exc(file=sys.stdout)
+            # 打印更多诊断信息
+            print(f"[ERROR] output_file: {output_file}")
+            print(f"[ERROR] inspector_name: {inspector_name}")
+            print(f"[ERROR] template_file: {getattr(self, 'template_file', 'N/A')}")
+            print(f"[ERROR] context keys: {list(self.context.keys()) if hasattr(self, 'context') else 'N/A'}")
             return None
     
     

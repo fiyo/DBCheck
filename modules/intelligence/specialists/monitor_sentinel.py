@@ -131,6 +131,7 @@ class MonitorSentinel(Specialist):
     name = "运行监控哨兵"
     description = "紧盯宿主机真实资源与数据库细粒度指标，第一时间发现 CPU、IO、内存、连接、锁、复制等异常波动并预警。"
     tags = ["monitor", "anomaly"]
+    domain = "monitor"
 
     def analyze(self, ctx: SharedContext) -> List[Finding]:
         snap = _read_latest(ctx.target)

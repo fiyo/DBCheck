@@ -72,6 +72,76 @@ def submit():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+@bp.route("/write-skills", methods=["GET"])
+def write_skills():
+    """返回写类 Skill 规格（来自共用注册表，写操作工单表单据此动态生成）。"""
+    try:
+        from modules.mcp_server.registry import get_skill_specs
+        specs = get_skill_specs()
+        out = [{
+            "name": s["name"],
+            "title": s["title"],
+            "description": s["description"],
+            "domain": s.get("domain"),
+            "inputSchema": s.get("inputSchema"),
+            "risk": s.get("risk"),
+            "tags": s.get("tags", []),
+        } for s in specs]
+        return jsonify({"ok": True, "skills": out})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@bp.route("/write-ticket", methods=["POST"])
+def write_ticket():
+    """写操作工单：结构化写类 Skill 经 WriteGate 提交 SQL 审计，强制 pending_approval。
+
+    复用阶段 B 的 WriteGate（modules.intelligence.skills），与多 Agent 侧同一闸门；
+    审批人随后在 SQL 审核任务详情中审批/执行，构成治理闭环。
+    """
+    try:
+        username, _roles = _current_actor()
+        data = request.get_json(force=True, silent=True) or {}
+        skill_name = (data.get("skill_name") or "").strip()
+        if not skill_name:
+            return jsonify({"ok": False, "error": "skill_name 不能为空"}), 400
+        instance_id = (data.get("instance_id") or "").strip()
+        if not instance_id:
+            return jsonify({"ok": False, "error": "写操作必须指定目标实例"}), 400
+        db_type = (data.get("db_type") or "").lower()
+        if not db_type:
+            # 兜底：从实例解析库型，避免前端漏传导致绕过隔离
+            try:
+                from modules.pro.instance_manager import get_instance_manager
+                inst = get_instance_manager().get_instance_decrypted(instance_id)
+                if inst:
+                    db_type = (inst.get("db_type") or "").lower()
+            except Exception:
+                pass
+        if not db_type:
+            return jsonify({"ok": False, "error": "无法解析目标数据源 db_type（实例不存在或无权访问）"}), 400
+        submitter = username or request.headers.get("X-User") or "anonymous"
+        env = data.get("env") or "prod"
+        reason = data.get("reason", "")
+        args = {
+            "instance_id": instance_id,
+            "db_type": db_type,
+            "env": env,
+            "reason": reason,
+            "session_id": (data.get("session_id") or "").strip(),
+            "table": (data.get("table") or "").strip(),
+            "columns": (data.get("columns") or "").strip(),
+            "index_name": (data.get("index_name") or "").strip(),
+            "unique": bool(data.get("unique", False)),
+            "sql_text": (data.get("sql_text") or "").strip(),
+        }
+        from modules.intelligence.skills import WriteGate
+        task = WriteGate.propose(skill_name, args, submitter, instance_id, db_type, remark=reason)
+        return jsonify({"ok": True, "task": task})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @bp.route("/tasks", methods=["GET"])
 def tasks():
     submitter = request.args.get("submitter")

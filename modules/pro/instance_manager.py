@@ -299,6 +299,12 @@ class InstanceManager:
         # 初始化存储
         self._instances: Dict[str, DatabaseInstance] = {}
         self._groups: Dict[str, InstanceGroup] = {}
+        # 跨进程缓存失效依据：revision 戳文件（instances.db.rev / groups.db.rev）
+        # 每次本进程或通过本类写库都会使 rev +1，读取时比对即可感知外部进程（Web 端）
+        # 的数据源改动。相比 mtime / 内容哈希 / SQLite data_version，rev 戳不受同秒写入、
+        # 文件大小不变、SQLite 页复用、跨连接版本同步等边界影响，最可靠。
+        self._instances_rev = 0
+        self._groups_rev = 0
         self._load_data()
 
         # 初始化数据库
@@ -313,6 +319,7 @@ class InstanceManager:
                 conn.row_factory = sqlite3.Row
                 c = conn.cursor()
                 c.execute("SELECT * FROM instances ORDER BY created_at")
+                loaded = {}
                 for row in c.fetchall():
                     d = dict(row)
                     # 兼容旧数据：oracle_full → oracle
@@ -334,8 +341,11 @@ class InstanceManager:
                     if not d.get('connection_mode'):
                         d['connection_mode'] = 'jdbc' if d.get('db_type') == 'sqlserver_jdbc' else 'odbc'
                     inst = DatabaseInstance.from_dict(d)
-                    self._instances[inst.id] = inst
+                    loaded[inst.id] = inst
                 conn.close()
+                # 整体替换（而非增量 merge）：反映 DB 中的「删除」——增量写法会让已删除
+                # 实例永久残留在内存，导致跨进程缓存失效后仍返回旧快照。
+                self._instances = loaded
             except Exception:
                 pass
 
@@ -370,11 +380,14 @@ class InstanceManager:
                 conn.row_factory = sqlite3.Row
                 c = conn.cursor()
                 c.execute("SELECT * FROM groups ORDER BY created_at")
+                loaded_groups = {}
                 for row in c.fetchall():
                     d = dict(row)
                     grp = InstanceGroup(**d)
-                    self._groups[grp.name] = grp
+                    loaded_groups[grp.name] = grp
                 conn.close()
+                # 整体替换，确保被删除的分组不残留
+                self._groups = loaded_groups
             except Exception:
                 pass
 
@@ -394,6 +407,56 @@ class InstanceManager:
             self._groups["default"] = InstanceGroup("default", "默认分组", "#888888")
             self._groups["production"] = InstanceGroup("production", "生产环境", "#E24B4A")
             self._groups["test"] = InstanceGroup("test", "测试环境", "#639922")
+
+        # ── 跨进程缓存失效依据：读取 rev 戳 ──
+        self._instances_rev = self._read_rev(self.instances_db)
+        self._groups_rev = self._read_rev(self.groups_db)
+
+    # ── 跨进程缓存失效机制 ──────────────────────────────────
+    @staticmethod
+    def _rev_path(db_path):
+        return db_path + ".rev"
+
+    @staticmethod
+    def _read_rev(db_path):
+        """读取 revision 戳文件（instances.db.rev / groups.db.rev）。
+
+        每次本类写库都会使该值 +1，用于跨进程（Web / MCP 独立进程）感知数据源变更。
+        文件不存在或损坏返回 0。
+        """
+        try:
+            p = InstanceManager._rev_path(db_path)
+            if os.path.exists(p):
+                with open(p, "r", encoding="utf-8") as f:
+                    return int((f.read() or "0").strip() or 0)
+        except Exception:
+            pass
+        return 0
+
+    def _bump_rev(self, db_path):
+        """原子地使 revision 戳 +1（写临时文件后 os.replace）。"""
+        try:
+            p = self._rev_path(db_path)
+            v = self._read_rev(db_path) + 1
+            tmp = p + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                f.write(str(v))
+            os.replace(tmp, p)
+        except Exception as e:
+            print(f"[InstanceManager] 更新 revision 戳失败: {e}")
+
+    def _ensure_instances_fresh(self):
+        """惰性失效：若 instances.db 的 rev 戳被外部进程（Web 端改名 / 改类型 / 增删）
+        推高，重新加载内存缓存。解决 Web 与 MCP 作为独立进程各自持有旧快照的问题。"""
+        cur = self._read_rev(self.instances_db)
+        if cur != self._instances_rev:
+            self._load_data()
+
+    def _ensure_groups_fresh(self):
+        """同 _ensure_instances_fresh，针对 groups.db。"""
+        cur = self._read_rev(self.groups_db)
+        if cur != self._groups_rev:
+            self._load_data()
 
     def _save_data(self):
         """保存数据到 SQLite（失败直接抛异常，不静默吞掉）"""
@@ -556,6 +619,12 @@ class InstanceManager:
         finally:
             if conn:
                 conn.close()
+
+        # 本进程刚写库，原子推高 rev 戳并同步本进程记录，避免下次读取误判为外部变更而重复 reload
+        self._bump_rev(self.instances_db)
+        self._bump_rev(self.groups_db)
+        self._instances_rev = self._read_rev(self.instances_db)
+        self._groups_rev = self._read_rev(self.groups_db)
 
     def _init_database(self):
         """初始化数据库"""
@@ -941,6 +1010,7 @@ class InstanceManager:
 
     def get_all_instances(self, mask_password: bool = True) -> List[Dict]:
         """获取所有实例，密码脱敏"""
+        self._ensure_instances_fresh()
         result = []
         for inst in self._instances.values():
             # 统一转为字典（兼容对象和字典两种存储格式）
@@ -955,6 +1025,7 @@ class InstanceManager:
 
     def get_instance(self, instance_id: str, mask_password: bool = True) -> Optional[Dict]:
         """获取单个实例，密码脱敏"""
+        self._ensure_instances_fresh()
         inst = self._instances.get(instance_id)
         if not inst:
             return None
@@ -968,6 +1039,7 @@ class InstanceManager:
 
     def get_instance_decrypted(self, instance_id: str) -> Optional[Dict]:
         """获取单个实例，密码解密（供巡检使用）"""
+        self._ensure_instances_fresh()
         inst = self._instances.get(instance_id)
         if not inst:
             return None
@@ -998,6 +1070,7 @@ class InstanceManager:
         Returns:
             List[Dict]: 实例字典列表，密码字段为明文。
         """
+        self._ensure_instances_fresh()
         result = []
         for inst in self._instances.values():
             # 统一转为字典（兼容对象和字典两种存储格式）
@@ -1017,18 +1090,22 @@ class InstanceManager:
 
     def get_instances_by_group(self, group: str) -> List[DatabaseInstance]:
         """按分组获取实例"""
+        self._ensure_instances_fresh()
         return [inst for inst in self._instances.values() if inst.group == group]
 
     def get_instances_by_tag(self, tag: str) -> List[DatabaseInstance]:
         """按标签获取实例"""
+        self._ensure_instances_fresh()
         return [inst for inst in self._instances.values() if tag in inst.tags]
 
     def get_instances_by_type(self, db_type: str) -> List[DatabaseInstance]:
         """按数据库类型获取实例"""
+        self._ensure_instances_fresh()
         return [inst for inst in self._instances.values() if inst.db_type == db_type]
 
     def get_enabled_instances(self) -> List[DatabaseInstance]:
         """获取启用的实例"""
+        self._ensure_instances_fresh()
         return [inst for inst in self._instances.values() if inst.enabled]
 
     # 分组管理
@@ -1060,11 +1137,13 @@ class InstanceManager:
 
     def get_all_groups(self) -> List[InstanceGroup]:
         """获取所有分组"""
+        self._ensure_groups_fresh()
         return list(self._groups.values())
 
     # 统计信息
     def get_statistics(self) -> Dict[str, Any]:
         """获取统计信息"""
+        self._ensure_instances_fresh()
         total = len(self._instances)
         enabled = len([i for i in self._instances.values() if i.enabled])
 

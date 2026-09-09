@@ -85,22 +85,22 @@
     {
       "db_type": "highgo",
       "version": "42.2.2",
-      "driver_class": "com.highgo.jdbc.Driver",
-      "jar_filename": "HgdbJdbc-6.2.5.jar",
-      "file_size": 1063689,
-      "is_active": 1,
-      "uploaded_at": "2026-08-17 18:21:49",
-      "note": ""
-    },
-    {
-      "db_type": "highgo",
-      "version": "42.2.2",
       "driver_class": "org.postgresql.Driver",
       "jar_filename": "postgresql-42.2.2.jar",
       "file_size": 790405,
-      "is_active": 0,
+      "is_active": 1,
       "uploaded_at": "2026-08-17 18:28:24",
-      "note": ""
+      "note": "HGDB 与 PostgreSQL 线协议兼容，统一用标准 PostgreSQL 驱动（项目未捆绑 HighGo 专属 HgdbJdbc jar）"
+    },
+    {
+      "db_type": "highgo",
+      "version": "42.2.2-alt",
+      "driver_class": "com.highgo.jdbc.Driver",
+      "jar_filename": "HgdbJdbc-6.2.5.jar",
+      "file_size": 1063689,
+      "is_active": 0,
+      "uploaded_at": "2026-08-17 18:21:49",
+      "note": "HighGo 专属驱动（需用户自行上传 HgdbJdbc-*.jar 后激活）"
     },
     {
       "db_type": "ivorysql",

@@ -19,7 +19,7 @@ RaccoonX 支持多个关系数据库、文档数据库和KV数据库。
 > 
 Language switch（语言切换）: [English](./README.md) | [中文](./README_zh.md)
 
-[![Version](https://img.shields.io/badge/版本-v26.8.13.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/版本-v26.9.3-blue.svg)]()
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)]()
 [![Open Source](https://img.shields.io/badge/Open%20Source-Yes-green.svg)]()
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)]()
@@ -29,7 +29,6 @@ Language switch（语言切换）: [English](./README.md) | [中文](./README_zh
 [![WeChat](https://img.shields.io/badge/公众号-山东Oracle用户组-brightgreen?logo=WeChat)]()
 [![WebSite](https://img.shields.io/badge/网址-www.dbcheck.top-green.svg)](https://dbcheck.top)
 [![Docker Pulls](https://img.shields.io/docker/pulls/jackge12345/dbcheck?style=flat-square&label=Docker%20Pulls&cacheSeconds=300)](https://hub.docker.com/r/jackge12345/dbcheck)
-[![GHCR Pulls](https://img.shields.io/badge/88-blue.svg?label=GHCR+Pulls)]()
 ![Downloads](https://img.shields.io/github/downloads/fiyo/DBCheck/total?style=flat-square&label=Source+Downloads)
 
 ---
@@ -385,6 +384,7 @@ docker pull jackge12345/dbcheck:latest
 docker run -d -p 5003:5003 \
   -v dbcheck_data:/app/data \
   -v dbcheck_reports:/app/data/reports \
+  -e LD_LIBRARY_PATH=/opt/venv/lib/python3.12/site-packages/dmssl \
   --name dbcheck \
   jackge12345/dbcheck:latest
 
@@ -393,6 +393,7 @@ docker pull ghcr.io/fiyo/dbcheck:latest
 docker run -d -p 5003:5003 \
   -v dbcheck_data:/app/data \
   -v dbcheck_reports:/app/data/reports \
+  -e LD_LIBRARY_PATH=/opt/venv/lib/python3.12/site-packages/dmssl \
   --name dbcheck \
   ghcr.io/fiyo/dbcheck:latest
 ```
@@ -487,6 +488,9 @@ cd dist
 | 💿 DM8 离线存储检查 | 离线检查 DM8 存储健康，扫描数据文件定位坏块（全零/异常填充/截断） |
 | 📝 SQL 编辑器 | Web UI 内置，语法高亮，结果表格，执行历史 |
 | 🖥️ 远程终端 | 基于 SSH，多标签页，全屏模式 |
+| 🔀 工作流编排 | 可视化 DAG 画布；将专员 / 中枢 / 技能 / 输出节点按条件分支串联 |
+| 🛡️ SQL 审计 | SQL 审核风险评分 + 受控执行（默认 dry-run，执行前快照可回滚） |
+| 🔌 MCP 工具箱 | 将巡检能力与 Skills 暴露为 MCP 工具，供外部 AI 客户端（Claude Desktop 等）调用 |
 
 ---
 
@@ -494,15 +498,21 @@ cd dist
 
 ### 协同诊断中枢（智能诊断中心）
 
-把「一句目标 + 一个数据源」交给一组专精的**诊断专员**，在**共享上下文（黑板）**上协同推进，最终输出：异常发现、根因推断、可执行处置方案，以及方案代价评估与工单。
+把「一句目标 + 一个数据源」交给一组专精的**诊断专员**（1 名协调员 + 10 名领域专家，共 11 位），在**共享上下文（黑板）**上协同推进，最终输出：异常发现、根因推断、可执行处置方案，以及方案代价评估与工单。
 
-| 专员 | 职责 |
-|------|------|
-| 运行监控哨兵 | 紧盯宿主真实资源与数据库细粒度指标，第一时间发现 CPU、IO、内存、连接、锁、复制等异常波动并预警 |
-| 深度巡检分析专员 | 实时调用巡检引擎对目标数据源产出报告，提炼配置 / 容量 / 性能等维度风险并标注等级 |
-| 根因定位分析专员 | 汇总监控异常与巡检风险，关联聚类推断根因，并给出处置主线 |
-| SQL 治理专员 | 针对慢 SQL 与高代价语句，给出改写、索引与变更审核建议 |
-| 锁等待分析专员 | 针对锁等待与阻塞，溯源持锁会话与等待链并给出拆解建议 |
+| 专员 | 领域 | 职责 |
+|------|------|------|
+| 协调员 | 编排 | 理解诊断目标，决定由哪些专员参与、以何种顺序处理（AI 驱动或规则兜底） |
+| 运行监控哨兵 | 监控 | 紧盯宿主真实资源与数据库细粒度指标，第一时间发现 CPU、IO、内存、连接、锁、复制等异常波动并预警 |
+| 容量分析专员 | 监控 | 评估容量余量、增长趋势与资源饱和风险 |
+| 深度巡检分析专员 | 巡检 | 实时调用巡检引擎对目标数据源产出报告，提炼配置 / 容量 / 性能等维度风险并标注等级 |
+| 基线比对专员 | 巡检 | 将当前配置与基线 / 历史比对，标记配置漂移 |
+| 根因定位分析专员 | 根因 | 汇总监控异常与巡检风险，关联聚类推断根因，并给出处置主线 |
+| 国产库专家 | 根因 | 针对国产库（达梦 DM8 / 瀚高 HGDB / 金仓 Kingbase / 崖山 YashanDB / 南大 GBase / 优炫 UXDB）的专项诊断知识 |
+| SQL 治理专员 | SQL | 针对慢 SQL 与高代价语句，给出改写、索引与变更审核建议 |
+| 索引顾问 | SQL | 检测缺失 / 冗余 / 长期未用索引，为慢 SQL 提出索引方案 |
+| 锁等待分析专员 | 锁 | 针对锁等待与阻塞，溯源持锁会话与等待链并给出拆解建议 |
+| 自然语言探查专员 | 自然语言 | 以自然语言查询方式探查目标数据库，发现隐藏异常 |
 
 - **共享上下文（黑板）**：所有中间结论、发现与处置方案沉淀于同一空间，专员间直接读写，避免结论在层层传递中失真。
 - **任务动态规划**：运行监控、深度巡检、根因定位常驻协同；SQL 治理与锁分析在发现相关现象时动态提前执行。
@@ -534,6 +544,45 @@ cd dist
 
 ---
 
+## 工作流编排（Workflow Orchestration）
+
+在可视化 **DAG 画布** 上编排可复用的诊断剧本。将节点拖到画布，用有向边连接（连线点固定上入下出），再对数据源一键运行整条流程。
+
+| 节点 | 作用 |
+|------|------|
+| 开始 / 结束 | 流程边界（开始仅出、结束仅入） |
+| 专员 | 在共享上下文上运行某位诊断专员（如索引顾问、锁等待分析专员） |
+| 中枢 | 触发一次完整的协同重诊断（`DiagnosticHub.dispatch`） |
+| 技能 | 复用某个 Skills / WriteGate 动作（如执行 SQL、创建索引） |
+| 函数 | 任意 `callable(ctx, args)`，用于数据搬运 / 条件注入 |
+| 输出 | 产出结果：在界面展示、生成 Markdown 报告，或发送邮件 |
+
+- **条件分支**：每个步骤支持 `when(ctx)` 谓词，流程随发现自适应（例如仅在出现慢 SQL 时进入索引顾问分支）。
+- **持久化与重跑**：工作流落库 SQLite（`workflow_store`），可在 Web UI「工作流编排」页查看 / 运行 / 查看结果，Reviewer 审计链内联展示。
+- **复用不重造**：专家能力、WriteGate、Reviewer 均来自既有 intelligence 模块。
+
+## SQL 审计
+
+内置、常驻的 SQL 审核与受控执行模块。
+
+- **审核**：提交 SQL 即获基于规则的风险评分（MVP1：MySQL 解析 + 规则 + 评分 + 报告）；可按任务开启执行计划分析。
+- **受控执行（MVP3）**，默认安全：
+  - 默认 **dry-run**；真实执行需 `exec_enabled=1` 且绑定目标实例。
+  - DML 在单事务内执行并设**影响行数硬上限**；UPDATE/DELETE 前将 SELECT 原行快照写入备份表以备回滚。
+  - DDL 不可回滚，仅生成建议级反向 DDL，绝不自动执行。
+  - 每次执行 / 回滚动作均 append-only 留痕（`sql_audit_executions` / `sql_audit_rollbacks`）。
+- 工作流 / 技能产生的**写操作**以工单形式进入 SQL 审计页，形成「审核 → 审批 → 执行 → 反馈」闭环。
+
+## MCP 工具箱（对外 MCP 工具箱化）
+
+将 RaccoonX 的巡检能力与 Skills 暴露为 **MCP（Model Context Protocol）工具**，供外部 AI 客户端（Claude Desktop 等）原生驱动数据库巡检。
+
+- 独立的 **stdio MCP Server**（`modules/mcp_server`）：Skills 与 MCP 工具共用同一注册表（`modules.mcp_server.registry`），能力只定义一次，多 Agent 中枢与 MCP Server 两方复用。
+- **Chat2DB 桥接**：`chat2db_bridge.py` 经 stdio 连接 Chat2DB MCP Server，提供自然语言转 SQL（`nl2sql`），不嵌入任何 Chat2DB 代码（source-available 许可，仅做协议桥接）。
+- 访问受全局风险元数据与 WriteGate 门控；依赖未配置时优雅降级为 `Chat2DBUnavailable`。
+
+---
+
 ## 社区版 vs 专业版 · 核心能力对比
 
 | 能力 | 社区版 | 专业版 |
@@ -545,12 +594,14 @@ cd dist
 | 企业级 RBAC | ✅ | ✅ |
 | eBPF 内核级宿主采集 |  ✅ | ✅ |
 | SSH 安全宿主采集 |  ✅ | ✅ |
-| 协同诊断中枢（5 专员 + 黑板） |  ✅ | ✅ |
+| 协同诊断中枢（11 专员 + 黑板） |  ✅ | ✅ |
 | 方案代价验证 |  ✅ | ✅ |
 | 工单闭环 |  ✅ | ✅ |
 | 诊断历史 |  ✅ | ✅ |
 | 统一可观测视图 | ✅ | ✅ |
-| 巡检编排 | — | ✅ |
+| 工作流编排 | ✅ | ✅ |
+| SQL 审计（审核 + 受控执行） | ✅ | ✅ |
+| MCP 工具箱（外部 AI 集成） | ✅ | ✅ |
 
 ---
 
@@ -974,6 +1025,7 @@ A：内置阈值基于通用最佳实践，请结合实际业务评估。
 | 2026-06-18 | 赵法威 | No.000010 |
 | 2026-06-19 | 类延良 | No.000011 |
 | 2026-06-19 | 渺渺兮予怀 | No.000012 |
+| 2026-09-6 | leon | No.000013 |
 ---
 
 > 作者：[Jack Ge](https://github.com/fiyo) &nbsp;|&nbsp; 官网：[https://dbcheck.top](https://dbcheck.top) &nbsp;|&nbsp; 邮箱：sdfiyon@gmail.com

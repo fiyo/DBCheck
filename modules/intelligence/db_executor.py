@@ -341,6 +341,140 @@ def execute_instance_query(
     }
 
 
+# ── 原始连接获取（供巡检/分析器复用，调用方负责关闭） ────────────────────────
+def _connect_oracledb(db_info):
+    import oracledb
+    host = db_info.get("host", "")
+    port = int(db_info.get("port", 1521))
+    svc = db_info.get("service_name", "") or ""
+    sid = db_info.get("sid", "") or ""
+    if svc:
+        dsn = oracledb.makedsn(host=host, port=port, service_name=svc)
+    elif sid:
+        dsn = oracledb.makedsn(host=host, port=port, sid=sid)
+    else:
+        dsn = f"{host}:{port}/orcl"
+    sysdba = bool(db_info.get("sysdba", False))
+    extra = {"mode": oracledb.SYSDBA} if sysdba else {}
+    try:
+        return oracledb.connect(
+            user=db_info.get("user", ""),
+            password=db_info.get("password") or "",
+            dsn=dsn, **extra,
+        )
+    except Exception:
+        try:
+            oracledb.init_client()
+            return oracledb.connect(
+                user=db_info.get("user", ""),
+                password=db_info.get("password") or "",
+                dsn=dsn, **extra,
+            )
+        except Exception as e:
+            raise
+
+
+def _connect_pymysql(db_info, db_default="INFORMATION_SCHEMA"):
+    import pymysql
+    db_name = db_info.get("database") or db_default
+    return pymysql.connect(
+        host=db_info.get("host", ""), port=int(db_info.get("port", 3306)),
+        user=db_info.get("user", ""), password=db_info.get("password", ""),
+        database=db_name, charset="utf8mb4", connect_timeout=10,
+    )
+
+
+def _connect_psycopg(db_info, db_default="postgres"):
+    import psycopg2
+    db_type = (db_info.get("db_type", "") or "").lower()
+    db_name = db_info.get("database") or (
+        "highgo" if "hgdb" in db_type else (
+            "ivorysql" if db_type == "ivorysql" else "postgres"))
+    return psycopg2.connect(
+        host=db_info.get("host", ""), port=int(db_info.get("port", 5432)),
+        user=db_info.get("user", ""), password=db_info.get("password", ""),
+        dbname=db_name, connect_timeout=10,
+    )
+
+
+def _connect_pyodbc(db_info, database=""):
+    conn_str = (
+        "DRIVER={{ODBC Driver 17 for SQL Server}};"
+        "SERVER={host},{port};UID={user};PWD={pwd};"
+    ).format(
+        host=db_info.get("host", ""), port=int(db_info.get("port", 1433)),
+        user=db_info.get("user", ""), pwd=db_info.get("password", ""),
+    )
+    if database:
+        conn_str += f"DATABASE={database};"
+    import pyodbc
+    return pyodbc.connect(conn_str, timeout=10)
+
+
+def _connect_dm(db_info):
+    import dmPython
+    return dmPython.connect(
+        user=db_info.get("user", ""), password=db_info.get("password", ""),
+        server=db_info.get("host", ""), port=int(db_info.get("port", 5236)),
+    )
+
+
+def _connect_yasdb(db_info):
+    import yasdb
+    return yasdb.connect(
+        host=db_info.get("host", ""), port=int(db_info.get("port", 1688)),
+        user=db_info.get("user", ""), password=db_info.get("password", ""),
+    )
+
+
+def _connect_plugin(db_info, plugin_pkg, db_default="testdb"):
+    from importlib import import_module
+    mod = import_module(f"plugins.available.{plugin_pkg}.main_plugin")
+    get_connection = getattr(mod, "get_connection")
+    db_name = db_info.get("database") or db_default
+    return get_connection(
+        db_info.get("host", ""), int(db_info.get("port", 50000)),
+        db_info.get("user", ""), db_info.get("password", ""), database=db_name,
+    )
+
+
+def connect_instance(db_info: Dict[str, Any]):
+    """返回目标数据源的原始 DB-API 连接（只读取向）。
+
+    与 :func:`execute_instance_query` 共用同一套按 db_type 的连接分支，
+    但本函数返回**未关闭**的连接，供巡检/分析器（slow_query / index_health /
+    config_baseline / lock_tree 等）复用。调用方必须调用
+    :func:`close_instance` 关闭。
+    """
+    db_type = (db_info.get("db_type", "") or "").lower().replace("oracle_full", "oracle")
+    kind, plugin = _resolve(db_type)
+    if kind is None:
+        raise ValueError(f"不支持的数据库类型: {db_type}")
+    if kind == "oracledb":
+        return _connect_oracledb(db_info)
+    if kind == "pymysql":
+        return _connect_pymysql(db_info)
+    if kind == "psycopg":
+        return _connect_psycopg(db_info)
+    if kind == "pyodbc":
+        return _connect_pyodbc(db_info, database=db_info.get("database", ""))
+    if kind == "dm":
+        return _connect_dm(db_info)
+    if kind == "yasdb":
+        return _connect_yasdb(db_info)
+    if kind == "plugin":
+        return _connect_plugin(db_info, plugin)
+    raise ValueError(f"未实现的连接类型: {kind}")
+
+
+def close_instance(conn) -> None:
+    """安全关闭 :func:`connect_instance` 返回的连接。"""
+    try:
+        conn.close()
+    except Exception:
+        pass
+
+
 # ── 获取视图/表的列信息（供自然语言探查专员预检） ────────────────────────────
 def get_table_columns(db_info: Dict[str, Any], table_name: str) -> Dict[str, Any]:
     """查询视图/表的列信息，用于在生成 SQL 前验证列名是否正确。

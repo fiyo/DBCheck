@@ -826,6 +826,55 @@ def parse_awr_report(filepath: str) -> Dict[str, Any]:
     return parser.parse_file(filepath)
 
 
+def build_awr_ai_summary(awr_data: Dict[str, Any], meta: Dict[str, Any]) -> str:
+    """从 AWR 解析数据中构建 AI 诊断摘要（单一事实来源，供 app.py 与
+    intelligence views（BIC-QA AWR 分析）共用）。"""
+    lines = []
+    lines.append(f"数据库: {meta.get('db_name', 'N/A')}, 实例: {meta.get('instance', 'N/A')}")
+    lines.append(f"快照范围: {meta.get('snap_range', 'N/A')}, 分析时段: {meta.get('elapsed', 'N/A')}")
+    lines.append(f"数据库版本: {meta.get('db_version', 'N/A')}")
+    lines.append("")
+
+    def _emit(title: str, tables: Any, row_limit: int) -> None:
+        if not tables:
+            return
+        if not isinstance(tables, list) or not tables:
+            return
+        lines.append(f"=== {title} ===")
+        for tdata in tables:
+            if not isinstance(tdata, dict):
+                continue
+            headers = tdata.get('headers', [])
+            rows = tdata.get('rows', [])
+            if headers:
+                lines.append(" | ".join(str(h) for h in headers))
+            for row in rows[:row_limit]:
+                lines.append(" | ".join(str(c) for c in row))
+        lines.append("")
+
+    # 实例效率（无表头的键值对形式）
+    eff = awr_data.get('instance_efficiency', [])
+    if isinstance(eff, list) and eff:
+        lines.append("=== 实例效率 ===")
+        for tdata in eff:
+            if not isinstance(tdata, dict):
+                continue
+            for row in tdata.get('rows', [])[:10]:
+                lines.append(" | ".join(str(c) for c in row))
+        lines.append("")
+
+    _emit("前台等待事件 Top10", awr_data.get('fg_wait_events', []), 10)
+
+    top_sql = awr_data.get('top_sql', {})
+    if isinstance(top_sql, dict):
+        _emit("Top SQL (Elapsed Time)", top_sql.get('elapsed', []), 5)
+
+    _emit("负载概况", awr_data.get('load_profile', []), 5)
+    _emit("DB Time 模型", awr_data.get('time_model', []), 10)
+
+    return "\n".join(lines)
+
+
 if __name__ == '__main__':
     import sys
     import json

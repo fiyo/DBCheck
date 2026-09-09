@@ -6,6 +6,13 @@ set -e
 
 echo "==> RaccoonX v$(cat /app/VERSION.txt 2>/dev/null || echo 'unknown')"
 
+# DM8 (达梦) native driver needs its shared libs resolvable via LD_LIBRARY_PATH.
+# dmPython's SSL libs (libdmssl.so) live in site-packages/dmssl; the main dmPython
+# package dir is also included so libdmoci.so resolves. Without this, DM8
+# inspection / test-connection via dmPython fails with
+# "libdmssl.so: cannot open shared object file" (or libdmoci.so).
+export LD_LIBRARY_PATH="/opt/venv/lib/python3.12/site-packages/dmPython:/opt/venv/lib/python3.12/site-packages/dmssl:${LD_LIBRARY_PATH}"
+
 # Check available memory (warn if < 2GB)
 if [ -f /proc/meminfo ]; then
     AVAIL_MEM=$(awk '/MemAvailable/{print $2}' /proc/meminfo 2>/dev/null || echo "unknown")
@@ -55,7 +62,9 @@ fi
 
 # Initialize RBAC user management seed data
 echo "==> Initializing RBAC user management..."
-python -m user_management.seed 2>&1 || echo "WARNING: RBAC seed init failed"
+# NOTE: user_management 不是顶层包，而是 modules.user_management（命名空间包），
+#       必须用 modules.user_management.seed，否则模块找不到、RBAC 静默不播种。
+python -m modules.user_management.seed 2>&1 || echo "WARNING: RBAC seed init failed"
 
 # Auto-enable bundled plugins: plugins/available -> plugins/enabled
 # NOTE: uses the local loader API (discover_plugins / enable_plugin), NOT the

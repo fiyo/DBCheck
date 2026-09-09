@@ -56,6 +56,11 @@ fi
 
 source "$VENV_DIR/bin/activate"
 
+# 升级 pip/setuptools/wheel：manylinux2014 自带 pip 较旧，升级可提高预编译
+# wheel 命中率，避免 JPype1/Pillow 等被迫从源码编译（缺 jpeg 等系统库）
+# --timeout/--retries 防御 CI 网络抖动导致大 wheel 下载超时 fallback 源码编译
+pip install --upgrade pip setuptools wheel --timeout 120 --retries 10
+
 # Check pyinstaller
 if ! command -v pyinstaller &> /dev/null; then
     echo "  Installing pyinstaller..."
@@ -63,7 +68,13 @@ if ! command -v pyinstaller &> /dev/null; then
 fi
 
 echo "[3/5] Installing project dependencies..."
-pip install -r deploy/requirements.txt --quiet
+# CI 宽松模式（DBCHECK_CI_LENIENT=1）：逐个依赖安装，装不上的可选驱动跳过，
+# 最后统一 import 校验构建期必需模块。未设该变量时行为与原先完全一致。
+if [ "${DBCHECK_CI_LENIENT:-0}" = "1" ]; then
+    "$PYTHON_CMD" build/ci_install_deps.py
+else
+    pip install -r deploy/requirements.txt --quiet
+fi
 
 echo "[4/5] Building executable..."
 # Clean old build artifacts (NOT the build/ directory)
@@ -82,7 +93,8 @@ STARTEOF
 chmod +x "$BUILDDIR/start.sh"
 
 # Create tar.gz
-RELEASE_NAME="RaccoonX-Linux-x86_64"
+VERSION=$($PYTHON_CMD -c "import json; print(json.load(open('modules/config/version.json', encoding='utf-8-sig'))['version'])")
+RELEASE_NAME="RaccoonX-Linux-x86_64-$VERSION"
 cd dist
 tar czf "$RELEASE_NAME.tar.gz" RaccoonX-Linux/
 cd "$PROJECT_ROOT"

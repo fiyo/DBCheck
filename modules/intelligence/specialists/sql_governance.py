@@ -17,6 +17,9 @@ class SqlGovernance(Specialist):
     name = "SQL 治理专员"
     description = "针对慢 SQL 与高代价语句，给出改写、索引与变更审核建议。"
     tags = ["sql", "governance"]
+    domain = "sql"
+    deps = ["inspection_expert", "rootcause_expert"]
+    triggers = ["sql", "slow_sql"]
 
     def analyze(self, ctx: SharedContext) -> List[Finding]:
         sql_findings = [f for f in ctx.findings if "sql" in f.tags or "slow_sql" in f.tags]

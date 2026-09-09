@@ -9,6 +9,7 @@ DBCheck 用户管理模块 - 数据库管理器
 """
 
 import os
+import sys
 import sqlite3
 from threading import Lock
 
@@ -44,6 +45,15 @@ class DBManager:
         schema_path = str(paths.PROJECT_ROOT / 'db' / 'user_management_schema.sql')
         if os.path.exists(schema_path):
             self.execute_sql_file(schema_path)
+        # 老库升级：schema.sql 用的是 CREATE TABLE IF NOT EXISTS，已存在的表
+        # 不会被补列。多租户（阶段 0）的租户/部门/归属表与 um_user 归属列
+        # 必须由幂等迁移补齐，否则升级后 access 层会因缺列直接失效。
+        try:
+            from modules.access_schema import ensure_schema
+            ensure_schema(self._db_path)
+        except Exception as e:  # 迁移失败不阻断启动，但必须显式告警
+            print(f"[DBManager][WARN] 多租户 schema 迁移失败: {e}",
+                  file=sys.stderr)
 
     def _get_conn(self) -> sqlite3.Connection:
         """获取数据库连接"""

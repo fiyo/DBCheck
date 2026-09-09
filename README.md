@@ -23,7 +23,7 @@ Through automated inspection rules, system resource collection, AI-assisted diag
 > 
 语言切换（Language switch）: [English](./README.md) | [中文](./README_zh.md)
 
-[![Version](https://img.shields.io/badge/Version-v26.8.13.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/Version-v26.9.6-blue.svg)]()
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)]()
 [![Open Source](https://img.shields.io/badge/Open%20Source-Yes-green.svg)]()
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)]()
@@ -33,7 +33,6 @@ Through automated inspection rules, system resource collection, AI-assisted diag
 [![WeChat](https://img.shields.io/badge/WeChat-sdougwx-brightgreen?logo=WeChat)]()
 [![WebSite](https://img.shields.io/badge/Website-www.dbcheck.top-green.svg)](https://dbcheck.top)
 [![Docker Pulls](https://img.shields.io/docker/pulls/jackge12345/dbcheck?style=flat-square&label=Docker%20Pulls&cacheSeconds=300)](https://hub.docker.com/r/jackge12345/dbcheck)
-[![GHCR Pulls](https://img.shields.io/badge/88-blue.svg?label=GHCR+Pulls)]()
 ![Downloads](https://img.shields.io/github/downloads/fiyo/DBCheck/total?style=flat-square&label=Source+Downloads)
 
 ---
@@ -284,6 +283,7 @@ docker pull jackge12345/dbcheck:latest
 docker run -d -p 5003:5003 \
   -v dbcheck_data:/app/data \
   -v dbcheck_reports:/app/data/reports \
+  -e LD_LIBRARY_PATH=/opt/venv/lib/python3.12/site-packages/dmssl \
   --name dbcheck \
   jackge12345/dbcheck:latest
 
@@ -292,6 +292,7 @@ docker pull ghcr.io/fiyo/dbcheck:latest
 docker run -d -p 5003:5003 \
   -v dbcheck_data:/app/data \
   -v dbcheck_reports:/app/data/reports \
+  -e LD_LIBRARY_PATH=/opt/venv/lib/python3.12/site-packages/dmssl \
   --name dbcheck \
   ghcr.io/fiyo/dbcheck:latest
 ```
@@ -383,6 +384,9 @@ Visit **http://localhost:5003**. Default credentials are `admin` / `admin123` (c
 | 💿 DM8 Offline Storage Check | Inspect DM8 storage health offline (no running instance); scan data files and locate bad blocks (full-zero / constant-fill / truncated) |
 | 📝 SQL Editor | Built-in Web UI SQL editor with syntax highlighting, result table, execution history |
 | 🖥️ Remote Terminal | SSH-based, multi-tab, fullscreen mode |
+| 🔀 Workflow Orchestration | Visual DAG canvas; chain specialists / hub / skills / output with conditional branches |
+| 🛡️ SQL Audit | SQL review with risk scoring + controlled execution (dry-run default, snapshot rollback) |
+| 🔌 MCP Toolbox | Expose inspection & Skills as MCP tools for external AI clients (Claude Desktop, etc.) |
 
 ---
 
@@ -390,15 +394,21 @@ Visit **http://localhost:5003**. Default credentials are `admin` / `admin123` (c
 
 
 ### Collaborative Diagnosis Hub (Smart Diagnosis Center)
-Hand a single goal plus one data source to a team of five specialized **diagnostic specialists** who collaborate on a **shared context (blackboard)** and produce: anomalies found, root-cause inference, executable remediation plans, plus cost evaluation and tickets.
+Hand a single goal plus one data source to a team of **eleven** specialized **diagnostic specialists** (one Coordinator + ten domain experts) who collaborate on a **shared context (blackboard)** and produce: anomalies found, root-cause inference, executable remediation plans, plus cost evaluation and tickets.
 
-| Specialist | Responsibility |
-|------------|----------------|
-| Monitoring Sentinel | Watches real host resources and fine-grained DB metrics; raises early warnings on CPU / IO / memory / connection / lock / replication anomalies |
-| Deep-Inspection Analyst | Runs the inspection engine on the target in real time; extracts config / capacity / performance risks with severity |
-| Root-Cause Analyst | Correlates monitoring anomalies with inspection risks, clusters and infers root cause, gives the remediation thread |
-| SQL-Governance Specialist | For slow / high-cost SQL, suggests rewrites, indexes, and change reviews |
-| Lock-Wait Analyst | For lock waits / blocks, traces the holding session and wait chain, suggests unblocking actions |
+| Specialist | Domain | Responsibility |
+|------------|--------|----------------|
+| Coordinator | Orchestration | Understands the diagnosis goal, decides which specialists join and in what order (AI-driven or rule fallback) |
+| Monitoring Sentinel | Monitor | Watches real host resources and fine-grained DB metrics; raises early warnings on CPU / IO / memory / connection / lock / replication anomalies |
+| Capacity Analyst | Monitor | Models capacity headroom, growth trend, and resource saturation risk |
+| Deep-Inspection Analyst | Inspection | Runs the inspection engine on the target in real time; extracts config / capacity / performance risks with severity |
+| Baseline-Compare Specialist | Inspection | Compares current config against baselines / history and flags drift |
+| Root-Cause Analyst | Root-Cause | Correlates monitoring anomalies with inspection risks, clusters and infers root cause, gives the remediation thread |
+| Native-DB Expert | Root-Cause | Specialist knowledge for domestic databases (DM8 / HGDB / Kingbase / YashanDB / GBase / UXDB) |
+| SQL-Governance Specialist | SQL | For slow / high-cost SQL, suggests rewrites, indexes, and change reviews |
+| Index Advisor | SQL | Detects missing / redundant / unused indexes and proposes indexing plans for slow SQL |
+| Lock-Wait Analyst | Lock | For lock waits / blocks, traces the holding session and wait chain, suggests unblocking actions |
+| NL-Query Specialist | NL | Explores the target via natural-language queries to surface hidden anomalies |
 
 - **Shared context (blackboard)** — all intermediate conclusions, findings, and plans live in one space; specialists read/write directly, no lossy relay.
 - **Dynamic planning** — monitoring, deep-inspection, and root-cause are always on; SQL-governance and lock analysis join early when relevant phenomena appear.
@@ -427,6 +437,45 @@ For hosts where you don't want an agent:
 
 ---
 
+## Workflow Orchestration
+
+Build reusable diagnostic playbooks on a visual **DAG canvas**. Drag nodes onto the canvas, wire them with directional edges (fixed top-in / bottom-out ports), and run the whole flow against a data source.
+
+| Node | Role |
+|------|------|
+| Start / End | Flow boundaries (Start emits only, End receives only) |
+| Specialist | Run one diagnostic specialist (e.g. Index Advisor, Lock-Wait Analyst) against the shared context |
+| Hub | Trigger a full collaborative re-diagnosis (`DiagnosticHub.dispatch`) |
+| Skill | Reuse a Skills / WriteGate action (e.g. execute SQL, apply index) |
+| Function | Arbitrary `callable(ctx, args)` for data moves / condition injection |
+| Output | Emit a result: show in UI, write a Markdown report, or send an email |
+
+- **Conditional branches** — each step supports a `when(ctx)` predicate, so the flow adapts to what it finds (e.g. only run the Index-Advisor branch when slow SQL is present).
+- **Persistence & re-run** — workflows are saved to SQLite (`workflow_store`), listed / run / viewed from the Web UI **Workflow Orchestration** page; the Reviewer audit chain is shown inline.
+- **Reuses, never reinvents** — specialist abilities, WriteGate and the Reviewer all come from the existing intelligence modules.
+
+## SQL Audit
+
+A built-in, always-on module for reviewing and safely executing SQL against a managed instance.
+
+- **Review** — submit SQL, get rule-based risk scoring (MVP1: MySQL parse + rules + score + report). Execution-plan analysis can be enabled per task.
+- **Controlled execution (MVP3)** — safe by default:
+  - **Dry-run** is the default; real execution requires `exec_enabled=1` plus a bound target instance.
+  - DML runs inside a single transaction with a hard **max-affected-rows** cap; before any UPDATE/DELETE a SELECT snapshot is written to a backup table for rollback.
+  - DDL is non-transactional, so only advisory rollback DDL is generated (never auto-run).
+  - Every execution / rollback action is append-only logged (`sql_audit_executions` / `sql_audit_rollbacks`).
+- **Write operations** from Workflow / Skills route through the SQL Audit page as tickets, closing the *review → approve → execute → feedback* loop.
+
+## MCP Toolbox
+
+Expose RaccoonX inspection and Skills as **MCP (Model Context Protocol)** tools so external AI clients (Claude Desktop, etc.) can drive database checks natively.
+
+- A standalone **stdio MCP server** (`modules/mcp_server`) — Skills and MCP tools share one registry (`modules.mcp_server.registry`), so each capability is defined once and reused by both the multi-agent hub and the MCP server.
+- **Chat2DB bridge** — `chat2db_bridge.py` connects to a Chat2DB MCP server over stdio to provide natural-language-to-SQL (`nl2sql`) without embedding any Chat2DB code (source-available license, bridge-only).
+- Access is gated by the same risk metadata and WriteGate used elsewhere; unconfigured dependencies degrade gracefully to `Chat2DBUnavailable`.
+
+---
+
 ## Community vs Professional — Core Capability Comparison
 
 | Capability | Community | Professional |
@@ -438,12 +487,14 @@ For hosts where you don't want an agent:
 | Enterprise RBAC | ✅ | ✅ |
 | eBPF kernel-level host collection | ✅ | ✅ (opt-in) |
 | SSH secure host collection | ✅ | ✅ |
-| Collaborative diagnosis hub (5 specialists + shared context) | ✅ | ✅ |
+| Collaborative diagnosis hub (11 specialists + shared context) | ✅ | ✅ |
 | Remediation cost optimizer | ✅ | ✅ |
 | Ticket closed-loop | ✅ | ✅ |
 | Diagnosis history | ✅ | ✅ |
 | Unified observability view | ✅ | ✅ |
-| Flow | — | ✅ |
+| Workflow Orchestration | ✅ | ✅ |
+| SQL Audit (review + controlled execution) | ✅ | ✅ |
+| MCP Toolbox (external AI integration) | ✅ | ✅ |
 
 ---
 
@@ -882,6 +933,7 @@ This project references the following works:
 | 2026-06-18 | 赵法威 | No.000010 |
 | 2026-06-19 | 类延良 | No.000011 |
 | 2026-06-19 | 渺渺兮予怀 | No.000012 |
+| 2026-09-6 | leon | No.000013 |
 ---
 
 > Author: [Jack Ge](https://github.com/fiyo) &nbsp;|&nbsp; Website: [https://dbcheck.top](https://dbcheck.top) &nbsp;|&nbsp; Email: sdfiyon@gmail.com

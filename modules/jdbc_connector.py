@@ -50,12 +50,14 @@ JDBC_PROFILES: Dict[str, Dict[str, Any]] = {
         'port': 50000,
     },
     'hgdb': {
-        # 注意：必须 jdbc:highgo:// 而非 jdbc:postgresql:// —— HighGo 驱动
-        # （com.highgo.jdbc.Driver）acceptsURL 只认 'jdbc:highgo:' 前缀，
-        # 用 PG 前缀即使驱动已注册也会报 No suitable driver（jar 内实测）。
-        'driver_class': 'com.highgo.jdbc.Driver',
-        'url': 'jdbc:highgo://{host}:{port}/{db}',
+        # HGDB 与 PostgreSQL 线协议兼容。项目未捆绑 HighGo 专属驱动
+        # （com.highgo.jdbc.Driver，仅在 HgdbJdbc-*.jar 内），故统一走标准
+        # PostgreSQL JDBC 驱动（org.postgresql.Driver + jdbc:postgresql://），
+        # 对 HGDB 实例可直接连通（与 ivorysql 处理方式一致）。
+        'driver_class': 'org.postgresql.Driver',
+        'url': 'jdbc:postgresql://{host}:{port}/{db}',
         'port': 5866,
+        'db_default': 'highgo',
     },
     'clickhouse': {
         'driver_class': 'com.clickhouse.jdbc.ClickHouseDriver',
@@ -215,11 +217,11 @@ def build_jdbc_url(
     """
     if jdbc_url and str(jdbc_url).strip():
         _u = str(jdbc_url).strip()
-        # HGDB 兼容：用户自定义 URL 若沿用 PG 协议前缀，改写为驱动
-        # acceptsURL 认的 jdbc:highgo://（其余原样保留，含 query 参数）；
-        # HighGo 驱动对 jdbc:postgresql:// 前缀一律 No suitable driver。
-        if db_type == 'hgdb' and _u.lower().startswith('jdbc:postgresql:'):
-            _u = 'jdbc:highgo:' + _u[len('jdbc:postgresql:'):]
+        # HGDB 现统一走标准 PostgreSQL 驱动（org.postgresql.Driver），其
+        # acceptsURL 只认 jdbc:postgresql: 前缀；用户若填 jdbc:highgo: 则改写，
+        # 避免 PG 驱动报 No suitable driver。
+        if db_type == 'hgdb' and _u.lower().startswith('jdbc:highgo:'):
+            _u = 'jdbc:postgresql:' + _u[len('jdbc:highgo:'):]
         return _u
 
     _prof = JDBC_PROFILES.get(db_type) or {}
@@ -446,6 +448,19 @@ def open_jdbc_connection(
     )
 
     _jars = resolve_driver_jars(db_type, driver_version, fallback_dirs=fallback_dirs)
+    # HGDB 兜底：HighGo 专属驱动 jar（com.highgo.jdbc.Driver）未捆绑时，
+    # 回退到标准 PostgreSQL 驱动（org.postgresql.Driver + jdbc:postgresql://），
+    # HGDB 线协议兼容 PostgreSQL，可直接连通，避免缺 jar 报 Class not found。
+    if not _jars and db_type == 'hgdb':
+        _prof = JDBC_PROFILES['pg']
+        _url = build_jdbc_url(
+            'pg', host, port,
+            database=database, service_name=service_name, use_sid=use_sid,
+            gbase_server_name=gbase_server_name, encrypt=encrypt,
+            trust_server_certificate=trust_server_certificate, jdbc_url=jdbc_url,
+            **extra,
+        )
+        _jars = resolve_driver_jars('pg', driver_version, fallback_dirs=fallback_dirs)
     if not _jars:
         _catalog = JDBC_PLUGIN_TO_CATALOG.get(db_type, db_type)
         return None, {

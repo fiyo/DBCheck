@@ -1,0 +1,272 @@
+name: Build Release Binaries
+
+# 触发：
+#   1) 推送 v* 标签时自动出包并挂到该标签的 Release 下
+#   2) 手动 dispatch（用于回填某个已存在标签，需先删除该 Release 避免冲突）
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release tag, e.g. v26.9.9.0"
+        required: true
+        default: "v26.9.9.0"
+
+permissions:
+  contents: write
+
+env:
+  PY_VERSION: "3.11"
+  # CI 宽松依赖安装：逐个安装依赖，装不上的可选驱动（依赖厂商 SDK / 无对应平台
+  # wheel，如 macOS 上的 dmpython、gbase8sdb）跳过，最后统一校验构建期必需模块。
+  DBCHECK_CI_LENIENT: "1"
+
+jobs:
+  build-windows:
+    name: Build Windows (x64)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PY_VERSION }}
+
+      # 干净 checkout 缺失的输入物：data/pro_data（空目录，git 不跟踪）与
+      # dbc_config.json（含凭据、不入库）——由 ci_prepare.py 现场补齐（幂等）
+      - name: Prepare build inputs
+        run: python build/ci_prepare.py
+
+      - name: Build (PyInstaller -> zip)
+        shell: pwsh
+        run: |
+          .\build\build_windows.bat 2>&1 | Tee-Object -FilePath build-windows.log
+          exit $LASTEXITCODE
+
+      # 构建日志的下载需要认证，但产物「列表」无需认证即可读。
+      # 故把关键报错摘要编进产物名，失败时无需登录即可看到首因。
+      - name: Extract error snippet
+        if: failure()
+        shell: pwsh
+        run: |
+          $snip = ((Select-String -Path build-windows.log -Pattern 'error|failed|Traceback|No matching|Unable to find' |
+            Select-Object -Last 3 | ForEach-Object { $_.Line }) -join ' | ')
+          $snip = ($snip -replace '[^a-zA-Z0-9 |._-]', ' ')
+          if ($snip.Length -gt 160) { $snip = $snip.Substring(0, 160) }
+          "ERR_SNIPPET=$snip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "snippet: $snip"
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-windows-${{ env.ERR_SNIPPET }}
+          path: build-windows.log
+          if-no-files-found: warn
+        timeout-minutes: 10
+        continue-on-error: true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/RaccoonX-Windows-x86_64-*.zip
+        timeout-minutes: 15
+        continue-on-error: true
+
+  build-linux:
+    # 临时屏蔽：manylinux2014 容器内 Pillow/JPype1 源码编译缺 jpeg 等系统库持续失败，
+    # 先仅出 Windows / macOS 包。恢复方法：删除下面这行 `if: false` 即可重新启用。
+    if: false
+    name: Build Linux (manylinux2014 / glibc 2.17)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      # 在 manylinux2014 容器内构建，产物兼容 CentOS 7 / RHEL 7 (glibc 2.17)
+      - name: Build in manylinux2014 container
+        run: |
+          docker run --rm -v "$PWD":/src -w /src quay.io/pypa/manylinux2014_x86_64 bash -c '
+            set -e
+            PYBIN=$(ls -d /opt/python/cp311-cp311 2>/dev/null || ls -d /opt/python/cp310-cp310 2>/dev/null || ls -d /opt/python/cp3*-cp3* 2>/dev/null | sort | tail -1)
+            echo "Using manylinux Python: $PYBIN"
+            ln -sf "$PYBIN/bin/python3" /usr/local/bin/python3
+            ln -sf "$PYBIN/bin/pip" /usr/local/bin/pip
+            # 升级 pip/setuptools/wheel：manylinux2014 自带 pip 较旧，升级可提高
+            # 预编译 wheel 命中率，避免 JPype1/Pillow 等被迫从源码编译
+            python3 -m pip install --upgrade pip setuptools wheel --timeout 120 --retries 10
+            # Pillow/JPype1/Pandas 源码编译需要的系统库（即使能命中 wheel 也装齐，作为兜底）
+            # Pillow 需要：libjpeg-turbo-devel zlib-devel libpng-devel freetype-devel
+            #              libtiff-devel lcms2-devel libwebp-devel openjpeg2-devel
+            # JPype1 需要 JDK 11+ (Java 8 编译会失败: javac: invalid target release: 9)
+            # PyInstaller 需要 Python 共享库 (python-libs)
+            # Pandas/Cython 编译需要 cython 和开发工具
+            # 注意：CentOS 7 里 Pillow 真正要的是 libjpeg-turbo-devel（libjpeg-devel 是 6b 老版本，不匹配）
+            # 重试循环确保网络抖动时也能装齐；Pillow 源码编译兜底必须有 jpeg 等开发库。
+            # 注意：CentOS 7 里 Pillow 真正要的是 libjpeg-turbo-devel（libjpeg-devel 是 6b 老版本，不匹配）
+            for i in 1 2 3; do
+              yum install -y libffi-devel openssl-devel postgresql-devel \
+                  libjpeg-turbo-devel zlib-devel libpng-devel freetype-devel \
+                  libtiff-devel lcms2-devel libwebp-devel openjpeg2-devel \
+                  java-11-openjdk java-11-openjdk-devel ant \
+                  python3-libs python3-devel \
+                  gcc gcc-c++ make cmake ninja-build cython pkgconfig && break
+              echo "[warn] yum install attempt $i failed, retrying in 5s..."
+              sleep 5
+            done
+            # 设置 JAVA_HOME 让所有 Java 工具都使用 Java 11
+            export JAVA_HOME=/usr/lib/jvm/java-11-openjdk
+            export PATH=$JAVA_HOME/bin:$PATH
+            # 补齐干净 checkout 缺失的输入物（运行时目录 + 默认配置）
+            python3 build/ci_prepare.py
+            bash build/build_linux.sh 2>&1 | tee build-linux.log
+            RC=${PIPESTATUS[0]}
+            # dist 可能在构建失败时不生成，chmod 容错避免掩盖真实 RC
+            chmod -R a+rwX /src/dist || true
+            exit $RC
+          '
+
+      # 同 Windows：把关键报错摘要编进产物名（产物列表无需认证即可读）
+      - name: Extract error snippet
+        if: failure()
+        run: |
+          SNIP=$(grep -aiE "error|failed|Traceback|No matching|Unable to find" build-linux.log \
+            | tail -3 | tr -d '\r' | tr '\n' '|' | tr -c 'a-zA-Z0-9 |._-' ' ' | cut -c1-160)
+          echo "ERR_SNIPPET=$SNIP" >> "$GITHUB_ENV"
+          echo "snippet: $SNIP"
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-linux-${{ env.ERR_SNIPPET }}
+          path: build-linux.log
+          if-no-files-found: warn
+        timeout-minutes: 10
+        continue-on-error: true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist/RaccoonX-Linux-x86_64-*.tar.gz
+        timeout-minutes: 15
+        continue-on-error: true
+
+  build-macos:
+    name: Build macOS (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false  # 两个架构互相独立，一个失败不影响另一个跑完（便于一次看全结果）
+      matrix:
+        include:
+          - { runner: macos-14, arch: arm64 }
+          - { runner: macos-15-intel, arch: x86_64 }
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PY_VERSION }}
+
+      # 同 Windows：补齐干净 checkout 缺失的输入物
+      - name: Prepare build inputs
+        run: python build/ci_prepare.py
+
+      - name: Build (PyInstaller -> tar.gz)
+        run: |
+          bash build/build_macos.sh 2>&1 | tee build-macos-${{ matrix.arch }}.log
+          exit ${PIPESTATUS[0]}
+
+      # 同 Windows：把关键报错摘要编进产物名（产物列表无需认证即可读）
+      - name: Extract error snippet
+        if: failure()
+        run: |
+          SNIP=$(grep -aiE "error|failed|Traceback|No matching|Unable to find" "build-macos-${{ matrix.arch }}.log" \
+            | tail -3 | tr -d '\r' | tr '\n' '|' | tr -c 'a-zA-Z0-9 |._-' ' ' | cut -c1-160)
+          echo "ERR_SNIPPET=$SNIP" >> "$GITHUB_ENV"
+          echo "snippet: $SNIP"
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-macos-${{ matrix.arch }}-${{ env.ERR_SNIPPET }}
+          path: build-macos-${{ matrix.arch }}.log
+          if-no-files-found: warn
+        timeout-minutes: 10
+        continue-on-error: true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}
+          path: dist/RaccoonX-macOS-${{ matrix.arch }}-*.tar.gz
+        timeout-minutes: 15
+        continue-on-error: true
+
+  release:
+    name: Attach to Release
+    needs: [build-windows, build-macos]
+    # 部分构建失败时也尝试运行（有 artifact 就上传，没有则跳过）
+    if: always()
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || github.ref_name }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List artifacts
+        run: find artifacts -type f -exec ls -lh {} \;
+
+      # 某个架构 artifact 上传可能因 GitHub Artifact Service 超时失败，
+      # 避免空 glob 导致 action-gh-release 报错；先把实际存在的产物汇总到统一目录。
+      - name: Collect release assets
+        run: |
+          mkdir -p release_assets
+          for pattern in artifacts/windows/*.zip artifacts/macos-arm64/*.tar.gz artifacts/macos-x86_64/*.tar.gz; do
+            for f in $pattern; do
+              if [ -f "$f" ]; then
+                cp "$f" release_assets/
+                echo "collected: $f"
+              fi
+            done
+          done
+          ls -lh release_assets/ || echo "no assets collected"
+
+      - name: Create Release and upload binaries
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          generate_release_notes: true
+          allowUpdates: true
+          files: release_assets/*
+
+      # 追加由 release.ps1 生成的发布说明（含 Docker 拉取、主要更新、安装提示）
+      - name: Append release notes to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -f .github/release_append.md ]; then
+            NOTE=$(cat .github/release_append.md)
+          else
+            NOTE=$'\n---\n\n## ⚠️ 安装注意事项\n\n- **macOS**：当前分发包**未做 Apple 公证（二进制未签名）**。首次打开若被 Gatekeeper 拦截，请右键点击 App / 可执行文件 →「打开」并在弹窗中确认即可运行；如需彻底消除提示，后续可接入 Apple 开发者证书做正式公证。\n- **Windows**：解压后双击 `start.bat` 启动，浏览器访问 http://localhost:5003 。（注：Linux 客户端暂未发布，当前仅提供 Windows / macOS 安装包。）'
+          fi
+          BODY=$(gh release view "$TAG" --json body --jq '.body')
+          printf '%s%s\n' "$BODY" "$NOTE" > release_notes.md
+          gh release edit "$TAG" --notes-file release_notes.md

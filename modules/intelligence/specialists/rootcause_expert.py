@@ -43,6 +43,7 @@ class RootCauseExpert(Specialist):
     name = "根因定位分析专员"
     description = "汇总监控异常与巡检风险，关联聚类推断根因，并给出处置主线。"
     tags = ["rootcause"]
+    domain = "rootcause"
 
     def analyze(self, ctx: SharedContext) -> List[Finding]:
         raw = ctx.by_category("anomaly") + ctx.by_category("risk")

@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: '版本号 (例如 v26.8.22.1)。留空则从 modules/config/version.py 读取'
+        description: '版本号 (例如 v26.9.9.0)。留空则从 modules/config/version.py 读取'
         required: false
         default: ''
       full:
@@ -26,6 +26,9 @@ permissions:
 
 jobs:
   build:
+    # 已恢复：仅 Docker 镜像走 CI 自动构建并推送（GHCR + Docker Hub）。
+    # 注意：manylinux 二进制包仍按 build-release.yml 的 build-linux: if:false 保持屏蔽，
+    # 两者独立——Docker 镜像基于 python:3.12-slim-bookworm + apt 装系统库，不受 manylinux 缺 jpeg 编译问题影响。
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

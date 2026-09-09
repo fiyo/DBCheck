@@ -142,7 +142,7 @@ FETCH FIRST 30 ROWS ONLY
 ORACLE_CONNECTION_SQL = """
 SELECT
     s.username AS username,
-    s.schema_name AS database_name,
+    s.schemaname AS database_name,
     s.program AS command,
     ROUND((SYSDATE - s.logon_time) * 24, 1) AS duration_h,
     s.status AS state,

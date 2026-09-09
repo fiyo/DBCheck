@@ -23,6 +23,14 @@ class Specialist(ABC):
     description: str = ""
     tags: List[str] = []
 
+    # ── 多 Agent 增强元数据（对标 Ongrid Skills/MCP 工具目录，规划文档 4.3）──
+    # domain: 专业域（monitor/inspection/rootcause/sql/lock/nl），供 list_by_domain 检索
+    domain: str = ""
+    # deps: 应在其之后执行的专项能力（仅作为重规划追加时的排序提示）
+    deps: List[str] = []
+    # triggers: 当共享上下文中出现这些标签的发现时，由重规划动态追加该能力
+    triggers: List[str] = []
+
     @abstractmethod
     def analyze(self, ctx: SharedContext) -> List[Finding]:
         """分析共享上下文，返回本次新增的发现。"""

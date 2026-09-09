@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 #  DBCheck 版本发布脚本 (Bash)
-#  Usage: bash release.sh 26.8.22.1
+#  Usage: bash release.sh 26.9.9.0
 # ============================================================
 
 set -euo pipefail
@@ -9,13 +9,13 @@ set -euo pipefail
 VERSION="${1:-}"
 if [[ -z "$VERSION" ]]; then
     echo "❌ 用法: $0 <版本号>"
-    echo "   示例: $0 26.8.22.1"
+    echo "   示例: $0 26.9.9.0"
     exit 1
 fi
 
 # 版本号格式验证（与 release.ps1 对齐：支持 X.Y.Z 与 X.Y.Z.N 两种）
 if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
-    echo "❌ 版本号格式错误！正确格式：X.Y.Z 或 X.Y.Z.N（如 2.5.6 或 26.8.22.1）"
+    echo "❌ 版本号格式错误！正确格式：X.Y.Z 或 X.Y.Z.N（如 2.5.6 或 26.9.9.0）"
     exit 1
 fi
 
@@ -53,7 +53,7 @@ echo "  ✓ 已拉取最新代码"
 
 # ── 3. 更新 version.py ─────────────────────────────────
 echo "[3/7] 更新 version.py (__version__ = '$VERSION_WITH_V')..."
-VERSION_PY="$PROJECT_ROOT/../config/version.py"
+VERSION_PY="$PROJECT_ROOT/../modules/config/version.py"
 if [[ -f "$VERSION_PY" ]]; then
     sed -i 's/^__version__\s*=.*/__version__ = "'"$VERSION_WITH_V"'"/' "$VERSION_PY"
     echo "  ✓ version.py 已更新"
@@ -61,20 +61,17 @@ else
     echo "  ⚠️  version.py 不存在，跳过"
 fi
 
-# ── 4. 更新 Dockerfile VERSION.txt ───────────────────
-echo "[4/7] 更新 Dockerfile (VERSION.txt = '$VERSION')..."
-DOCKERFILE="$PROJECT_ROOT/Dockerfile"
-if [[ -f "$DOCKERFILE" ]]; then
-    sed -i 's|RUN echo "[0-9.]*" > /app/VERSION\.txt|RUN echo "'"$VERSION"'" > /app/VERSION.txt|' "$DOCKERFILE"
-    echo "  ✓ Dockerfile 已更新"
-else
-    echo "  ⚠️  Dockerfile 不存在，跳过"
-fi
+# ── 4. 版本号同步说明 ───────────────────────────────
+# Dockerfile 内 VERSION.txt 现由构建参数 DBCHECK_VERSION 驱动
+# （RUN echo "${DBCHECK_VERSION#v}"），CI(.github/workflows/docker-multiarch.yml)
+# 与 scripts/build-multiarch.sh 均会从 modules/config/version.py 解析版本号并以
+# --build-arg 传入，无需在发布脚本里改写 Dockerfile 字面量。
+# 本地手动构建指定版本：docker build --build-arg DBCHECK_VERSION=vX.Y.Z.N .
+echo "[4/7] Dockerfile 版本由构建参数驱动，无需改写（略过）"
 
 # ── 5. 提交并推送代码 ────────────────────────────────
 echo "[5/7] 提交并推送代码..."
-git add config/version.py deploy/Dockerfile deploy/release.sh 2>/dev/null
-git add -A 2>/dev/null
+git add modules/config/version.py deploy/release.sh 2>/dev/null
 COMMIT_MSG="Release $VERSION_WITH_V"
 if git diff --cached --quiet 2>/dev/null; then
     echo "  ⚠️  没有需要提交的更改"

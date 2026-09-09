@@ -17,6 +17,9 @@ class LockAnalyst(Specialist):
     name = "锁等待分析专员"
     description = "针对锁等待与阻塞，溯源持锁会话与等待链并给出拆解建议。"
     tags = ["lock"]
+    domain = "lock"
+    deps = ["rootcause_expert"]
+    triggers = ["lock", "block"]
 
     def analyze(self, ctx: SharedContext) -> List[Finding]:
         lock_findings = [f for f in ctx.findings if "lock" in f.tags or "block" in f.tags]

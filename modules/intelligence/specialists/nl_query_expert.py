@@ -237,6 +237,7 @@ class NlQueryExpert(Specialist):
     name = "自然语言探查专员"
     description = "针对用户的自然语言诊断目标，自主规划应查询的系统视图/数据字典，构造 SQL 执行并自动纠错（单视图最多 5 次），拿到结果后交由 AI 给出诊断结论。"
     tags = ["nlquery", "ad-hoc", "diagnosis"]
+    domain = "nl"
 
     MAX_ATTEMPTS = 5
 

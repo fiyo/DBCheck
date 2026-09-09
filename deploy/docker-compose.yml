@@ -5,6 +5,8 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      # 自定义版本号可在此传参（不传则使用 Dockerfile 内 ARG DBCHECK_VERSION 默认值）：
+      # args: { DBCHECK_VERSION: "v26.9.9.0" }
     image: jackge12345/dbcheck:latest
     container_name: dbcheck
     restart: unless-stopped
@@ -17,8 +19,8 @@ services:
       - dbcheck_pro_data:/app/data/pro_data
       # Persist generated reports
       - dbcheck_reports:/app/data/reports
-      # Mount drivers directory (read-only)
-      - ../drivers:/app/drivers:ro
+      # 注意：不要挂载本地 drivers 目录覆盖镜像内置 drivers，否则 Oracle/DM8 等
+      # 所需的 JDBC 驱动会被不完整的本地目录覆盖而失效。镜像构建时已烤入全部 drivers。
     environment:
       - TZ=Asia/Shanghai
       - FLASK_ENV=production

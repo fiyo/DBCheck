@@ -312,9 +312,9 @@ class HgdbJdbcInspector(BaseInspectionEngine):
             self.conn_cfg = cfg
 
             # 2. 统一连接层：驱动解析 / JVM 启动 / URL 构造 / props 装配 / 建连。
-            #    驱动类由统一层注册表取 com.highgo.jdbc.Driver（jar 内真实类）；
-            #    修复旧 register_hgdb_driver 用 org.postgresql.Driver 导致的
-            #    ClassNotFoundException（HgdbJdbc jar 内并无该类）。
+            #    HGDB 与 PostgreSQL 线协议兼容，统一走标准 PostgreSQL 驱动
+            #    （org.postgresql.Driver + jdbc:postgresql://）；项目未捆绑
+            #    HighGo 专属 HgdbJdbc jar，避免缺 jar 报 ClassNotFoundException。
             from modules.jdbc_connector import open_jdbc_connection
             conn, meta = open_jdbc_connection(
                 'hgdb', self.host, self.port,

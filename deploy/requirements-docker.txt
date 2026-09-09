@@ -52,3 +52,7 @@ PyJWT>=2.7.0
 
 # MongoDB plugin dependency
 pymongo>=4.0.0
+
+# Redis / Redis Cluster plugin dependency（entrypoint 会自动启用 available 下全部插件，
+# 含 redis / redis-cluster；连接时 from redis import ... 若缺包会 ImportError）
+redis>=5.0.0

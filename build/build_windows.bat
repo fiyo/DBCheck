@@ -18,7 +18,7 @@ echo.
 python --version >nul 2>&1
 if errorlevel 1 (
     echo [ERROR] Python not found. Please install Python 3.10+.
-    pause
+    if not defined GITHUB_ACTIONS pause
     exit /b 1
 )
 
@@ -28,13 +28,13 @@ echo [1/5] Python version: %PYVER%
 python -c "import sys; sys.exit(0 if sys.version_info >= (3,10) else 1)" >nul 2>&1
 if errorlevel 1 (
     echo [ERROR] Python >= 3.10 required. Current: %PYVER%
-    pause
+    if not defined GITHUB_ACTIONS pause
     exit /b 1
 )
 
 :: --- Read version ---
 for /f "tokens=*" %%v in ('python -c "import json,sys; d=json.load(open('modules/config/version.json','r',encoding='utf-8-sig')); print(d['version'])"') do set VERSION=%%v
-if not defined VERSION set VERSION=v26.8.22.1
+if not defined VERSION set VERSION=v26.9.9.0
 echo [    ] RaccoonX version: %VERSION%
 echo.
 
@@ -42,10 +42,17 @@ echo.
 echo [2/5] Installing dependencies (this may take a few minutes)...
 echo [    ] You will see pip progress output below.
 echo.
-pip install -r deploy/requirements.txt
+:: CI 宽松模式：逐个依赖安装，装不上的可选驱动（依赖厂商 SDK 的厂商驱动等）跳过，
+:: 最后统一 import 校验构建期必需模块。未设该变量时行为与原先完全一致。
+if defined DBCHECK_CI_LENIENT (
+    echo [    ] CI lenient mode: installing dependencies one-by-one.
+    python build\ci_install_deps.py
+) else (
+    pip install -r deploy/requirements.txt
+)
 if errorlevel 1 (
     echo [ERROR] Failed to install dependencies.
-    pause
+    if not defined GITHUB_ACTIONS pause
     exit /b 1
 )
 echo.
@@ -54,7 +61,7 @@ echo [    ] Installing PyInstaller...
 pip install pyinstaller
 if errorlevel 1 (
     echo [ERROR] Failed to install PyInstaller.
-    pause
+    if not defined GITHUB_ACTIONS pause
     exit /b 1
 )
 echo.
@@ -84,7 +91,7 @@ if errorlevel 1 (
     echo.
     echo [ERROR] PyInstaller failed!
     echo [    ] Common fix: close any running RaccoonX instances, then retry.
-    pause
+    if not defined GITHUB_ACTIONS pause
     exit /b 1
 )
 
@@ -96,7 +103,7 @@ if exist "%WORKPATH%" (
 :: Check output
 if not exist "%DISTPATH%\RaccoonX-Windows" (
     echo [ERROR] Build output not found at %DISTPATH%\RaccoonX-Windows
-    pause
+    if not defined GITHUB_ACTIONS pause
     exit /b 1
 )
 echo.
@@ -106,7 +113,7 @@ echo [5/5] Packaging distribution...
 python build\package_windows.py "%DISTPATH%" "%VERSION%"
 if errorlevel 1 (
     echo [ERROR] Packaging failed.
-    pause
+    if not defined GITHUB_ACTIONS pause
     exit /b 1
 )
 
@@ -115,4 +122,4 @@ echo ==========================================
 echo   BUILD SUCCESS!
 echo ==========================================
 echo.
-pause
+if not defined GITHUB_ACTIONS pause

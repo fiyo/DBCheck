@@ -421,6 +421,7 @@ def _init_plugin_baselines(plugin_dir: Path) -> None:
         created_count = 0
         for bl_data in baselines:
             param_name = bl_data.get('param_name', '')
+            query_sql = bl_data.get('query_sql', '') or ''
             operator = bl_data.get('operator', '==')
             expected_value = str(bl_data.get('expected_value', ''))
             risk_level = bl_data.get('risk_level', 'LOW')
@@ -436,10 +437,10 @@ def _init_plugin_baselines(plugin_dir: Path) -> None:
 
             cursor.execute(
                 """INSERT INTO inspection_baseline
-                   (db_type, param_name, operator, expected_value,
+                   (db_type, param_name, query_sql, operator, expected_value,
                     risk_level, description_zh, description_en)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (db_type, param_name, operator, expected_value,
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (db_type, param_name, query_sql, operator, expected_value,
                  risk_level, description_zh, description_en)
             )
             created_count += 1

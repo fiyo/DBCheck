@@ -1901,7 +1901,7 @@ class AIAdvisor:
                     f'Ollama 调用失败（已尝试 {url} 与 {old_url}，均失败）：{e2}'
                 ) from e2
 
-    def _call_openai(self, prompt: str, timeout: int) -> str:
+    def _call_openai(self, prompt: str, timeout: int, response_format=None) -> str:
         """调用 OpenAI 协议兼容的远程 API（/v1/chat/completions）"""
         import urllib.request
         import json as _json
@@ -1914,7 +1914,7 @@ class AIAdvisor:
                 url = url + '/v1'
         url = url + '/chat/completions'
 
-        payload = _json.dumps({
+        body = {
             'model': self.model,
             'messages': [
                 {'role': 'user', 'content': prompt}
@@ -1922,7 +1922,28 @@ class AIAdvisor:
             'temperature': 0.3,
             # 确保长诊断（慢查询 Top 5、整体路线图等）不被截断
             'max_tokens': 4096,
-        }).encode('utf-8')
+        }
+        # 统一入口会传入 response_format；OpenAI 协议支持 json_object / json_schema
+        if response_format:
+            rf = response_format
+            if isinstance(rf, dict):
+                rf_type = rf.get('type', '')
+                if rf_type in ('json_object', 'json_schema'):
+                    body['response_format'] = rf
+                elif rf_type:
+                    # Ollama 风格的 JSON Schema（如 crawler 的 {"type":"array", ...}）
+                    # 包装为 OpenAI structured outputs 格式
+                    body['response_format'] = {
+                        'type': 'json_schema',
+                        'json_schema': {
+                            'name': 'result',
+                            'strict': True,
+                            'schema': rf,
+                        }
+                    }
+            elif isinstance(rf, str) and rf.lower() == 'json':
+                body['response_format'] = {'type': 'json_object'}
+        payload = _json.dumps(body).encode('utf-8')
 
         req = urllib.request.Request(url, data=payload, method='POST')
         req.add_header('Content-Type', 'application/json')

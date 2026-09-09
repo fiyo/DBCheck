@@ -67,6 +67,14 @@ def _get_key_db():
         last_used_at TEXT,
         is_active INTEGER DEFAULT 1
     )''')
+    # 多租户（阶段 0）：API Key 必须绑定到用户身份，否则 MCP 侧无法判定可见性。
+    # 老库升级用幂等 ALTER 补列（CREATE TABLE IF NOT EXISTS 不会补列）。
+    try:
+        cols = {r['name'] for r in conn.execute("PRAGMA table_info(api_keys)")}
+        if 'user_id' not in cols:
+            conn.execute('ALTER TABLE api_keys ADD COLUMN user_id INTEGER')
+    except Exception:
+        pass
     conn.commit()
     return conn
 
@@ -638,7 +646,8 @@ def admin_list_keys():
     conn = _get_key_db()
     try:
         rows = conn.execute(
-            'SELECT id, name, key_prefix, created_at, last_used_at, is_active FROM api_keys ORDER BY created_at DESC'
+            'SELECT id, name, key_prefix, created_at, last_used_at, is_active,'
+            '       user_id FROM api_keys ORDER BY created_at DESC'
         ).fetchall()
         keys = [dict(r) for r in rows]
         return jsonify({'ok': True, 'keys': keys})
@@ -662,14 +671,31 @@ def admin_create_key():
     key_prefix = raw_key[:10]
     key_id = str(uuid.uuid4())[:8]
 
+    # 绑定归属用户：显式传 user_id 优先，否则取当前登录用户。
+    # 未绑定的 Key 在 MCP 侧会被当作"无身份"拒绝，避免绕过数据隔离。
+    owner_id = data.get('user_id')
+    if owner_id in (None, ''):
+        try:
+            from flask import session
+            owner_id = session.get('user_id')
+        except Exception:
+            owner_id = None
+    if isinstance(owner_id, str) and owner_id.startswith('old_'):
+        owner_id = None
+
     conn = _get_key_db()
     try:
         conn.execute(
-            'INSERT INTO api_keys (id, name, key_hash, key_prefix, created_at) VALUES (?,?,?,?,?)',
-            (key_id, name, key_hash, key_prefix, datetime.now().isoformat())
+            'INSERT INTO api_keys (id, name, key_hash, key_prefix, created_at, user_id)'
+            ' VALUES (?,?,?,?,?,?)',
+            (key_id, name, key_hash, key_prefix, datetime.now().isoformat(), owner_id)
         )
         conn.commit()
-        return jsonify({'ok': True, 'key': raw_key, 'id': key_id, 'name': name})
+        return jsonify({
+            'ok': True, 'key': raw_key, 'id': key_id, 'name': name,
+            'user_id': owner_id,
+            'warning': None if owner_id else '该 Key 未绑定用户，MCP 调用将被拒绝',
+        })
     except sqlite3.IntegrityError:
         return jsonify({'ok': False, 'error': '创建失败，请重试'}), 500
     finally:
@@ -1249,3 +1275,10 @@ def register_disaster_recovery(app) -> None:
         scheduler_hook.start_scheduler()
     except Exception as exc:  # pragma: no cover - 调度失败不应阻断启动
         print(f"  [WARN] 容灾备份调度器启动失败: {exc}")
+    # 工作流任务调度器（croniter 周期触发 + 重启恢复），失败不应阻断主程序
+    try:
+        from modules.intelligence.task_runner import get_runner
+
+        get_runner().bootstrap()
+    except Exception as exc:  # pragma: no cover
+        print(f"  [WARN] 工作流任务调度器启动失败: {exc}")

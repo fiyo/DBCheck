@@ -526,6 +526,9 @@ app = Flask(__name__, template_folder=str(PROJECT_ROOT / 'web_templates'), stati
 # 会话密钥取自环境变量 DBCheck_SECRET_KEY（已在启动时为未设置的情况种入进程级随机值）。
 # 重启后旧会话 cookie 失效，需重新登录；生产可固定该环境变量保持登录态。
 app.config['SECRET_KEY'] = os.environ['DBCheck_SECRET_KEY']
+# 模板自动重载：开发/迭代阶段避免 Flask 缓存旧版 index.html，修改前端后无需重启进程即可生效
+app.config['TEMPLATES_AUTO_RELOAD'] = True
+app.config['EXPLAIN_TEMPLATE_LOADING'] = False
 socketio.init_app(app)
 
 # ── 实时监控采集器（v2.10）────────────────────────────────────
@@ -923,8 +926,11 @@ def api_shell_instances():
     """返回所有 ssh_enabled=1 的实例列表"""
     try:
         from modules.pro import get_instance_manager
+        from modules.access import principal_from_session, filter_visible
         im = get_instance_manager()
-        instances = im.get_all_instances(mask_password=True)
+        user = principal_from_session()
+        instances = filter_visible(
+            user, im.get_all_instances(mask_password=True), 'instance')
         result = []
         for inst in instances:
             if inst.get('ssh_enabled'):
@@ -1450,7 +1456,16 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None, chap
             context = apply_desensitization(context)
 
         ofile_result = data.generate_report(ofile, inspector_nm)
+        print(f"[DEBUG] generate_report 返回: {ofile_result}")
+        print(f"[DEBUG] ofile 路径: {ofile}")
+        if ofile_result and os.path.exists(ofile_result):
+            print(f"[DEBUG] 文件确实存在，大小: {os.path.getsize(ofile_result)}")
         if not ofile_result:
+            # 补充诊断：文件是否存在、目录是否可写，便于定位
+            _writable = os.access(reports_dir, os.W_OK)
+            print(f"[ERROR] generate_report 返回空 ({ofile_result})；"
+                  f"目标路径={ofile}；目录可写={_writable}；"
+                  f"文件已存在={os.path.exists(ofile)}")
             raise RuntimeError(_t('webui.err_report_generate'))
         _emit('log', {'msg': _t('webui.log_report_ok').format(fname=file_name)})
         print(f"[REPORT] 报告已生成: {ofile_result}")
@@ -3682,8 +3697,11 @@ def api_history_instances():
     """
     try:
         from modules.inspection.analyzer import HistoryManager
+        from modules.access import principal_from_session, filter_visible
         hm = HistoryManager(BASE_DIR)
-        raw_instances = hm.list_instances()
+        user = principal_from_session()
+        raw_instances = filter_visible(
+            user, hm.list_instances(), 'history_instance', id_key='key')
         instances = [{
             'key': inst.get('key', ''),
             'db_type': inst.get('db_type', ''),
@@ -3709,8 +3727,17 @@ def api_trend():
         return jsonify({'ok': False, 'error': _t('webui.err_missing_host_port')})
     try:
         from modules.inspection.analyzer import HistoryManager
+        from modules.inspection.db_history import _db_key
+        from modules.access import principal_from_session, assert_visible
         script_dir = BASE_DIR
         hm = HistoryManager(script_dir)
+        # 趋势数据按 host/port 直接取，必须先按历史实例的主键过可见性判定，
+        # 否则任何登录用户都能靠猜 host:port 拉到他人的历史指标。
+        user = principal_from_session()
+        inst_key = _db_key(db_type, host, port)
+        ok, err = assert_visible(user, 'history_instance', inst_key)
+        if not ok:
+            return jsonify({'ok': False, **err}), 403
         trend = hm.get_trend(db_type, host, int(port))
         comparison = hm.get_comparison(db_type, host, int(port))
         return jsonify({'ok': True, 'trend': trend, 'comparison': comparison})
@@ -6131,88 +6158,10 @@ def api_awr_upload():
 
 
 def _build_awr_ai_summary(awr_data, meta):
-    """从 AWR 解析数据中构建 AI 诊断摘要"""
-    lines = []
-    lines.append(f"数据库: {meta.get('db_name', 'N/A')}, 实例: {meta.get('instance', 'N/A')}")
-    lines.append(f"快照范围: {meta.get('snap_range', 'N/A')}, 分析时段: {meta.get('elapsed', 'N/A')}")
-    lines.append(f"数据库版本: {meta.get('db_version', 'N/A')}")
-    lines.append("")
-
-    # 实例效率
-    eff = awr_data.get('instance_efficiency', [])
-    if isinstance(eff, list) and eff:
-        lines.append("=== 实例效率 ===")
-        for tdata in eff:
-            if not isinstance(tdata, dict):
-                continue
-            headers = tdata.get('headers', [])
-            rows = tdata.get('rows', [])
-            for row in rows[:10]:
-                lines.append(" | ".join(str(c) for c in row))
-        lines.append("")
-
-    # 前台等待事件
-    fg = awr_data.get('fg_wait_events', [])
-    if fg:
-        lines.append("=== 前台等待事件 Top10 ===")
-        for tdata in fg:
-            if not isinstance(tdata, dict):
-                continue
-            headers = tdata.get('headers', [])
-            rows = tdata.get('rows', [])
-            if headers:
-                lines.append(" | ".join(str(h) for h in headers))
-                for row in rows[:10]:
-                    lines.append(" | ".join(str(c) for c in row))
-        lines.append("")
-
-    # Top SQL
-    top_sql = awr_data.get('top_sql', {})
-    elapsed = top_sql.get('elapsed', [])
-    if elapsed:
-        lines.append("=== Top SQL (Elapsed Time) ===")
-        for tdata in elapsed:
-            if not isinstance(tdata, dict):
-                continue
-            headers = tdata.get('headers', [])
-            rows = tdata.get('rows', [])
-            if headers:
-                lines.append(" | ".join(str(h) for h in headers))
-                for row in rows[:5]:
-                    lines.append(" | ".join(str(c) for c in row))
-        lines.append("")
-
-    # 负载概况
-    lp = awr_data.get('load_profile', [])
-    if isinstance(lp, list) and lp:
-        lines.append("=== 负载概况 ===")
-        for tdata in lp:
-            if not isinstance(tdata, dict):
-                continue
-            headers = tdata.get('headers', [])
-            rows = tdata.get('rows', [])
-            if headers:
-                lines.append(" | ".join(str(h) for h in headers))
-                for row in rows[:5]:
-                    lines.append(" | ".join(str(c) for c in row))
-        lines.append("")
-
-    # 时间模型
-    tm = awr_data.get('time_model', [])
-    if tm:
-        lines.append("=== DB Time 模型 ===")
-        for tdata in tm:
-            if not isinstance(tdata, dict):
-                continue
-            headers = tdata.get('headers', [])
-            rows = tdata.get('rows', [])
-            if headers:
-                lines.append(" | ".join(str(h) for h in headers))
-                for row in rows[:10]:
-                    lines.append(" | ".join(str(c) for c in row))
-        lines.append("")
-
-    return "\n".join(lines)
+    """从 AWR 解析数据中构建 AI 诊断摘要（实现已抽至 awr_parser.build_awr_ai_summary，
+    与 BIC-QA AWR 分析共用同一实现；保留此别名以兼容既有调用点）。"""
+    from modules.web.awr_parser import build_awr_ai_summary
+    return build_awr_ai_summary(awr_data, meta)
 
 
 def _awr_report_steps():
@@ -6500,11 +6449,25 @@ def api_pro_delete_group(group_name):
 
 @app.route('/api/pro/statistics', methods=['GET'])
 def api_pro_statistics():
-    """获取全局统计"""
+    """获取全局统计（按当前身份重算，避免通过聚合数字反推他人资产）"""
     try:
         from modules.pro import get_instance_manager
+        from modules.access import principal_from_session, filter_visible
         im = get_instance_manager()
         stats = im.get_statistics()
+        user = principal_from_session()
+        if user is not None and not user.is_anonymous and not user.is_admin:
+            visible = filter_visible(
+                user, im.get_all_instances(mask_password=True), 'instance')
+            by_type, by_group = {}, {}
+            for inst in visible:
+                by_type[inst.get('db_type', '')] = by_type.get(inst.get('db_type', ''), 0) + 1
+                grp = inst.get('group', 'default')
+                by_group[grp] = by_group.get(grp, 0) + 1
+            stats['total_instances'] = len(visible)
+            stats['enabled_instances'] = len([i for i in visible if i.get('enabled')])
+            stats['by_type'] = by_type
+            stats['by_group'] = by_group
         stats['global_health_score'] = im.get_global_health_score()
         return jsonify({'ok': True, 'statistics': stats})
     except ImportError as e:
@@ -6635,12 +6598,29 @@ def api_pro_dashboard():
 
 @app.route('/api/pro/history', methods=['GET'])
 def api_pro_inspection_history():
-    """获取巡检历史"""
+    """获取巡检历史（派生数据跟随数据源归属）"""
     try:
         from modules.pro import get_instance_manager
+        from modules.access import principal_from_session, filter_visible, assert_visible
         instance_id = request.args.get('instance_id')
         limit = int(request.args.get('limit', 100))
         im = get_instance_manager()
+        user = principal_from_session()
+        if instance_id:
+            ok, err = assert_visible(user, 'instance', instance_id)
+            if not ok:
+                return jsonify({'ok': False, **err}), 403
+        else:
+            # 未指定数据源时，只保留当前身份可见数据源的历史
+            visible_ids = {
+                i.get('id') for i in filter_visible(
+                    user, im.get_all_instances(mask_password=True), 'instance')
+            }
+            history = [
+                h for h in im.get_inspection_history(None, limit)
+                if h.get('instance_id') in visible_ids
+            ]
+            return jsonify({'ok': True, 'history': history})
         history = im.get_inspection_history(instance_id, limit)
         return jsonify({'ok': True, 'history': history})
     except ImportError as e:
@@ -6684,7 +6664,15 @@ def api_pro_import_instances():
             return jsonify({'ok': False, 'error': '请提供 CSV 内容'})
 
         im = get_instance_manager()
+        before = {i.get('id') for i in im.get_all_instances()}
         result = im.batch_add_from_csv(csv_content)
+        try:
+            from modules.access import principal_from_session, set_owner
+            user = principal_from_session()
+            for iid in {i.get('id') for i in im.get_all_instances()} - before:
+                set_owner('instance', iid, user)
+        except Exception as _own_err:
+            print('[access] 导入数据源归属登记失败: ' + str(_own_err))
         return jsonify(result)
     except ImportError as e:
         import traceback
@@ -6702,11 +6690,14 @@ def api_pro_import_instances():
 
 @app.route('/api/pro/datasources', methods=['GET'])
 def api_pro_datasources():
-    """获取数据源列表"""
+    """获取数据源列表（按当前身份过滤：租户硬隔离 + scope 软隔离）"""
     try:
         from modules.pro import get_instance_manager
+        from modules.access import principal_from_session, filter_visible
         im = get_instance_manager()
-        instances = im.get_all_instances(mask_password=True)
+        user = principal_from_session()
+        instances = filter_visible(
+            user, im.get_all_instances(mask_password=True), 'instance')
         return jsonify({'ok': True, 'datasources': instances})
     except ImportError as e:
         import traceback
@@ -6720,10 +6711,15 @@ def api_pro_datasources():
 
 @app.route('/api/pro/datasources/<instance_id>', methods=['GET'])
 def api_pro_datasource(instance_id):
-    """获取单个数据源"""
+    """获取单个数据源（无权访问时返回 403 RESOURCE_NOT_VISIBLE）"""
     try:
         from modules.pro import get_instance_manager
+        from modules.access import principal_from_session, assert_visible
         im = get_instance_manager()
+        user = principal_from_session()
+        ok, err = assert_visible(user, 'instance', instance_id)
+        if not ok:
+            return jsonify({'ok': False, **err}), 403
         inst = im.get_instance(instance_id, mask_password=False)
         if not inst:
             return jsonify({'ok': False, 'error': '数据源不存在'})
@@ -6740,11 +6736,19 @@ def api_pro_datasource(instance_id):
 
 @app.route('/api/pro/datasources/<instance_id>/decrypt', methods=['GET'])
 def api_pro_datasource_decrypt(instance_id):
-    """获取单个数据源（解密密码，供表单回填）"""
+    """获取单个数据源（解密密码，供表单回填）
+
+    明文密码是最高敏感数据，必须先过 PDP 可见性判定再解密。
+    """
     try:
         from modules.pro import get_instance_manager
         from modules.pro.instance_manager import _looks_like_encrypted_pwd
+        from modules.access import principal_from_session, assert_visible
         im = get_instance_manager()
+        user = principal_from_session()
+        ok, err = assert_visible(user, 'instance', instance_id)
+        if not ok:
+            return jsonify({'ok': False, **err}), 403
         inst = im.get_instance_decrypted(instance_id)
         if not inst:
             return jsonify({'ok': False, 'error': '数据源不存在'})
@@ -6822,6 +6826,14 @@ def api_pro_datasource_add():
         )
         im = get_instance_manager()
         result = im.add_instance(inst)
+        # 登记归属：新建数据源默认 private（含密码/地址/SSH，最高敏感）
+        if result.get('ok'):
+            try:
+                from modules.access import principal_from_session, set_owner
+                set_owner('instance', result.get('instance_id') or inst.id,
+                          principal_from_session())
+            except Exception as _own_err:
+                print('[access] 数据源归属登记失败: ' + str(_own_err))
         return jsonify(result)
     except ImportError as e:
         import traceback
@@ -6835,11 +6847,16 @@ def api_pro_datasource_add():
 
 @app.route('/api/pro/datasources/<instance_id>', methods=['PUT'])
 def api_pro_datasource_update(instance_id):
-    """更新数据源"""
+    """更新数据源（写操作：必须是拥有者或租户管理员）"""
     try:
         from modules.pro import get_instance_manager
+        from modules.access import principal_from_session, assert_visible
         data = request.get_json()
         im = get_instance_manager()
+        user = principal_from_session()
+        ok, err = assert_visible(user, 'instance', instance_id)
+        if not ok:
+            return jsonify({'ok': False, **err}), 403
         result = im.update_instance(instance_id, data)
         return jsonify(result)
     except ImportError as e:
@@ -6892,11 +6909,22 @@ def api_pro_datasource_delete(instance_id):
     """删除数据源，同时清理 history.db 趋势数据"""
     try:
         from modules.pro import get_instance_manager
+        from modules.access import principal_from_session, assert_visible, remove_owner
         im = get_instance_manager()
+        user = principal_from_session()
+        ok, err = assert_visible(user, 'instance', instance_id)
+        if not ok:
+            return jsonify({'ok': False, **err}), 403
         # 先获取实例信息（删除前）
         inst = im.get_instance(instance_id, mask_password=False)
         # 执行删除（instance_manager 内部已清 inspection_history + instance_trend）
         result = im.delete_instance(instance_id)
+        # 同步清理归属登记表，避免主键垃圾堆积
+        if result.get('ok'):
+            try:
+                remove_owner('instance', instance_id)
+            except Exception:
+                pass
         # 同步清理 history.db（旧趋势系统）
         if result.get('ok') and inst:
             try:
@@ -6926,10 +6954,15 @@ def api_pro_datasource_delete(instance_id):
 
 @app.route('/api/pro/datasources/<instance_id>/test', methods=['POST'])
 def api_pro_datasource_test(instance_id):
-    """测试数据源连接"""
+    """测试数据源连接（会用到真实明文密码，必须先过可见性判定）"""
     try:
         from modules.pro import get_instance_manager
+        from modules.access import principal_from_session, assert_visible
         im = get_instance_manager()
+        user = principal_from_session()
+        ok, err = assert_visible(user, 'instance', instance_id)
+        if not ok:
+            return jsonify({'ok': False, **err}), 403
         result = im.test_connection(instance_id)
         return jsonify(result)
     except ImportError as e:
@@ -6968,12 +7001,38 @@ def api_pro_datasources_test_conn():
 
 @app.route('/api/pro/datasources/export', methods=['GET'])
 def api_pro_datasources_export():
-    """导出数据源 CSV"""
+    """导出数据源 CSV（仅导出当前身份可见的数据源）"""
     try:
         from modules.pro import get_instance_manager
+        from modules.access import principal_from_session, filter_visible
         im = get_instance_manager()
-        csv_content = im.export_csv()
-        return jsonify({'ok': True, 'csv': csv_content})
+        user = principal_from_session()
+        visible = filter_visible(
+            user, im.get_all_instances(mask_password=True), 'instance')
+        # export_csv() 是全量导出，这里按可见集合重新生成，避免越权带走他人资产
+        import csv
+        import io
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fieldnames=[
+            'name', 'db_type', 'host', 'port', 'user', 'password',
+            'service_name', 'sysdba', 'group', 'tags', 'description'
+        ])
+        writer.writeheader()
+        for inst in visible:
+            writer.writerow({
+                'name': inst.get('name', ''),
+                'db_type': inst.get('db_type', ''),
+                'host': inst.get('host', ''),
+                'port': inst.get('port', ''),
+                'user': inst.get('user', ''),
+                'password': '',  # 永不导出密码
+                'service_name': inst.get('service_name', ''),
+                'sysdba': inst.get('sysdba', 0),
+                'group': inst.get('group', 'default'),
+                'tags': ','.join(inst.get('tags') or []),
+                'description': inst.get('description', ''),
+            })
+        return jsonify({'ok': True, 'csv': output.getvalue()})
     except ImportError as e:
         import traceback
         traceback.print_exc()
@@ -6986,13 +7045,21 @@ def api_pro_datasources_export():
 
 @app.route('/api/pro/datasources/import', methods=['POST'])
 def api_pro_datasources_import():
-    """导入数据源 CSV"""
+    """导入数据源 CSV（新建的数据源登记到当前身份名下）"""
     try:
         from modules.pro import get_instance_manager
         data = request.get_json()
         csv_content = data.get('csv_content', '')
         im = get_instance_manager()
+        before = {i.get('id') for i in im.get_all_instances()}
         result = im.batch_add_from_csv(csv_content)
+        try:
+            from modules.access import principal_from_session, set_owner
+            user = principal_from_session()
+            for iid in {i.get('id') for i in im.get_all_instances()} - before:
+                set_owner('instance', iid, user)
+        except Exception as _own_err:
+            print('[access] 导入数据源归属登记失败: ' + str(_own_err))
         return jsonify(result)
     except ImportError as e:
         import traceback
@@ -7063,14 +7130,19 @@ def _connect_oracle_thick_fallback(user, password, dsn, sysdba=False):
 
 @app.route('/api/pro/datasources/<ds_id>/databases', methods=['GET'])
 def api_ds_databases(ds_id):
-    """返回某数据源的数据库列表"""
+    """返回某数据源的数据库列表（会用真实密码连库，必须先过可见性判定）"""
     from modules.pro import get_instance_manager
+    from modules.access import principal_from_session, assert_visible
     mgr = get_instance_manager()
+    user = principal_from_session()
+    ok, err = assert_visible(user, 'instance', ds_id)
+    if not ok:
+        return jsonify({'ok': False, **err}), 403
     inst = mgr.get_instance_decrypted(ds_id)
     if not inst:
         return jsonify({'error': f'数据源不存在: {ds_id}'}), 404
 
-    db_type = inst.get('db_type', '').lower().replace('oracle_full', 'oracle')
+    db_type = inst.get('db_type', '').lower().replace('oracle_full', 'oracle').replace('_jdbc', '')
     if db_type == 'pg':
         db_type = 'postgresql'
     host     = inst.get('host', '')
@@ -7293,12 +7365,17 @@ def api_ds_objects(ds_id):
         return jsonify({'error': '缺少 database 参数'}), 400
 
     from modules.pro import get_instance_manager
+    from modules.access import principal_from_session, assert_visible
     mgr = get_instance_manager()
+    user = principal_from_session()
+    ok, err = assert_visible(user, 'instance', ds_id)
+    if not ok:
+        return jsonify({'ok': False, **err}), 403
     inst = mgr.get_instance_decrypted(ds_id)
     if not inst:
         return jsonify({'error': f'数据源不存在: {ds_id}'}), 404
 
-    db_type = inst.get('db_type', '').lower().replace('oracle_full', 'oracle')
+    db_type = inst.get('db_type', '').lower().replace('oracle_full', 'oracle').replace('_jdbc', '')
     if db_type == 'pg':
         db_type = 'postgresql'
     host    = inst.get('host', '')
@@ -7812,7 +7889,7 @@ def api_execute_sql():
     if not db_info:
         return jsonify({'error': '数据源不存在'}), 404
 
-    db_type = db_info.get('db_type', '').replace('oracle_full', 'oracle')
+    db_type = (db_info.get('db_type', '') or '').lower().replace('oracle_full', 'oracle').replace('_jdbc', '')
     if db_type == 'pg':
         db_type = 'postgresql'
     host = db_info.get('host', '')
@@ -8564,7 +8641,7 @@ def api_inspection_execute_sql():
     if not db_info:
         return jsonify({'ok': False, 'error': '数据源不存在'})
 
-    db_type = db_info.get('db_type', '').lower()
+    db_type = db_info.get('db_type', '').lower().replace('oracle_full', 'oracle').replace('_jdbc', '')
     datasource_name = db_info.get('name', datasource_id)
 
     # 4. 执行 SQL
@@ -10198,11 +10275,79 @@ def on_join(data):
 
 # 活跃终端会话: {sid: {'ssh': SSHClient, 'channel': Channel, 'thread': Thread, 'instance_id': str}}
 _remote_sessions = {}
+_remote_sessions_lock = threading.Lock()
+
+
+def _remote_shell_worker(sid, instance_id, ssh_host, ssh_port, ssh_user, ssh_password, ssh_key_file):
+    """在原生线程中执行 paramiko SSH 连接与读取循环。
+
+    源码模式未打 gevent monkey patch，paramiko 的 socket IO 会阻塞 gevent hub；
+    因此远程终端的阻塞操作必须放到原生线程，避免卡死整个 WebSocket 事件循环。
+    """
+    import paramiko
+    import time
+
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+    try:
+        if ssh_key_file and os.path.isfile(ssh_key_file):
+            client.connect(hostname=ssh_host, port=ssh_port, username=ssh_user,
+                           key_filename=ssh_key_file, timeout=10,
+                           look_for_keys=False, allow_agent=False,
+                           disabled_algorithms={'pubkeys': ['ssh-rsa']})
+        elif ssh_password:
+            client.connect(hostname=ssh_host, port=ssh_port, username=ssh_user,
+                           password=ssh_password, timeout=10,
+                           look_for_keys=False, allow_agent=False,
+                           disabled_algorithms={'pubkeys': ['ssh-rsa']})
+        else:
+            socketio.emit('remote_shell_status', {'status': 'error', 'msg': 'SSH 密码或密钥文件为空'}, room=sid)
+            return
+    except Exception as e:
+        socketio.emit('remote_shell_status', {'status': 'error', 'msg': f'SSH 连接失败: {e}'}, room=sid)
+        return
+
+    try:
+        channel = client.invoke_shell(term='xterm', width=120, height=30)
+    except Exception as e:
+        socketio.emit('remote_shell_status', {'status': 'error', 'msg': f'打开 SSH Shell 失败: {e}'}, room=sid)
+        client.close()
+        return
+
+    # 通知前端已连接
+    socketio.emit('remote_shell_status', {'status': 'connected', 'msg': f'已连接 {ssh_user}@{ssh_host}:{ssh_port}'}, room=sid)
+
+    # 读取循环：在原生线程中阻塞读取不影响 gevent 事件循环
+    while True:
+        if channel.closed:
+            break
+        if channel.recv_ready():
+            try:
+                recv_data = channel.recv(4096).decode('utf-8', errors='replace')
+                socketio.emit('remote_shell_output', {'data': recv_data}, room=sid)
+            except Exception:
+                break
+        time.sleep(0.05)
+
+    # 连接断开清理
+    with _remote_sessions_lock:
+        session = _remote_sessions.pop(sid, None)
+    if session:
+        try:
+            session['channel'].close()
+        except Exception:
+            pass
+        try:
+            session['ssh'].close()
+        except Exception:
+            pass
+    socketio.emit('remote_shell_status', {'status': 'disconnected', 'msg': '连接已断开'}, room=sid)
 
 
 @socketio.on('remote_shell_connect')
 def on_remote_shell_connect(data):
-    """SSH 连接远程服务器"""
+    """SSH 连接远程服务器（前置校验后交给原生线程执行阻塞 IO）"""
     instance_id = data.get('instance_id', '')
     if not instance_id:
         socketio.emit('remote_shell_status', {'status': 'error', 'msg': '缺少实例 ID'}, room=request.sid)
@@ -10225,93 +10370,42 @@ def on_remote_shell_connect(data):
         ssh_password = inst.get('ssh_password', '') or ''
         ssh_key_file = inst.get('ssh_key_file', '') or ''
 
-        # 关闭已有会话
-        if request.sid in _remote_sessions:
-            try:
-                _remote_sessions[request.sid]['channel'].close()
-                _remote_sessions[request.sid]['ssh'].close()
-            except Exception:
-                pass
-            _remote_sessions[request.sid]['thread'].join(timeout=3)
-            del _remote_sessions[request.sid]
-
-        import paramiko
-        client = paramiko.SSHClient()
-        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-        try:
-            if ssh_key_file and os.path.isfile(ssh_key_file):
-                client.connect(hostname=ssh_host, port=ssh_port, username=ssh_user,
-                               key_filename=ssh_key_file, timeout=10,
-                               look_for_keys=False, allow_agent=False,
-                               disabled_algorithms={'pubkeys': ['ssh-rsa']})
-            elif ssh_password:
-                client.connect(hostname=ssh_host, port=ssh_port, username=ssh_user,
-                               password=ssh_password, timeout=10,
-                               look_for_keys=False, allow_agent=False,
-                               disabled_algorithms={'pubkeys': ['ssh-rsa']})
-            else:
-                socketio.emit('remote_shell_status', {'status': 'error', 'msg': 'SSH 密码或密钥文件为空'}, room=request.sid)
-                return
-        except Exception as e:
-            socketio.emit('remote_shell_status', {'status': 'error', 'msg': f'SSH 连接失败: {e}'}, room=request.sid)
-            return
-
-        # 打开一个 shell 通道
-        channel = client.invoke_shell(term='xterm', width=120, height=30)
-
-        # 在后台任务前捕获 sid（request context 不传递到后台线程）
         sid = request.sid
 
-        # 启动读取线程（使用 socketio.start_background_task 确保 emit 在正确上下文中）
-        def read_loop():
-            import time
-            # 等待 shell 启动并输出欢迎信息/提示符
-            time.sleep(0.5)
-            socketio.emit('remote_shell_status', {'status': 'connected', 'msg': f'已连接 {ssh_user}@{ssh_host}:{ssh_port}'}, room=sid)
+        # 关闭已有会话（在主线程/gevent 协程中执行，避免跨线程操作 dict）
+        with _remote_sessions_lock:
+            old = _remote_sessions.pop(sid, None)
+        if old:
+            try:
+                old['channel'].close()
+                old['ssh'].close()
+            except Exception:
+                pass
+            old['thread'].join(timeout=3)
 
-            while True:
-                if channel.closed:
-                    break
-                if channel.recv_ready():
-                    try:
-                        recv_data = channel.recv(4096).decode('utf-8', errors='replace')
-                        socketio.emit('remote_shell_output', {'data': recv_data}, room=sid)
-                    except Exception:
-                        break
-                time.sleep(0.05)
-            # 连接断开清理
-            if sid in _remote_sessions:
-                try:
-                    channel.close()
-                    client.close()
-                except Exception:
-                    pass
-                _remote_sessions.pop(sid, None)
-                socketio.emit('remote_shell_status', {'status': 'disconnected', 'msg': '连接已断开'}, room=sid)
-
-        t = socketio.start_background_task(target=read_loop)
-
-        _remote_sessions[sid] = {
-            'ssh': client,
-            'channel': channel,
-            'thread': t,
-            'instance_id': instance_id
-        }
+        # 在原生线程中执行 paramiko 阻塞连接，避免卡死 gevent hub
+        t = threading.Thread(
+            target=_remote_shell_worker,
+            args=(sid, instance_id, ssh_host, ssh_port, ssh_user, ssh_password, ssh_key_file),
+            daemon=True
+        )
+        t.start()
 
     except Exception as e:
         import traceback
         traceback.print_exc()
-        socketio.emit('remote_shell_status', {'status': 'error', 'msg': str(e)}, room=request.sid)
+        socketio.emit('remote_shell_status', {'status': 'error', 'msg': str(e) or 'SSH 连接异常'}, room=request.sid)
 
 
 @socketio.on('remote_shell_input')
 def on_remote_shell_input(data):
     """接收前端终端输入，发送到 SSH channel"""
     sid = request.sid
-    if sid in _remote_sessions:
+    with _remote_sessions_lock:
+        session = _remote_sessions.get(sid)
+    if session:
         try:
-            _remote_sessions[sid]['channel'].send(data.get('data', ''))
+            session['channel'].send(data.get('data', ''))
         except Exception:
             pass
 
@@ -10320,12 +10414,14 @@ def on_remote_shell_input(data):
 def on_remote_shell_resize(data):
     """终端窗口大小调整"""
     sid = request.sid
-    if sid not in _remote_sessions:
+    with _remote_sessions_lock:
+        session = _remote_sessions.get(sid)
+    if not session:
         return
     try:
         cols = int(data.get('cols', 80))
         rows = int(data.get('rows', 24))
-        _remote_sessions[sid]['channel'].resize_pty(width=cols, height=rows)
+        session['channel'].resize_pty(width=cols, height=rows)
     except Exception:
         pass
 
@@ -10334,14 +10430,15 @@ def on_remote_shell_resize(data):
 def on_remote_shell_disconnect():
     """断开 SSH 连接"""
     sid = request.sid
-    if sid in _remote_sessions:
+    with _remote_sessions_lock:
+        session = _remote_sessions.pop(sid, None)
+    if session:
         try:
-            _remote_sessions[sid]['channel'].close()
-            _remote_sessions[sid]['ssh'].close()
+            session['channel'].close()
+            session['ssh'].close()
         except Exception:
             pass
-        _remote_sessions[sid]['thread'].join(timeout=3)
-        del _remote_sessions[sid]
+        session['thread'].join(timeout=3)
         socketio.emit('remote_shell_status', {'status': 'disconnected', 'msg': '已断开'}, room=sid)
 
 
@@ -10349,14 +10446,15 @@ def on_remote_shell_disconnect():
 def on_disconnect():
     """前端断开时清理 SSH 会话"""
     sid = request.sid
-    if sid in _remote_sessions:
+    with _remote_sessions_lock:
+        session = _remote_sessions.pop(sid, None)
+    if session:
         try:
-            _remote_sessions[sid]['channel'].close()
-            _remote_sessions[sid]['ssh'].close()
+            session['channel'].close()
+            session['ssh'].close()
         except Exception:
             pass
-        _remote_sessions[sid]['thread'].join(timeout=3)
-        del _remote_sessions[sid]
+        session['thread'].join(timeout=3)
 
 
 def _setup_driver_paths():

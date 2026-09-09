@@ -25,17 +25,34 @@ data_dirs = [
 # JSON config files
 data_files = [
     'dbc_config.json',
-    'version.json',
-    'builtin_registry.json',  # 插件市场回退数据（plugin_market.py）
-    'dbcheck-quotes.json',  # web_ui.py 读取的协议/格言文案
+    ('modules/config/version.json', 'version.json'),  # 重定向到 exe 同目录（frozen 模式 /version.json 路由读 base/version.json）
+    # builtin_registry.json / dbcheck-quotes.json 位于 modules/config/ 下，
+    # 已随上面的 data_dirs 整体打包，此处无需重复列出（根目录原本就没有这两个文件）。
 ]
 
 # Build datas list with absolute paths
-datas = [(os.path.join(PROJECT_DIR, d), d) for d in data_dirs]
-for f in data_files:
+# 注意：data/pro_data 这类运行时目录是空目录，git 不跟踪，CI 全新 checkout 下不存在。
+# 这里对 data/ 开头的目录自动创建，其余缺失目录降级为 WARN 跳过，
+# 避免 PyInstaller 报 "ERROR: Unable to find '<dir>' when adding binary and data files"。
+datas = []
+for d in data_dirs:
+    src = os.path.join(PROJECT_DIR, d)
+    if not os.path.exists(src):
+        if d.replace('\\', '/').startswith('data/'):
+            os.makedirs(src, exist_ok=True)
+            print(f"[spec] created runtime dir: {d}")
+        else:
+            print(f"[WARN] data dir not found, skipped: {src}")
+            continue
+    datas.append((src, d))
+for item in data_files:
+    if isinstance(item, tuple):
+        f, dst = item
+    else:
+        f, dst = item, item
     src = os.path.join(PROJECT_DIR, f)
     if os.path.exists(src):
-        datas.append((src, f))
+        datas.append((src, dst))
     else:
         print(f"[WARN] data file not found, skipped: {src}")
 
