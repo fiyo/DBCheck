@@ -53,13 +53,20 @@ def _record_inspection(db_type, db_info, ret, report_path):
         import sys
         sys.path.insert(0, SCRIPT_DIR)
         from modules.pro import get_instance_manager
+        from modules.inspection.analyzer import collect_issues
         import hashlib
 
-        # 计算风险数量
-        risk_count = ret.get('risk_count', 0)
-        if not risk_count:
-            issues = ret.get('issues', [])
-            risk_count = len(issues) if isinstance(issues, list) else 0
+        if not isinstance(ret, dict):
+            ret = {}
+
+        # 汇总本次巡检发现的问题（与 Web UI「智能分析」同一口径）。
+        # 修复历史缺陷：此前仅从 ret['issues'] 取问题、且未把 auto_analyze
+        # 写入巡检历史，导致 Oracle 等「问题存放在 context['auto_analyze']」
+        # 的巡检在「数据库巡检历史 → 问题列表」中显示为“无问题”。
+        issues = collect_issues(db_type, ret)
+
+        # 计算风险数量：优先沿用检查器给出的 risk_count，否则按问题条数
+        risk_count = ret.get('risk_count', 0) or len(issues)
 
         # 根据健康状态计算评分
         health_status = ret.get('health_status', '')
@@ -99,7 +106,10 @@ def _record_inspection(db_type, db_info, ret, report_path):
             risk_count=risk_count,
             risk_level=risk_level,
             report_path=report_path,
-            duration=0
+            duration=0,
+            # 把问题明细一并落库，供「数据库巡检历史 → 问题列表」展示；
+            # 未取到问题时传 None，避免误记为“0 个问题”。
+            auto_analyze=issues or None
         )
     except Exception as e:
         import logging
@@ -306,7 +316,7 @@ def run_pg(db_info, inspector_name, ssh_info=None):
 
 def run_oracle_full(db_info, inspector_name, ssh_info=None):
     """执行 Oracle 全面巡检（修复：使用 single_inspection() 匹配 web UI 模式）"""
-    import importlib.util, re, glob
+    import importlib.util, re, glob, time
 
     spec = importlib.util.spec_from_file_location(
         "main_oracle_full", os.path.join(ENTRYPOINT_DIR, "main_oracle_full.py"))
@@ -337,12 +347,14 @@ def run_oracle_full(db_info, inspector_name, ssh_info=None):
         args.ssh_user = ssh_info.get('ssh_user', '')
         args.ssh_pass = ssh_info.get('ssh_password', '')
         args.ssh_key  = ssh_info.get('ssh_key_file', '')
+        args.ssh_key_password  = ssh_info.get('ssh_key_password', '')
     else:
         args.ssh_host = ''
         args.ssh_port = 22
         args.ssh_user = ''
         args.ssh_pass = ''
         args.ssh_key  = ''
+        args.ssh_key_password = ''
     # 输出目录
     args.output     = str(paths.REPORTS_DIR)
     args.zip        = False
@@ -350,31 +362,36 @@ def run_oracle_full(db_info, inspector_name, ssh_info=None):
     args.desensitize = bool(db_info.get('desensitize', False))
 
     # ── 调用 single_inspection() ─────────────────────────────
+    reports_dir = args.output
+    os.makedirs(reports_dir, exist_ok=True)
+    _t_start = time.time()
     ret = mod.single_inspection(args)
     if ret is None:
         raise RuntimeError("无法建立数据库连接，请检查连接参数")
 
-    # ── 查找刚生成的报告文件 ─────────────────────────────
-    reports_dir = args.output
-    os.makedirs(reports_dir, exist_ok=True)
-    label = db_info.get('label', '')
-    pattern = f"Oracle全面巡检报告_{label}_*.docx"
-    matches = sorted(
-        glob.glob(os.path.join(reports_dir, pattern)),
-        key=os.path.getmtime,
-        reverse=True
-    )
-    if matches:
-        ofile = matches[0]
+    # ── 定位刚生成的报告文件 ─────────────────────────────
+    # 首选：single_inspection 已把报告绝对路径写入返回的 context。
+    # 报告文件名来自 i18n 模板（如 "Oracle巡检报告_{ip}_{name}_{ts}.docx"），
+    # 早期版本在此处按硬编码中文模式 "Oracle全面巡检报告_{label}_*.docx" 匹配，
+    # 与实际生成的文件名不符，导致巡检成功后仍误报“Word 报告渲染失败”。
+    ofile = None
+    file_name = None
+    _ctx_report = ret.get('_oracle_report_docx') if isinstance(ret, dict) else None
+    if _ctx_report and os.path.exists(_ctx_report):
+        ofile = _ctx_report
         file_name = os.path.basename(ofile)
     else:
-        all_docx = glob.glob(os.path.join(reports_dir, "Oracle全面巡检报告_*.docx"))
-        if all_docx:
-            ofile = max(all_docx, key=os.path.getmtime)
+        # 兜底：取本次巡检期间新生成的最新 .docx（与语言/文件名模板无关）
+        recent = []
+        for p in glob.glob(os.path.join(reports_dir, '*.docx')):
+            try:
+                if os.path.getmtime(p) >= _t_start - 5:
+                    recent.append(p)
+            except OSError:
+                continue
+        if recent:
+            ofile = max(recent, key=os.path.getmtime)
             file_name = os.path.basename(ofile)
-        else:
-            ofile = None
-            file_name = None
 
     # ── 保存巡检记录到 Pro 模块 ─────────────────────────────
     _record_inspection('oracle', db_info, ret, ofile)

@@ -2237,7 +2237,7 @@ def extract_risks_from_unified(unified_chapters):
 #                    报告生成（Word）
 # ═══════════════════════════════════════════════════════════════════════════
 
-def build_word_report(db_info, os_data, check_results, db_version, ai_advice='', inspector='', lang='zh', desensitize=False, config_baseline_result=None, index_health_result=None, host='', health_status='', chapter_results=None):
+def build_word_report(db_info, os_data, check_results, db_version, ai_advice='', inspector='', lang='zh', desensitize=False, config_baseline_result=None, index_health_result=None, host='', health_status='', chapter_results=None, external_risk_items=None):
     """构建完整 Word 巡检报告（纯 python-docx，无模板依赖）"""
     if not _HAS_DOCX:
         return None
@@ -2564,7 +2564,22 @@ def build_word_report(db_info, os_data, check_results, db_version, ai_advice='',
     _add_section(_t('report.oracle_sec_risks'))
     risk_items = []
 
-    if has_template:
+    if external_risk_items is not None:
+        # ── 统一口径模式：直接采用调用方给出的问题清单 ──────────────────────
+        # 与定时巡检通知“问题数”、巡检历史“问题列表”、Web UI“智能分析”共用
+        # 同一份问题清单，确保报告与通知的数量完全一致。
+        for x in external_risk_items:
+            if not isinstance(x, dict):
+                continue
+            risk_items.append({
+                'col1': str(x.get('col1', '') or ''),
+                'col2': str(x.get('col2', '') or ''),
+                'col3': str(x.get('col3', '') or ''),
+                'col4': str(x.get('col4', '') or ''),
+                'col5': str(x.get('col5', '') or _t('report.risk_dba')),
+                'fix_sql': str(x.get('fix_sql', '') or ''),
+            })
+    elif has_template:
         # ── 模板驱动模式：从统一章节数据中提取风险 ──────────────────────────
         unified_risks, _ = extract_risks_from_unified(unified_chapters)
         sev_map = {'high': (_t('report.risk_high'), _t('report.severity_high')),
@@ -3423,6 +3438,23 @@ def single_inspection(args):
         '_oracle_chapter_results': chapter_results,
     }
 
+    # ── 统一问题汇总口径 ────────────────────────────────────────────────
+    # 让 docx 报告「风险与建议」、定时巡检通知「问题数」、巡检历史「问题列表」、
+    # Web UI「智能分析」共享同一份问题清单，避免各处统计口径不同导致数量不一致。
+    try:
+        from modules.inspection.analyzer import collect_issues as _collect_issues
+        _unified_issues = _collect_issues('oracle', context)
+    except Exception:
+        _unified_issues = list(context.get('auto_analyze') or [])
+    context['auto_analyze'] = _unified_issues
+    context['risk_count'] = len(_unified_issues)
+    if _unified_issues:
+        context['health_status'] = (
+            _t('report.health_attention')
+            if any(str(r.get('col2', '')) == _t('report.risk_high') for r in _unified_issues)
+            else _t('report.health_fair')
+        )
+
     # ── Web UI 模式：跳过报告生成和历史保存，由统一调度层处理 ──
     if _web_ui_mode:
         elapsed = time.time() - t0
@@ -3439,7 +3471,8 @@ def single_inspection(args):
                               config_baseline_result=config_baseline_result,
                               index_health_result=index_health_result,
                               host=args.host, health_status='',
-                              chapter_results=chapter_results)
+                              chapter_results=chapter_results,
+                              external_risk_items=_unified_issues)
 
     # ── 6. 保存报告 ────────────────────────────────────────────────────────
     print(f"\n[{GREEN}6/6{RESET}] {_t('oracle_log_save_report')}")
@@ -3456,6 +3489,10 @@ def single_inspection(args):
         docx_path  = os.path.join(output_dir, docx_fname)
         try:
             docx.save(docx_path)
+            # 记录报告绝对路径到 context，供外部调用方（如定时巡检 run_oracle_full）
+            # 直接取用。报告名来自 i18n 模板，若调用方按硬编码中文模式 glob 匹配，
+            # 在其它语言环境或模板调整后会匹配失败并误报“Word 报告渲染失败”。
+            context['_oracle_report_docx'] = docx_path
             print(f"   Word:  {docx_path}")
         except Exception as e:
             print(f"   {_t('oracle_log_word_report')}: {e}")

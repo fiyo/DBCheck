@@ -246,7 +246,7 @@ pg_lock_type_stats = SELECT locktype, mode, granted, COUNT(*) AS count FROM pg_l
 class RemoteSystemInfoCollector:
     """远程系统信息收集器 - 通过SSH连接获取远程主机信息"""
 
-    def __init__(self, host, port=22, username='root', password=None, key_file=None):
+    def __init__(self, host, port=22, username='root', password=None, key_file=None, key_password=None):
         """
         初始化远程系统信息收集器。
 
@@ -261,6 +261,7 @@ class RemoteSystemInfoCollector:
         self.username = username
         self.password = password
         self.key_file = key_file
+        self.key_password = key_password
         self.ssh_client = None
 
     def connect(self):
@@ -276,7 +277,7 @@ class RemoteSystemInfoCollector:
             self.ssh_client = paramiko.SSHClient()
             self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             if self.key_file:
-                private_key = paramiko.RSAKey.from_private_key_file(self.key_file)
+                private_key = paramiko.RSAKey.from_private_key_file(self.key_file, self.key_password)
                 self.ssh_client.connect(hostname=self.host, port=self.port,
                                         username=self.username, pkey=private_key, timeout=10)
             else:
@@ -1883,7 +1884,8 @@ def input_db_info():
             collector = RemoteSystemInfoCollector(
                 host=ssh_info['ssh_host'], port=ssh_info['ssh_port'], username=ssh_info['ssh_user'],
                 password=ssh_info['ssh_password'] if ssh_info['ssh_password'] else None,
-                key_file=ssh_info['ssh_key_file'] if ssh_info['ssh_key_file'] else None
+                key_file=ssh_info['ssh_key_file'] if ssh_info['ssh_key_file'] else None,
+                key_password=ssh_info.get('ssh_key_password') or None
             )
             if collector.connect():
                 print(_t("cli_ssh_success"))
@@ -2076,7 +2078,8 @@ class getData(object):
                 collector = RemoteSystemInfoCollector(
                     host=self.ssh_info['ssh_host'], port=self.ssh_info.get('ssh_port', 22),
                     username=self.ssh_info.get('ssh_user', 'root'),
-                    password=self.ssh_info.get('ssh_password'), key_file=self.ssh_info.get('ssh_key_file')
+                    password=self.ssh_info.get('ssh_password'), key_file=self.ssh_info.get('ssh_key_file'),
+                    key_password=self.ssh_info.get('ssh_key_password')
                 )
             else:
                 print("\n🔍 " + _t("pg_cli_local_sysinfo"))

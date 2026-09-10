@@ -68,12 +68,13 @@ def _is_iso_mount(mountpoint, fstype=''):
 class RemoteSystemInfoCollector:
     """通过 SSH 连接采集远程主机系统信息"""
 
-    def __init__(self, host, port=22, username='root', password=None, key_file=None):
+    def __init__(self, host, port=22, username='root', password=None, key_file=None, key_password=None):
         self.host = host
         self.port = int(port)
         self.username = username
         self.password = password
         self.key_file = key_file
+        self.key_password = key_password
         self.ssh_client = None
 
     def connect(self):
@@ -83,7 +84,7 @@ class RemoteSystemInfoCollector:
             self.ssh_client = paramiko.SSHClient()
             self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             if self.key_file:
-                private_key = paramiko.RSAKey.from_private_key_file(self.key_file)
+                private_key = paramiko.RSAKey.from_private_key_file(self.key_file, self.key_password)
                 self.ssh_client.connect(hostname=self.host, port=self.port,
                                         username=self.username, pkey=private_key, timeout=15)
             else:
@@ -824,7 +825,7 @@ def compute_health_score(info):
 # ─── 服务器巡检主入口 ─────────────────────────────────────────────────
 
 def run_server_inspection(ssh_host, ssh_port=22, ssh_user='root',
-                          ssh_password='', ssh_key_file=''):
+                          ssh_password='', ssh_key_file='', ssh_key_password=''):
     """
     执行服务器巡检，返回结果字典。
 
@@ -833,6 +834,7 @@ def run_server_inspection(ssh_host, ssh_port=22, ssh_user='root',
     :param ssh_user: SSH 用户名
     :param ssh_password: SSH 密码
     :param ssh_key_file: SSH 私钥文件路径
+    :param ssh_key_password：SSH 私钥文件密码
     :return: 巡检结果字典
     """
     collector = RemoteSystemInfoCollector(
@@ -840,6 +842,7 @@ def run_server_inspection(ssh_host, ssh_port=22, ssh_user='root',
         username=ssh_user,
         password=ssh_password if ssh_password else None,
         key_file=ssh_key_file if ssh_key_file else None,
+        key_password=ssh_key_password if ssh_key_password else None,
     )
     info = collector.get_system_info()
     if not info:
@@ -858,6 +861,7 @@ def run_server_inspection(ssh_host, ssh_port=22, ssh_user='root',
             username=ssh_user,
             password=ssh_password if ssh_password else None,
             key_file=ssh_key_file if ssh_key_file else None,
+            key_password=ssh_key_password if ssh_key_password else None,
         )
         if collector2.connect():
             info['services'] = check_service_status(collector2)
@@ -1047,7 +1051,7 @@ def check_local_service_status():
 
 
 def test_ssh_connection(ssh_host, ssh_port=22, ssh_user='root',
-                        ssh_password='', ssh_key_file=''):
+                        ssh_password='', ssh_key_file='', ssh_key_password=''):
     """
     测试 SSH 连接是否成功。
     返回 (ok: bool, msg: str)
@@ -1059,6 +1063,7 @@ def test_ssh_connection(ssh_host, ssh_port=22, ssh_user='root',
         username=ssh_user,
         password=ssh_password if ssh_password else None,
         key_file=ssh_key_file if ssh_key_file else None,
+        key_password=ssh_key_password if ssh_key_password else None,
     )
     try:
         if collector.connect():

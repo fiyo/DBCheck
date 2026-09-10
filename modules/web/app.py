@@ -605,6 +605,23 @@ def _enforce_grayscale():
     _flask_g._grayscale = g
 
 
+@app.before_request
+def _remember_base_url():
+    """记录浏览器实际访问的基础地址，供后台定时任务生成可访问的报告分享链接。
+
+    后台调度器没有请求上下文，无法得知用户是通过哪个地址访问 Web UI 的；
+    这里把最近一次请求的 host（如 http://10.51.1.230:5003）保存到 app.config，
+    调度器生成分享链接时优先使用它，避免自动探测到错误的网卡地址。
+    """
+    try:
+        from flask import request as _req
+        url = (_req.host_url or '').rstrip('/')
+        if url:
+            app.config['REMEMBERED_BASE_URL'] = url
+    except Exception:
+        pass
+
+
 @app.after_request
 def _inject_grayscale(response):
     from flask import g as _flask_g
@@ -1358,7 +1375,7 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None, chap
         # SSH
         ssh_info = {}
         if db_info.get('ssh_host'):
-            ssh_info = {k: db_info[k] for k in ('ssh_host', 'ssh_port', 'ssh_user', 'ssh_password', 'ssh_key_file', 'ssh_ebpf') if k in db_info}
+            ssh_info = {k: db_info[k] for k in ('ssh_host', 'ssh_port', 'ssh_user', 'ssh_password', 'ssh_key_file', 'ssh_key_password', 'ssh_ebpf') if k in db_info}
 
         # MongoDB 专用参数透传到 ssh_info（供插件 getData → MongoConnectionConfig 使用）
         if db_type == 'mongodb':
@@ -1455,6 +1472,40 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None, chap
             from modules.desensitize import apply_desensitization
             context = apply_desensitization(context)
 
+        # ── 插件系统：在生成报告前执行，使插件发现并入统一问题清单 ────────
+        # 这样 docx 报告、定时通知、巡检历史、Web UI 智能分析才能看到同一批问题。
+        try:
+            from modules.pluginkit.core import run_plugin_inspections_for_db
+            # 构建 SQL 执行器（使用当前检查器的连接）
+            def _exec_plugin_sql(sql):
+                cur = getattr(data, 'conn', None)
+                if cur is None:
+                    try:
+                        cur = getattr(data, 'cursor', None)
+                    except Exception:
+                        pass
+                if cur is None:
+                    return {"headers": [], "rows": [], "_error": "无可用数据库连接"}
+                try:
+                    cur.execute(sql)
+                    cols = [d[0] for d in cur.description] if cur.description else []
+                    rows = [list(r) for r in cur.fetchall()]
+                    return {"headers": cols, "rows": rows}
+                except Exception as e:
+                    return {"headers": [], "rows": [], "_error": str(e)}
+
+            plugin_issues = run_plugin_inspections_for_db(
+                cfg['history_db_type'], context, execute_sql=_exec_plugin_sql)
+            if plugin_issues:
+                _auto = context.get('auto_analyze')
+                if not isinstance(_auto, list):
+                    _auto = []
+                    context['auto_analyze'] = _auto
+                _auto.extend([x for x in plugin_issues if isinstance(x, dict)])
+                _emit('log', {'msg': f"[插件] {len(plugin_issues)} 个插件发现附加风险"})
+        except Exception as e:
+            _emit('log', {'msg': f"[插件] 执行跳过: {e}"})
+
         ofile_result = data.generate_report(ofile, inspector_nm)
         print(f"[DEBUG] generate_report 返回: {ofile_result}")
         print(f"[DEBUG] ofile 路径: {ofile}")
@@ -1471,55 +1522,24 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None, chap
         print(f"[REPORT] 报告已生成: {ofile_result}")
         print(f"[REPORT] 文件是否存在: {os.path.exists(ofile_result)}")
 
-        # 智能分析
+        # 智能分析：统一问题汇总口径
+        # 与 docx 报告（_append_chapters 内部同样调用 collect_issues）、定时巡检通知
+        # （scheduler._collect_issues）、巡检历史（run.py/_record_inspection）共用
+        # collect_issues 生成的同一份问题清单，保证四处数量完全一致。
         try:
             _analyzer_mod = __import__('modules.inspection.analyzer', fromlist=['_'])
-            # 保留 checkdb()/基线检查已产生的风险，避免被 analyzer 空结果覆盖
-            existing_auto = context.get('auto_analyze') or []
-            analyzer_issues = getattr(_analyzer_mod, cfg['smart_analyze'])(context) or []
-            seen = {item.get('col1', '') for item in existing_auto if isinstance(item, dict)}
-            auto_analyze = list(existing_auto)
-            for item in analyzer_issues:
-                if isinstance(item, dict) and item.get('col1', '') not in seen:
-                    auto_analyze.append(item)
-                    seen.add(item.get('col1', ''))
-            # ── 插件系统：执行插件 SQL + 分析 ──
-            try:
-                from modules.pluginkit.core import run_plugin_inspections_for_db
-                # 构建 SQL 执行器（使用当前检查器的连接）
-                def _exec_plugin_sql(sql):
-                    cur = getattr(data, 'conn', None)
-                    if cur is None:
-                        try:
-                            cur = getattr(data, 'cursor', None)
-                        except Exception:
-                            pass
-                    if cur is None:
-                        return {"headers": [], "rows": [], "_error": "无可用数据库连接"}
-                    try:
-                        cur.execute(sql)
-                        cols = [d[0] for d in cur.description] if cur.description else []
-                        rows = [list(r) for r in cur.fetchall()]
-                        return {"headers": cols, "rows": rows}
-                    except Exception as e:
-                        return {"headers": [], "rows": [], "_error": str(e)}
-
-                plugin_issues = run_plugin_inspections_for_db(
-                    cfg['history_db_type'], context, execute_sql=_exec_plugin_sql)
-                if plugin_issues:
-                    for item in plugin_issues:
-                        if isinstance(item, dict) and item.get('col1', '') not in seen:
-                            auto_analyze.append(item)
-                            seen.add(item.get('col1', ''))
-                    _emit('log', {'msg': f"[插件] {len(plugin_issues)} 个插件发现附加风险"})
-            except Exception as e:
-                _emit('log', {'msg': f"[插件] 执行跳过: {e}"})
+            auto_analyze = _analyzer_mod.collect_issues(
+                cfg['history_db_type'], context, analyzer_fn=cfg['smart_analyze'])
+            context['auto_analyze'] = auto_analyze
+            context['risk_count'] = len(auto_analyze)
             if task:
                 task['auto_analyze'] = auto_analyze
             _emit('log', {'msg': f"[智能分析] 完成，发现 {len(auto_analyze)} 个可优化项"})
         except Exception as e:
             # 即使 analyzer 调用失败，也尝试保留 context 中已有的 auto_analyze
             auto_analyze = context.get('auto_analyze') or []
+            context['auto_analyze'] = auto_analyze
+            context['risk_count'] = len(auto_analyze)
             if task:
                 task['auto_analyze'] = auto_analyze
             _emit('log', {'msg': f"[警告] 智能分析失败: {e}；保留已有 {len(auto_analyze)} 项"})
@@ -3373,7 +3393,7 @@ register_connection_tester('clickhouse', _ct_clickhouse)
 register_connection_tester('uxdb', _ct_uxdb)
 
 
-def test_ssh_connection(host, port=22, username='root', password=None, key_file=None):
+def test_ssh_connection(host, port=22, username='root', password=None, key_file=None, key_password=None):
     """测试 SSH 连接，返回 (ok: bool, msg: str)"""
     try:
         import paramiko
@@ -3381,7 +3401,7 @@ def test_ssh_connection(host, port=22, username='root', password=None, key_file=
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
         if key_file and os.path.isfile(key_file):
-            pkey = paramiko.RSAKey.from_private_key_file(key_file)
+            pkey = paramiko.RSAKey.from_private_key_file(key_file, key_password)
             client.connect(hostname=host, port=int(port), username=username,
                            pkey=pkey, timeout=10, look_for_keys=False, allow_agent=False,
                            disabled_algorithms={'pubkeys': ['ssh-rsa']})
@@ -4486,7 +4506,8 @@ def api_test_ssh():
         data.get('ssh_port', 22),
         data.get('ssh_user', 'root'),
         data.get('ssh_password') or None,
-        data.get('ssh_key_file') or None
+        data.get('ssh_key_file') or None,
+        data.get('ssh_key_password') or None
     )
     return jsonify({'ok': ok, 'msg': msg})
 
@@ -4632,6 +4653,7 @@ def api_start_inspection():
                 'ssh_user':     data.get('ssh_user', 'root'),
                 'ssh_password': data.get('ssh_password', ''),
                 'ssh_key_file': data.get('ssh_key_file', ''),
+                'ssh_key_password': data.get('ssh_key_password',''),
                 'ssh_ebpf':     data.get('ssh_ebpf', True),
             })
 
@@ -5220,6 +5242,7 @@ def api_test_server_ssh():
             ssh_user=data.get('ssh_user', 'root'),
             ssh_password=data.get('ssh_password', ''),
             ssh_key_file=data.get('ssh_key_file', ''),
+            ssh_key_password=data.get('ssh_key_password', ''),
         )
         return jsonify({'ok': ok, 'msg': msg})
     except Exception as e:
@@ -5259,6 +5282,7 @@ def api_start_server_inspect():
                 'ssh_user': data.get('ssh_user', 'root'),
                 'ssh_password': data.get('ssh_password', ''),
                 'ssh_key_file': data.get('ssh_key_file', ''),
+                'ssh_key_password': data.get('ssh_key_password', '')
             }
             t = threading.Thread(target=_run_server_inspect_task, args=(task_id, ssh_info))
             t.daemon = True
@@ -5307,6 +5331,7 @@ def _run_server_inspect_task(task_id, ssh_info):
                     ssh_user=ssh_info['ssh_user'],
                     ssh_password=ssh_info['ssh_password'],
                     ssh_key_file=ssh_info['ssh_key_file'],
+                    ssh_key_password=ssh_info['ssh_key_password'],
                 )
             except Exception as e:
                 _emit('error', {'msg': f"[{_ts()}] ❌ 巡检异常: {e}"})
@@ -5603,6 +5628,53 @@ def api_scheduler_list():
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
+def _build_scheduler_job_cfg(data, job_id):
+    """根据请求数据构建定时任务配置（不含 enabled，由调用方决定启用状态）"""
+    datasource_id = data.get('datasource_id')
+    if datasource_id:
+        return {
+            'id': job_id,
+            'name': data.get('name', '定时巡检'),
+            'inspector_name': data.get('inspector_name', 'Jack'),
+            'notify_on_done': bool(data.get('notify_on_done', True)),
+            'cron': data.get('cron', {}),
+            'template_id': data.get('template_id') or None,
+            'db_info': {
+                'datasource_id': datasource_id,
+                'label': data.get('label', datasource_id),
+            }
+        }
+    return {
+        'id': job_id,
+        'name': data.get('name', '定时巡检'),
+        'db_type': data.get('db_type', 'mysql'),
+        'inspector_name': data.get('inspector_name', 'Jack'),
+        'notify_on_done': bool(data.get('notify_on_done', True)),
+        'cron': data.get('cron', {}),
+        'template_id': data.get('template_id') or None,
+        'db_info': {
+            'label': data.get('label', ''),
+            'db_type': data.get('db_type', 'mysql'),
+            'host': data.get('host', ''),
+            'port': int(data.get('port', 0) or 3306),
+            'user': data.get('user', ''),
+            'password': data.get('password', ''),
+            'database': data.get('database', ''),
+            'service_name': data.get('service_name', None),
+            'sid': data.get('sid', None),
+            'sysdba': bool(data.get('sysdba', False)),
+            'ssh_host': data.get('ssh_host', None),
+            'ssh_port': int(data.get('ssh_port', 22) or 22),
+            'ssh_user': data.get('ssh_user', None),
+            'ssh_password': data.get('ssh_password', ''),
+            'ssh_key_file': data.get('ssh_key_file', ''),
+            # JDBC 驱动管理：驱动版本与 Oracle SID 模式（前端 saveJob 已透传，此前被丢弃）
+            'driver_version': data.get('driver_version') or None,
+            'use_sid': bool(data.get('use_sid', False)),
+        }
+    }
+
+
 @app.route('/api/scheduler/jobs', methods=['POST'])
 def api_scheduler_add():
     """添加定时任务"""
@@ -5625,49 +5697,8 @@ def api_scheduler_add():
             except ImportError:
                 return jsonify({'ok': False, 'error': '使用数据源需要安装 Pro 模块，请先安装 Pro 版本'}), 400
 
-            job_cfg = {
-                'id': job_id,
-                'name': data.get('name', '定时巡检'),
-                'inspector_name': data.get('inspector_name', 'Jack'),
-                'notify_on_done': bool(data.get('notify_on_done', True)),
-                'cron': cron,
-                'enabled': True,
-                'template_id': data.get('template_id') or None,
-                'db_info': {
-                    'datasource_id': datasource_id,
-                    'label': data.get('label', datasource_id),
-                }
-            }
-        else:
-            job_cfg = {
-                'id': job_id,
-                'name': data.get('name', '定时巡检'),
-                'db_type': data.get('db_type', 'mysql'),
-                'inspector_name': data.get('inspector_name', 'Jack'),
-                'notify_on_done': bool(data.get('notify_on_done', True)),
-                'cron': cron,
-                'enabled': True,
-                'template_id': data.get('template_id') or None,
-                'db_info': {
-                    'label': data.get('label', ''),
-                    'db_type': data.get('db_type', 'mysql'),
-                    'host': data.get('host', ''),
-                    'port': int(data.get('port', 0) or 3306),
-                    'user': data.get('user', ''),
-                    'password': data.get('password', ''),
-                    'database': data.get('database', ''),
-                    'service_name': data.get('service_name', None),
-                    'sid': data.get('sid', None),
-                    'ssh_host': data.get('ssh_host', None),
-                    'ssh_port': int(data.get('ssh_port', 22) or 22),
-                    'ssh_user': data.get('ssh_user', None),
-                    'ssh_password': data.get('ssh_password', ''),
-                    'ssh_key_file': data.get('ssh_key_file', ''),
-                    # JDBC 驱动管理：驱动版本与 Oracle SID 模式（前端 saveJob 已透传，此前被丢弃）
-                    'driver_version': data.get('driver_version') or None,
-                    'use_sid': bool(data.get('use_sid', False)),
-                }
-            }
+        job_cfg = _build_scheduler_job_cfg(data, job_id)
+        job_cfg['enabled'] = True
 
         sm = _get_scheduler()
         success = sm.add_job(job_cfg)
@@ -5675,6 +5706,37 @@ def api_scheduler_add():
             return jsonify({'ok': True, 'job_id': job_id, 'msg': 'Task added successfully'})
         else:
             return jsonify({'ok': False, 'error': 'Failed to add task (check cron expression)'}), 400
+    except Exception as e:
+        import traceback
+        traceback.print_exc(file=sys.stdout)
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/scheduler/jobs/<job_id>', methods=['PUT'])
+def api_scheduler_update(job_id):
+    """更新定时任务配置"""
+    try:
+        data = request.json
+        if not data:
+            return jsonify({'ok': False, 'error': 'No data provided'}), 400
+
+        cron = data.get('cron', {})
+        if not cron:
+            return jsonify({'ok': False, 'error': 'Cron expression required'}), 400
+
+        # 如果指定了数据源，检查 Pro 模块是否可用
+        datasource_id = data.get('datasource_id')
+        if datasource_id:
+            try:
+                from modules.pro import get_instance_manager
+            except ImportError:
+                return jsonify({'ok': False, 'error': '使用数据源需要安装 Pro 模块，请先安装 Pro 版本'}), 400
+
+        job_cfg = _build_scheduler_job_cfg(data, job_id)
+        sm = _get_scheduler()
+        if sm.update_job(job_id, job_cfg):
+            return jsonify({'ok': True, 'job_id': job_id, 'msg': 'Task updated successfully'})
+        return jsonify({'ok': False, 'error': 'Task not found or invalid cron expression'}), 404
     except Exception as e:
         import traceback
         traceback.print_exc(file=sys.stdout)
@@ -10916,6 +10978,7 @@ def api_dm8_offline_check():
                         ssh_user=params.get('ssh_user', 'root'),
                         ssh_password=params.get('ssh_password', ''),
                         ssh_key_file=params.get('ssh_key_file', ''),
+                        ssh_key_password=params.get('ssh_key_password', ''),
                         page_size=params.get('page_size', 0),
                     )
                 else:
@@ -10946,6 +11009,7 @@ def api_dm8_offline_check():
             'ssh_user': data.get('ssh_user', 'root'),
             'ssh_password': data.get('ssh_password', ''),
             'ssh_key_file': data.get('ssh_key_file', ''),
+            'ssh_key_password': data.get('ssh_key_password', ''),
         }
 
         t = threading.Thread(target=_run_offline_check,
@@ -11342,8 +11406,26 @@ def main():
         _start_signal_rearm()
 
     # 4) 主线程运行 server（gevent hub 在此线程），Ctrl+C 由 1~3.5 接管 → os._exit(0)
+    # 开发模式：通过环境变量 FLASK_DEBUG=1 启用调试（详细错误页/调试器）。
+    # 【重要】gevent/eventlet 模式下 debug=True 会让 flask_socketio 自动把
+    # use_reloader 置 True，内部走 werkzeug.run_with_reloader：额外拉起一个子进程、
+    # 把 server 塞进 daemon 线程——与「server 必须跑在主线程（gevent hub/信号）」
+    # 及 dev.py 监督器的进程模型冲突，造成整份应用被初始化两遍、启动即 EIO/退出。
+    # 故这两种模式必须显式关掉 reloader（源码热重载由 dev.py 监督器负责）；
+    # 仅 threading 模式保留 werkzeug 原生 reloader（dev.py 在该模式 exec 转交）。
+    debug_mode = os.environ.get('FLASK_DEBUG', '').lower() in ('1', 'true', 'yes')
+    if debug_mode:
+        print("[开发模式] 调试已启用（gevent 下热重载由 dev.py 监督器负责）")
+    _use_reloader = debug_mode and _socketio_async_mode == 'threading'
     try:
-        socketio.run(app, host='0.0.0.0', port=port, debug=False, allow_unsafe_werkzeug=True)
+        socketio.run(
+            app,
+            host='0.0.0.0',
+            port=port,
+            debug=debug_mode,
+            use_reloader=_use_reloader,
+            allow_unsafe_werkzeug=True,
+        )
     except KeyboardInterrupt:
         _request_shutdown()
     except BaseException as _e:  # 含 SystemExit/GreenletExit：一律强杀，绝不留残进程

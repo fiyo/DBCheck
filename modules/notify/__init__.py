@@ -20,14 +20,27 @@ DBCheck 通知模块
     SMTP_PASSWORD=your授权码
     SMTP_USE_TLS=true
     SMTP_FROM_NAME=DBCheck巡检报告
+
+Webhook 代理与 SSL 配置说明：
+- Webhook 配置读取 dbc_config.json 中的 notification.webhook 字段
+- 内网环境无法直连企业微信/钉钉 API 时，可在 notification.webhook.proxy
+  配置 HTTP/HTTPS 代理地址，格式：http://[user:pass@]host:port
+- 若代理做了 SSL 解密（HTTPS 中间人），会出现
+  CERTIFICATE_VERIFY_FAILED，此时二选一：
+    1) 在 notification.webhook.ca_cert 指定代理根证书路径（推荐，安全）
+    2) 在 notification.webhook.verify_ssl 设为 false 跳过证书校验（不推荐）
+- 也可通过 .env 覆盖（优先级更高）：
+    WEBHOOK_PROXY=http://192.168.1.10:8080
+    WEBHOOK_CA_CERT=/etc/ssl/certs/corp-ca.pem
+    WEBHOOK_VERIFY_SSL=false
 """
 from modules.core.paths import PROJECT_ROOT
-import os, smtplib, json, datetime, mimetypes
+import os, ssl, smtplib, json, datetime, mimetypes
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
-from urllib.request import urlopen, Request
+from urllib.request import urlopen, Request, build_opener, ProxyHandler, HTTPSHandler
 from urllib.error import URLError, HTTPError
 
 # 加密支持
@@ -111,6 +124,62 @@ def _decrypt_password(encrypted):
         return encrypted
 
 
+def _normalize_proxy(proxy):
+    """规范化代理地址：去除空白，缺少协议时默认补 http://"""
+    if not proxy:
+        return ''
+    proxy = str(proxy).strip()
+    if not proxy:
+        return ''
+    if '://' not in proxy:
+        proxy = 'http://' + proxy
+    return proxy
+
+
+def _build_ssl_context(verify_ssl=True, ca_cert=''):
+    """构建 SSL 上下文。
+
+    - 指定 ca_cert 时使用该 CA 证书包校验（推荐，适用于代理 SSL 解密场景）
+    - verify_ssl=False 时跳过证书校验（不安全，仅内网临时排障使用）
+    - 默认返回 None，表示使用系统默认校验，行为不变
+    """
+    if ca_cert:
+        ca_cert = str(ca_cert).strip()
+        if ca_cert and os.path.isfile(ca_cert):
+            return ssl.create_default_context(cafile=ca_cert)
+        print('Webhook CA 证书文件不存在，已回退默认校验: %s' % ca_cert)
+    if not verify_ssl:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        return ctx
+    return None
+
+
+def _build_webhook_opener(proxy='', verify_ssl=True, ca_cert=''):
+    """根据代理与 SSL 配置构建 urllib opener。
+
+    - 代理与 SSL 均为默认配置时返回 None（调用方使用默认全局 opener，行为不变）
+    - 支持 http:// 与 https:// 代理；代理认证写在 URL 中，
+      例如 http://user:pass@192.168.1.10:8080
+    - 不支持的协议（如 socks5）会打印提示并回退为直连
+    - ca_cert 指定 CA 证书包，verify_ssl=False 跳过校验（应对代理 SSL 解密）
+    """
+    proxy = _normalize_proxy(proxy)
+    handlers = []
+    if proxy:
+        if proxy.startswith('http://') or proxy.startswith('https://'):
+            handlers.append(ProxyHandler({'http': proxy, 'https': proxy}))
+        else:
+            print('Webhook 代理协议不支持（仅支持 http/https）: %s' % proxy)
+    ctx = _build_ssl_context(verify_ssl, ca_cert)
+    if ctx is not None:
+        handlers.append(HTTPSHandler(context=ctx))
+    if not handlers:
+        return None
+    return build_opener(*handlers)
+
+
 def _load_config():
     """加载通知配置（从 dbc_config.json notification 节点，支持 .env 覆盖）"""
     cfg = {}
@@ -171,6 +240,14 @@ def _load_config():
         cfg.setdefault('webhook', {})['url'] = os.environ['WEBHOOK_URL']
     if 'WEBHOOK_TYPE' in os.environ:
         cfg.setdefault('webhook', {})['type'] = os.environ['WEBHOOK_TYPE']
+    if 'WEBHOOK_PROXY' in os.environ:
+        cfg.setdefault('webhook', {})['proxy'] = os.environ['WEBHOOK_PROXY']
+    if 'WEBHOOK_CA_CERT' in os.environ:
+        cfg.setdefault('webhook', {})['ca_cert'] = os.environ['WEBHOOK_CA_CERT']
+    if 'WEBHOOK_VERIFY_SSL' in os.environ:
+        cfg.setdefault('webhook', {})['verify_ssl'] = os.environ['WEBHOOK_VERIFY_SSL'].lower() in ('true', '1', 'yes')
+    if 'REPORT_BASE_URL' in os.environ:
+        cfg['report_base_url'] = os.environ['REPORT_BASE_URL']
 
     # 解密密码
     if 'email' in cfg and 'password' in cfg['email']:
@@ -206,6 +283,54 @@ def _save_config(cfg):
         return False
 
 
+def get_report_base_url(cfg=None):
+    """返回巡检报告查看链接的基址（不带结尾 '/'）。
+
+    优先使用 notification.report_base_url（可由 .env 的 REPORT_BASE_URL 覆盖）；
+    未配置时自动探测本机出口 IP，并沿用 Web 服务默认端口 5003；
+    探测失败返回空字符串（调用方据此决定是否展示链接）。
+    """
+    if cfg is None:
+        try:
+            cfg = _load_config()
+        except Exception:
+            cfg = {}
+    base = ''
+    if isinstance(cfg, dict):
+        base = str(cfg.get('report_base_url') or '').strip()
+    if base:
+        return base.rstrip('/')
+
+    # 自动探测本机可达 IP（UDP connect 不实际发包，仅用于选出网卡地址）
+    candidates = []
+    try:
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect(('8.8.8.8', 80))
+            candidates.append(s.getsockname()[0])
+        finally:
+            s.close()
+    except Exception:
+        pass
+    try:
+        import socket
+        candidates.append(socket.gethostbyname(socket.gethostname()))
+    except Exception:
+        pass
+    for ip in candidates:
+        if ip and not ip.startswith('127.'):
+            return 'http://%s:5003' % ip
+    return ''
+
+
+def build_share_url(base_url, share_id):
+    """拼接分享报告链接：<base_url>/share/<share_id>"""
+    if not base_url or not share_id:
+        return ''
+    return '%s/share/%s' % (str(base_url).rstrip('/'), share_id)
+
+
 # ── 邮件通知 ────────────────────────────────────────────────
 
 class EmailNotifier:
@@ -222,7 +347,8 @@ class EmailNotifier:
         self.from_name = cfg.get('from_name', 'DBCheck 巡检报告')
         self.recipients = cfg.get('recipients', [])
 
-    def send_report(self, label, db_type, report_file, recipients=None, custom_msg=None):
+    def send_report(self, label, db_type, report_file, recipients=None, custom_msg=None,
+                    issue_count=None, report_url=None):
         if not recipients:
             recipients = self.recipients or []
         if not recipients:
@@ -230,18 +356,24 @@ class EmailNotifier:
 
         now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-        body = custom_msg or (
-            '<h2>DBCheck 定时巡检报告</h2>'
-            '<table style="border-collapse:collapse; font-family:Arial,sans-serif;">'
-            '<tr><td style="padding:8px;border:1px solid #ddd;"><b>数据库</b></td>'
-            '<td style="padding:8px;border:1px solid #ddd;">%s</td></tr>'
-            '<tr><td style="padding:8px;border:1px solid #ddd;"><b>类型</b></td>'
-            '<td style="padding:8px;border:1px solid #ddd;">%s</td></tr>'
-            '<tr><td style="padding:8px;border:1px solid #ddd;"><b>生成时间</b></td>'
-            '<td style="padding:8px;border:1px solid #ddd;">%s</td></tr>'
-            '</table>'
-            '<p style="margin-top:20px;">详见附件报告。</p>'
-        ) % (label, db_type, now)
+        if custom_msg:
+            body = custom_msg
+        else:
+            rows = [('数据库', label), ('类型', db_type)]
+            if issue_count is not None:
+                rows.append(('问题数', str(issue_count)))
+            rows.append(('生成时间', now))
+            trs = ''.join(
+                '<tr><td style="padding:8px;border:1px solid #ddd;"><b>%s</b></td>'
+                '<td style="padding:8px;border:1px solid #ddd;">%s</td></tr>' % (k, v)
+                for k, v in rows
+            )
+            link = ('<p style="margin-top:16px;"><a href="%s">查看在线巡检报告</a></p>' % report_url) if report_url else ''
+            body = (
+                '<h2>DBCheck 定时巡检报告</h2>'
+                '<table style="border-collapse:collapse; font-family:Arial,sans-serif;">%s</table>'
+                '<p style="margin-top:20px;">详见附件报告。</p>%s'
+            ) % (trs, link)
 
         msg = MIMEMultipart('mixed')
         msg['From'] = self.user
@@ -350,30 +482,39 @@ class WebhookNotifier:
         self.secret = cfg.get('secret', '')
         self.at_mobiles = cfg.get('at_mobiles', [])
         self.is_at_all = cfg.get('is_at_all', False)
+        # 网络代理（内网无法直连企业微信/钉钉 API 时使用）
+        self.proxy = cfg.get('proxy', '')
+        # SSL 证书校验：ca_cert 指定代理根证书，verify_ssl=False 跳过校验
+        self.verify_ssl = cfg.get('verify_ssl', True)
+        self.ca_cert = cfg.get('ca_cert', '')
 
-    def send_alert(self, label, db_type, status, error=None, report_file=None):
+    def send_alert(self, label, db_type, status, error=None, report_file=None,
+                   issue_count=None, report_url=None):
         if not self.url:
             raise ValueError('Webhook URL 未配置')
         if self.wtype == 'wecom':
-            payload = self._build_wecom_payload(label, db_type, status, error)
+            payload = self._build_wecom_payload(label, db_type, status, error, issue_count, report_url)
         elif self.wtype == 'dingtalk':
-            payload = self._build_dingtalk_payload(label, db_type, status, error)
+            payload = self._build_dingtalk_payload(label, db_type, status, error, issue_count, report_url)
         else:
-            payload = self._build_custom_payload(label, db_type, status, error)
+            payload = self._build_custom_payload(label, db_type, status, error, issue_count, report_url)
         return self._send_webhook(payload)
 
-    def _build_wecom_payload(self, label, db_type, status, error):
-        color = '34' if status == '完成' else 'FF0000'
+    def _build_wecom_payload(self, label, db_type, status, error, issue_count=None, report_url=None):
         content = [
             'DBCheck 定时巡检通知',
             '━━━━━━━━━━━━━━━━━',
             '数据库: %s' % label,
             '类型: %s' % db_type,
             '状态: %s' % status,
-            '时间: %s' % datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         ]
+        if issue_count is not None:
+            content.append('问题数: %s' % issue_count)
+        content.append('时间: %s' % datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         if error:
             content.append('错误: %s' % error[:200])
+        if report_url:
+            content.append('[查看巡检简报](%s)' % report_url)
         return {
             'msgtype': 'markdown',
             'markdown': {
@@ -381,17 +522,21 @@ class WebhookNotifier:
             }
         }
 
-    def _build_dingtalk_payload(self, label, db_type, status, error):
+    def _build_dingtalk_payload(self, label, db_type, status, error, issue_count=None, report_url=None):
         content = [
             '### DBCheck 定时巡检通知',
             '---',
             '**数据库**: %s' % label,
             '**类型**: %s' % db_type,
             '**状态**: %s' % status,
-            '**时间**: %s' % datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         ]
+        if issue_count is not None:
+            content.append('**问题数**: %s' % issue_count)
+        content.append('**时间**: %s' % datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         if error:
             content.append('**错误**: %s' % error[:200])
+        if report_url:
+            content.append('[查看巡检简报](%s)' % report_url)
         payload = {
             'msgtype': 'markdown',
             'markdown': {
@@ -405,12 +550,14 @@ class WebhookNotifier:
         }
         return payload
 
-    def _build_custom_payload(self, label, db_type, status, error):
+    def _build_custom_payload(self, label, db_type, status, error, issue_count=None, report_url=None):
         return {
             'label': label,
             'db_type': db_type,
             'status': status,
             'error': error,
+            'issue_count': issue_count,
+            'report_url': report_url,
             'timestamp': datetime.datetime.now().isoformat(),
             'message': 'DBCheck 定时巡检 %s: %s (%s)' % (status, label, db_type)
         }
@@ -420,8 +567,20 @@ class WebhookNotifier:
             data = json.dumps(payload).encode('utf-8')
             headers = {'Content-Type': 'application/json'}
             req = Request(self.url, data=data, headers=headers)
-            with urlopen(req, timeout=30) as resp:
-                result = resp.read().decode('utf-8')
+            opener = _build_webhook_opener(self.proxy, self.verify_ssl, self.ca_cert)
+            if opener is not None:
+                if self.proxy:
+                    # print('Webhook 通过代理发送: %s' % _normalize_proxy(self.proxy))
+                    print('Webhook 通过代理发送')
+                if self.ca_cert:
+                    print('Webhook 使用自定义 CA 证书: %s' % self.ca_cert)
+                elif not self.verify_ssl:
+                    print('Webhook 已跳过 SSL 证书校验（不安全）')
+                with opener.open(req, timeout=30) as resp:
+                    result = resp.read().decode('utf-8')
+            else:
+                with urlopen(req, timeout=30) as resp:
+                    result = resp.read().decode('utf-8')
             try:
                 result_json = json.loads(result)
                 errcode = result_json.get('errcode', 0)
@@ -437,7 +596,14 @@ class WebhookNotifier:
             print('Webhook HTTP 错误: %d %s' % (e.code, e.reason))
             return False
         except URLError as e:
-            print('Webhook URL 错误: %s' % e.reason)
+            reason = e.reason
+            if isinstance(reason, ssl.SSLError) or 'CERTIFICATE_VERIFY_FAILED' in str(reason):
+                print('Webhook SSL 证书校验失败: %s' % reason)
+                hint = ('提示：若通过代理（尤其做了 SSL 解密），请在 Webhook 配置中指定 '
+                        'CA 证书（ca_cert），或临时设置 verify_ssl=false 跳过校验。')
+                print(hint)
+            else:
+                print('Webhook URL 错误: %s' % reason)
             return False
         except Exception as e:
             print('Webhook 发送异常: %s' % e)

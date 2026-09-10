@@ -1079,7 +1079,7 @@ class WordTemplateGeneratorSQLServer:
 class RemoteSystemInfoCollector:
     """远程系统信息收集器 - 通过SSH连接获取远程主机信息（Windows/Linux）"""
 
-    def __init__(self, host, port=22, username='root', password=None, key_file=None):
+    def __init__(self, host, port=22, username='root', password=None, key_file=None, key_password=None):
         """
         初始化远程系统信息收集器。
 
@@ -1094,6 +1094,7 @@ class RemoteSystemInfoCollector:
         self.username = username
         self.password = password
         self.key_file = key_file
+        self.key_password = key_password
         self.ssh_client = None
 
     def connect(self):
@@ -1106,7 +1107,7 @@ class RemoteSystemInfoCollector:
             self.ssh_client = paramiko.SSHClient()
             self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             if self.key_file:
-                private_key = paramiko.RSAKey.from_private_key_file(self.key_file)
+                private_key = paramiko.RSAKey.from_private_key_file(self.key_file, self.key_password)
                 self.ssh_client.connect(hostname=self.host, port=self.port,
                                        username=self.username, pkey=private_key, timeout=10)
             else:
@@ -1485,7 +1486,7 @@ class DBCheckSQLServer:
 
     def __init__(self, host, port, user, password, database=None, label=None,
                  inspector=None, ssh_host=None, ssh_user=None, ssh_password=None,
-                 ssh_key_file=None, desensitize=False):
+                 ssh_key_file=None, ssh_key_password=None, desensitize=False):
         self.host = host
         self.port = port or 1433
         self.user = user
@@ -1497,6 +1498,7 @@ class DBCheckSQLServer:
         self.ssh_user = ssh_user
         self.ssh_password = ssh_password
         self.ssh_key_file = ssh_key_file
+        self.ssh_key_password = ssh_key_password
         self.ssh_port = 22  # 默认 SSH 端口
         self.desensitize = desensitize
 
@@ -1566,7 +1568,8 @@ class DBCheckSQLServer:
                     port=int(self.ssh_port) if self.ssh_port else 22,
                     username=self.ssh_user or 'root',
                     password=self.ssh_password,
-                    key_file=self.ssh_key_file
+                    key_file=self.ssh_key_file,
+                    key_password=self.ssh_key_password
                 )
                 sys_info = collector.get_system_info()
                 if sys_info:
@@ -2112,7 +2115,8 @@ def single_inspection():
         ssh_host=ssh_info.get('ssh_host'),
         ssh_user=ssh_info.get('ssh_user'),
         ssh_password=ssh_info.get('ssh_password'),
-        ssh_key_file=ssh_info.get('ssh_key_file')
+        ssh_key_file=ssh_info.get('ssh_key_file'),
+        ssh_key_password=ssh_info.get('ssh_key_password')
     )
 
     return inspector.checkdb()
@@ -2148,7 +2152,8 @@ def batch_inspection():
                     'ssh_port': db_info.get('ssh_port', 22),
                     'ssh_user': db_info.get('ssh_user', 'root'),
                     'ssh_password': db_info.get('ssh_password', ''),
-                    'ssh_key_file': db_info.get('ssh_key_file', '')
+                    'ssh_key_file': db_info.get('ssh_key_file', ''),
+                    'ssh_key_password': db_info.get('ssh_key_password', '')
                 }
             inspector = DBCheckSQLServer(
                 host=db_info['host'],
@@ -2161,7 +2166,8 @@ def batch_inspection():
                 ssh_host=ssh_info.get('ssh_host'),
                 ssh_user=ssh_info.get('ssh_user'),
                 ssh_password=ssh_info.get('ssh_password'),
-                ssh_key_file=ssh_info.get('ssh_key_file')
+                ssh_key_file=ssh_info.get('ssh_key_file'),
+                ssh_key_password=ssh_info.get('ssh_key_password')
             )
             if inspector.checkdb():
                 success_count += 1

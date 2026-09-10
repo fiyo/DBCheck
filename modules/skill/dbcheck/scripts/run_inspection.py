@@ -50,11 +50,24 @@ def _record_inspection(db_type, db_info, ret, report_path):
         from modules.pro import get_instance_manager
         import hashlib
 
-        # 计算风险数量
-        risk_count = ret.get('risk_count', 0)
-        if not risk_count:
-            issues = ret.get('issues', [])
-            risk_count = len(issues) if isinstance(issues, list) else 0
+        if not isinstance(ret, dict):
+            ret = {}
+
+        # 汇总本次巡检发现的问题（与 Web UI「智能分析」同一口径）。
+        # 兼容主程序 modules.inspection.analyzer.collect_issues；技能包独立部署
+        # 时该模块可能不存在，则退化为读取 auto_analyze / issues。
+        try:
+            from modules.inspection.analyzer import collect_issues
+            issues = collect_issues(db_type, ret)
+        except Exception:
+            issues = []
+            for _key in ('auto_analyze', 'issues'):
+                _seq = ret.get(_key)
+                if isinstance(_seq, (list, tuple)):
+                    issues.extend([it for it in _seq if isinstance(it, dict)])
+
+        # 计算风险数量：优先沿用检查器给出的 risk_count，否则按问题条数
+        risk_count = ret.get('risk_count', 0) or len(issues)
 
         # 根据健康状态计算评分
         health_status = ret.get('health_status', '')
@@ -94,7 +107,10 @@ def _record_inspection(db_type, db_info, ret, report_path):
             risk_count=risk_count,
             risk_level=risk_level,
             report_path=report_path,
-            duration=0
+            duration=0,
+            # 把问题明细一并落库，供「数据库巡检历史 → 问题列表」展示；
+            # 未取到问题时传 None，避免误记为“0 个问题”。
+            auto_analyze=issues or None
         )
     except Exception as e:
         import logging

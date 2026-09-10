@@ -1492,7 +1492,7 @@ class DM8RemoteHealthChecker(DM8OfflineHealthChecker):
 
     def __init__(self, db_dir: str, ssh_host: str, ssh_port: int = 22,
                  ssh_user: str = 'root', ssh_password: str = '',
-                 ssh_key_file: str = '', page_size: int = 0):
+                 ssh_key_file: str = '', page_size: int = 0, ssh_key_password: str = None):
         """
         Args:
             db_dir: 远程服务器上的 DM8 数据文件目录路径
@@ -1501,6 +1501,7 @@ class DM8RemoteHealthChecker(DM8OfflineHealthChecker):
             ssh_user: SSH 用户名
             ssh_password: SSH 密码
             ssh_key_file: SSH 私钥文件路径
+            ssh_key_password: SSH 私钥文件密码（私钥被加密时需要）
             page_size: 页大小（0=自动检测）
         """
         # 不调用父类的 Path(db_dir)，远程模式下 db_dir 是字符串
@@ -1526,6 +1527,7 @@ class DM8RemoteHealthChecker(DM8OfflineHealthChecker):
         self.ssh_user = ssh_user
         self.ssh_password = ssh_password
         self.ssh_key_file = ssh_key_file
+        self.ssh_key_password = ssh_key_password
         self._ssh_client = None
         self._remote_is_windows = False  # 远程系统类型
 
@@ -1551,7 +1553,7 @@ class DM8RemoteHealthChecker(DM8OfflineHealthChecker):
 
         if self.ssh_key_file and os.path.isfile(self.ssh_key_file):
             try:
-                pkey = paramiko.RSAKey.from_private_key_file(self.ssh_key_file)
+                pkey = paramiko.RSAKey.from_private_key_file(self.ssh_key_file, self.ssh_key_password)
                 connect_kwargs['pkey'] = pkey
             except Exception:
                 try:

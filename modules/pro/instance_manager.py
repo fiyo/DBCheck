@@ -216,6 +216,7 @@ class DatabaseInstance:
     ssh_user: str = ""     # SSH 用户
     ssh_password: str = "" # SSH 密码（加密存储）
     ssh_key_file: str = "" # SSH 私钥路径
+    ssh_key_password: str = "" # SSH 私钥密码
     ssh_enabled: bool = False  # 是否启用 SSH
     tags: List[str] = None  # 标签列表
     group: str = "default"  # 分组
@@ -519,6 +520,11 @@ class InstanceManager:
                 c.execute('ALTER TABLE instances ADD COLUMN "use_sid" INTEGER DEFAULT 0')
             except Exception:
                 pass
+            # 迁移：为旧表添加 ssh_key_password 列（SSH 私钥文件密码）
+            try:
+                c.execute('ALTER TABLE instances ADD COLUMN "ssh_key_password" TEXT DEFAULT \'\'')
+            except Exception:
+                pass
             # 确保表存在
             c.execute("""
                 CREATE TABLE IF NOT EXISTS instances (
@@ -531,7 +537,7 @@ class InstanceManager:
                     tls INTEGER DEFAULT 0, tls_ca_file TEXT DEFAULT '', tls_cert_key_file TEXT DEFAULT '', tls_allow_invalid_certs INTEGER DEFAULT 0,
                     ssh_host TEXT DEFAULT '', ssh_port INTEGER DEFAULT 22,
                     ssh_user TEXT DEFAULT '', ssh_password TEXT DEFAULT '',
-                    ssh_key_file TEXT DEFAULT '', ssh_enabled INTEGER DEFAULT 0,
+                    ssh_key_file TEXT DEFAULT '', ssh_key_password TEXT DEFAULT '', ssh_enabled INTEGER DEFAULT 0,
                     tags TEXT DEFAULT '[]', "group" TEXT DEFAULT 'default',
                     enabled INTEGER DEFAULT 1, description TEXT DEFAULT '',
                     created_at TEXT DEFAULT '', updated_at TEXT DEFAULT '',
@@ -548,10 +554,10 @@ class InstanceManager:
                     INSERT OR REPLACE INTO instances
                     (id, name, db_type, host, port, "user", password, "database", service_name, gbase_server_name, tenant, sysdba,
                      connect_mode, auth_source, auth_mechanism, replica_set, tls, tls_ca_file, tls_cert_key_file, tls_allow_invalid_certs,
-                     ssh_host, ssh_port, ssh_user, ssh_password, ssh_key_file, ssh_enabled,
+                     ssh_host, ssh_port, ssh_user, ssh_password, ssh_key_file, ssh_key_password, ssh_enabled,
                      tags, "group", enabled, description, created_at, updated_at, connection_mode,
                      encrypt, trust_server_certificate, use_sid, driver_version)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     d.get("id", ""), d.get("name", ""), d.get("db_type", ""),
                     d.get("host", ""), d.get("port", 0), d.get("user", ""),
@@ -568,7 +574,7 @@ class InstanceManager:
                     1 if d.get("tls_allow_invalid_certs") else 0,
                     d.get("ssh_host", ""), d.get("ssh_port", 22),
                     d.get("ssh_user", ""), d.get("ssh_password", ""),
-                    d.get("ssh_key_file", ""), 1 if d.get("ssh_enabled") else 0,
+                    d.get("ssh_key_file", ""), d.get("ssh_key_password", ""), 1 if d.get("ssh_enabled") else 0,
                     json.dumps(d.get("tags", []), ensure_ascii=False),
                     d.get("group", "default"), 1 if d.get("enabled", True) else 0,
                     d.get("description", ""), d.get("created_at", ""), d.get("updated_at", ""),
@@ -944,6 +950,8 @@ class InstanceManager:
         instance.password = _encrypt_pwd(instance.password)
         if instance.ssh_password:
             instance.ssh_password = _encrypt_pwd(instance.ssh_password)
+        if instance.ssh_key_password:
+            instance.ssh_key_password = _encrypt_pwd(instance.ssh_key_password)
         self._instances[instance.id] = instance
         self._save_data()
         return {"ok": True, "message": "实例添加成功", "instance_id": instance.id}
@@ -961,7 +969,7 @@ class InstanceManager:
                 if isinstance(value, str) and value == '' and key not in ('ssh_host', 'ssh_user', 'ssh_key_file'):
                     continue
                 # 密码字段自动加密
-                if key in ('password', 'ssh_password') and value:
+                if key in ('password', 'ssh_password', 'ssh_key_password') and value:
                     value = _encrypt_pwd(value)
                 setattr(instance, key, value)
         instance.updated_at = datetime.now().isoformat()
@@ -1050,6 +1058,8 @@ class InstanceManager:
             d['password'] = _decrypt_pwd(d['password'])
         if d.get('ssh_password'):
             d['ssh_password'] = _decrypt_pwd(d['ssh_password'])
+        if d.get('ssh_key_password'):
+            d['ssh_key_password'] = _decrypt_pwd(d['ssh_key_password'])
         return d
 
     def get_all_instances_decrypted(self) -> List[Dict]:

@@ -1128,6 +1128,7 @@ class MetricsCollector:
             'user': inst.get('ssh_user') or '',
             'password': inst.get('ssh_password') or '',
             'key_file': inst.get('ssh_key_file') or '',
+            'key_password': inst.get('ssh_key_password') or '',
         }
 
     def _remote_script_src(self) -> str:
@@ -1186,7 +1187,11 @@ class MetricsCollector:
         }
         if ssh['key_file'] and os.path.isfile(ssh['key_file']):
             try:
-                pkey = paramiko.RSAKey.from_private_key_file(ssh['key_file'])
+                if ssh['key_password']:
+                    key_password = ssh['key_password']
+                else:
+                    key_password = None
+                pkey = paramiko.RSAKey.from_private_key_file(ssh['key_file'], key_password)
                 kwargs['pkey'] = pkey
             except Exception:
                 try:

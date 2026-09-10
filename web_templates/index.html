@@ -6220,8 +6220,14 @@ function formatBytes(bytes) {
                     '</select></div>' +
                   '<div id="ds-ssh-password-wrap"><label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">SSH 密码</label>' +
                     '<input id="ds-ssh-password" type="password" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="SSH 登录密码"></div>' +
-                  '<div id="ds-ssh-key-wrap" style="display:none"><label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">私钥文件路径</label>' +
-                    '<input id="ds-ssh-key" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="C:\\Users\\xxx\\.ssh\\id_rsa"></div>' +
+                  '<div id="ds-ssh-key-wrap" style="display:none;grid-column:1/-1">' +
+                    '<div style="display:flex;gap:10px">' +
+                      '<div style="flex:1"><label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">私钥文件路径</label>' +
+                        '<input id="ds-ssh-key" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="C:\\Users\\xxx\\.ssh\\id_rsa"></div>' +
+                      '<div style="flex:1"><label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">私钥文件密码</label>' +
+                        '<input id="ds-ssh-key-password" type="password" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="私钥文件的密码（如果私钥加密）"></div>' +
+                    '</div>' +
+                  '</div>' +
                 '</div>' +
               '</div>' +
             '</div>' +
@@ -6517,6 +6523,7 @@ function formatBytes(bytes) {
         payload.ssh_user = sshOn ? document.getElementById('ds-ssh-user').value.trim() : '';
         payload.ssh_password = sshOn ? (document.getElementById('ds-ssh-password').value || undefined) : '';
         payload.ssh_key_file = sshOn ? document.getElementById('ds-ssh-key').value.trim() : '';
+        payload.ssh_key_password = sshOn ? document.getElementById('ds-ssh-key-password').value.trim() : '';
         if (payload.db_type === 'pg' || payload.db_type === 'ivorysql' || payload.db_type === 'kingbase' || payload.db_type === 'mysql' || payload.db_type === 'mariadb' || payload.db_type === 'tidb') payload.database = document.getElementById('ds-database').value.trim();
         if (payload.db_type === 'oracle' || payload.db_type === 'oracle_jdbc') {
           payload.service_name = document.getElementById('ds-service-name').value.trim();
@@ -6679,6 +6686,7 @@ function formatBytes(bytes) {
                 document.getElementById('ds-ssh-password').placeholder = '（不修改请留空）';
                 document.getElementById('ds-ssh-password').value = '';
                 document.getElementById('ds-ssh-key').value = ds.ssh_key_file || '';
+                document.getElementById('ds-ssh-key-password').value = ds.ssh_key_password || '';
                 if (ds.ssh_key_file && !ds.ssh_password) {
                   document.getElementById('ds-ssh-auth').value = 'key';
                 }
@@ -7806,15 +7814,23 @@ function wfCloseRunDrawer() {
                 <option value="key" data-i18n="webui.opt_auth_key" data-page-node-id="1FwdManntqoZ1jSPluDaRF">私钥文件</option>
               </select>
             </div>
-            <div class="field full" id="f-ssh-password-wrap" data-page-node-id="2brA2Q9aMa80aDXCAWcn1A">
+            <div class="field" id="f-ssh-password-wrap" data-page-node-id="2brA2Q9aMa80aDXCAWcn1A">
               <label data-i18n="webui.ssh_password" data-page-node-id="YawBNDLGBtKukJIzxwcFtQ">SSH 密码</label>
               <input type="password" id="f-ssh-password" data-i18n="webui.placeholder_ssh_password" placeholder="SSH 登录密码" data-page-node-id="uB0b078PezNjkiiR43mEFD" />
             </div>
-            <div class="field full" id="f-ssh-key-wrap" style="display:none" data-page-node-id="Qe1vqS1Ur45wxzYMaFYwJB">
-              <label data-i18n="webui.ssh_key" data-page-node-id="BSxiyGwqUCyu0sszjNrxXH">私钥文件路径</label>
-              <input type="text" id="f-ssh-key" data-i18n="webui.placeholder_ssh_key" placeholder="/root/.ssh/id_rsa" data-page-node-id="j3SrECghTRCukjeUHJGG9n" />
+            <div class="field" id="f-ssh-key-wrap" style="display:none;grid-column:1 / -1" data-page-node-id="Qe1vqS1Ur45wxzYMaFYwJB">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px 20px">
+                <div>
+                  <label data-i18n="webui.ssh_key" data-page-node-id="BSxiyGwqUCyu0sszjNrxXH">私钥文件路径</label>
+                  <input type="text" id="f-ssh-key" data-i18n="webui.placeholder_ssh_key" placeholder="/root/.ssh/id_rsa" data-page-node-id="j3SrECghTRCukjeUHJGG9n" />
+                </div>
+                <div>
+                  <label data-i18n="webui.ssh_key_password" data-page-node-id="8SxiyGwqUCyu0sszjNrxXH">私钥文件密码</label>
+                  <input type="password" id="f-ssh-key-password" data-i18n="webui.placeholder_ssh_key_password" placeholder="私钥文件的密码（如果私钥加密）" data-page-node-id="13SrECghTRCukjeUHJGG9n" />
+                </div>
+              </div>
             </div>
-            <div class="toggle-row" onclick="toggleEbpf()" style="margin-top:14px;" data-page-node-id="KYRIzCx471FmG8xHLrdQ9j">
+            <div class="toggle-row" onclick="toggleEbpf()" style="margin-top:14px;grid-column:1 / -1" data-page-node-id="KYRIzCx471FmG8xHLrdQ9j">
               <span class="toggle-label" style="color:var(--text)" data-i18n="webui.ssh_ebpf_enable" data-page-node-id="GYgbJjLpVi8OcSqgCWkiVH">启用内核级 eBPF 指标</span>
               <span class="toggle-sub" id="ebpf-toggle-sub" data-i18n="webui.ssh_ebpf_state_on" data-page-node-id="QyhoQGcA2shCpaDYgOcL2k">当前：启用（目标机需 Python3 + bcc + root）</span>
               <div class="toggle on" id="ebpf-toggle" data-page-node-id="pMIIJB2zGbBqPUlolNnm68"></div>
@@ -8289,6 +8305,20 @@ function wfCloseRunDrawer() {
             <div class="field full" data-page-node-id="UMQVdjCT3mucM4lqYqpj1S">
               <label data-i18n="webui.webhook_url_label" data-page-node-id="1ETCoPfpr4vD6ApNfDjpjZ">Webhook 地址</label>
               <input type="text" id="webhook-url" placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx" data-page-node-id="0rdD2dVSQkMxo6iJloYIK1" />
+            </div>
+            <div class="field full" data-page-node-id="WpXr4ProxyField00001">
+              <label data-i18n="webui.webhook_proxy_label" data-page-node-id="WpXr4ProxyLabel00001">网络代理（可选）</label>
+              <input type="text" id="webhook-proxy" placeholder="http://user:pass@192.168.1.10:8080" data-i18n-placeholder="webui.webhook_proxy_placeholder" data-page-node-id="WpXr4ProxyInput00001" />
+            </div>
+            <div class="field full" data-page-node-id="WpXr4CaCertField00001">
+              <label data-i18n="webui.webhook_ca_cert_label" data-page-node-id="WpXr4CaCertLabel00001">CA 证书路径（可选）</label>
+              <input type="text" id="webhook-ca-cert" placeholder="/etc/ssl/certs/corp-ca.pem" data-i18n-placeholder="webui.webhook_ca_cert_placeholder" data-page-node-id="WpXr4CaCertInput00001" />
+            </div>
+            <div class="field full" data-page-node-id="WpXr4VerifySslField00001">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer" data-page-node-id="WpXr4VerifySslLabel00001">
+                <input type="checkbox" id="webhook-verify-ssl" style="width:16px;height:16px;accent-color:var(--accent)" checked data-page-node-id="WpXr4VerifySslInput00001" />
+                <span style="font-size:13px;color:var(--text-muted)" data-i18n="webui.webhook_verify_ssl_label" data-page-node-id="WpXr4VerifySslSpan00001">校验 SSL 证书（代理 SSL 解密导致证书错误时可关闭）</span>
+              </label>
             </div>
             <div class="field full" id="webhook-secret-wrap" style="display:none" data-page-node-id="LOnT8mjvH4WdS6zSNJA2cM">
               <label data-page-node-id="S7fr02HgJejhmxpEbCfJ4L">签名密钥（可选）</label>
@@ -9022,9 +9052,17 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
               <label data-i18n="webui.server_inspect_password" data-page-node-id="ThS4dRgt2qs9VyGSo6JYBi">SSH 密码</label>
               <input type="password" id="si-ssh-password" class="form-input" placeholder="SSH 登录密码" data-page-node-id="LGkgnLLLssAJ6acQi72zuX"/>
             </div>
-            <div class="form-group" id="si-key-wrap" style="display:none" data-page-node-id="2fEB8WjRsWIgwam6FAhd12">
-              <label data-i18n="webui.server_inspect_keyfile" data-page-node-id="S2qJw5lO6HEwr4lGcERzsG">私钥文件路径</label>
-              <input type="text" id="si-ssh-key" class="form-input" placeholder="/root/.ssh/id_rsa" data-page-node-id="NT1jIrN4t1e4TKQwf6nF6d"/>
+            <div id="si-key-wrap" style="display:none;grid-column:1 / -1" data-page-node-id="2fEB8WjRsWIgwam6FAhd12">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px 20px">
+                <div class="form-group">
+                  <label data-i18n="webui.server_inspect_keyfile" data-page-node-id="S2qJw5lO6HEwr4lGcERzsG">私钥文件路径</label>
+                  <input type="text" id="si-ssh-key" class="form-input" placeholder="/root/.ssh/id_rsa" data-page-node-id="NT1jIrN4t1e4TKQwf6nF6d"/>
+                </div>
+                <div class="form-group">
+                  <label data-i18n="webui.server_inspect_keyfile_password" data-page-node-id="Kz9mPxQ7vT2hNyLz4nW8jM">私钥文件密码</label>
+                  <input type="password" id="si-ssh-key-password" class="form-input" placeholder="私钥文件的密码（如果加密）" data-page-node-id="Bh5xLqR9uY3kNpA7rV2nW4"/>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -9609,9 +9647,15 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
                 <input id="dm8-ssh-password" type="password" placeholder="留空则使用密钥" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--surface);color:var(--text);" data-page-node-id="2uDivVBeUz6xIFdLzmk4ad">
               </div>
             </div>
-            <div style="margin-top:12px;" data-page-node-id="UN5yVaCZZDMmDRxlJmUayJ">
-              <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;" data-i18n="dm8_offline.ssh_key" data-page-node-id="fwLpoQ2AVqAUXs0NSd6fVZ">SSH 私钥文件路径（可选）</label>
-              <input id="dm8-ssh-key" type="text" placeholder="/home/user/.ssh/id_rsa" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--surface);color:var(--text);" data-page-node-id="U32YIvAkaTMzNWUD1r9Hn7">
+            <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px;" data-page-node-id="UN5yVaCZZDMmDRxlJmUayJ">
+              <div data-page-node-id="fwLpoQ2AVqAUXs0NSd6fVZ">
+                <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;" data-i18n="dm8_offline.ssh_key">SSH 私钥文件路径（可选）</label>
+                <input id="dm8-ssh-key" type="text" placeholder="/home/user/.ssh/id_rsa" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--surface);color:var(--text);" data-page-node-id="U32YIvAkaTMzNWUD1r9Hn7">
+              </div>
+              <div data-page-node-id="gDm8KpWqZtRvNbXsYcLePa">
+                <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;" data-i18n="dm8_offline.ssh_key_password">私钥文件密码</label>
+                <input id="dm8-ssh-key-password" type="password" placeholder="私钥文件的密码（如果私钥加密）" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--surface);color:var(--text);" data-page-node-id="hKp3QmXwVtRnZbYdNcSeLf">
+              </div>
             </div>
           </div>
 
@@ -11267,6 +11311,7 @@ function dm8OfflineCheck() {
     postData.ssh_user = document.getElementById('dm8-ssh-user').value.trim() || 'root';
     postData.ssh_password = document.getElementById('dm8-ssh-password').value;
     postData.ssh_key_file = document.getElementById('dm8-ssh-key').value.trim();
+    postData.ssh_key_password = document.getElementById('dm8-ssh-key-password').value.trim();
   }
 
   var btn = document.getElementById('btn-dm8-offline-run');
@@ -11495,6 +11540,17 @@ function dm8OfflineDownloadReport() {
 function showPage(name) {
   // v2.6.2：更新全局页面变量（供 AI 上下文感知使用）
   _currentPage = name;
+  // 切换菜单时把滚动位置复位到顶部：外层滚动容器是文档（body），
+  // 若不复位会沿用上一页的 scrollTop，导致新页面打开时滑块位置不对、
+  // 内容未置顶，需要手动拖动滚动条才能看到顶部内容。
+  try {
+    window.scrollTo(0, 0);
+    if (document.documentElement) document.documentElement.scrollTop = 0;
+    if (document.body) document.body.scrollTop = 0;
+    var contentEl = document.querySelector('.content');
+    if (contentEl) contentEl.scrollTop = 0;
+    document.querySelectorAll('.page').forEach(function(p) { p.scrollTop = 0; });
+  } catch (e) {}
   // 强制隐藏所有 .page 元素（不依赖 CSS 类）
   document.querySelectorAll('.page').forEach(function(p) {
     p.classList.remove('active');
@@ -12127,6 +12183,7 @@ async function onDatasourceChange() {
         document.getElementById('f-ssh-user').value = ds.ssh_user || 'root';
         document.getElementById('f-ssh-password').value = ds.ssh_password || '';
         document.getElementById('f-ssh-key').value = ds.ssh_key_file || '';
+        document.getElementById('f-ssh-key-password').value = ds.ssh_key_password || '';
         _inspSshPassword = ds.ssh_password || '';  // 缓存供 testSsh 兜底
         // 自动启用 SSH
         if (!sshEnabled) toggleSsh();
@@ -12679,7 +12736,7 @@ async function testSsh() {
   const el = document.getElementById('ssh-test-status');
   el.innerHTML = '<div class="status-banner info"><span class="spinner"></span> ' + i18n('webui.ssh_testing') + '</div>';
   try {
-    const res = await fetch('/api/test_ssh', {
+    const res = await fetch('/api/test_server_ssh', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
@@ -12688,6 +12745,7 @@ async function testSsh() {
         ssh_user:     document.getElementById('f-ssh-user').value.trim(),
         ssh_password: document.getElementById('f-ssh-password').value || _inspSshPassword,
         ssh_key_file: document.getElementById('f-ssh-key').value.trim(),
+        ssh_key_password: document.getElementById('f-ssh-key-password').value||'',
       })
     });
     const data = await res.json();
@@ -12963,6 +13021,7 @@ async function startInspection() {
     payload.ssh_user     = document.getElementById('f-ssh-user').value.trim() || 'root';
     payload.ssh_password = document.getElementById('f-ssh-password').value;
     payload.ssh_key_file = document.getElementById('f-ssh-key').value.trim();
+    payload.ssh_key_password = document.getElementById('f-ssh-key-password').value.trim();
     payload.ssh_ebpf = ebpfEnabled;
   }
   // 附加巡检模板 ID
@@ -16267,6 +16326,8 @@ async function executeFixSql(taskId, sql) {
 // ══════════════════════════════════════════════════════════════
 
 function renderJobList(jobs) {
+  // 缓存任务列表，供「编辑」时读取完整配置
+  window._schedulerJobs = jobs || [];
   const container = document.getElementById('scheduler-job-list');
   const countBadge = document.getElementById('scheduler-job-count');
   countBadge.textContent = jobs.length + ' ' + i18n('webui.scheduler_job_count').replace('{} ', '');
@@ -16301,6 +16362,7 @@ function renderJobList(jobs) {
             <input type="checkbox" ${enabledChecked} onchange="toggleJob('${job.id}', this.checked)" />
             启用
           </label>
+          <button class="btn btn-ghost" style="padding:4px 12px;font-size:12px;color:var(--text);" onclick="editJob('${job.id}')">✏️ 编辑</button>
           <button class="btn btn-ghost" style="padding:4px 12px;font-size:12px;color:var(--text);" onclick="runJobNow('${job.id}')">▶ 立即执行</button>
           <button class="btn btn-ghost" style="padding:4px 12px;font-size:12px;color:var(--danger);" onclick="deleteJob('${job.id}')">🗑 删除</button>
         </div>
@@ -16638,14 +16700,11 @@ function buildCronFromForm() {
   return { hour: '2', minute: '0' };
 }
 
-function showAddJobForm() {
-  document.getElementById('add-job-form').style.display = 'block';
-  document.getElementById('job-form-title').textContent = i18n('webui.scheduler_job_form_title_new');
-  document.getElementById('job-name').value = '';
-  document.getElementById('job-datasource').value = '';
-  document.getElementById('job-test-status').style.display = 'none';
-  document.getElementById('job-test-status').innerHTML = '';
-  // 填充数据库类型下拉（优先动态类型并分组；API 未加载成功时回退内置列表，同样分组渲染）
+// 当前正在编辑的定时任务ID（null 表示新建）
+let _editingJobId = null;
+
+// 确保数据库类型下拉已填充（优先动态类型并分组；API 未加载成功时回退内置列表）
+function ensureJobDbTypeOptions() {
   const dbTypeSel = document.getElementById('job-db-type');
   if (dbTypeSel && !dbTypeSel.options.length) {
     const fallbackTypes = (window.dbTypes && window.dbTypes.length) ? window.dbTypes : [
@@ -16662,11 +16721,83 @@ function showAddJobForm() {
     ];
     fillGroupedSelect(dbTypeSel, fallbackTypes, { placeholder: '' });
   }
+}
+
+// 设置表单控件值（select 缺少对应选项时自动补一个，避免 cron 分钟/小时回填丢失）
+function _setJobFieldValue(id, value) {
+  const el = document.getElementById(id);
+  if (!el || value === undefined || value === null || value === '') return;
+  const v = String(value);
+  if (el.tagName === 'SELECT' && !Array.from(el.options).some(o => o.value === v)) {
+    const opt = document.createElement('option');
+    opt.value = v;
+    opt.textContent = (id === 'job-mm') ? (v + ' 分') : ((id === 'job-hh') ? (v + ' 点') : v);
+    el.appendChild(opt);
+  }
+  el.value = v;
+}
+
+// 将任务的 cron 配置回填到「执行周期」表单
+function fillScheduleFromCron(cron) {
+  cron = cron || {};
+  const typeSel = document.getElementById('job-schedule-type');
+  let type = 'daily';
+
+  if (cron.expression) {
+    type = 'custom';
+  } else {
+    const hour = (cron.hour != null && cron.hour !== '') ? String(cron.hour) : '*';
+    const minute = (cron.minute != null && cron.minute !== '') ? String(cron.minute) : '0';
+    if (cron.day_of_week && cron.day_of_week !== '*') type = 'weekly';
+    else if (cron.day && cron.day !== '*' && /^\d+$/.test(String(cron.day))) type = 'monthly';
+    else if (minute.indexOf('*/') === 0 && hour === '*') type = 'every_min';
+    else if (hour.indexOf('*/') === 0) type = 'every_hour';
+    else if (hour === '*' && minute === '0') type = 'hourly';
+    else type = 'daily';
+  }
+
+  typeSel.value = type;
+  renderScheduleParams();
+
+  if (type === 'custom') {
+    const el = document.getElementById('job-cron-expr');
+    if (el) el.value = cron.expression || '';
+  } else if (type === 'every_min') {
+    _setJobFieldValue('job-int-val', String(cron.minute).replace('*/', ''));
+  } else if (type === 'every_hour') {
+    _setJobFieldValue('job-int-val', String(cron.hour).replace('*/', ''));
+    _setJobFieldValue('job-mm', cron.minute);
+  } else if (type === 'weekly') {
+    _setJobFieldValue('job-dow', cron.day_of_week);
+    _setJobFieldValue('job-hh', cron.hour);
+    _setJobFieldValue('job-mm', cron.minute);
+  } else if (type === 'monthly') {
+    _setJobFieldValue('job-dom', cron.day);
+    _setJobFieldValue('job-hh', cron.hour);
+    _setJobFieldValue('job-mm', cron.minute);
+  } else if (type === 'daily') {
+    _setJobFieldValue('job-hh', cron.hour);
+    _setJobFieldValue('job-mm', cron.minute);
+  }
+  updateCronPreview();
+}
+
+function showAddJobForm() {
+  _editingJobId = null;
+  document.getElementById('add-job-form').style.display = 'block';
+  document.getElementById('job-form-title').textContent = i18n('webui.scheduler_job_form_title_new');
+  document.getElementById('job-name').value = '';
+  document.getElementById('job-datasource').value = '';
+  document.getElementById('job-test-status').style.display = 'none';
+  document.getElementById('job-test-status').innerHTML = '';
+  ensureJobDbTypeOptions();
   document.getElementById('job-db-type').value = 'mysql';
   document.getElementById('job-host').value = '';
   document.getElementById('job-port').value = '3306';
   document.getElementById('job-user').value = '';
-  document.getElementById('job-password').value = '';
+  const pwdElNew = document.getElementById('job-password');
+  pwdElNew.value = '';
+  pwdElNew.placeholder = i18n('webui.placeholder_password') || '数据库密码';
   document.getElementById('job-database').value = '';
   document.getElementById('job-notify').checked = true;
   document.getElementById('job-schedule-type').value = 'daily';
@@ -16674,8 +16805,94 @@ function showAddJobForm() {
   onJobDbTypeChange();
 }
 
+// 编辑定时任务：复用新建表单并回填现有配置
+async function editJob(jobId) {
+  const jobs = window._schedulerJobs || [];
+  const job = jobs.find(j => j.id === jobId);
+  if (!job) { toastError('未找到任务配置，请刷新后重试'); return; }
+
+  const dbInfo = job.db_info || {};
+  const dsId = dbInfo.datasource_id || '';
+  const dbType = job.db_type || dbInfo.db_type || 'mysql';
+
+  _editingJobId = jobId;
+  document.getElementById('add-job-form').style.display = 'block';
+  document.getElementById('job-form-title').textContent = i18n('webui.scheduler_job_form_title_edit');
+  document.getElementById('job-test-status').style.display = 'none';
+  document.getElementById('job-test-status').innerHTML = '';
+
+  ensureJobDbTypeOptions();
+  const dbTypeSel = document.getElementById('job-db-type');
+  if (!Array.from(dbTypeSel.options).some(o => o.value === dbType)) {
+    const opt = document.createElement('option');
+    opt.value = dbType;
+    opt.textContent = dbType.toUpperCase();
+    dbTypeSel.appendChild(opt);
+  }
+  dbTypeSel.value = dbType;
+
+  // 载入该类型的数据源与巡检模板（会重置端口等控件，故先执行再回填）
+  await onJobDbTypeChange();
+
+  document.getElementById('job-name').value = job.name || '';
+
+  const dsSel = document.getElementById('job-datasource');
+  if (dsId) {
+    dsSel.value = dsId;
+    if (dsSel.value !== dsId) {   // 下拉中缺少该数据源时补一个占位项
+      const opt = document.createElement('option');
+      opt.value = dsId;
+      opt.textContent = dbInfo.host || dsId;
+      dsSel.appendChild(opt);
+      dsSel.value = dsId;
+    }
+    // 数据源模式：按数据源回填真实连接信息（与手动切换数据源时行为一致）
+    await onJobDatasourceChange();
+  } else {
+    document.getElementById('job-host').value = dbInfo.host || '';
+    if (dbInfo.port) document.getElementById('job-port').value = dbInfo.port;
+    document.getElementById('job-user').value = dbInfo.user || '';
+    document.getElementById('job-database').value = dbInfo.database || '';
+    document.getElementById('job-service-name').value = dbInfo.service_name || '';
+    document.getElementById('job-sysdba').checked = !!dbInfo.sysdba;
+    document.getElementById('job-use-sid').checked = !!dbInfo.use_sid;
+    // 出于安全考虑不回填明文密码：留空表示沿用原密码
+    const pwdEl = document.getElementById('job-password');
+    pwdEl.value = '';
+    pwdEl.placeholder = '不修改请留空';
+  }
+  document.getElementById('job-notify').checked = job.notify_on_done !== false;
+
+  // Oracle 的「使用 SID 连接」控件显隐（onJobDbTypeChange 未覆盖）
+  const isOracle = (dbType === 'oracle' || dbType === 'oracle_jdbc');
+  const useSidWrap = document.getElementById('job-use-sid-wrap');
+  if (useSidWrap) useSidWrap.style.display = isOracle ? 'block' : 'none';
+
+  // JDBC 驱动版本
+  if (isJdbcType(dbType)) {
+    _loadDriverVersions(dbType, dbInfo.driver_version, 'job-driver-version');
+  }
+
+  // 巡检模板（onJobDbTypeChange 已加载完成）
+  const tmplSel = document.getElementById('job-template');
+  if (tmplSel) {
+    const tv = (job.template_id != null) ? String(job.template_id) : '';
+    if (tv && !Array.from(tmplSel.options).some(o => o.value === tv)) {
+      const opt = document.createElement('option');
+      opt.value = tv;
+      opt.textContent = '模板 #' + tv;
+      tmplSel.appendChild(opt);
+    }
+    tmplSel.value = tv;
+  }
+
+  fillScheduleFromCron(job.cron);
+  document.getElementById('add-job-form').scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+
 function hideAddJobForm() {
   document.getElementById('add-job-form').style.display = 'none';
+  _editingJobId = null;
 }
 
 async function saveJob() {
@@ -16685,6 +16902,11 @@ async function saveJob() {
   const dsId = document.getElementById('job-datasource').value;
   const host = document.getElementById('job-host').value.trim();
   if (!dsId && !host) { toastError('请选择数据源或输入主机地址'); return; }
+
+  // 编辑模式走更新接口，新建模式走新增接口
+  const isEdit = !!_editingJobId;
+  const saveUrl = isEdit ? ('/api/scheduler/jobs/' + encodeURIComponent(_editingJobId)) : '/api/scheduler/jobs';
+  const saveMethod = isEdit ? 'PUT' : 'POST';
 
   // 如果选择了数据源，优先使用 datasource_id
   if (dsId) {
@@ -16698,13 +16920,14 @@ async function saveJob() {
     };
     const tmplId = document.getElementById('job-template')?.value;
     if (tmplId) jobData.template_id = parseInt(tmplId);
-    const res = await fetch('/api/scheduler/jobs', {
-      method: 'POST',
+    const res = await fetch(saveUrl, {
+      method: saveMethod,
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(jobData)
     });
     const data = await res.json();
     if (data.ok) {
+      _editingJobId = null;
       hideAddJobForm();
       loadSchedulerJobs();
       toastSuccess(i18n('webui.scheduler_job_saved'));
@@ -16725,6 +16948,8 @@ async function saveJob() {
     user: document.getElementById('job-user').value || '',
     password: document.getElementById('job-password').value || '',
     database: document.getElementById('job-database').value || '',
+    service_name: document.getElementById('job-service-name')?.value?.trim() || null,
+    sysdba: document.getElementById('job-sysdba')?.checked || false,
     driver_version: document.getElementById('job-driver-version')?.value || null,
     use_sid: document.getElementById('job-use-sid')?.checked || false,
     notify_on_done: document.getElementById('job-notify').checked,
@@ -16734,13 +16959,14 @@ async function saveJob() {
   if (tmplId) jobData.template_id = parseInt(tmplId);
   
   try {
-    const res = await fetch('/api/scheduler/jobs', {
-      method: 'POST',
+    const res = await fetch(saveUrl, {
+      method: saveMethod,
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(jobData)
     });
     const data = await res.json();
     if (data.ok) {
+      _editingJobId = null;
       hideAddJobForm();
       loadSchedulerJobs();
       toastSuccess(i18n('webui.scheduler_job_saved'));
@@ -17067,6 +17293,9 @@ async function loadNotifierConfig() {
       if (cfg.webhook) {
         document.getElementById('webhook-type').value = cfg.webhook.type || 'custom';
         document.getElementById('webhook-url').value = cfg.webhook.url || '';
+        document.getElementById('webhook-proxy').value = cfg.webhook.proxy || '';
+        document.getElementById('webhook-ca-cert').value = cfg.webhook.ca_cert || '';
+        document.getElementById('webhook-verify-ssl').checked = cfg.webhook.verify_ssl !== false;
         document.getElementById('webhook-secret').value = cfg.webhook.secret || '';
         document.getElementById('dingtalk-phones').value = (cfg.webhook.at_mobiles || []).join(', ');
         onWebhookTypeChange();
@@ -17346,6 +17575,9 @@ async function saveWebhookConfig() {
   const cfg = {
     type: document.getElementById('webhook-type').value,
     url: document.getElementById('webhook-url').value,
+    proxy: document.getElementById('webhook-proxy').value,
+    ca_cert: document.getElementById('webhook-ca-cert').value,
+    verify_ssl: document.getElementById('webhook-verify-ssl').checked,
     secret: document.getElementById('webhook-secret').value,
     at_mobiles: phones,
     is_at_all: false
@@ -17442,6 +17674,9 @@ async function testWebhookConfig() {
   const cfg = {
     type: document.getElementById('webhook-type').value,
     url: document.getElementById('webhook-url').value,
+    proxy: document.getElementById('webhook-proxy').value,
+    ca_cert: document.getElementById('webhook-ca-cert').value,
+    verify_ssl: document.getElementById('webhook-verify-ssl').checked,
     secret: document.getElementById('webhook-secret').value,
     at_mobiles: phones,
     is_at_all: false
@@ -21933,6 +22168,7 @@ async function runBackup() {
                 user: inst.ssh_user || 'root',
                 password: inst.ssh_password || '',
                 key_file: inst.ssh_key_file || '',
+                key_password: inst.ssh_key_password || '',
             };
         }
 
@@ -22127,6 +22363,7 @@ async function deleteBackupHistory(recordId) {
           ssh_user: document.getElementById('si-ssh-user').value.trim() || 'root',
           ssh_password: document.getElementById('si-ssh-password').value || '',
           ssh_key_file: document.getElementById('si-ssh-key').value.trim() || '',
+          ssh_key_password: document.getElementById('si-ssh-key-password').value.trim() || '',
         })
       });
       const data = await res.json();
@@ -22162,6 +22399,7 @@ async function deleteBackupHistory(recordId) {
       ssh_user: document.getElementById('si-ssh-user').value.trim() || 'root',
       ssh_password: document.getElementById('si-ssh-password').value || '',
       ssh_key_file: document.getElementById('si-ssh-key').value.trim() || '',
+      ssh_key_password: document.getElementById('si-ssh-key-password').value.trim() || '',
     };
 
     try {
