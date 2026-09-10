@@ -388,6 +388,7 @@ def _run_inspection_core(job_id, db_info, inspector_name, notify_on_done):
     db_type = db_info.get('db_type', 'mysql')
     logger.info('[%s] 定时巡检开始: %s %s:%s', job_id, db_type,
                 db_info.get('host'), db_info.get('port'))
+    logger.info(f'巡检后是否发送通知：{notify_on_done}')
 
     report_file = None
     error_msg = None
@@ -402,6 +403,7 @@ def _run_inspection_core(job_id, db_info, inspector_name, notify_on_done):
                 'ssh_user':     db_info.get('ssh_user', 'root'),
                 'ssh_password': db_info.get('ssh_password', ''),
                 'ssh_key_file': db_info.get('ssh_key_file', ''),
+                'ssh_key_password': db_info.get('ssh_key_password', ''),
             }
 
         # Build runner map for built-in db_types (oracle_full -> oracle_full, oracle -> oracle_full)
@@ -456,22 +458,17 @@ def _run_inspection_core(job_id, db_info, inspector_name, notify_on_done):
 
 def _send_notifications(job_id, db_info, report_file, error=None):
     """发送邮件和 Webhook 通知"""
-    from modules.notify import EmailNotifier, WebhookNotifier
-    
+    from modules.notify import EmailNotifier, WebhookNotifier, _load_config
+
     label = db_info.get('label', db_info.get('host', '未知'))
     db_type = db_info.get('db_type', 'unknown')
     status = '失败' if error else '完成'
-    
-    # 加载通知配置
-    notifier_cfg_path = os.path.join(SCRIPT_DIR, 'notifier_config.json')
-    cfg = {}
-    if os.path.exists(notifier_cfg_path):
-        try:
-            with open(notifier_cfg_path, 'r', encoding='utf-8') as f:
-                cfg = json.load(f)
-        except Exception:
-            pass
-    
+
+    # 统一从 dbc_config.json 的 notification 节点加载配置（与 Web UI 保存/测试同一来源）。
+    # 历史 bug：此处曾直接读取旧文件 notifier_config.json，而配置实际保存在
+    # dbc_config.json 中，导致定时巡检的邮件/Webhook 通知永远读不到配置、静默不发。
+    cfg = _load_config()
+
     # 发送邮件通知（只要配置了收件人就发送，不强制要求 enabled 字段）
     email_cfg = cfg.get('email', {})
     if email_cfg.get('recipients') and not error:
@@ -481,20 +478,26 @@ def _send_notifications(job_id, db_info, report_file, error=None):
             logger.info('[%s] 邮件通知已发送', job_id)
         except Exception as e:
             logger.error('[%s] 邮件发送失败: %s', job_id, e)
-    
-    # 发送 Webhook 告警
+
+    # 发送 Webhook 告警（成功/失败均发送；只要配置了 URL 就发送，
+    # 仅当显式设置 enabled=false 时才禁用，与邮件的判定语义保持一致）
     webhook_cfg = cfg.get('webhook', {})
-    if webhook_cfg.get('enabled'):
+    webhook_enabled = webhook_cfg.get('enabled', True) is not False
+    if webhook_cfg.get('url') and webhook_enabled:
         try:
             notifier = WebhookNotifier(webhook_cfg)
-            notifier.send_alert(
+            ok = notifier.send_alert(
                 label=label,
                 db_type=db_type,
                 status=status,
                 error=error,
                 report_file=report_file
             )
-            logger.info('[%s] Webhook 通知已发送', job_id)
+            if ok:
+                logger.info('[%s] Webhook 通知已发送（状态: %s）', job_id, status)
+            else:
+                logger.error('[%s] Webhook 通知发送失败（状态: %s），请检查代理/证书/URL 配置',
+                             job_id, status)
         except Exception as e:
             logger.error('[%s] Webhook 发送失败: %s', job_id, e)
 

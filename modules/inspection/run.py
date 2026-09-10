@@ -306,7 +306,7 @@ def run_pg(db_info, inspector_name, ssh_info=None):
 
 def run_oracle_full(db_info, inspector_name, ssh_info=None):
     """执行 Oracle 全面巡检（修复：使用 single_inspection() 匹配 web UI 模式）"""
-    import importlib.util, re, glob
+    import importlib.util, re, glob, time
 
     spec = importlib.util.spec_from_file_location(
         "main_oracle_full", os.path.join(ENTRYPOINT_DIR, "main_oracle_full.py"))
@@ -350,31 +350,36 @@ def run_oracle_full(db_info, inspector_name, ssh_info=None):
     args.desensitize = bool(db_info.get('desensitize', False))
 
     # ── 调用 single_inspection() ─────────────────────────────
+    reports_dir = args.output
+    os.makedirs(reports_dir, exist_ok=True)
+    _t_start = time.time()
     ret = mod.single_inspection(args)
     if ret is None:
         raise RuntimeError("无法建立数据库连接，请检查连接参数")
 
-    # ── 查找刚生成的报告文件 ─────────────────────────────
-    reports_dir = args.output
-    os.makedirs(reports_dir, exist_ok=True)
-    label = db_info.get('label', '')
-    pattern = f"Oracle全面巡检报告_{label}_*.docx"
-    matches = sorted(
-        glob.glob(os.path.join(reports_dir, pattern)),
-        key=os.path.getmtime,
-        reverse=True
-    )
-    if matches:
-        ofile = matches[0]
+    # ── 定位刚生成的报告文件 ─────────────────────────────
+    # 首选：single_inspection 已把报告绝对路径写入返回的 context。
+    # 报告文件名来自 i18n 模板（如 "Oracle巡检报告_{ip}_{name}_{ts}.docx"），
+    # 早期版本在此处按硬编码中文模式 "Oracle全面巡检报告_{label}_*.docx" 匹配，
+    # 与实际生成的文件名不符，导致巡检成功后仍误报“Word 报告渲染失败”。
+    ofile = None
+    file_name = None
+    _ctx_report = ret.get('_oracle_report_docx') if isinstance(ret, dict) else None
+    if _ctx_report and os.path.exists(_ctx_report):
+        ofile = _ctx_report
         file_name = os.path.basename(ofile)
     else:
-        all_docx = glob.glob(os.path.join(reports_dir, "Oracle全面巡检报告_*.docx"))
-        if all_docx:
-            ofile = max(all_docx, key=os.path.getmtime)
+        # 兜底：取本次巡检期间新生成的最新 .docx（与语言/文件名模板无关）
+        recent = []
+        for p in glob.glob(os.path.join(reports_dir, '*.docx')):
+            try:
+                if os.path.getmtime(p) >= _t_start - 5:
+                    recent.append(p)
+            except OSError:
+                continue
+        if recent:
+            ofile = max(recent, key=os.path.getmtime)
             file_name = os.path.basename(ofile)
-        else:
-            ofile = None
-            file_name = None
 
     # ── 保存巡检记录到 Pro 模块 ─────────────────────────────
     _record_inspection('oracle', db_info, ret, ofile)

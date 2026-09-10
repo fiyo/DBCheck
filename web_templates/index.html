@@ -8306,6 +8306,20 @@ function wfCloseRunDrawer() {
               <label data-i18n="webui.webhook_url_label" data-page-node-id="1ETCoPfpr4vD6ApNfDjpjZ">Webhook 地址</label>
               <input type="text" id="webhook-url" placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx" data-page-node-id="0rdD2dVSQkMxo6iJloYIK1" />
             </div>
+            <div class="field full" data-page-node-id="WpXr4ProxyField00001">
+              <label data-i18n="webui.webhook_proxy_label" data-page-node-id="WpXr4ProxyLabel00001">网络代理（可选）</label>
+              <input type="text" id="webhook-proxy" placeholder="http://user:pass@192.168.1.10:8080" data-i18n-placeholder="webui.webhook_proxy_placeholder" data-page-node-id="WpXr4ProxyInput00001" />
+            </div>
+            <div class="field full" data-page-node-id="WpXr4CaCertField00001">
+              <label data-i18n="webui.webhook_ca_cert_label" data-page-node-id="WpXr4CaCertLabel00001">CA 证书路径（可选）</label>
+              <input type="text" id="webhook-ca-cert" placeholder="/etc/ssl/certs/corp-ca.pem" data-i18n-placeholder="webui.webhook_ca_cert_placeholder" data-page-node-id="WpXr4CaCertInput00001" />
+            </div>
+            <div class="field full" data-page-node-id="WpXr4VerifySslField00001">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer" data-page-node-id="WpXr4VerifySslLabel00001">
+                <input type="checkbox" id="webhook-verify-ssl" style="width:16px;height:16px;accent-color:var(--accent)" checked data-page-node-id="WpXr4VerifySslInput00001" />
+                <span style="font-size:13px;color:var(--text-muted)" data-i18n="webui.webhook_verify_ssl_label" data-page-node-id="WpXr4VerifySslSpan00001">校验 SSL 证书（代理 SSL 解密导致证书错误时可关闭）</span>
+              </label>
+            </div>
             <div class="field full" id="webhook-secret-wrap" style="display:none" data-page-node-id="LOnT8mjvH4WdS6zSNJA2cM">
               <label data-page-node-id="S7fr02HgJejhmxpEbCfJ4L">签名密钥（可选）</label>
               <input type="text" id="webhook-secret" placeholder="用于签名验证" data-page-node-id="rXu1WV91YMOemp4F7ZZWon" />
@@ -17112,6 +17126,9 @@ async function loadNotifierConfig() {
       if (cfg.webhook) {
         document.getElementById('webhook-type').value = cfg.webhook.type || 'custom';
         document.getElementById('webhook-url').value = cfg.webhook.url || '';
+        document.getElementById('webhook-proxy').value = cfg.webhook.proxy || '';
+        document.getElementById('webhook-ca-cert').value = cfg.webhook.ca_cert || '';
+        document.getElementById('webhook-verify-ssl').checked = cfg.webhook.verify_ssl !== false;
         document.getElementById('webhook-secret').value = cfg.webhook.secret || '';
         document.getElementById('dingtalk-phones').value = (cfg.webhook.at_mobiles || []).join(', ');
         onWebhookTypeChange();
@@ -17391,6 +17408,9 @@ async function saveWebhookConfig() {
   const cfg = {
     type: document.getElementById('webhook-type').value,
     url: document.getElementById('webhook-url').value,
+    proxy: document.getElementById('webhook-proxy').value,
+    ca_cert: document.getElementById('webhook-ca-cert').value,
+    verify_ssl: document.getElementById('webhook-verify-ssl').checked,
     secret: document.getElementById('webhook-secret').value,
     at_mobiles: phones,
     is_at_all: false
@@ -17487,6 +17507,9 @@ async function testWebhookConfig() {
   const cfg = {
     type: document.getElementById('webhook-type').value,
     url: document.getElementById('webhook-url').value,
+    proxy: document.getElementById('webhook-proxy').value,
+    ca_cert: document.getElementById('webhook-ca-cert').value,
+    verify_ssl: document.getElementById('webhook-verify-ssl').checked,
     secret: document.getElementById('webhook-secret').value,
     at_mobiles: phones,
     is_at_all: false

@@ -3456,6 +3456,10 @@ def single_inspection(args):
         docx_path  = os.path.join(output_dir, docx_fname)
         try:
             docx.save(docx_path)
+            # 记录报告绝对路径到 context，供外部调用方（如定时巡检 run_oracle_full）
+            # 直接取用。报告名来自 i18n 模板，若调用方按硬编码中文模式 glob 匹配，
+            # 在其它语言环境或模板调整后会匹配失败并误报“Word 报告渲染失败”。
+            context['_oracle_report_docx'] = docx_path
             print(f"   Word:  {docx_path}")
         except Exception as e:
             print(f"   {_t('oracle_log_word_report')}: {e}")
