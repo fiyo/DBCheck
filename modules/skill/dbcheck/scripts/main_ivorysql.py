@@ -2083,7 +2083,8 @@ class getData(object):
                 collector = RemoteSystemInfoCollector(
                     host=self.ssh_info['ssh_host'], port=self.ssh_info.get('ssh_port', 22),
                     username=self.ssh_info.get('ssh_user', 'root'),
-                    password=self.ssh_info.get('ssh_password'), key_file=self.ssh_info.get('ssh_key_file')
+                    password=self.ssh_info.get('ssh_password'), key_file=self.ssh_info.get('ssh_key_file'),
+                    key_password=self.ssh_info.get('ssh_key_password')
                 )
             else:
                 print("\n🔍 " + _t("ivorysql_cli_local_sysinfo"))

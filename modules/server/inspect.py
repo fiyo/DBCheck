@@ -825,7 +825,7 @@ def compute_health_score(info):
 # ─── 服务器巡检主入口 ─────────────────────────────────────────────────
 
 def run_server_inspection(ssh_host, ssh_port=22, ssh_user='root',
-                          ssh_password='', ssh_key_file=''):
+                          ssh_password='', ssh_key_file='', ssh_key_password=''):
     """
     执行服务器巡检，返回结果字典。
 
@@ -834,6 +834,7 @@ def run_server_inspection(ssh_host, ssh_port=22, ssh_user='root',
     :param ssh_user: SSH 用户名
     :param ssh_password: SSH 密码
     :param ssh_key_file: SSH 私钥文件路径
+    :param ssh_key_password：SSH 私钥文件密码
     :return: 巡检结果字典
     """
     collector = RemoteSystemInfoCollector(
@@ -841,6 +842,7 @@ def run_server_inspection(ssh_host, ssh_port=22, ssh_user='root',
         username=ssh_user,
         password=ssh_password if ssh_password else None,
         key_file=ssh_key_file if ssh_key_file else None,
+        key_password=ssh_key_password if ssh_key_password else None,
     )
     info = collector.get_system_info()
     if not info:
@@ -859,6 +861,7 @@ def run_server_inspection(ssh_host, ssh_port=22, ssh_user='root',
             username=ssh_user,
             password=ssh_password if ssh_password else None,
             key_file=ssh_key_file if ssh_key_file else None,
+            key_password=ssh_key_password if ssh_key_password else None,
         )
         if collector2.connect():
             info['services'] = check_service_status(collector2)
@@ -1048,7 +1051,7 @@ def check_local_service_status():
 
 
 def test_ssh_connection(ssh_host, ssh_port=22, ssh_user='root',
-                        ssh_password='', ssh_key_file=''):
+                        ssh_password='', ssh_key_file='', ssh_key_password=''):
     """
     测试 SSH 连接是否成功。
     返回 (ok: bool, msg: str)
@@ -1060,6 +1063,7 @@ def test_ssh_connection(ssh_host, ssh_port=22, ssh_user='root',
         username=ssh_user,
         password=ssh_password if ssh_password else None,
         key_file=ssh_key_file if ssh_key_file else None,
+        key_password=ssh_key_password if ssh_key_password else None,
     )
     try:
         if collector.connect():

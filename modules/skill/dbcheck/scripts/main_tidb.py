@@ -1729,7 +1729,8 @@ def input_db_info():
             collector = RemoteSystemInfoCollector(
                 host=ssh_info['ssh_host'], port=ssh_info['ssh_port'], username=ssh_info['ssh_user'],
                 password=ssh_info['ssh_password'] if ssh_info['ssh_password'] else None,
-                key_file=ssh_info['ssh_key_file'] if ssh_info['ssh_key_file'] else None
+                key_file=ssh_info['ssh_key_file'] if ssh_info['ssh_key_file'] else None,
+                key_password=ssh_info.get('ssh_key_password') or None
             )
             if collector.connect():
                 print("\u2705 " + _t("cli_ssh_success"))
@@ -1912,7 +1913,8 @@ class getData(object):
                 collector = RemoteSystemInfoCollector(
                     host=self.ssh_info['ssh_host'], port=self.ssh_info.get('ssh_port', 22),
                     username=self.ssh_info.get('ssh_user', 'root'),
-                    password=self.ssh_info.get('ssh_password'), key_file=self.ssh_info.get('ssh_key_file')
+                    password=self.ssh_info.get('ssh_password'), key_file=self.ssh_info.get('ssh_key_file'),
+                    key_password=self.ssh_info.get('ssh_key_password')
                 )
             else:
                 print("\n🔍 " + _t("tidb_cli_local_collecting"))

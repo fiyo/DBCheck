@@ -1501,6 +1501,7 @@ class DM8RemoteHealthChecker(DM8OfflineHealthChecker):
             ssh_user: SSH 用户名
             ssh_password: SSH 密码
             ssh_key_file: SSH 私钥文件路径
+            ssh_key_password: SSH 私钥文件密码（私钥被加密时需要）
             page_size: 页大小（0=自动检测）
         """
         # 不调用父类的 Path(db_dir)，远程模式下 db_dir 是字符串

@@ -6220,10 +6220,14 @@ function formatBytes(bytes) {
                     '</select></div>' +
                   '<div id="ds-ssh-password-wrap"><label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">SSH 密码</label>' +
                     '<input id="ds-ssh-password" type="password" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="SSH 登录密码"></div>' +
-                  '<div id="ds-ssh-key-wrap" style="display:none"><label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">私钥文件路径</label>' +
-                    '<input id="ds-ssh-key" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="C:\\Users\\xxx\\.ssh\\id_rsa">' +
-                    '<label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;margin-top:10px;">私钥文件密码</label>' +
-                    '<input id="ds-ssh-key-password" type="password" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="私钥文件的密码（如果私钥加密）"></div>' +
+                  '<div id="ds-ssh-key-wrap" style="display:none;grid-column:1/-1">' +
+                    '<div style="display:flex;gap:10px">' +
+                      '<div style="flex:1"><label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">私钥文件路径</label>' +
+                        '<input id="ds-ssh-key" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="C:\\Users\\xxx\\.ssh\\id_rsa"></div>' +
+                      '<div style="flex:1"><label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">私钥文件密码</label>' +
+                        '<input id="ds-ssh-key-password" type="password" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="私钥文件的密码（如果私钥加密）"></div>' +
+                    '</div>' +
+                  '</div>' +
                 '</div>' +
               '</div>' +
             '</div>' +
@@ -7810,15 +7814,23 @@ function wfCloseRunDrawer() {
                 <option value="key" data-i18n="webui.opt_auth_key" data-page-node-id="1FwdManntqoZ1jSPluDaRF">私钥文件</option>
               </select>
             </div>
-            <div class="field full" id="f-ssh-password-wrap" data-page-node-id="2brA2Q9aMa80aDXCAWcn1A">
+            <div class="field" id="f-ssh-password-wrap" data-page-node-id="2brA2Q9aMa80aDXCAWcn1A">
               <label data-i18n="webui.ssh_password" data-page-node-id="YawBNDLGBtKukJIzxwcFtQ">SSH 密码</label>
               <input type="password" id="f-ssh-password" data-i18n="webui.placeholder_ssh_password" placeholder="SSH 登录密码" data-page-node-id="uB0b078PezNjkiiR43mEFD" />
             </div>
-            <div class="field full" id="f-ssh-key-wrap" style="display:none" data-page-node-id="Qe1vqS1Ur45wxzYMaFYwJB">
-              <label data-i18n="webui.ssh_key" data-page-node-id="BSxiyGwqUCyu0sszjNrxXH">私钥文件路径</label>
-              <input type="text" id="f-ssh-key" data-i18n="webui.placeholder_ssh_key" placeholder="/root/.ssh/id_rsa" data-page-node-id="j3SrECghTRCukjeUHJGG9n" />
+            <div class="field" id="f-ssh-key-wrap" style="display:none;grid-column:1 / -1" data-page-node-id="Qe1vqS1Ur45wxzYMaFYwJB">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px 20px">
+                <div>
+                  <label data-i18n="webui.ssh_key" data-page-node-id="BSxiyGwqUCyu0sszjNrxXH">私钥文件路径</label>
+                  <input type="text" id="f-ssh-key" data-i18n="webui.placeholder_ssh_key" placeholder="/root/.ssh/id_rsa" data-page-node-id="j3SrECghTRCukjeUHJGG9n" />
+                </div>
+                <div>
+                  <label data-i18n="webui.ssh_key_password" data-page-node-id="8SxiyGwqUCyu0sszjNrxXH">私钥文件密码</label>
+                  <input type="password" id="f-ssh-key-password" data-i18n="webui.placeholder_ssh_key_password" placeholder="私钥文件的密码（如果私钥加密）" data-page-node-id="13SrECghTRCukjeUHJGG9n" />
+                </div>
+              </div>
             </div>
-            <div class="toggle-row" onclick="toggleEbpf()" style="margin-top:14px;" data-page-node-id="KYRIzCx471FmG8xHLrdQ9j">
+            <div class="toggle-row" onclick="toggleEbpf()" style="margin-top:14px;grid-column:1 / -1" data-page-node-id="KYRIzCx471FmG8xHLrdQ9j">
               <span class="toggle-label" style="color:var(--text)" data-i18n="webui.ssh_ebpf_enable" data-page-node-id="GYgbJjLpVi8OcSqgCWkiVH">启用内核级 eBPF 指标</span>
               <span class="toggle-sub" id="ebpf-toggle-sub" data-i18n="webui.ssh_ebpf_state_on" data-page-node-id="QyhoQGcA2shCpaDYgOcL2k">当前：启用（目标机需 Python3 + bcc + root）</span>
               <div class="toggle on" id="ebpf-toggle" data-page-node-id="pMIIJB2zGbBqPUlolNnm68"></div>
@@ -9026,9 +9038,17 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
               <label data-i18n="webui.server_inspect_password" data-page-node-id="ThS4dRgt2qs9VyGSo6JYBi">SSH 密码</label>
               <input type="password" id="si-ssh-password" class="form-input" placeholder="SSH 登录密码" data-page-node-id="LGkgnLLLssAJ6acQi72zuX"/>
             </div>
-            <div class="form-group" id="si-key-wrap" style="display:none" data-page-node-id="2fEB8WjRsWIgwam6FAhd12">
-              <label data-i18n="webui.server_inspect_keyfile" data-page-node-id="S2qJw5lO6HEwr4lGcERzsG">私钥文件路径</label>
-              <input type="text" id="si-ssh-key" class="form-input" placeholder="/root/.ssh/id_rsa" data-page-node-id="NT1jIrN4t1e4TKQwf6nF6d"/>
+            <div id="si-key-wrap" style="display:none;grid-column:1 / -1" data-page-node-id="2fEB8WjRsWIgwam6FAhd12">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px 20px">
+                <div class="form-group">
+                  <label data-i18n="webui.server_inspect_keyfile" data-page-node-id="S2qJw5lO6HEwr4lGcERzsG">私钥文件路径</label>
+                  <input type="text" id="si-ssh-key" class="form-input" placeholder="/root/.ssh/id_rsa" data-page-node-id="NT1jIrN4t1e4TKQwf6nF6d"/>
+                </div>
+                <div class="form-group">
+                  <label data-i18n="webui.server_inspect_keyfile_password" data-page-node-id="Kz9mPxQ7vT2hNyLz4nW8jM">私钥文件密码</label>
+                  <input type="password" id="si-ssh-key-password" class="form-input" placeholder="私钥文件的密码（如果加密）" data-page-node-id="Bh5xLqR9uY3kNpA7rV2nW4"/>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -9613,9 +9633,15 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
                 <input id="dm8-ssh-password" type="password" placeholder="留空则使用密钥" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--surface);color:var(--text);" data-page-node-id="2uDivVBeUz6xIFdLzmk4ad">
               </div>
             </div>
-            <div style="margin-top:12px;" data-page-node-id="UN5yVaCZZDMmDRxlJmUayJ">
-              <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;" data-i18n="dm8_offline.ssh_key" data-page-node-id="fwLpoQ2AVqAUXs0NSd6fVZ">SSH 私钥文件路径（可选）</label>
-              <input id="dm8-ssh-key" type="text" placeholder="/home/user/.ssh/id_rsa" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--surface);color:var(--text);" data-page-node-id="U32YIvAkaTMzNWUD1r9Hn7">
+            <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px;" data-page-node-id="UN5yVaCZZDMmDRxlJmUayJ">
+              <div data-page-node-id="fwLpoQ2AVqAUXs0NSd6fVZ">
+                <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;" data-i18n="dm8_offline.ssh_key">SSH 私钥文件路径（可选）</label>
+                <input id="dm8-ssh-key" type="text" placeholder="/home/user/.ssh/id_rsa" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--surface);color:var(--text);" data-page-node-id="U32YIvAkaTMzNWUD1r9Hn7">
+              </div>
+              <div data-page-node-id="gDm8KpWqZtRvNbXsYcLePa">
+                <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;" data-i18n="dm8_offline.ssh_key_password">私钥文件密码</label>
+                <input id="dm8-ssh-key-password" type="password" placeholder="私钥文件的密码（如果私钥加密）" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--surface);color:var(--text);" data-page-node-id="hKp3QmXwVtRnZbYdNcSeLf">
+              </div>
             </div>
           </div>
 
@@ -11500,6 +11526,17 @@ function dm8OfflineDownloadReport() {
 function showPage(name) {
   // v2.6.2：更新全局页面变量（供 AI 上下文感知使用）
   _currentPage = name;
+  // 切换菜单时把滚动位置复位到顶部：外层滚动容器是文档（body），
+  // 若不复位会沿用上一页的 scrollTop，导致新页面打开时滑块位置不对、
+  // 内容未置顶，需要手动拖动滚动条才能看到顶部内容。
+  try {
+    window.scrollTo(0, 0);
+    if (document.documentElement) document.documentElement.scrollTop = 0;
+    if (document.body) document.body.scrollTop = 0;
+    var contentEl = document.querySelector('.content');
+    if (contentEl) contentEl.scrollTop = 0;
+    document.querySelectorAll('.page').forEach(function(p) { p.scrollTop = 0; });
+  } catch (e) {}
   // 强制隐藏所有 .page 元素（不依赖 CSS 类）
   document.querySelectorAll('.page').forEach(function(p) {
     p.classList.remove('active');
@@ -12685,7 +12722,7 @@ async function testSsh() {
   const el = document.getElementById('ssh-test-status');
   el.innerHTML = '<div class="status-banner info"><span class="spinner"></span> ' + i18n('webui.ssh_testing') + '</div>';
   try {
-    const res = await fetch('/api/test_ssh', {
+    const res = await fetch('/api/test_server_ssh', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
@@ -12694,7 +12731,7 @@ async function testSsh() {
         ssh_user:     document.getElementById('f-ssh-user').value.trim(),
         ssh_password: document.getElementById('f-ssh-password').value || _inspSshPassword,
         ssh_key_file: document.getElementById('f-ssh-key').value.trim(),
-        ssh_key_password: document.getElementById('f-ssh-key-password').value.trim(),
+        ssh_key_password: document.getElementById('f-ssh-key-password').value||'',
       })
     });
     const data = await res.json();

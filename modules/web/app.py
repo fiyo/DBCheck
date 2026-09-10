@@ -1358,7 +1358,7 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None, chap
         # SSH
         ssh_info = {}
         if db_info.get('ssh_host'):
-            ssh_info = {k: db_info[k] for k in ('ssh_host', 'ssh_port', 'ssh_user', 'ssh_password', 'ssh_key_file', 'ssh_ebpf') if k in db_info}
+            ssh_info = {k: db_info[k] for k in ('ssh_host', 'ssh_port', 'ssh_user', 'ssh_password', 'ssh_key_file', 'ssh_key_password', 'ssh_ebpf') if k in db_info}
 
         # MongoDB 专用参数透传到 ssh_info（供插件 getData → MongoConnectionConfig 使用）
         if db_type == 'mongodb':
@@ -4486,7 +4486,8 @@ def api_test_ssh():
         data.get('ssh_port', 22),
         data.get('ssh_user', 'root'),
         data.get('ssh_password') or None,
-        data.get('ssh_key_file') or None
+        data.get('ssh_key_file') or None,
+        data.get('ssh_key_password') or None
     )
     return jsonify({'ok': ok, 'msg': msg})
 
@@ -5221,6 +5222,7 @@ def api_test_server_ssh():
             ssh_user=data.get('ssh_user', 'root'),
             ssh_password=data.get('ssh_password', ''),
             ssh_key_file=data.get('ssh_key_file', ''),
+            ssh_key_password=data.get('ssh_key_password', ''),
         )
         return jsonify({'ok': ok, 'msg': msg})
     except Exception as e:
@@ -5260,6 +5262,7 @@ def api_start_server_inspect():
                 'ssh_user': data.get('ssh_user', 'root'),
                 'ssh_password': data.get('ssh_password', ''),
                 'ssh_key_file': data.get('ssh_key_file', ''),
+                'ssh_key_password': data.get('ssh_key_password', '')
             }
             t = threading.Thread(target=_run_server_inspect_task, args=(task_id, ssh_info))
             t.daemon = True
@@ -5308,6 +5311,7 @@ def _run_server_inspect_task(task_id, ssh_info):
                     ssh_user=ssh_info['ssh_user'],
                     ssh_password=ssh_info['ssh_password'],
                     ssh_key_file=ssh_info['ssh_key_file'],
+                    ssh_key_password=ssh_info['ssh_key_password'],
                 )
             except Exception as e:
                 _emit('error', {'msg': f"[{_ts()}] ❌ 巡检异常: {e}"})
@@ -10917,6 +10921,7 @@ def api_dm8_offline_check():
                         ssh_user=params.get('ssh_user', 'root'),
                         ssh_password=params.get('ssh_password', ''),
                         ssh_key_file=params.get('ssh_key_file', ''),
+                        ssh_key_password=params.get('ssh_key_password', ''),
                         page_size=params.get('page_size', 0),
                     )
                 else:
@@ -10947,6 +10952,7 @@ def api_dm8_offline_check():
             'ssh_user': data.get('ssh_user', 'root'),
             'ssh_password': data.get('ssh_password', ''),
             'ssh_key_file': data.get('ssh_key_file', ''),
+            'ssh_key_password': data.get('ssh_key_password', ''),
         }
 
         t = threading.Thread(target=_run_offline_check,
@@ -11343,8 +11349,26 @@ def main():
         _start_signal_rearm()
 
     # 4) 主线程运行 server（gevent hub 在此线程），Ctrl+C 由 1~3.5 接管 → os._exit(0)
+    # 开发模式：通过环境变量 FLASK_DEBUG=1 启用调试（详细错误页/调试器）。
+    # 【重要】gevent/eventlet 模式下 debug=True 会让 flask_socketio 自动把
+    # use_reloader 置 True，内部走 werkzeug.run_with_reloader：额外拉起一个子进程、
+    # 把 server 塞进 daemon 线程——与「server 必须跑在主线程（gevent hub/信号）」
+    # 及 dev.py 监督器的进程模型冲突，造成整份应用被初始化两遍、启动即 EIO/退出。
+    # 故这两种模式必须显式关掉 reloader（源码热重载由 dev.py 监督器负责）；
+    # 仅 threading 模式保留 werkzeug 原生 reloader（dev.py 在该模式 exec 转交）。
+    debug_mode = os.environ.get('FLASK_DEBUG', '').lower() in ('1', 'true', 'yes')
+    if debug_mode:
+        print("[开发模式] 调试已启用（gevent 下热重载由 dev.py 监督器负责）")
+    _use_reloader = debug_mode and _socketio_async_mode == 'threading'
     try:
-        socketio.run(app, host='0.0.0.0', port=port, debug=False, allow_unsafe_werkzeug=True)
+        socketio.run(
+            app,
+            host='0.0.0.0',
+            port=port,
+            debug=debug_mode,
+            use_reloader=_use_reloader,
+            allow_unsafe_werkzeug=True,
+        )
     except KeyboardInterrupt:
         _request_shutdown()
     except BaseException as _e:  # 含 SystemExit/GreenletExit：一律强杀，绝不留残进程

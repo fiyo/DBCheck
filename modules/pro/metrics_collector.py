@@ -1128,6 +1128,7 @@ class MetricsCollector:
             'user': inst.get('ssh_user') or '',
             'password': inst.get('ssh_password') or '',
             'key_file': inst.get('ssh_key_file') or '',
+            'key_password': inst.get('ssh_key_password') or '',
         }
 
     def _remote_script_src(self) -> str:
