@@ -971,25 +971,29 @@ def smart_analyze_oracle(context: dict) -> list:
             'fix_sql': '-- 开启归档模式（需要重启到 MOUNT 状态）：\n-- SHUTDOWN IMMEDIATE;\n-- STARTUP MOUNT;\n-- ALTER DATABASE ARCHIVELOG;\n-- ALTER DATABASE OPEN;\n-- 设置归档路径：\n-- ALTER SYSTEM SET log_archive_dest_1=\'LOCATION=/arch/orcl\' SCOPE=SPFILE;'
         })
 
-    backup = context.get('ora_backup', [])
-    if not backup:
-        issues.append({
-            'col1': '未找到最近的 RMAN 备份记录', 'col2': '高风险',
-            'col3': 'v$rman_backup_job_details 中无备份记录，请确认备份策略是否正常运行',
-            'col4': '高', 'col5': 'DBA',
-            'fix_sql': ''
-        })
-    elif backup:
-        last_bk = backup[0]
-        bk_time = str(last_bk.get('START_TIME', ''))
-        if bk_time and '1970' in bk_time or '0001' in bk_time:
-            pass  # 无效时间
-        else:
-            issues.append({  # 仅记录最近备份信息作为参考
-                'col1': 'RMAN 备份记录', 'col2': '信息',
-                'col3': f"最近一次备份: {bk_time}, 类型={last_bk.get('INPUT_TYPE','?'),}, 状态={last_bk.get('STATUS','?')}",
-                'col4': '低', 'col5': 'DBA', 'fix_sql': ''
+    # 仅当上下文确实携带了备份数据时才判断备份情况。
+    # 若 'ora_backup' 键缺失（该次巡检未采集备份数据），不能据此断言“无备份”，
+    # 否则会产生固定误报，并导致通知/报告问题数与实际不符。
+    if 'ora_backup' in context:
+        backup = context.get('ora_backup') or []
+        if not backup:
+            issues.append({
+                'col1': '未找到最近的 RMAN 备份记录', 'col2': '高风险',
+                'col3': 'v$rman_backup_job_details 中无备份记录，请确认备份策略是否正常运行',
+                'col4': '高', 'col5': 'DBA',
+                'fix_sql': ''
             })
+        else:
+            last_bk = backup[0]
+            bk_time = str(last_bk.get('START_TIME', ''))
+            if bk_time and '1970' in bk_time or '0001' in bk_time:
+                pass  # 无效时间
+            else:
+                issues.append({  # 仅记录最近备份信息作为参考
+                    'col1': 'RMAN 备份记录', 'col2': '信息',
+                    'col3': f"最近一次备份: {bk_time}, 类型={last_bk.get('INPUT_TYPE','?'),}, 状态={last_bk.get('STATUS','?')}",
+                    'col4': '低', 'col5': 'DBA', 'fix_sql': ''
+                })
 
     # ── 8. Data Guard / ADG 同步延迟 ────────────
     dg = context.get('ora_dg_status', [{}])
@@ -2889,6 +2893,9 @@ _ISSUE_ANALYZER_ALIASES = {
     'sqlserver_jdbc': 'sqlserver',
     'oracle_full': 'oracle',
     'dm8': 'dm',
+    # OceanBase 兼容 MySQL 协议：Web UI 任务配置使用 smart_analyze_mysql，
+    # 此处保持一致，确保报告/通知/历史/智能分析推导到同一分析函数。
+    'oceanbase': 'mysql',
 }
 
 

@@ -2232,9 +2232,27 @@ class BaseInspectionEngine:
                 traceback.print_exc(file=sys.stdout)
 
             # ── 风险与建议 ─────────────────────────────────
-            print(f"[INFO] auto_analyze count: {len(self.context.get('auto_analyze', []))}")
+            # 统一问题汇总口径：与定时巡检通知、巡检历史「问题列表」、Web UI「智能分析」
+            # 共用 modules.inspection.analyzer.collect_issues 生成的同一份问题清单，
+            # 避免 docx 报告与通知/历史/智能分析数量不一致。
+            # 此前报告只读 context['auto_analyze']，而通知/历史会在此基础上追加
+            # smart_analyze_<db_type> 的增强规则结果，导致两份数量长期漂移。
+            # Oracle 已在入口（main_oracle_full）单独修复，此处覆盖其余所有内置库型。
+            try:
+                from modules.inspection.analyzer import collect_issues as _collect_issues
+                _unified_issues = _collect_issues(self.db_type, self.context)
+            except Exception as _ce:
+                print(f"[WARN] collect_issues 统一口径失败，回退 auto_analyze: {_ce}")
+                _unified_issues = None
+            if _unified_issues is None:
+                _unified_issues = self.context.get('auto_analyze', [])
+            # 回写上下文：报告、通知、巡检历史、Web UI 智能分析共享同一份清单，
+            # 后续 generate_report 之后的 _record_inspection / save_snapshot 均复用该结果。
+            self.context['auto_analyze'] = _unified_issues
+            self.context['risk_count'] = len(_unified_issues)
+            print(f"[INFO] unified issues count: {len(_unified_issues)}")
             _add_heading(f"{_ch_prefix(ch_risk)} {self._t(f'report.{self.db_type}_ch16', default='风险与建议')}")
-            issues = self.context.get("auto_analyze", [])
+            issues = _unified_issues
             if issues:
                 _add_heading(self._t(f'report.{self.db_type}_ch16_1', default='智能分析问题明细'), 2)
                 hdrs = [

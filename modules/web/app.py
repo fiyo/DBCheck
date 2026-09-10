@@ -1472,6 +1472,40 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None, chap
             from modules.desensitize import apply_desensitization
             context = apply_desensitization(context)
 
+        # ── 插件系统：在生成报告前执行，使插件发现并入统一问题清单 ────────
+        # 这样 docx 报告、定时通知、巡检历史、Web UI 智能分析才能看到同一批问题。
+        try:
+            from modules.pluginkit.core import run_plugin_inspections_for_db
+            # 构建 SQL 执行器（使用当前检查器的连接）
+            def _exec_plugin_sql(sql):
+                cur = getattr(data, 'conn', None)
+                if cur is None:
+                    try:
+                        cur = getattr(data, 'cursor', None)
+                    except Exception:
+                        pass
+                if cur is None:
+                    return {"headers": [], "rows": [], "_error": "无可用数据库连接"}
+                try:
+                    cur.execute(sql)
+                    cols = [d[0] for d in cur.description] if cur.description else []
+                    rows = [list(r) for r in cur.fetchall()]
+                    return {"headers": cols, "rows": rows}
+                except Exception as e:
+                    return {"headers": [], "rows": [], "_error": str(e)}
+
+            plugin_issues = run_plugin_inspections_for_db(
+                cfg['history_db_type'], context, execute_sql=_exec_plugin_sql)
+            if plugin_issues:
+                _auto = context.get('auto_analyze')
+                if not isinstance(_auto, list):
+                    _auto = []
+                    context['auto_analyze'] = _auto
+                _auto.extend([x for x in plugin_issues if isinstance(x, dict)])
+                _emit('log', {'msg': f"[插件] {len(plugin_issues)} 个插件发现附加风险"})
+        except Exception as e:
+            _emit('log', {'msg': f"[插件] 执行跳过: {e}"})
+
         ofile_result = data.generate_report(ofile, inspector_nm)
         print(f"[DEBUG] generate_report 返回: {ofile_result}")
         print(f"[DEBUG] ofile 路径: {ofile}")
@@ -1488,55 +1522,24 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None, chap
         print(f"[REPORT] 报告已生成: {ofile_result}")
         print(f"[REPORT] 文件是否存在: {os.path.exists(ofile_result)}")
 
-        # 智能分析
+        # 智能分析：统一问题汇总口径
+        # 与 docx 报告（_append_chapters 内部同样调用 collect_issues）、定时巡检通知
+        # （scheduler._collect_issues）、巡检历史（run.py/_record_inspection）共用
+        # collect_issues 生成的同一份问题清单，保证四处数量完全一致。
         try:
             _analyzer_mod = __import__('modules.inspection.analyzer', fromlist=['_'])
-            # 保留 checkdb()/基线检查已产生的风险，避免被 analyzer 空结果覆盖
-            existing_auto = context.get('auto_analyze') or []
-            analyzer_issues = getattr(_analyzer_mod, cfg['smart_analyze'])(context) or []
-            seen = {item.get('col1', '') for item in existing_auto if isinstance(item, dict)}
-            auto_analyze = list(existing_auto)
-            for item in analyzer_issues:
-                if isinstance(item, dict) and item.get('col1', '') not in seen:
-                    auto_analyze.append(item)
-                    seen.add(item.get('col1', ''))
-            # ── 插件系统：执行插件 SQL + 分析 ──
-            try:
-                from modules.pluginkit.core import run_plugin_inspections_for_db
-                # 构建 SQL 执行器（使用当前检查器的连接）
-                def _exec_plugin_sql(sql):
-                    cur = getattr(data, 'conn', None)
-                    if cur is None:
-                        try:
-                            cur = getattr(data, 'cursor', None)
-                        except Exception:
-                            pass
-                    if cur is None:
-                        return {"headers": [], "rows": [], "_error": "无可用数据库连接"}
-                    try:
-                        cur.execute(sql)
-                        cols = [d[0] for d in cur.description] if cur.description else []
-                        rows = [list(r) for r in cur.fetchall()]
-                        return {"headers": cols, "rows": rows}
-                    except Exception as e:
-                        return {"headers": [], "rows": [], "_error": str(e)}
-
-                plugin_issues = run_plugin_inspections_for_db(
-                    cfg['history_db_type'], context, execute_sql=_exec_plugin_sql)
-                if plugin_issues:
-                    for item in plugin_issues:
-                        if isinstance(item, dict) and item.get('col1', '') not in seen:
-                            auto_analyze.append(item)
-                            seen.add(item.get('col1', ''))
-                    _emit('log', {'msg': f"[插件] {len(plugin_issues)} 个插件发现附加风险"})
-            except Exception as e:
-                _emit('log', {'msg': f"[插件] 执行跳过: {e}"})
+            auto_analyze = _analyzer_mod.collect_issues(
+                cfg['history_db_type'], context, analyzer_fn=cfg['smart_analyze'])
+            context['auto_analyze'] = auto_analyze
+            context['risk_count'] = len(auto_analyze)
             if task:
                 task['auto_analyze'] = auto_analyze
             _emit('log', {'msg': f"[智能分析] 完成，发现 {len(auto_analyze)} 个可优化项"})
         except Exception as e:
             # 即使 analyzer 调用失败，也尝试保留 context 中已有的 auto_analyze
             auto_analyze = context.get('auto_analyze') or []
+            context['auto_analyze'] = auto_analyze
+            context['risk_count'] = len(auto_analyze)
             if task:
                 task['auto_analyze'] = auto_analyze
             _emit('log', {'msg': f"[警告] 智能分析失败: {e}；保留已有 {len(auto_analyze)} 项"})

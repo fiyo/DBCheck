@@ -198,8 +198,8 @@ def _run_plugin_inspection_subprocess(db_info, inspector_name):
 
     db_type = db_info.get('db_type')
     if db_type not in JVM_INSPECTION_DB_TYPES:
-        # 非 JVM 插件类型走原进程内路径
-        return _run_plugin_inspection(db_info, inspector_name, None)
+        # 非 JVM 插件类型走原进程内路径（进程内无上下文可回传）
+        return _run_plugin_inspection(db_info, inspector_name, None), None
 
     # 构造 jdbc_inspection_cli 期望的 db_info 字段（ip/port/user/password/database/name）
     mapped = {
@@ -290,7 +290,13 @@ def _run_plugin_inspection_subprocess(db_info, inspector_name):
     if final.get('status') != 'done':
         raise RuntimeError(final.get('error_msg') or '插件巡检执行失败')
 
-    return final.get('report_path')
+    # 同时回传子进程的巡检结果（含统一问题清单 auto_analyze）。
+    # 历史 bug：此处曾只返回 report_path，把巡检上下文丢弃，导致定时通知统计不到
+    # 问题数（issue_count=None → 消息中「问题数」缺失或显示为 0），而 docx 报告与
+    # 「巡检历史 → 问题列表」都显示真实问题数，三处口径不一致。
+    # 子进程内的 app.run_inspection_task 已按 collect_issues 口径完成统一汇总
+    # （task['auto_analyze']），主进程直接复用即可保证四处完全一致。
+    return final.get('report_path'), final
 
 
 def _on_watchdog_timeout(job_id, db_info, state, guard):
@@ -394,6 +400,10 @@ def _run_inspection_core(job_id, db_info, inspector_name, notify_on_done):
     error_msg = None
     # 巡检结果上下文（内置巡检器返回的第三项），用于统计问题数、生成分享报告
     inspection_ctx = None
+    # 统一问题清单（已按 collect_issues 口径汇总）。子进程路径在巡检进程内已完成
+    # 统一口径（与 docx 报告/巡检历史同源），主进程直接复用，避免用「精简上下文」
+    # 二次推导造成新的数量漂移；None 表示未取得，通知将不展示问题数而非误报 0。
+    notification_issues = None
 
     try:
         # SSH 信息（如果有）
@@ -433,7 +443,25 @@ def _run_inspection_core(job_id, db_info, inspector_name, notify_on_done):
         # jdbc_inspection_cli 干净子进程，主进程只 spawn + 读 report_path。
         from modules.jdbc_inspection_cli import JVM_INSPECTION_DB_TYPES
         if db_type in JVM_INSPECTION_DB_TYPES:
-            report_file = _run_plugin_inspection_subprocess(db_info, inspector_name)
+            _sub_ret = _run_plugin_inspection_subprocess(db_info, inspector_name)
+            if isinstance(_sub_ret, (tuple, list)):
+                report_file = _sub_ret[0] if _sub_ret else None
+                if len(_sub_ret) > 1:
+                    inspection_ctx = _sub_ret[1]
+            else:
+                report_file = _sub_ret
+            # 子进程已回传统一问题清单 auto_analyze（与巡检历史/报告同源），
+            # 直接作为通知的问题清单，确保「通知 == 巡检历史 == docx 报告」。
+            if isinstance(inspection_ctx, dict):
+                # result 中携带健康评分/风险等级/问题列表等展示字段，提到顶层，
+                # 供 _create_report_share 复用（其按 context 顶层字段取值）。
+                _res = inspection_ctx.get('result')
+                if isinstance(_res, dict):
+                    for _k, _v in _res.items():
+                        inspection_ctx.setdefault(_k, _v)
+                _aa = inspection_ctx.get('auto_analyze')
+                if isinstance(_aa, list):
+                    notification_issues = [it for it in _aa if isinstance(it, dict)]
         elif db_type in runner_map:
             # 非 JVM 内置类型（oracle=oracledb / sqlserver=pyodbc 原生驱动）主进程安全
             _runner_ret = runner_map[db_type](db_info, inspector_name, ssh_info)
@@ -455,7 +483,7 @@ def _run_inspection_core(job_id, db_info, inspector_name, notify_on_done):
         # 发送通知
         if notify_on_done:
             _send_notifications(job_id, db_info, report_file, error=None,
-                                context=inspection_ctx)
+                                context=inspection_ctx, issues=notification_issues)
 
     except Exception as e:
         error_msg = str(e)
@@ -463,16 +491,22 @@ def _run_inspection_core(job_id, db_info, inspector_name, notify_on_done):
         # 即使失败也发送通知（告警）
         if notify_on_done:
             _send_notifications(job_id, db_info, report_file, error=error_msg,
-                                context=inspection_ctx)
+                                context=inspection_ctx, issues=notification_issues)
 
 
-def _collect_issues(db_type, context):
+def _collect_issues(db_type, context, issues=None):
     """从巡检结果中汇总问题列表（统计口径与 Web UI「智能分析」一致）。
 
     实现统一收敛到 modules.inspection.analyzer.collect_issues，避免定时通知
     与「数据库巡检历史 → 问题列表」两处口径漂移。
     返回元素为 dict 的问题列表。
+
+    issues 不为 None 时，表示调用方（子进程路径）已经拿到与报告/历史同源的
+    统一问题清单，此时直接复用，不再二次推导，避免口径再次漂移。
     """
+    if issues is not None:
+        return [it for it in issues if isinstance(it, dict)]
+
     if not isinstance(context, dict):
         return []
 
@@ -578,7 +612,8 @@ def _create_report_share(job_id, db_info, report_file, issues, context=None):
         return ''
 
 
-def _send_notifications(job_id, db_info, report_file, error=None, context=None):
+def _send_notifications(job_id, db_info, report_file, error=None, context=None,
+                        issues=None):
     """发送邮件和 Webhook 通知"""
     from modules.notify import EmailNotifier, WebhookNotifier, _load_config
 
@@ -592,9 +627,15 @@ def _send_notifications(job_id, db_info, report_file, error=None, context=None):
     cfg = _load_config()
 
     # 统计问题数并生成分享报告链接（失败不影响通知发送）
-    # 仅当拿到了巡检结果上下文时才统计，避免子进程/插件路径拿不到数据时误报为 0
-    issues = _collect_issues(db_type, context)
-    issue_count = len(issues) if isinstance(context, dict) else None
+    # issues 显式传入（子进程路径）时直接复用统一清单，数量必然与报告/历史一致；
+    # 否则按上下文即时汇总。两者都拿不到时才置 None，通知不展示问题数，
+    # 而不是误报为 0。
+    _explicit_issues = issues is not None
+    issues = _collect_issues(db_type, context, issues)
+    if _explicit_issues or isinstance(context, dict):
+        issue_count = len(issues)
+    else:
+        issue_count = None
     # 仅在有实际报告文件且非失败时生成分享链接（失败告警无报告可看）
     report_url = _create_report_share(job_id, db_info, report_file, issues, context) \
         if (report_file and not error) else ''
