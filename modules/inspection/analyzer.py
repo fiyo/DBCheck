@@ -2877,3 +2877,87 @@ def run_ai_diagnosis(db_type, label, context, issues=None, lang='zh', timeout=60
         traceback.print_exc()
         return ''
 
+
+# ═══════════════════════════════════════════════════════
+#  问题清单汇总（Web UI / 定时巡检 / CLI 统一口径）
+# ═══════════════════════════════════════════════════════
+
+# db_type 别名 → smart_analyze_* 函数名后缀
+_ISSUE_ANALYZER_ALIASES = {
+    'postgresql': 'pg',
+    'postgres': 'pg',
+    'sqlserver_jdbc': 'sqlserver',
+    'oracle_full': 'oracle',
+    'dm8': 'dm',
+}
+
+
+def collect_issues(db_type: str, context, analyzer_fn: str = '') -> list:
+    """汇总一次巡检发现的问题清单（统计口径与 Web UI「智能分析」保持一致）。
+
+    合并来源（按 col1 去重，保留出现顺序）：
+      1. context['auto_analyze'] —— 检查器/配置基线已产生的风险
+      2. context['issues']       —— 部分检查器返回的问题列表
+      3. smart_analyze_<db_type>(context) —— 增强智能分析规则
+
+    历史问题：`modules/inspection/run.py::_record_inspection` 之前只读取
+    `ret['issues']`，既没有读取 `auto_analyze`，也没有把它写入巡检历史，
+    导致 Oracle 等「问题放在 context['auto_analyze']」的路径在
+    「数据库巡检历史 → 问题列表」中被显示为「无问题」。统一收敛到本函数后，
+    Web UI 一次性巡检、定时巡检告警、CLI 巡检记录三处口径一致。
+
+    参数:
+        db_type:     数据库类型简称（mysql / pg / oracle / dm / ...），
+                     兼容 'postgresql'、'sqlserver_jdbc' 等别名
+        context:     巡检结果上下文（checkdb / single_inspection 返回值）
+        analyzer_fn: 显式指定分析函数名（可选，优先于按 db_type 推导）
+
+    返回:
+        元素为 dict 的问题列表；空列表表示「未发现可统计问题」，
+        不代表巡检失败。
+    """
+    items, seen = [], set()
+
+    def _add(seq):
+        if not isinstance(seq, (list, tuple)):
+            return
+        for it in seq:
+            if isinstance(it, str):
+                it = {'description': it}
+            if not isinstance(it, dict):
+                continue
+            key = it.get('col1') or it.get('description') or it.get('title') or ''
+            if key:
+                if key in seen:
+                    continue
+                seen.add(key)
+            items.append(it)
+
+    if not isinstance(context, dict):
+        return items
+
+    _add(context.get('auto_analyze'))
+    _add(context.get('issues'))
+
+    # 推导并合并「智能分析」结果（best-effort，异常/签名不符时忽略）
+    fn_name = analyzer_fn or ''
+    if not fn_name:
+        _t = str(db_type or '').strip().lower()
+        _suffix = _ISSUE_ANALYZER_ALIASES.get(_t, _t)
+        if _suffix:
+            fn_name = 'smart_analyze_%s' % _suffix
+
+    fn = globals().get(fn_name) if fn_name else None
+    if callable(fn):
+        try:
+            import inspect as _inspect
+            # 仅调用「只依赖 context」的分析函数，避免误传缺失的连接参数
+            required = [p for p in _inspect.signature(fn).parameters.values()
+                        if p.default is p.empty]
+            if len(required) <= 1:
+                _add(fn(context))
+        except Exception:
+            pass
+
+    return items
+

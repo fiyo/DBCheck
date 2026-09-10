@@ -16326,6 +16326,8 @@ async function executeFixSql(taskId, sql) {
 // ══════════════════════════════════════════════════════════════
 
 function renderJobList(jobs) {
+  // 缓存任务列表，供「编辑」时读取完整配置
+  window._schedulerJobs = jobs || [];
   const container = document.getElementById('scheduler-job-list');
   const countBadge = document.getElementById('scheduler-job-count');
   countBadge.textContent = jobs.length + ' ' + i18n('webui.scheduler_job_count').replace('{} ', '');
@@ -16360,6 +16362,7 @@ function renderJobList(jobs) {
             <input type="checkbox" ${enabledChecked} onchange="toggleJob('${job.id}', this.checked)" />
             启用
           </label>
+          <button class="btn btn-ghost" style="padding:4px 12px;font-size:12px;color:var(--text);" onclick="editJob('${job.id}')">✏️ 编辑</button>
           <button class="btn btn-ghost" style="padding:4px 12px;font-size:12px;color:var(--text);" onclick="runJobNow('${job.id}')">▶ 立即执行</button>
           <button class="btn btn-ghost" style="padding:4px 12px;font-size:12px;color:var(--danger);" onclick="deleteJob('${job.id}')">🗑 删除</button>
         </div>
@@ -16697,14 +16700,11 @@ function buildCronFromForm() {
   return { hour: '2', minute: '0' };
 }
 
-function showAddJobForm() {
-  document.getElementById('add-job-form').style.display = 'block';
-  document.getElementById('job-form-title').textContent = i18n('webui.scheduler_job_form_title_new');
-  document.getElementById('job-name').value = '';
-  document.getElementById('job-datasource').value = '';
-  document.getElementById('job-test-status').style.display = 'none';
-  document.getElementById('job-test-status').innerHTML = '';
-  // 填充数据库类型下拉（优先动态类型并分组；API 未加载成功时回退内置列表，同样分组渲染）
+// 当前正在编辑的定时任务ID（null 表示新建）
+let _editingJobId = null;
+
+// 确保数据库类型下拉已填充（优先动态类型并分组；API 未加载成功时回退内置列表）
+function ensureJobDbTypeOptions() {
   const dbTypeSel = document.getElementById('job-db-type');
   if (dbTypeSel && !dbTypeSel.options.length) {
     const fallbackTypes = (window.dbTypes && window.dbTypes.length) ? window.dbTypes : [
@@ -16721,11 +16721,83 @@ function showAddJobForm() {
     ];
     fillGroupedSelect(dbTypeSel, fallbackTypes, { placeholder: '' });
   }
+}
+
+// 设置表单控件值（select 缺少对应选项时自动补一个，避免 cron 分钟/小时回填丢失）
+function _setJobFieldValue(id, value) {
+  const el = document.getElementById(id);
+  if (!el || value === undefined || value === null || value === '') return;
+  const v = String(value);
+  if (el.tagName === 'SELECT' && !Array.from(el.options).some(o => o.value === v)) {
+    const opt = document.createElement('option');
+    opt.value = v;
+    opt.textContent = (id === 'job-mm') ? (v + ' 分') : ((id === 'job-hh') ? (v + ' 点') : v);
+    el.appendChild(opt);
+  }
+  el.value = v;
+}
+
+// 将任务的 cron 配置回填到「执行周期」表单
+function fillScheduleFromCron(cron) {
+  cron = cron || {};
+  const typeSel = document.getElementById('job-schedule-type');
+  let type = 'daily';
+
+  if (cron.expression) {
+    type = 'custom';
+  } else {
+    const hour = (cron.hour != null && cron.hour !== '') ? String(cron.hour) : '*';
+    const minute = (cron.minute != null && cron.minute !== '') ? String(cron.minute) : '0';
+    if (cron.day_of_week && cron.day_of_week !== '*') type = 'weekly';
+    else if (cron.day && cron.day !== '*' && /^\d+$/.test(String(cron.day))) type = 'monthly';
+    else if (minute.indexOf('*/') === 0 && hour === '*') type = 'every_min';
+    else if (hour.indexOf('*/') === 0) type = 'every_hour';
+    else if (hour === '*' && minute === '0') type = 'hourly';
+    else type = 'daily';
+  }
+
+  typeSel.value = type;
+  renderScheduleParams();
+
+  if (type === 'custom') {
+    const el = document.getElementById('job-cron-expr');
+    if (el) el.value = cron.expression || '';
+  } else if (type === 'every_min') {
+    _setJobFieldValue('job-int-val', String(cron.minute).replace('*/', ''));
+  } else if (type === 'every_hour') {
+    _setJobFieldValue('job-int-val', String(cron.hour).replace('*/', ''));
+    _setJobFieldValue('job-mm', cron.minute);
+  } else if (type === 'weekly') {
+    _setJobFieldValue('job-dow', cron.day_of_week);
+    _setJobFieldValue('job-hh', cron.hour);
+    _setJobFieldValue('job-mm', cron.minute);
+  } else if (type === 'monthly') {
+    _setJobFieldValue('job-dom', cron.day);
+    _setJobFieldValue('job-hh', cron.hour);
+    _setJobFieldValue('job-mm', cron.minute);
+  } else if (type === 'daily') {
+    _setJobFieldValue('job-hh', cron.hour);
+    _setJobFieldValue('job-mm', cron.minute);
+  }
+  updateCronPreview();
+}
+
+function showAddJobForm() {
+  _editingJobId = null;
+  document.getElementById('add-job-form').style.display = 'block';
+  document.getElementById('job-form-title').textContent = i18n('webui.scheduler_job_form_title_new');
+  document.getElementById('job-name').value = '';
+  document.getElementById('job-datasource').value = '';
+  document.getElementById('job-test-status').style.display = 'none';
+  document.getElementById('job-test-status').innerHTML = '';
+  ensureJobDbTypeOptions();
   document.getElementById('job-db-type').value = 'mysql';
   document.getElementById('job-host').value = '';
   document.getElementById('job-port').value = '3306';
   document.getElementById('job-user').value = '';
-  document.getElementById('job-password').value = '';
+  const pwdElNew = document.getElementById('job-password');
+  pwdElNew.value = '';
+  pwdElNew.placeholder = i18n('webui.placeholder_password') || '数据库密码';
   document.getElementById('job-database').value = '';
   document.getElementById('job-notify').checked = true;
   document.getElementById('job-schedule-type').value = 'daily';
@@ -16733,8 +16805,94 @@ function showAddJobForm() {
   onJobDbTypeChange();
 }
 
+// 编辑定时任务：复用新建表单并回填现有配置
+async function editJob(jobId) {
+  const jobs = window._schedulerJobs || [];
+  const job = jobs.find(j => j.id === jobId);
+  if (!job) { toastError('未找到任务配置，请刷新后重试'); return; }
+
+  const dbInfo = job.db_info || {};
+  const dsId = dbInfo.datasource_id || '';
+  const dbType = job.db_type || dbInfo.db_type || 'mysql';
+
+  _editingJobId = jobId;
+  document.getElementById('add-job-form').style.display = 'block';
+  document.getElementById('job-form-title').textContent = i18n('webui.scheduler_job_form_title_edit');
+  document.getElementById('job-test-status').style.display = 'none';
+  document.getElementById('job-test-status').innerHTML = '';
+
+  ensureJobDbTypeOptions();
+  const dbTypeSel = document.getElementById('job-db-type');
+  if (!Array.from(dbTypeSel.options).some(o => o.value === dbType)) {
+    const opt = document.createElement('option');
+    opt.value = dbType;
+    opt.textContent = dbType.toUpperCase();
+    dbTypeSel.appendChild(opt);
+  }
+  dbTypeSel.value = dbType;
+
+  // 载入该类型的数据源与巡检模板（会重置端口等控件，故先执行再回填）
+  await onJobDbTypeChange();
+
+  document.getElementById('job-name').value = job.name || '';
+
+  const dsSel = document.getElementById('job-datasource');
+  if (dsId) {
+    dsSel.value = dsId;
+    if (dsSel.value !== dsId) {   // 下拉中缺少该数据源时补一个占位项
+      const opt = document.createElement('option');
+      opt.value = dsId;
+      opt.textContent = dbInfo.host || dsId;
+      dsSel.appendChild(opt);
+      dsSel.value = dsId;
+    }
+    // 数据源模式：按数据源回填真实连接信息（与手动切换数据源时行为一致）
+    await onJobDatasourceChange();
+  } else {
+    document.getElementById('job-host').value = dbInfo.host || '';
+    if (dbInfo.port) document.getElementById('job-port').value = dbInfo.port;
+    document.getElementById('job-user').value = dbInfo.user || '';
+    document.getElementById('job-database').value = dbInfo.database || '';
+    document.getElementById('job-service-name').value = dbInfo.service_name || '';
+    document.getElementById('job-sysdba').checked = !!dbInfo.sysdba;
+    document.getElementById('job-use-sid').checked = !!dbInfo.use_sid;
+    // 出于安全考虑不回填明文密码：留空表示沿用原密码
+    const pwdEl = document.getElementById('job-password');
+    pwdEl.value = '';
+    pwdEl.placeholder = '不修改请留空';
+  }
+  document.getElementById('job-notify').checked = job.notify_on_done !== false;
+
+  // Oracle 的「使用 SID 连接」控件显隐（onJobDbTypeChange 未覆盖）
+  const isOracle = (dbType === 'oracle' || dbType === 'oracle_jdbc');
+  const useSidWrap = document.getElementById('job-use-sid-wrap');
+  if (useSidWrap) useSidWrap.style.display = isOracle ? 'block' : 'none';
+
+  // JDBC 驱动版本
+  if (isJdbcType(dbType)) {
+    _loadDriverVersions(dbType, dbInfo.driver_version, 'job-driver-version');
+  }
+
+  // 巡检模板（onJobDbTypeChange 已加载完成）
+  const tmplSel = document.getElementById('job-template');
+  if (tmplSel) {
+    const tv = (job.template_id != null) ? String(job.template_id) : '';
+    if (tv && !Array.from(tmplSel.options).some(o => o.value === tv)) {
+      const opt = document.createElement('option');
+      opt.value = tv;
+      opt.textContent = '模板 #' + tv;
+      tmplSel.appendChild(opt);
+    }
+    tmplSel.value = tv;
+  }
+
+  fillScheduleFromCron(job.cron);
+  document.getElementById('add-job-form').scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+
 function hideAddJobForm() {
   document.getElementById('add-job-form').style.display = 'none';
+  _editingJobId = null;
 }
 
 async function saveJob() {
@@ -16744,6 +16902,11 @@ async function saveJob() {
   const dsId = document.getElementById('job-datasource').value;
   const host = document.getElementById('job-host').value.trim();
   if (!dsId && !host) { toastError('请选择数据源或输入主机地址'); return; }
+
+  // 编辑模式走更新接口，新建模式走新增接口
+  const isEdit = !!_editingJobId;
+  const saveUrl = isEdit ? ('/api/scheduler/jobs/' + encodeURIComponent(_editingJobId)) : '/api/scheduler/jobs';
+  const saveMethod = isEdit ? 'PUT' : 'POST';
 
   // 如果选择了数据源，优先使用 datasource_id
   if (dsId) {
@@ -16757,13 +16920,14 @@ async function saveJob() {
     };
     const tmplId = document.getElementById('job-template')?.value;
     if (tmplId) jobData.template_id = parseInt(tmplId);
-    const res = await fetch('/api/scheduler/jobs', {
-      method: 'POST',
+    const res = await fetch(saveUrl, {
+      method: saveMethod,
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(jobData)
     });
     const data = await res.json();
     if (data.ok) {
+      _editingJobId = null;
       hideAddJobForm();
       loadSchedulerJobs();
       toastSuccess(i18n('webui.scheduler_job_saved'));
@@ -16784,6 +16948,8 @@ async function saveJob() {
     user: document.getElementById('job-user').value || '',
     password: document.getElementById('job-password').value || '',
     database: document.getElementById('job-database').value || '',
+    service_name: document.getElementById('job-service-name')?.value?.trim() || null,
+    sysdba: document.getElementById('job-sysdba')?.checked || false,
     driver_version: document.getElementById('job-driver-version')?.value || null,
     use_sid: document.getElementById('job-use-sid')?.checked || false,
     notify_on_done: document.getElementById('job-notify').checked,
@@ -16793,13 +16959,14 @@ async function saveJob() {
   if (tmplId) jobData.template_id = parseInt(tmplId);
   
   try {
-    const res = await fetch('/api/scheduler/jobs', {
-      method: 'POST',
+    const res = await fetch(saveUrl, {
+      method: saveMethod,
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(jobData)
     });
     const data = await res.json();
     if (data.ok) {
+      _editingJobId = null;
       hideAddJobForm();
       loadSchedulerJobs();
       toastSuccess(i18n('webui.scheduler_job_saved'));

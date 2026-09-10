@@ -392,6 +392,8 @@ def _run_inspection_core(job_id, db_info, inspector_name, notify_on_done):
 
     report_file = None
     error_msg = None
+    # 巡检结果上下文（内置巡检器返回的第三项），用于统计问题数、生成分享报告
+    inspection_ctx = None
 
     try:
         # SSH 信息（如果有）
@@ -434,7 +436,13 @@ def _run_inspection_core(job_id, db_info, inspector_name, notify_on_done):
             report_file = _run_plugin_inspection_subprocess(db_info, inspector_name)
         elif db_type in runner_map:
             # 非 JVM 内置类型（oracle=oracledb / sqlserver=pyodbc 原生驱动）主进程安全
-            report_file, *_ = runner_map[db_type](db_info, inspector_name, ssh_info)
+            _runner_ret = runner_map[db_type](db_info, inspector_name, ssh_info)
+            if isinstance(_runner_ret, (tuple, list)):
+                report_file = _runner_ret[0] if _runner_ret else None
+                if len(_runner_ret) > 2:
+                    inspection_ctx = _runner_ret[2]
+            else:
+                report_file = _runner_ret
         else:
             # 其余插件类型：JVM 依赖型已在上面拦截，此处仅原生驱动插件
             report_file = _run_plugin_inspection(db_info, inspector_name, ssh_info)
@@ -446,17 +454,131 @@ def _run_inspection_core(job_id, db_info, inspector_name, notify_on_done):
 
         # 发送通知
         if notify_on_done:
-            _send_notifications(job_id, db_info, report_file, error=None)
+            _send_notifications(job_id, db_info, report_file, error=None,
+                                context=inspection_ctx)
 
     except Exception as e:
         error_msg = str(e)
         logger.error('[%s] 巡检失败: %s', job_id, error_msg)
         # 即使失败也发送通知（告警）
         if notify_on_done:
-            _send_notifications(job_id, db_info, report_file, error=error_msg)
+            _send_notifications(job_id, db_info, report_file, error=error_msg,
+                                context=inspection_ctx)
 
 
-def _send_notifications(job_id, db_info, report_file, error=None):
+def _collect_issues(db_type, context):
+    """从巡检结果中汇总问题列表（统计口径与 Web UI「智能分析」一致）。
+
+    实现统一收敛到 modules.inspection.analyzer.collect_issues，避免定时通知
+    与「数据库巡检历史 → 问题列表」两处口径漂移。
+    返回元素为 dict 的问题列表。
+    """
+    if not isinstance(context, dict):
+        return []
+
+    try:
+        from modules.inspection.analyzer import collect_issues
+        return collect_issues(db_type, context)
+    except Exception as e:
+        logger.warning('智能分析统计问题数失败: %s', e)
+
+    # 兜底：至少保留上下文里已有的问题，保证通知不出现“0 个问题”的误报
+    items = []
+    for key in ('auto_analyze', 'issues'):
+        seq = context.get(key)
+        if isinstance(seq, (list, tuple)):
+            items.extend([it for it in seq if isinstance(it, dict)])
+    return items
+
+
+def _risk_level_from_count(count):
+    """按问题数粗略划分风险等级（供分享报告展示）"""
+    try:
+        count = int(count or 0)
+    except (TypeError, ValueError):
+        return 'low'
+    if count <= 5:
+        return 'low'
+    if count <= 15:
+        return 'medium'
+    return 'high'
+
+
+def _report_base_url():
+    """确定分享报告链接的基址，优先级：
+    1) notification.report_base_url（或 .env 的 REPORT_BASE_URL）
+    2) 浏览器最近访问 Web UI 的地址（app.config['REMEMBERED_BASE_URL']）
+    3) 自动探测本机出口 IP + 默认端口 5003
+    """
+    from modules.notify import _load_config, get_report_base_url
+    base = ''
+    try:
+        cfg = _load_config()
+        if isinstance(cfg, dict):
+            base = str(cfg.get('report_base_url') or '').strip().rstrip('/')
+    except Exception:
+        base = ''
+    if not base:
+        try:
+            from modules.web.app import app as _app
+            base = (_app.config.get('REMEMBERED_BASE_URL') or '').rstrip('/')
+        except Exception:
+            base = ''
+    if not base:
+        base = get_report_base_url()
+    return base
+
+
+def _create_report_share(job_id, db_info, report_file, issues, context=None):
+    """为定时巡检结果创建只读分享报告，返回可访问的分享链接（失败返回 ''）。
+
+    复用 Web UI 的分享机制（share_type='db_inspect'，页面 /share/<id>）；
+    链接基址取 notification.report_base_url，未配置时自动探测本机地址。
+    """
+    try:
+        from modules.notify import build_share_url
+        base = _report_base_url()
+        if not base:
+            logger.warning('[%s] 未配置报告访问基址且无法自动探测，通知中将不包含报告链接', job_id)
+            return ''
+
+        label = db_info.get('label', db_info.get('host', '巡检'))
+        db_type = db_info.get('db_type', '')
+        issue_count = len(issues or [])
+
+        result = {
+            'db_type': db_type,
+            'host': db_info.get('host', ''),
+            'instance_name': label,
+            'risk_count': issue_count,
+            'risk_level': _risk_level_from_count(issue_count),
+            'issues': [
+                {
+                    'level': it.get('level', '') or it.get('severity', ''),
+                    'description': it.get('description') or it.get('title') or it.get('col1', ''),
+                    'suggestion': it.get('suggestion') or it.get('advice', ''),
+                }
+                for it in (issues or [])
+            ],
+            'filename': os.path.basename(report_file) if report_file else '',
+            'finished_at': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        }
+        if isinstance(context, dict):
+            for k in ('health_score', 'risk_level', 'hostname', 'summary'):
+                if context.get(k) is not None:
+                    result[k] = context.get(k)
+
+        from modules.server.inspect import create_share
+        share_id = create_share('db_inspect', 'DBCheck 巡检报告 - %s' % label, {'result': result})
+        url = build_share_url(base, share_id)
+        logger.info('[%s] 已生成分享报告链接: %s', job_id, url)
+        return url
+    except Exception as e:
+        logger.warning('[%s] 生成分享报告链接失败: %s', job_id, e)
+        return ''
+
+
+def _send_notifications(job_id, db_info, report_file, error=None, context=None):
     """发送邮件和 Webhook 通知"""
     from modules.notify import EmailNotifier, WebhookNotifier, _load_config
 
@@ -469,12 +591,22 @@ def _send_notifications(job_id, db_info, report_file, error=None):
     # dbc_config.json 中，导致定时巡检的邮件/Webhook 通知永远读不到配置、静默不发。
     cfg = _load_config()
 
+    # 统计问题数并生成分享报告链接（失败不影响通知发送）
+    # 仅当拿到了巡检结果上下文时才统计，避免子进程/插件路径拿不到数据时误报为 0
+    issues = _collect_issues(db_type, context)
+    issue_count = len(issues) if isinstance(context, dict) else None
+    # 仅在有实际报告文件且非失败时生成分享链接（失败告警无报告可看）
+    report_url = _create_report_share(job_id, db_info, report_file, issues, context) \
+        if (report_file and not error) else ''
+    logger.info('[%s] 本次巡检问题数: %s', job_id, issue_count if issue_count is not None else '未知')
+
     # 发送邮件通知（只要配置了收件人就发送，不强制要求 enabled 字段）
     email_cfg = cfg.get('email', {})
     if email_cfg.get('recipients') and not error:
         try:
             notifier = EmailNotifier(cfg['email'])
-            notifier.send_report(label, db_type, report_file)
+            notifier.send_report(label, db_type, report_file,
+                                 issue_count=issue_count, report_url=report_url)
             logger.info('[%s] 邮件通知已发送', job_id)
         except Exception as e:
             logger.error('[%s] 邮件发送失败: %s', job_id, e)
@@ -491,7 +623,9 @@ def _send_notifications(job_id, db_info, report_file, error=None):
                 db_type=db_type,
                 status=status,
                 error=error,
-                report_file=report_file
+                report_file=report_file,
+                issue_count=issue_count,
+                report_url=report_url
             )
             if ok:
                 logger.info('[%s] Webhook 通知已发送（状态: %s）', job_id, status)
@@ -577,11 +711,10 @@ class SchedulerManager:
         job_id = config.get('id')
         if not job_id:
             return False
-        
-        # 如果任务已存在，先移除
-        if self.scheduler.get_job(job_id):
-            self.scheduler.remove_job(job_id)
-        
+
+        # 任务是否启用：禁用任务仅持久化配置，不加入调度器
+        enabled = config.get('enabled', True)
+
         # 构建 CronTrigger
         cron = config.get('cron', {})
         expr = cron.get('expression')
@@ -604,16 +737,24 @@ class SchedulerManager:
                 trigger = CronTrigger.from_crontab(_normalize_cron_expression(expr))
             else:
                 trigger = CronTrigger(**trigger_kwargs)
-            self.scheduler.add_job(
-                func=self._job_func,
-                trigger=trigger,
-                job_id=job_id,
-                args=[job_id, config['db_info'], config.get('inspector_name', 'DBCheck'),
-                      config.get('notify_on_done', True)],
-                name=config.get('name', job_id),
-                replace_existing=True
-            )
-            logger.info('添加定时任务: %s (%s)', job_id, config.get('name', ''))
+
+            # 校验通过后再移除同 ID 的旧任务，避免非法配置挤掉已有任务
+            if self.scheduler.get_job(job_id):
+                self.scheduler.remove_job(job_id)
+
+            if enabled:
+                self.scheduler.add_job(
+                    func=self._job_func,
+                    trigger=trigger,
+                    job_id=job_id,
+                    args=[job_id, config['db_info'], config.get('inspector_name', 'DBCheck'),
+                          config.get('notify_on_done', True)],
+                    name=config.get('name', job_id),
+                    replace_existing=True
+                )
+                logger.info('添加定时任务: %s (%s)', job_id, config.get('name', ''))
+            else:
+                logger.info('定时任务 %s 已禁用，仅保存配置', job_id)
             
             # 持久化（非恢复模式才保存）
             if not restore:
@@ -631,6 +772,40 @@ class SchedulerManager:
             logger.error('添加任务失败 %s: %s', job_id, e)
             return False
     
+    def update_job(self, job_id, config):
+        """
+        更新已存在的定时任务配置
+
+        与 add_job 的差异：保留任务原有的启用/禁用状态；当前端未重新输入密码
+        （留空或返回掩码 ***）时沿用旧密码，避免把真实密码覆盖为空值。
+
+        参数:
+            job_id: 任务ID
+            config: 新的任务配置（结构同 add_job）
+
+        返回:
+            bool: 是否更新成功（任务不存在或 cron 非法时返回 False）
+        """
+        jobs = _load_jobs()
+        old = next((j for j in jobs if j.get('id') == job_id), None)
+        if old is None:
+            return False
+
+        cfg = dict(config)
+        cfg['id'] = job_id
+        # 编辑任务不应改变其启用/禁用状态，继承原值
+        cfg['enabled'] = old.get('enabled', True)
+
+        # 密码未修改时沿用旧值（数据源模式无 password 字段，不受影响）
+        old_db = old.get('db_info', {}) or {}
+        new_db = dict(cfg.get('db_info', {}) or {})
+        new_pwd = new_db.get('password')
+        if (not new_pwd or new_pwd == '***') and old_db.get('password'):
+            new_db['password'] = old_db['password']
+        cfg['db_info'] = new_db
+
+        return self.add_job(cfg)
+
     def remove_job(self, job_id):
         """
         移除定时任务

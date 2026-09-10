@@ -605,6 +605,23 @@ def _enforce_grayscale():
     _flask_g._grayscale = g
 
 
+@app.before_request
+def _remember_base_url():
+    """记录浏览器实际访问的基础地址，供后台定时任务生成可访问的报告分享链接。
+
+    后台调度器没有请求上下文，无法得知用户是通过哪个地址访问 Web UI 的；
+    这里把最近一次请求的 host（如 http://10.51.1.230:5003）保存到 app.config，
+    调度器生成分享链接时优先使用它，避免自动探测到错误的网卡地址。
+    """
+    try:
+        from flask import request as _req
+        url = (_req.host_url or '').rstrip('/')
+        if url:
+            app.config['REMEMBERED_BASE_URL'] = url
+    except Exception:
+        pass
+
+
 @app.after_request
 def _inject_grayscale(response):
     from flask import g as _flask_g
@@ -5608,6 +5625,53 @@ def api_scheduler_list():
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
+def _build_scheduler_job_cfg(data, job_id):
+    """根据请求数据构建定时任务配置（不含 enabled，由调用方决定启用状态）"""
+    datasource_id = data.get('datasource_id')
+    if datasource_id:
+        return {
+            'id': job_id,
+            'name': data.get('name', '定时巡检'),
+            'inspector_name': data.get('inspector_name', 'Jack'),
+            'notify_on_done': bool(data.get('notify_on_done', True)),
+            'cron': data.get('cron', {}),
+            'template_id': data.get('template_id') or None,
+            'db_info': {
+                'datasource_id': datasource_id,
+                'label': data.get('label', datasource_id),
+            }
+        }
+    return {
+        'id': job_id,
+        'name': data.get('name', '定时巡检'),
+        'db_type': data.get('db_type', 'mysql'),
+        'inspector_name': data.get('inspector_name', 'Jack'),
+        'notify_on_done': bool(data.get('notify_on_done', True)),
+        'cron': data.get('cron', {}),
+        'template_id': data.get('template_id') or None,
+        'db_info': {
+            'label': data.get('label', ''),
+            'db_type': data.get('db_type', 'mysql'),
+            'host': data.get('host', ''),
+            'port': int(data.get('port', 0) or 3306),
+            'user': data.get('user', ''),
+            'password': data.get('password', ''),
+            'database': data.get('database', ''),
+            'service_name': data.get('service_name', None),
+            'sid': data.get('sid', None),
+            'sysdba': bool(data.get('sysdba', False)),
+            'ssh_host': data.get('ssh_host', None),
+            'ssh_port': int(data.get('ssh_port', 22) or 22),
+            'ssh_user': data.get('ssh_user', None),
+            'ssh_password': data.get('ssh_password', ''),
+            'ssh_key_file': data.get('ssh_key_file', ''),
+            # JDBC 驱动管理：驱动版本与 Oracle SID 模式（前端 saveJob 已透传，此前被丢弃）
+            'driver_version': data.get('driver_version') or None,
+            'use_sid': bool(data.get('use_sid', False)),
+        }
+    }
+
+
 @app.route('/api/scheduler/jobs', methods=['POST'])
 def api_scheduler_add():
     """添加定时任务"""
@@ -5630,49 +5694,8 @@ def api_scheduler_add():
             except ImportError:
                 return jsonify({'ok': False, 'error': '使用数据源需要安装 Pro 模块，请先安装 Pro 版本'}), 400
 
-            job_cfg = {
-                'id': job_id,
-                'name': data.get('name', '定时巡检'),
-                'inspector_name': data.get('inspector_name', 'Jack'),
-                'notify_on_done': bool(data.get('notify_on_done', True)),
-                'cron': cron,
-                'enabled': True,
-                'template_id': data.get('template_id') or None,
-                'db_info': {
-                    'datasource_id': datasource_id,
-                    'label': data.get('label', datasource_id),
-                }
-            }
-        else:
-            job_cfg = {
-                'id': job_id,
-                'name': data.get('name', '定时巡检'),
-                'db_type': data.get('db_type', 'mysql'),
-                'inspector_name': data.get('inspector_name', 'Jack'),
-                'notify_on_done': bool(data.get('notify_on_done', True)),
-                'cron': cron,
-                'enabled': True,
-                'template_id': data.get('template_id') or None,
-                'db_info': {
-                    'label': data.get('label', ''),
-                    'db_type': data.get('db_type', 'mysql'),
-                    'host': data.get('host', ''),
-                    'port': int(data.get('port', 0) or 3306),
-                    'user': data.get('user', ''),
-                    'password': data.get('password', ''),
-                    'database': data.get('database', ''),
-                    'service_name': data.get('service_name', None),
-                    'sid': data.get('sid', None),
-                    'ssh_host': data.get('ssh_host', None),
-                    'ssh_port': int(data.get('ssh_port', 22) or 22),
-                    'ssh_user': data.get('ssh_user', None),
-                    'ssh_password': data.get('ssh_password', ''),
-                    'ssh_key_file': data.get('ssh_key_file', ''),
-                    # JDBC 驱动管理：驱动版本与 Oracle SID 模式（前端 saveJob 已透传，此前被丢弃）
-                    'driver_version': data.get('driver_version') or None,
-                    'use_sid': bool(data.get('use_sid', False)),
-                }
-            }
+        job_cfg = _build_scheduler_job_cfg(data, job_id)
+        job_cfg['enabled'] = True
 
         sm = _get_scheduler()
         success = sm.add_job(job_cfg)
@@ -5680,6 +5703,37 @@ def api_scheduler_add():
             return jsonify({'ok': True, 'job_id': job_id, 'msg': 'Task added successfully'})
         else:
             return jsonify({'ok': False, 'error': 'Failed to add task (check cron expression)'}), 400
+    except Exception as e:
+        import traceback
+        traceback.print_exc(file=sys.stdout)
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/scheduler/jobs/<job_id>', methods=['PUT'])
+def api_scheduler_update(job_id):
+    """更新定时任务配置"""
+    try:
+        data = request.json
+        if not data:
+            return jsonify({'ok': False, 'error': 'No data provided'}), 400
+
+        cron = data.get('cron', {})
+        if not cron:
+            return jsonify({'ok': False, 'error': 'Cron expression required'}), 400
+
+        # 如果指定了数据源，检查 Pro 模块是否可用
+        datasource_id = data.get('datasource_id')
+        if datasource_id:
+            try:
+                from modules.pro import get_instance_manager
+            except ImportError:
+                return jsonify({'ok': False, 'error': '使用数据源需要安装 Pro 模块，请先安装 Pro 版本'}), 400
+
+        job_cfg = _build_scheduler_job_cfg(data, job_id)
+        sm = _get_scheduler()
+        if sm.update_job(job_id, job_cfg):
+            return jsonify({'ok': True, 'job_id': job_id, 'msg': 'Task updated successfully'})
+        return jsonify({'ok': False, 'error': 'Task not found or invalid cron expression'}), 404
     except Exception as e:
         import traceback
         traceback.print_exc(file=sys.stdout)

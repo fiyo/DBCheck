@@ -246,6 +246,8 @@ def _load_config():
         cfg.setdefault('webhook', {})['ca_cert'] = os.environ['WEBHOOK_CA_CERT']
     if 'WEBHOOK_VERIFY_SSL' in os.environ:
         cfg.setdefault('webhook', {})['verify_ssl'] = os.environ['WEBHOOK_VERIFY_SSL'].lower() in ('true', '1', 'yes')
+    if 'REPORT_BASE_URL' in os.environ:
+        cfg['report_base_url'] = os.environ['REPORT_BASE_URL']
 
     # 解密密码
     if 'email' in cfg and 'password' in cfg['email']:
@@ -281,6 +283,54 @@ def _save_config(cfg):
         return False
 
 
+def get_report_base_url(cfg=None):
+    """返回巡检报告查看链接的基址（不带结尾 '/'）。
+
+    优先使用 notification.report_base_url（可由 .env 的 REPORT_BASE_URL 覆盖）；
+    未配置时自动探测本机出口 IP，并沿用 Web 服务默认端口 5003；
+    探测失败返回空字符串（调用方据此决定是否展示链接）。
+    """
+    if cfg is None:
+        try:
+            cfg = _load_config()
+        except Exception:
+            cfg = {}
+    base = ''
+    if isinstance(cfg, dict):
+        base = str(cfg.get('report_base_url') or '').strip()
+    if base:
+        return base.rstrip('/')
+
+    # 自动探测本机可达 IP（UDP connect 不实际发包，仅用于选出网卡地址）
+    candidates = []
+    try:
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect(('8.8.8.8', 80))
+            candidates.append(s.getsockname()[0])
+        finally:
+            s.close()
+    except Exception:
+        pass
+    try:
+        import socket
+        candidates.append(socket.gethostbyname(socket.gethostname()))
+    except Exception:
+        pass
+    for ip in candidates:
+        if ip and not ip.startswith('127.'):
+            return 'http://%s:5003' % ip
+    return ''
+
+
+def build_share_url(base_url, share_id):
+    """拼接分享报告链接：<base_url>/share/<share_id>"""
+    if not base_url or not share_id:
+        return ''
+    return '%s/share/%s' % (str(base_url).rstrip('/'), share_id)
+
+
 # ── 邮件通知 ────────────────────────────────────────────────
 
 class EmailNotifier:
@@ -297,7 +347,8 @@ class EmailNotifier:
         self.from_name = cfg.get('from_name', 'DBCheck 巡检报告')
         self.recipients = cfg.get('recipients', [])
 
-    def send_report(self, label, db_type, report_file, recipients=None, custom_msg=None):
+    def send_report(self, label, db_type, report_file, recipients=None, custom_msg=None,
+                    issue_count=None, report_url=None):
         if not recipients:
             recipients = self.recipients or []
         if not recipients:
@@ -305,18 +356,24 @@ class EmailNotifier:
 
         now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-        body = custom_msg or (
-            '<h2>DBCheck 定时巡检报告</h2>'
-            '<table style="border-collapse:collapse; font-family:Arial,sans-serif;">'
-            '<tr><td style="padding:8px;border:1px solid #ddd;"><b>数据库</b></td>'
-            '<td style="padding:8px;border:1px solid #ddd;">%s</td></tr>'
-            '<tr><td style="padding:8px;border:1px solid #ddd;"><b>类型</b></td>'
-            '<td style="padding:8px;border:1px solid #ddd;">%s</td></tr>'
-            '<tr><td style="padding:8px;border:1px solid #ddd;"><b>生成时间</b></td>'
-            '<td style="padding:8px;border:1px solid #ddd;">%s</td></tr>'
-            '</table>'
-            '<p style="margin-top:20px;">详见附件报告。</p>'
-        ) % (label, db_type, now)
+        if custom_msg:
+            body = custom_msg
+        else:
+            rows = [('数据库', label), ('类型', db_type)]
+            if issue_count is not None:
+                rows.append(('问题数', str(issue_count)))
+            rows.append(('生成时间', now))
+            trs = ''.join(
+                '<tr><td style="padding:8px;border:1px solid #ddd;"><b>%s</b></td>'
+                '<td style="padding:8px;border:1px solid #ddd;">%s</td></tr>' % (k, v)
+                for k, v in rows
+            )
+            link = ('<p style="margin-top:16px;"><a href="%s">查看在线巡检报告</a></p>' % report_url) if report_url else ''
+            body = (
+                '<h2>DBCheck 定时巡检报告</h2>'
+                '<table style="border-collapse:collapse; font-family:Arial,sans-serif;">%s</table>'
+                '<p style="margin-top:20px;">详见附件报告。</p>%s'
+            ) % (trs, link)
 
         msg = MIMEMultipart('mixed')
         msg['From'] = self.user
@@ -431,29 +488,33 @@ class WebhookNotifier:
         self.verify_ssl = cfg.get('verify_ssl', True)
         self.ca_cert = cfg.get('ca_cert', '')
 
-    def send_alert(self, label, db_type, status, error=None, report_file=None):
+    def send_alert(self, label, db_type, status, error=None, report_file=None,
+                   issue_count=None, report_url=None):
         if not self.url:
             raise ValueError('Webhook URL 未配置')
         if self.wtype == 'wecom':
-            payload = self._build_wecom_payload(label, db_type, status, error)
+            payload = self._build_wecom_payload(label, db_type, status, error, issue_count, report_url)
         elif self.wtype == 'dingtalk':
-            payload = self._build_dingtalk_payload(label, db_type, status, error)
+            payload = self._build_dingtalk_payload(label, db_type, status, error, issue_count, report_url)
         else:
-            payload = self._build_custom_payload(label, db_type, status, error)
+            payload = self._build_custom_payload(label, db_type, status, error, issue_count, report_url)
         return self._send_webhook(payload)
 
-    def _build_wecom_payload(self, label, db_type, status, error):
-        color = '34' if status == '完成' else 'FF0000'
+    def _build_wecom_payload(self, label, db_type, status, error, issue_count=None, report_url=None):
         content = [
             'DBCheck 定时巡检通知',
             '━━━━━━━━━━━━━━━━━',
             '数据库: %s' % label,
             '类型: %s' % db_type,
             '状态: %s' % status,
-            '时间: %s' % datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         ]
+        if issue_count is not None:
+            content.append('问题数: %s' % issue_count)
+        content.append('时间: %s' % datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         if error:
             content.append('错误: %s' % error[:200])
+        if report_url:
+            content.append('[查看巡检简报](%s)' % report_url)
         return {
             'msgtype': 'markdown',
             'markdown': {
@@ -461,17 +522,21 @@ class WebhookNotifier:
             }
         }
 
-    def _build_dingtalk_payload(self, label, db_type, status, error):
+    def _build_dingtalk_payload(self, label, db_type, status, error, issue_count=None, report_url=None):
         content = [
             '### DBCheck 定时巡检通知',
             '---',
             '**数据库**: %s' % label,
             '**类型**: %s' % db_type,
             '**状态**: %s' % status,
-            '**时间**: %s' % datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         ]
+        if issue_count is not None:
+            content.append('**问题数**: %s' % issue_count)
+        content.append('**时间**: %s' % datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         if error:
             content.append('**错误**: %s' % error[:200])
+        if report_url:
+            content.append('[查看巡检简报](%s)' % report_url)
         payload = {
             'msgtype': 'markdown',
             'markdown': {
@@ -485,12 +550,14 @@ class WebhookNotifier:
         }
         return payload
 
-    def _build_custom_payload(self, label, db_type, status, error):
+    def _build_custom_payload(self, label, db_type, status, error, issue_count=None, report_url=None):
         return {
             'label': label,
             'db_type': db_type,
             'status': status,
             'error': error,
+            'issue_count': issue_count,
+            'report_url': report_url,
             'timestamp': datetime.datetime.now().isoformat(),
             'message': 'DBCheck 定时巡检 %s: %s (%s)' % (status, label, db_type)
         }
