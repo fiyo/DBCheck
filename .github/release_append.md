@@ -9,21 +9,21 @@
 推荐使用 Docker Hub（国内可用）：
 
 ```powershell
-docker pull jackge12345/dbcheck:v26.9.9.0
+docker pull jackge12345/dbcheck:v26.9.11.0
 docker pull jackge12345/dbcheck:latest
 ```
 
 或 GitHub Container Registry：
 
 ```powershell
-docker pull ghcr.io/fiyo/dbcheck:v26.9.9.0
+docker pull ghcr.io/fiyo/dbcheck:v26.9.11.0
 docker pull ghcr.io/fiyo/dbcheck:latest
 ```
 
 运行示例：
 
 ```powershell
-docker run -d -p 5003:5003 --name raccoonx jackge12345/dbcheck:v26.9.9.0
+docker run -d -p 5003:5003 --name raccoonx jackge12345/dbcheck:v26.9.11.0
 ```
 
 > 镜像同时支持 `linux/amd64` 与 `linux/arm64`（ARM64 信创主机）。

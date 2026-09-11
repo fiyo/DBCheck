@@ -15,7 +15,7 @@ DHUB_IMAGE="jackge12345/dbcheck"
 GHCR_IMAGE="ghcr.io/fiyo/dbcheck"
 
 # 版本号（与 modules/config/version.py 保持一致）
-VERSION="v26.9.9.0"
+VERSION="v26.9.11.0"
 
 # 应用端口（与 deploy/Dockerfile EXPOSE 及 web 默认端口一致）
 APP_PORT="5003"
