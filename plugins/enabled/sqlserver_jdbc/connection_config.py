@@ -65,8 +65,9 @@ class MssqlJdbcConnectionConfig:
         安全/兼容性要点：
           - encrypt=false 时**不附加** trustServerCertificate，避免 mssql-jdbc
             在旧版/强制加密服务器上进入异常 SSL 握手分支而报 unexpected_message。
-          - encrypt=true 时附加 trustServerCertificate + sslProtocol=TLSv1.2，兼
-            容自签证书并明确 TLS 版本。
+          - encrypt=true 时附加 trustServerCertificate + sslProtocol=TLS，兼容
+            自签证书；TLS 版本交由 JVM 协商（见 modules/jdbc_connector._jvm_tls_args），
+            以兼容仅支持 TLS 1.0 的老旧 SQL Server。
           - 固定 authentication=NotSpecified，显式使用 SQL 认证，避免驱动尝试
             Windows/Kerberos 集成认证回退。
 

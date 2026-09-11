@@ -246,7 +246,11 @@ def build_jdbc_url(
         _url = f'jdbc:sqlserver://{_host_part};databaseName={_db or "master"}'
         if encrypt:
             _trust = 'true' if trust_server_certificate else 'false'
-            _url += f';encrypt=true;trustServerCertificate={_trust};sslProtocol=TLSv1.2'
+            # sslProtocol 固定用 "TLS"（微软驱动默认值，含义=由 JVM 协商版本），
+            # 而非硬编码 TLSv1.2：老 SQL Server 仅支持 TLS 1.0 时，硬编码 1.2
+            # 会让握手直接失败（SSL 回退重试也救不回来）。协商范围由 JVM 启动
+            # 参数 _jvm_tls_args() 控制（TLS1.3→TLS1.0，优先高版本）。
+            _url += f';encrypt=true;trustServerCertificate={_trust};sslProtocol=TLS'
         else:
             _url += ';encrypt=false'
         # 专属扩展段（loginTimeout/applicationName/认证方式）由统一层拼接，
@@ -357,6 +361,75 @@ def resolve_driver_jars(db_type: str, driver_version: str = '', *,
 _JVM_LAST_ERROR: Optional[str] = None
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# 旧版 TLS 兼容（老 SQL Server 只支持 TLSv1 / TLSv1.1）
+# ═══════════════════════════════════════════════════════════════════════════
+# 背景：JDK 8u291+ / JDK 11+ 出于安全默认做了两件事——
+#   ① jdk.tls.disabledAlgorithms 直接禁用 TLSv1 / TLSv1.1；
+#   ② Java 11 起 jdk.tls.client.protocols 默认为 "TLSv1.3,TLSv1.2"。
+# 于是连接「只支持 TLS 1.0」的老 SQL Server（2008R2 / 2012 等）时，即使
+# encrypt=false，TDS 登录阶段的 TLS 协商也会失败并报：
+#   com.microsoft.sqlserver.jdbc.SQLServerException: "encrypt" property is set to
+#   "false" ... Error: "protocol_version" The server selected protocol version
+#   TLS10 is not accepted by client preferences [TLS13, TLS12]
+# 注意：这是 **JVM 层安全策略**，只在连接串里写 sslProtocol=TLSv1 会被 JVM
+# 直接拦掉，必须在 JVM 启动参数层面放开。
+#
+# 这里把 TLSv1 / TLSv1.1 重新放回**可协商集合**，且顺序把 TLSv1.3 / TLSv1.2
+# 放在最前——即「不主动降级，只在服务器仅支持低版本时才协商到低版本」，
+# 对使用 TLS1.2/1.3 的现代 SQL Server 行为完全不变。
+# 如需严格只用 TLS1.2+（关闭该兼容）：设环境变量 DBCHECK_LEGACY_TLS=0。
+_LEGACY_TLS_PROTOCOLS = 'TLSv1.3,TLSv1.2,TLSv1.1,TLSv1'
+# 相比 JDK 默认值，仅移除 TLSv1 / TLSv1.1，其余弱算法/弱套件继续保持禁用
+_LEGACY_TLS_DISABLED_ALGOS = (
+    'SSLv3, DTLSv1.0, RC4, DES, MD5withRSA, '
+    'DH keySize < 1024, EC keySize < 224, 3DES_EDE_CBC, anon, NULL'
+)
+_legacy_tls_props_path: Optional[str] = None
+
+
+def _legacy_tls_enabled() -> bool:
+    """旧版 TLS 兼容开关（默认开启；DBCHECK_LEGACY_TLS=0 关闭）。"""
+    _v = str(os.environ.get('DBCHECK_LEGACY_TLS', '1')).strip().lower()
+    return _v not in ('0', 'false', 'no', 'off')
+
+
+def _legacy_tls_props_file() -> Optional[str]:
+    """生成 java.security 覆盖文件（解除 TLSv1/TLSv1.1 禁用），失败返回 None。
+
+    用 ``-Djava.security.properties=<file>``（单等号）注入：文件内属性覆盖
+    JDK 默认 java.security 的同名项，其余保持默认——不修改 JDK 安装目录。
+    """
+    global _legacy_tls_props_path
+    if _legacy_tls_props_path and os.path.exists(_legacy_tls_props_path):
+        return _legacy_tls_props_path
+    try:
+        import tempfile
+        _path = os.path.join(tempfile.gettempdir(), 'dbcheck_jvm_security.properties')
+        with open(_path, 'w', encoding='utf-8') as _f:
+            _f.write('# DBCheck: 兼容仅支持 TLSv1/TLSv1.1 的老旧 SQL Server\n')
+            _f.write(f'jdk.tls.disabledAlgorithms={_LEGACY_TLS_DISABLED_ALGOS}\n')
+        _legacy_tls_props_path = _path
+        return _path
+    except Exception:  # noqa: BLE001 - 生成失败则退回 JDK 默认策略，不阻断启动
+        return None
+
+
+def _jvm_tls_args() -> List[str]:
+    """JVM 启动参数：把 TLSv1/TLSv1.1 放回可协商集合（老 SQL Server 兼容）。
+
+    JPype 的 ``startJVM(*jvmargs, classpath=...)`` 中，首个参数以 '-' 开头即
+    视为 JVM 参数（不以 '-' 开头才会被当作 jvmpath），故直接位置传参。
+    """
+    if not _legacy_tls_enabled():
+        return []
+    _args = [f'-Djdk.tls.client.protocols={_LEGACY_TLS_PROTOCOLS}']
+    _props = _legacy_tls_props_file()
+    if _props:
+        _args.append(f'-Djava.security.properties={_props}')
+    return _args
+
+
 def _is_jvm_started() -> bool:
     """当前进程 JVM 是否已启动（幂等、无副作用）。"""
     try:
@@ -378,7 +451,9 @@ def _start_jvm(jars: List[str]) -> None:
     setup_jvm_env()
     if not jpype.isJVMStarted():
         try:
-            jpype.startJVM(classpath=list(jars))
+            # 先注入旧版 TLS 兼容参数（老 SQL Server 仅支持 TLSv1/1.1），
+            # 再启动 JVM——JVM 起来后无法再追加系统属性。
+            jpype.startJVM(*_jvm_tls_args(), classpath=list(jars))
             _JVM_LAST_ERROR = None
         except Exception as e:  # noqa: BLE001 - 记录真实原因，不吞
             _JVM_LAST_ERROR = f'{type(e).__name__}: {e}'
