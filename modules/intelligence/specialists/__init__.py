@@ -19,6 +19,7 @@ from .baseline_compare import BaselineCompare
 from .capacity_analyst import CapacityAnalyst
 from .native_db import NativeDbExpert
 from .bicqa_expert import BicqaKnowledgeExpert
+from .focus_analyst import FocusAnalyst
 
 _registered = False
 
@@ -42,6 +43,8 @@ def register_all() -> None:
         NativeDbExpert(),
         # ── 阶段 2：BIC-QA 知识检索（replan 依发现标签动态追加）──
         BicqaKnowledgeExpert(),
+        # ── 定向分析专员：单一主题问题只答所问（BIC-QA 优先 / AI 兜底）──
+        FocusAnalyst(),
     ):
         registry.register(s)
     _registered = True

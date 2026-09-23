@@ -3005,16 +3005,18 @@ async function executeFixSql(taskId, sql) {
         .intel-cap:hover { transform: translateY(-2px); box-shadow: 0 8px 24px -8px rgba(0,0,0,.18); }
         /* 协调员角色视觉弱化，作为编排入口 */
         .intel-cap.is-coordinator { border-style: dashed; border-color: var(--accent2); }
-        /* 执行顺序角标（协调员下达后显示），放在右上角避免遮挡头像与标题 */
+        /* 执行顺序角标（协调员下达后显示），放左下角；亮色底更醒目 */
         .intel-cap .cap-order {
-            position: absolute; top: 7px; right: 7px;
-            width: 22px; height: 22px; border-radius: 50%;
-            background: var(--accent2); color: #fff;
-            font-size: 12px; font-weight: 700; line-height: 22px; text-align: center;
+            position: absolute; bottom: 8px; left: 8px;
+            width: 21px; height: 21px; border-radius: 50%;
+            background: linear-gradient(135deg, #ffb020, #ff8a3d); color: #fff;
+            font-size: 12px; font-weight: 700; line-height: 21px; text-align: center;
             display: none; z-index: 2;
-            box-shadow: 0 2px 6px rgba(0,0,0,.25);
+            box-shadow: 0 2px 8px rgba(255,138,61,.45);
         }
         .intel-cap.has-order .cap-order { display: block; }
+        /* 左下角角标占用空间：底部标签右移避让 */
+        .intel-cap.has-order .cap-tags { padding-left: 24px; }
         .intel-cap .cap-head { display: flex; align-items: flex-start; gap: 12px; }
         .intel-cap .cap-avatar-col { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 0 0 auto; }
         .intel-cap .cap-avatar {
@@ -3027,10 +3029,13 @@ async function executeFixSql(taskId, sql) {
         }
         .intel-cap .cap-avatar svg { width: 23px; height: 23px; stroke: var(--accent2); fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
         .intel-cap .cap-meta { min-width: 0; flex: 1; display: flex; flex-direction: column; }
-        .intel-cap .cap-name-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+        .intel-cap .cap-name-row { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
         .intel-cap .cap-name {
             font-weight: 600; font-size: 14px; flex: 1; min-width: 0;
-            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            line-height: 1.35;
+            /* 长标题最多两行，超出省略（悬停有 title 全名），不再截成一行看不全 */
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+            overflow: hidden; white-space: normal; word-break: break-all;
         }
         .intel-cap .cap-domain {
             flex: 0 0 auto; white-space: nowrap;
@@ -3086,6 +3091,11 @@ async function executeFixSql(taskId, sql) {
         .intel-cap.domain-general .cap-avatar { background: linear-gradient(135deg, rgba(100,116,139,.18), rgba(148,163,184,.18)); }
         .intel-cap.domain-general .cap-avatar svg { stroke: #64748b; }
         .intel-cap.domain-general .cap-tag { background: rgba(100,116,139,.12); color: #475569; border-color: rgba(100,116,139,.18); }
+
+        /* 定向分析专员（focus）：只答所问 */
+        .intel-cap.domain-focus .cap-avatar { background: linear-gradient(135deg, rgba(20,184,166,.18), rgba(56,139,253,.18)); }
+        .intel-cap.domain-focus .cap-avatar svg { stroke: #14b8a6; }
+        .intel-cap.domain-focus .cap-tag { background: rgba(20,184,166,.12); color: #0d9488; border-color: rgba(20,184,166,.18); }
 
         /* 状态 */
         .intel-cap.is-waiting .cap-state { color: var(--text-muted); background: var(--surface); }
@@ -3815,7 +3825,9 @@ const INTEL_SPEC_SVG = {
   native_db: '<svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M4 20c0-3.3 2.7-6 6-6h4c3.3 0 6 2.7 6 6"/><path d="M8 10V6M16 10V6M12 6V3"/><path d="M7 14l-2 2 2 2M17 14l2 2-2 2"/></svg>',
   nl_query_expert: '<svg viewBox="0 0 24 24"><path d="M8 9h8M8 13h5M8 17h3"/><circle cx="17" cy="17" r="2.5"/><path d="M19 19l2.5 2.5"/></svg>',
   // 阶段 2：BIC-QA 知识检索专家
-  bicqa_expert: '<svg viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h6v16H6a2 2 0 0 0-2 2V5Z"/><path d="M20 5a2 2 0 0 0-2-2h-6v16h6a2 2 0 0 1 2 2V5Z"/><path d="M12 3v16"/></svg>'
+  bicqa_expert: '<svg viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h6v16H6a2 2 0 0 0-2 2V5Z"/><path d="M20 5a2 2 0 0 0-2-2h-6v16h6a2 2 0 0 1 2 2V5Z"/><path d="M12 3v16"/></svg>',
+  // 定向分析专员：靶心 + 单点聚焦
+  focus_analyst: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="0.8"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>'
 };
 
 // 专家 domain -> 视觉主题（头像渐变、标签、状态色）
@@ -3828,6 +3840,7 @@ const INTEL_SPEC_DOMAIN = {
   lock:          { cls: 'domain-sql',            label: '并发' },
   nl:            { cls: 'domain-nl',            label: 'NL2SQL' },
   knowledge:     { cls: 'domain-knowledge',     label: '知识' },
+  focus:         { cls: 'domain-focus',         label: '定向' },
   general:       { cls: 'domain-general',       label: '通用' }
 };
 function intelSpecSvg(id) {
@@ -4316,11 +4329,12 @@ function renderDiagResultInto(d, findingsId, planId, pvId, reviewId) {
   const sevColor = { critical: 'var(--danger)', warning: 'var(--warn)', info: 'var(--info)', fatal: 'var(--danger)' };
   const sevLabel = { critical: '严重', warning: '警告', info: '提示', fatal: '致命', high: '高', medium: '中', low: '低' };
   const f = document.getElementById(findingsId);
-  if (f) f.innerHTML = (d.findings || []).map(x => {
-    const color = sevColor[x.severity] || 'var(--border)';
-    const srcLabel = specMap[x.source] || x.source;
-    const sev = sevLabel[x.severity] || x.severity || '';
-    return `<div style="display:flex;gap:10px;border-left:4px solid ${color};padding:8px 12px;margin:10px 0;background:var(--surface2);border-radius:0 8px 8px 0">
+  if (f) {
+    const findingCard = x => {
+      const color = sevColor[x.severity] || 'var(--border)';
+      const srcLabel = specMap[x.source] || x.source;
+      const sev = sevLabel[x.severity] || x.severity || '';
+      return `<div style="display:flex;gap:10px;border-left:4px solid ${color};padding:8px 12px;margin:10px 0;background:var(--surface2);border-radius:0 8px 8px 0">
       <span class="intel-finding-avatar" title="${escHtml(srcLabel)}">${intelSpecSvg(x.source)}</span>
       <div style="min-width:0;flex:1">
         <div style="font-weight:600">${escHtml(x.title || '')} <span style="font-size:12px;color:var(--text-muted)">[${escHtml(srcLabel)} · ${escHtml(sev)}]</span></div>
@@ -4328,7 +4342,27 @@ function renderDiagResultInto(d, findingsId, planId, pvId, reviewId) {
         ${x.suggestion ? `<div style="font-size:13px;margin-top:4px;line-height:1.6">建议：${_markdownToHtml(x.suggestion)}</div>` : ''}
       </div>
     </div>`;
-  }).join('') || '<div style="font-size:12px;color:var(--text-muted)">未发现明确风险。</div>';
+    };
+    // 定向分析：置顶说明「只答所问」+ 折叠与问题无关的发现
+    let focusBanner = '';
+    if (d.focus) {
+      const sideN = (d.side_findings && d.side_findings.length) || d.focus.side_count || 0;
+      focusBanner = `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid rgba(20,184,166,.4);background:rgba(20,184,166,.08);border-radius:10px;padding:8px 12px;margin:8px 0">
+        <span style="font-weight:700;color:#0d9488">🎯 定向分析（${escHtml(d.focus.topic_label || '定向')}）</span>
+        <span style="font-size:12px;color:var(--text-muted)">只呈现与「${escHtml(d.focus.goal || '')}」相关的内容</span>
+        ${sideN ? `<span style="font-size:11.5px;color:var(--text-muted)">另 ${sideN} 条与该问题无关的发现已折叠到下方</span>` : ''}
+      </div>`;
+    }
+    const mainHtml = (d.findings || []).map(findingCard).join('');
+    const sideList = (d.side_findings && d.side_findings.length) ? d.side_findings : [];
+    const sideHtml = sideList.length
+      ? `<details style="margin:10px 0;border:1px dashed var(--border);border-radius:10px;padding:6px 12px;background:var(--surface)">
+           <summary style="cursor:pointer;font-size:12px;color:var(--text-muted)">与本问题无关的发现（${sideList.length} 条，已折叠）</summary>
+           ${sideList.map(findingCard).join('')}
+         </details>`
+      : '';
+    f.innerHTML = (focusBanner + mainHtml + sideHtml) || '<div style="font-size:12px;color:var(--text-muted)">未发现明确风险。</div>';
+  }
   const p = document.getElementById(planId);
   if (p) p.innerHTML = (d.plan || []).map(s => `<div style="border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin:10px 0;background:var(--surface2)">
     <div style="font-weight:700;color:var(--accent2)">步骤 ${escHtml(String(s.step || ''))} · ${escHtml(s.focus || '')}</div>
@@ -21342,6 +21376,17 @@ async function sendChatMessage() {
               // 滚动到底部
               const chatMessages = document.getElementById('chat-messages');
               chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            } else if (data.type === 'qa') {
+              // 平台数据查询 / 智能诊断 / 工作流 等直接返回的答案（与 /api/chat fallback 对齐）
+              if (!aiMsgEl) aiMsgEl = addChatMessage('', 'ai', true);
+              let contentDiv = aiMsgEl.querySelector('.ai-content');
+              if (!contentDiv) {
+                contentDiv = document.createElement('div');
+                contentDiv.className = 'ai-content';
+                aiMsgEl.appendChild(contentDiv);
+              }
+              contentDiv.innerHTML = renderMarkdown(data.message);
 
             } else if (data.type === 'inspect_result') {
               // 巡检简单查询结果

@@ -92,6 +92,39 @@ def _score(context: Dict[str, Any]):
     return health_score, risk_count, risk_level, health_status
 
 
+def _sanitize_for_json(obj: Any) -> Any:
+    """把巡检 context 递归转换为 JSON 安全类型。
+
+    巡检 checkdb 结果可能含有 datetime / Decimal / bytes / set 等非 JSON 原生
+    类型，直接 json.dumps 会抛异常。智能诊断中心把巡检结果经子进程 stdout
+    回传时依赖 json 序列化（见 intel_inspection_cli._emit），此处统一转字符串，
+    既保证子进程回传不崩，也让定向分析专员只做字符串呈现，无副作用。
+
+    注意 dict 的键也要转：JDBC/JPype 插件（HGDB/DB2/SQLServer 等 JVM 类型）
+    采集出的行字典键可能是 java.lang.String 包装对象，json.dumps 会抛
+    "keys must be str, int, float, bool or None, not java.lang.String"，
+    导致整个子进程巡检结果退化成 ok=False。
+    """
+    if isinstance(obj, dict):
+        return {
+            (k if isinstance(k, (str, int, float, bool)) or k is None else str(k)):
+                _sanitize_for_json(v)
+            for k, v in obj.items()
+        }
+    if isinstance(obj, (list, tuple)):
+        return [_sanitize_for_json(v) for v in obj]
+    if isinstance(obj, bool):
+        return obj
+    if isinstance(obj, (int, float, str)) or obj is None:
+        return obj
+    if isinstance(obj, (bytes, bytearray)):
+        try:
+            return obj.decode("utf-8", "replace")
+        except Exception:
+            return repr(obj)
+    return str(obj)
+
+
 # 插件类型 db_type → smart_analyze_* 名称（当插件 get_task_config 未声明 smart_analyze 时的兜底）
 _PLUGIN_ANALYZER_MAP = {
     "uxdb": "smart_analyze_pg",
@@ -257,6 +290,11 @@ def _run_plugin_inspection(
             "risk_level": risk_level,
             "health_status": health_status,
             "ai_advice": context.get("ai_advice", ""),
+            # 与内置 runner 路径对齐：透出 checkdb 巡检结果（含各章节数据段，
+            # 如 HGDB 的 hgdb_conn_summary / hgdb_connections），供定向分析专员
+            # 按问题主题精准抽取对应数据段；同样经 _sanitize_for_json 保证
+            # JVM 子进程 stdout 回传时 JSON 序列化不失败。
+            "context": _sanitize_for_json(context),
             "error": None,
         }
     except Exception as e:
@@ -368,6 +406,11 @@ def _run_target_inspection_inline(
                 "risk_level": risk_level,
                 "health_status": health_status,
                 "ai_advice": context.get("ai_advice", ""),
+                # 透出 checkdb 巡检结果（含各章节数据段），供智能诊断中心定向分析专员
+                # 按问题主题精准抽取对应数据段；不影响既有调用方（仅新增字段）。
+                # 经 _sanitize_for_json 转 JSON 安全类型，避免子进程 stdout 回传时
+                # 因 datetime/Decimal 等非原生类型导致序列化失败（见 intel_inspection_cli._emit）。
+                "context": _sanitize_for_json(context),
                 "error": None,
             }
         except Exception as e:  # 实时巡检失败，交由上层回退历史报告

@@ -9198,16 +9198,33 @@ def _format_conversation_history(session_id: str) -> str:
 
 def _classify_chat_intent(user_message: str) -> str:
     """
-    轻量级意图分类：判断用户问题是「巡检执行」还是「知识问答」
-    返回: 'inspect' | 'qa'
+    轻量级意图分类：判断用户问题是「智能诊断」/「启动工作流」/「巡检执行」还是「知识问答」
+    返回: 'diagnose' | 'workflow' | 'inspect' | 'qa'
     策略：先关键词匹配，再 fallback 到 LLM
     """
     msg = user_message.strip().lower()
 
-    # 巡检关键词
+    # 智能诊断关键词（优先于普通巡检，避免与普通巡检混淆）
+    diagnose_keywords = [
+        '诊断', 'diagnose', '根因分析', '深度诊断', '智能诊断',
+        '协同诊断', '多智能体', '多agent', '深度分析', '诊断中心',
+    ]
+    for kw in diagnose_keywords:
+        if kw in msg:
+            return 'diagnose'
+
+    # 工作流关键词
+    workflow_keywords = [
+        '工作流', 'workflow', '编排', '自动化流程', '自动化任务', '执行流程',
+    ]
+    for kw in workflow_keywords:
+        if kw in msg:
+            return 'workflow'
+
+    # 巡检关键词（已移除 诊断/diagnose，避免与智能诊断中心混淆）
     inspect_keywords = [
-        '巡检', '检查', '诊断', '全库', '完整', '报告',
-        'inspect', 'diagnose', 'check', 'scan', 'report',
+        '巡检', '检查', '全库', '完整', '报告',
+        'inspect', 'check', 'scan', 'report',
         '连接数', '锁等待', '慢查询',
         'connection', 'lock', 'slow query',
         '启动巡检', '开始巡检', '执行巡检',
@@ -9792,6 +9809,328 @@ def _try_platform_query(message):
     return '\n'.join(lines)
 
 
+# ───────────────────────────────────────────────────────────
+# 智能诊断 / 工作流 意图助手（让 AI 聊天助手贯通诊断中心与工作流）
+# ───────────────────────────────────────────────────────────
+def _list_instance_names():
+    """返回平台所有已配置数据源名称列表。"""
+    try:
+        from modules.pro import get_instance_manager
+        im = get_instance_manager()
+        return [i.get('name', '') for i in im.get_all_instances(mask_password=True) if i.get('name')]
+    except Exception:
+        return []
+
+
+def _match_chat_instance(message, chat_context=None):
+    """从聊天消息（或上下文）提取并匹配平台数据源，返回解密后的实例 dict（含 id）；无则返回 None。"""
+    name = (parse_intent(message).get('db_name') or '').strip()
+    if not name and chat_context:
+        name = (chat_context.get('datasource_name') or '').strip()
+    if not name:
+        low = message.lower()
+        for cand in _list_instance_names():
+            if cand and cand.lower() in low:
+                name = cand
+                break
+    if not name:
+        return None
+    return match_datasource(name)
+
+
+def _match_chat_workflow(message):
+    """从消息匹配工作流；返回 (wf_id, wf_name) 或 None。"""
+    try:
+        from modules.intelligence.workflow_store import list_workflows
+        wfs = list_workflows()
+    except Exception:
+        return None
+    if not wfs:
+        return None
+    low = message.lower()
+    # 精确名匹配
+    for wf in wfs:
+        n = (wf.get('name') or '').strip()
+        if n and n.lower() == low:
+            return wf.get('id'), n
+    # 子串匹配
+    for wf in wfs:
+        n = (wf.get('name') or '').strip()
+        if n and n.lower() in low:
+            return wf.get('id'), n
+    return None
+
+
+def _run_workflow_by_id(wf_id, instance_id, goal):
+    """复用工作流引擎执行已保存工作流（与 /api/intelligence/workflows/<id>/run 同源逻辑）。"""
+    from modules.intelligence.workflow_store import get_workflow
+    from modules.intelligence.workflow import Workflow, Step
+    wf = get_workflow(int(wf_id))
+    if not wf:
+        raise ValueError('workflow not found')
+    steps = [
+        Step(id=str(s.get('id')), kind=s.get('kind', 'specialist'),
+             ref=s.get('ref', '') or '', args=s.get('args') or {},
+             label=s.get('label') or str(s.get('id')))
+        for s in wf.get('steps', [])
+    ]
+    edges = [(str(e[0]), str(e[1])) for e in wf.get('edges', [])
+             if isinstance(e, (list, tuple)) and len(e) == 2]
+    engine = Workflow(steps, edges)
+    return engine.run(goal=goal, instance_id=str(instance_id), inputs={})
+
+
+def _format_diagnose_result(result):
+    """把 DiagnosticHub._finalize 的结果 dict 格式化为可读 Markdown 摘要。"""
+    if not isinstance(result, dict):
+        return '```\n%s\n```' % str(result)
+    goal = result.get('goal') or ''
+    meta = result.get('target_meta') or {}
+    if not isinstance(meta, dict):
+        meta = {}
+    db_type = meta.get('db_type') or result.get('target') or ''
+    host = meta.get('host') or ''
+    seq = result.get('sequence') or []
+    specialists = result.get('specialists') or {}
+    findings = result.get('findings') or []
+    plan = result.get('plan') or {}
+    notes = result.get('notes') or []
+    review = result.get('review') or {}
+    iteration = result.get('iteration')
+
+    lines = ['## 🔍 智能诊断结果']
+    if goal:
+        lines.append('**目标**：%s' % goal)
+    if db_type or host:
+        lines.append('**对象**：%s @ %s' % (db_type, host))
+    if iteration:
+        lines.append('**迭代轮次**：%s' % iteration)
+    if seq:
+        names = [specialists.get(s, s) for s in seq]
+        lines.append('**协同专家**：' + '、'.join(str(n) for n in names))
+    focus = result.get('focus')
+    if isinstance(focus, dict) and focus:
+        side_n = focus.get('side_count') or 0
+        lines.append('**模式**：定向分析（%s），只回答所问%s' % (
+            focus.get('topic_label') or '定向',
+            ('，另有 %d 条与该问题无关的发现未展示' % side_n) if side_n else ''))
+    if findings:
+        lines.append('')
+        lines.append('### 发现（%d）' % len(findings))
+        for i, f in enumerate(findings, 1):
+            if not isinstance(f, dict):
+                continue
+            title = f.get('title') or f.get('name') or ('发现 %d' % i)
+            sev = f.get('severity') or f.get('level') or ''
+            summary = f.get('summary') or f.get('detail') or ''
+            rec = f.get('recommendation') or f.get('suggestion') or f.get('action') or ''
+            lines.append('%d. **[%s] %s**' % (i, sev, title))
+            if summary:
+                lines.append('   - %s' % summary)
+            if rec:
+                lines.append('   - 建议：%s' % rec)
+    if isinstance(plan, dict):
+        steps = plan.get('steps') or plan.get('recommendations') or []
+        if steps:
+            lines.append('')
+            lines.append('### 处置方案')
+            for s in steps:
+                if isinstance(s, dict):
+                    lines.append('- %s' % (s.get('title') or s.get('text')
+                                          or s.get('content') or s))
+                else:
+                    lines.append('- %s' % s)
+    if isinstance(review, dict) and review:
+        lines.append('')
+        lines.append('### Reviewer 把关')
+        lines.append('- 结论：%s（置信度 %s）' % (review.get('approved'), review.get('confidence')))
+        if review.get('summary'):
+            lines.append('- %s' % review.get('summary'))
+    if notes:
+        lines.append('')
+        lines.append('### 备注')
+        for n in notes[:12]:
+            lines.append('- %s' % n)
+    return '\n'.join(lines)
+
+
+def _format_workflow_result(result, wf_name):
+    """把 Workflow.run 的结果 dict 格式化为可读 Markdown 摘要。"""
+    if not isinstance(result, dict):
+        return '```\n%s\n```' % str(result)
+    executed = result.get('steps_executed') or []
+    log = result.get('log') or []
+    cancelled = result.get('cancelled')
+    outputs = result.get('outputs') or {}
+    lines = ['## ⚙️ 工作流执行结果', '**工作流**：%s' % wf_name,
+             '**已执行节点**：%d 个' % len(executed)]
+    if log:
+        lines.append('')
+        lines.append('| 节点 | 状态 | 说明 |')
+        lines.append('| --- | --- | --- |')
+        for e in log:
+            if not isinstance(e, dict):
+                continue
+            sid = e.get('step', '')
+            status = e.get('status', '')
+            reason = e.get('reason') or e.get('error') or ''
+            lines.append('| %s | %s | %s |' % (sid, status, reason))
+    if cancelled:
+        lines.append('⚠️ 工作流被中途取消。')
+    if outputs:
+        lines.append('')
+        lines.append('### 节点产出')
+        for k, v in outputs.items():
+            val = v if isinstance(v, str) else json.dumps(v, ensure_ascii=False)
+            if len(val) > 600:
+                val = val[:600] + '…'
+            lines.append('- **%s**: %s' % (k, val))
+    return '\n'.join(lines)
+
+
+def _stream_diagnose_response(message, chat_context):
+    """SSE：对指定数据源启动智能诊断（多专家协同），逐事件回灌聊天框。"""
+    inst = _match_chat_instance(message, chat_context)
+    if not inst:
+        names = _list_instance_names()
+        if names:
+            tip = ('⚠️ 未识别到要诊断的数据源。可用的有：' + '、'.join(names)
+                   + '。\n请指明，例如「诊断一下 MySQL-01」。')
+        else:
+            tip = '⚠️ 当前平台还没有已配置的数据源，请先在「数据源管理」添加实例。'
+        yield f"data: {json.dumps({'type': 'chunk', 'content': tip}, ensure_ascii=False)}\n\n"
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+        return
+    instance_id = inst.get('id') or inst.get('name')
+    name = inst.get('name', '')
+    yield f"data: {json.dumps({'type': 'chunk', 'content': '🧭 已对 **%s** 启动智能诊断（多专家协同）...' % name}, ensure_ascii=False)}\n\n"
+    try:
+        from modules.intelligence.hub import get_hub
+        hub = get_hub()
+        for evt in hub.dispatch_stream(goal=message or '对目标数据源做一次协同诊断',
+                                       instance_id=str(instance_id)):
+            et = evt.get('type')
+            if et == 'coordinator':
+                seq = evt.get('sequence') or []
+                yield f"data: {json.dumps({'type': 'chunk', 'content': '📋 诊断规划：将依次协同 %d 个专家。' % len(seq)}, ensure_ascii=False)}\n\n"
+            elif et == 'progress' and evt.get('phase') == 'start':
+                yield f"data: {json.dumps({'type': 'chunk', 'content': '🔍 专家 **%s** 执行中（%d/%d，第 %d 轮）...' % (evt.get('name', evt.get('current')), evt.get('index', 0), evt.get('total', 0), evt.get('iteration', 1))}, ensure_ascii=False)}\n\n"
+            elif et == 'replan':
+                yield f"data: {json.dumps({'type': 'chunk', 'content': '🔄 基于本轮新发现重规划，追加专项专家...'}, ensure_ascii=False)}\n\n"
+            elif et == 'review':
+                rv = evt.get('result') or {}
+                yield f"data: {json.dumps({'type': 'chunk', 'content': '✅ Reviewer 把关：approved=%s，置信度 %s' % (rv.get('approved'), rv.get('confidence'))}, ensure_ascii=False)}\n\n"
+            elif et == 'result':
+                summary = _format_diagnose_result(evt.get('result'))
+                yield f"data: {json.dumps({'type': 'chunk', 'content': summary}, ensure_ascii=False)}\n\n"
+            elif et == 'error':
+                yield f"data: {json.dumps({'type': 'chunk', 'content': '⚠️ 诊断出错：%s' % evt.get('msg')}, ensure_ascii=False)}\n\n"
+    except Exception as e:
+        import traceback, sys
+        traceback.print_exc(file=sys.stdout)
+        yield f"data: {json.dumps({'type': 'chunk', 'content': '⚠️ 智能诊断失败：%s' % e}, ensure_ascii=False)}\n\n"
+    yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+
+def _stream_workflow_response(message, chat_context):
+    """SSE：解析工作流 + 实例并启动执行，回灌进度与结果。"""
+    wf = _match_chat_workflow(message)
+    if not wf:
+        try:
+            from modules.intelligence.workflow_store import list_workflows
+            wfs = list_workflows()
+        except Exception:
+            wfs = []
+        if wfs:
+            names = '、'.join(w.get('name', '') for w in wfs if w.get('name'))
+            tip = ('⚠️ 未识别到要启动的工作流。可用的有：' + names
+                   + '。\n请指明，例如「启动工作流 每日巡检编排」。')
+        else:
+            tip = '⚠️ 当前还没有已保存的工作流，请先在「智能诊断中心 → 工作流编排」创建。'
+        yield f"data: {json.dumps({'type': 'chunk', 'content': tip}, ensure_ascii=False)}\n\n"
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+        return
+    wf_id, wf_name = wf
+    inst = _match_chat_instance(message, chat_context)
+    if not inst:
+        names = _list_instance_names()
+        if names:
+            tip = ('⚠️ 启动工作流需要指定目标数据源。可用的有：' + '、'.join(names)
+                   + '。\n例如「在 MySQL-01 上启动工作流 %s」。' % wf_name)
+        else:
+            tip = '⚠️ 当前平台还没有已配置的数据源，无法启动工作流。'
+        yield f"data: {json.dumps({'type': 'chunk', 'content': tip}, ensure_ascii=False)}\n\n"
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+        return
+    instance_id = inst.get('id') or inst.get('name')
+    yield f"data: {json.dumps({'type': 'chunk', 'content': '⚙️ 已启动工作流 **%s**（目标 **%s**）...' % (wf_name, inst.get('name', ''))}, ensure_ascii=False)}\n\n"
+    try:
+        result = _run_workflow_by_id(wf_id, instance_id, message or '执行工作流')
+        summary = _format_workflow_result(result, wf_name)
+        yield f"data: {json.dumps({'type': 'chunk', 'content': summary}, ensure_ascii=False)}\n\n"
+    except Exception as e:
+        import traceback, sys
+        traceback.print_exc(file=sys.stdout)
+        yield f"data: {json.dumps({'type': 'chunk', 'content': '⚠️ 工作流启动/执行失败：%s' % e}, ensure_ascii=False)}\n\n"
+    yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+
+def _handle_diagnose_nonstream(message, chat_context):
+    """非流式（/api/chat fallback）：执行智能诊断并返回结果。"""
+    inst = _match_chat_instance(message, chat_context)
+    if not inst:
+        names = _list_instance_names()
+        if names:
+            return jsonify({'ok': True, 'type': 'qa',
+                            'message': '⚠️ 未识别到要诊断的数据源。可用的有：' + '、'.join(names)
+                                       + '。\n请指明，例如「诊断一下 MySQL-01」。'})
+        return jsonify({'ok': True, 'type': 'qa',
+                        'message': '⚠️ 当前平台还没有已配置的数据源，请先在「数据源管理」添加实例。'})
+    instance_id = inst.get('id') or inst.get('name')
+    try:
+        from modules.intelligence.hub import get_hub
+        hub = get_hub()
+        result = hub.dispatch(goal=message or '对目标数据源做一次协同诊断',
+                              instance_id=str(instance_id))
+        summary = _format_diagnose_result(result)
+    except Exception as e:
+        return jsonify({'ok': True, 'type': 'qa', 'message': '⚠️ 智能诊断失败：%s' % e})
+    return jsonify({'ok': True, 'type': 'qa', 'message': summary, 'intelligence_diagnose': True})
+
+
+def _handle_workflow_nonstream(message, chat_context):
+    """非流式（/api/chat fallback）：启动工作流并返回结果。"""
+    wf = _match_chat_workflow(message)
+    if not wf:
+        try:
+            from modules.intelligence.workflow_store import list_workflows
+            wfs = list_workflows()
+        except Exception:
+            wfs = []
+        if wfs:
+            names = '、'.join(w.get('name', '') for w in wfs if w.get('name'))
+            return jsonify({'ok': True, 'type': 'qa',
+                            'message': '⚠️ 未识别到要启动的工作流。可用的有：' + names + '。'})
+        return jsonify({'ok': True, 'type': 'qa',
+                        'message': '⚠️ 当前还没有已保存的工作流，请先在「智能诊断中心 → 工作流编排」创建。'})
+    wf_id, wf_name = wf
+    inst = _match_chat_instance(message, chat_context)
+    if not inst:
+        names = _list_instance_names()
+        if names:
+            return jsonify({'ok': True, 'type': 'qa',
+                            'message': '⚠️ 启动工作流需要指定目标数据源。可用的有：' + '、'.join(names) + '。'})
+        return jsonify({'ok': True, 'type': 'qa',
+                        'message': '⚠️ 当前平台还没有已配置的数据源，无法启动工作流。'})
+    instance_id = inst.get('id') or inst.get('name')
+    try:
+        result = _run_workflow_by_id(wf_id, instance_id, message or '执行工作流')
+        summary = _format_workflow_result(result, wf_name)
+    except Exception as e:
+        return jsonify({'ok': True, 'type': 'qa', 'message': '⚠️ 工作流启动/执行失败：%s' % e})
+    return jsonify({'ok': True, 'type': 'qa', 'message': summary, 'intelligence_workflow': True})
+
+
 def _stream_inspection_response(data, message, session_id, chat_context):
     """巡检意图：解析→匹配数据源→执行巡检，通过SSE返回结果"""
     import time
@@ -9929,6 +10268,20 @@ def api_chat_stream():
         # ═══ 意图分类（自动判断问答 vs 巡检）═══
         chat_intent = _classify_chat_intent(message)
         print(f'[AI Stream] 意图分类: "{message[:40]}" → {chat_intent}', flush=True)
+
+        # ═══ 智能诊断意图：贯通诊断中心（多专家协同）═══
+        if chat_intent == 'diagnose':
+            return Response(
+                _stream_diagnose_response(message, chat_context),
+                mimetype='text/event-stream'
+            )
+
+        # ═══ 启动工作流意图：贯通工作流编排 ═══
+        if chat_intent == 'workflow':
+            return Response(
+                _stream_workflow_response(message, chat_context),
+                mimetype='text/event-stream'
+            )
 
         # ═══ 巡检模式：直接执行巡检 ═══
         if chat_intent == 'inspect':
@@ -10150,8 +10503,16 @@ def api_chat():
                 'platform_query': True,
             })
 
-        # 0.6 分类意图：巡检执行 vs 知识问答
+        # 0.6 分类意图：智能诊断 / 启动工作流 / 巡检执行 / 知识问答
         chat_intent = _classify_chat_intent(message)
+
+        # ─── 智能诊断模式（贯通诊断中心）───
+        if chat_intent == 'diagnose':
+            return _handle_diagnose_nonstream(message, chat_context)
+
+        # ─── 启动工作流模式（贯通工作流编排）───
+        if chat_intent == 'workflow':
+            return _handle_workflow_nonstream(message, chat_context)
 
         # ─── 知识问答模式 ───
         if chat_intent == 'qa':

@@ -282,6 +282,43 @@ class DiagnosticHub:
                     out.append(repr(n))
         return out
 
+    def _focus_filter(self, ctx: SharedContext):
+        """定向分析模式的结果过滤（只答所问）。
+
+        返回 (focus_meta, main_findings_dicts, side_findings_dicts)：
+          - 主结果只保留 定向分析结论 + 与主题相关的发现；
+          - 与主题无关的发现不丢弃，折叠进 side_findings（前端默认收起）。
+        """
+        from .planner import detect_focus_topic
+
+        topic = detect_focus_topic(ctx.goal or "") or {
+            "id": str(ctx.inputs.get("focus_topic") or "general"),
+            "label": "定向", "keywords": [],
+        }
+        kws = [k.lower() for k in topic.get("keywords", [])]
+        main: List[Dict[str, Any]] = []
+        side: List[Dict[str, Any]] = []
+        answer: Optional[Dict[str, Any]] = None
+        for f in ctx.findings:
+            d = f.to_dict()
+            if f.source == "focus_analyst":
+                main.append(d)
+                answer = answer or d
+                continue
+            text = ((f.title or "") + " " + (f.detail or "")).lower()
+            if any(k in text for k in kws):
+                main.append(d)
+            else:
+                side.append(d)
+        focus_meta = {
+            "topic": topic.get("id", "general"),
+            "topic_label": topic.get("label", "定向"),
+            "goal": ctx.goal,
+            "answer": answer,
+            "side_count": len(side),
+        }
+        return focus_meta, main, side
+
     def _finalize(self, ctx: SharedContext, plan) -> dict:
         ctx.finished_at = _now()
 
@@ -298,6 +335,14 @@ class DiagnosticHub:
 
         meta = ctx.inputs.get("target_meta") or {}
         spec_names = {c["id"]: c["name"] for c in self.capabilities()}
+
+        # 定向分析：主结果只保留与所问主题相关的内容，无关发现折叠进 side_findings
+        focus_meta = None
+        findings_dicts = [f.to_dict() for f in ctx.findings]
+        side_dicts: List[Dict[str, Any]] = []
+        if ctx.inputs.get("focus_mode"):
+            focus_meta, findings_dicts, side_dicts = self._focus_filter(ctx)
+
         return {
             "edition": EDITION,
             "goal": ctx.goal,
@@ -310,7 +355,10 @@ class DiagnosticHub:
                 "sequence": plan.sequence,
                 "order": plan.order,
             },
-            "findings": [f.to_dict() for f in ctx.findings],
+            "findings": findings_dicts,
+            # 定向分析折叠的与主题无关发现（前端默认收起，可展开查看）
+            "side_findings": side_dicts,
+            "focus": focus_meta,
             "plan": ctx.plan,
             "plan_validation": plan_validation,
             "notes": self._str_notes(ctx),

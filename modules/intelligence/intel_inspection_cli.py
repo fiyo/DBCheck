@@ -90,9 +90,12 @@ def _emit(result):
     """把结构化结果序列化成一行 stdout 输出。"""
     try:
         line = RESULT_PREFIX + json.dumps(result, ensure_ascii=False)
-    except Exception:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
+        # 兜底必须带异常信息：否则只会看到"结果序列化失败"，无法定位
+        # 是哪个字段/键类型触发（如 JPype java.lang.String 键）
         line = RESULT_PREFIX + json.dumps(
-            {"ok": False, "error": "结果序列化失败", "auto_analyze": []},
+            {"ok": False, "error": f"结果序列化失败: {type(e).__name__}: {e}",
+             "auto_analyze": []},
             ensure_ascii=False)
     sys.stdout.write(line + "\n")
     try:

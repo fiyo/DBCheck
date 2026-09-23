@@ -55,6 +55,10 @@ class InspectionExpert(Specialist):
 
             if res.get("ok"):
                 auto_analyze = res.get("auto_analyze") or []
+                # 透出 checkdb 巡检结果（含各章节数据段），供定向分析专员按主题精准抽取，
+                # 而不是把全库巡检的所有章节数据都交给分析模型。
+                if res.get("context") is not None:
+                    ctx.inputs["inspection_context"] = res.get("context")
                 # 复用中枢的风险结构转换（延迟导入避免循环依赖）
                 from ..hub import _auto_analyze_to_risks
 
