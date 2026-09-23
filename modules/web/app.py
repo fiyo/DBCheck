@@ -1043,6 +1043,12 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None, chap
     """
     db_type = db_info.pop('_db_type', None)
     if not db_type:
+        # 兜底：无论是否走 socketio，都必须把任务状态置为 error，
+        # 否则前端 pollChatTaskStatus 会无限「正在巡检」。
+        _task = tasks.get(task_id)
+        if _task is not None:
+            _task['status'] = 'error'
+            _task['error_msg'] = '缺少数据库类型'
         socketio.emit('error', {'msg': '缺少数据库类型'}, room=task_id)
         return
 
@@ -9377,8 +9383,8 @@ def parse_intent(user_message: str) -> dict:
     system_prompt = """你是一个数据库巡检助手。用户会用自然语言描述巡检需求。
 请从用户输入中提取以下字段，以 JSON 格式输出：
 {
-  "db_type": "mysql|pg|oracle|dm|sqlserver|tidb|unknown",
-  "db_name": "数据源名称（如 MySQL-01）或空字符串",
+  "db_type": "mysql|mariadb|pg|postgresql|oracle|dm|sqlserver|tidb|kingbase|ivorysql|hgdb|highgo|yashandb|gbase|oceanbase|mongodb|db2|clickhouse|uxdb|unknown",
+  "db_name": "数据源名称（如 MySQL-01，注意保留 HgDB/HGDB/瀚高 等原生大小写与品牌名）或空字符串",
   "scope": "connection_count|lock_wait|slow_queries|all",
   "need_report": true或false
 }
@@ -9401,6 +9407,10 @@ def parse_intent(user_message: str) -> dict:
         db_type = data.get('db_type', 'unknown')
         if db_type == 'postgresql':
             db_type = 'pg'
+        elif db_type == 'highgo':
+            db_type = 'hgdb'
+        elif db_type in ('kingbasees', 'kingbase_es'):
+            db_type = 'kingbase'
         elif db_type == 'sqlserver':
             db_type = 'sqlserver'
 
@@ -9707,6 +9717,81 @@ def execute_simple_query(db_info: dict, db_type: str, scope: str) -> str:
     return '\n'.join(results)
 
 
+def _start_chat_inspection_task(task_id, db_type, db_info, inspector_name,
+                                template_id=None, chapter_ids=None):
+    """聊天巡检统一的任务分发（与 api_start_inspection 对齐）。
+
+    关键修复（聊天两条路径此前都缺失）：
+    1. 必须写入 db_info['_db_type']，否则 run_inspection_task 取到 None 会直接
+       emit error 后 return，而 tasks[task_id]['status'] 永远停留在 'running'，
+       前端 pollChatTaskStatus 无限「正在巡检」。
+    2. JVM 类数据库（HGDB/DB2/SQLServer-JDBC/Oracle-JDBC 等）必须隔离到子进程，
+       否则进程内 JVM 会钉死 gevent hub（界面/控制台无输出、卡死）。正式巡检入口
+       已统一走 _run_inspection_subprocess，聊天路径此前没接，HGDB 必然走到死锁分支。
+    3. 分发异常兜底：失败时把 status 置 error 并写 error_msg，保证轮询端能看到失败。
+    """
+    db_info['_db_type'] = db_type
+    try:
+        if db_type in JVM_INSPECTION_DB_TYPES:
+            t = threading.Thread(
+                target=_run_inspection_subprocess,
+                args=(task_id, db_type, db_info, inspector_name, template_id, chapter_ids))
+        else:
+            t = threading.Thread(
+                target=run_inspection_task,
+                args=(task_id, db_info, inspector_name, template_id, chapter_ids))
+        t.daemon = True
+        t.start()
+    except Exception as e:
+        import traceback, sys
+        traceback.print_exc(file=sys.stdout)
+        _task = tasks.get(task_id)
+        if _task is not None:
+            _task['status'] = 'error'
+            _task['error_msg'] = '巡检任务启动失败: %s' % e
+
+
+def _try_platform_query(message):
+    """平台数据查询意图：用户想查询平台自身的数据（数据源/实例列表等）。
+
+    命中规则：同时包含「目标词（数据源/实例/连接/数据库等）」与「列举词（列出/查看/有哪些/所有/全部等）」。
+    命中后直接读取 InstanceManager，返回真实清单，而不是交给 LLM 凭训练知识瞎编（答非所问）。
+
+    未命中返回 None，caller 继续走 inspect/qa 分类。
+    """
+    msg = (message or '').strip().lower()
+    if not msg:
+        return None
+
+    has_target = any(k in msg for k in ('数据源', '实例', 'database', '连接',
+                                        '数据库实例', 'datasource', 'instance', '连接配置'))
+    has_listing = any(k in msg for k in ('列出', '列一下', '列出所有', '查看', '显示',
+                                         '有哪些', '所有', '全部', '列举', '看看', 'list', 'show',
+                                         '一共有', '有几个', '数量'))
+    if not (has_target and has_listing):
+        return None
+
+    try:
+        from modules.pro import get_instance_manager
+        im = get_instance_manager()
+        instances = im.get_all_instances(mask_password=True)
+    except Exception as e:
+        return '⚠️ 获取数据源列表失败：%s' % e
+
+    if not instances:
+        return '当前平台没有任何已配置的数据源。请先在「数据源管理」中添加数据库实例。'
+
+    lines = ['平台当前共有 **%d** 个已配置的数据源：' % len(instances), '',
+             '| # | 名称 | 类型 | 地址 |', '| --- | --- | --- | --- |']
+    for i, inst in enumerate(instances, 1):
+        name = inst.get('name', '-')
+        db_type = inst.get('db_type', '-')
+        host = inst.get('host', '-')
+        port = inst.get('port', '-')
+        lines.append('| %d | %s | %s | %s:%s |' % (i, name, db_type, host, port))
+    return '\n'.join(lines)
+
+
 def _stream_inspection_response(data, message, session_id, chat_context):
     """巡检意图：解析→匹配数据源→执行巡检，通过SSE返回结果"""
     import time
@@ -9803,24 +9888,8 @@ def _stream_inspection_response(data, message, session_id, chat_context):
         'started_at': datetime.datetime.now().isoformat(),
     }
 
-    task_func_map = {
-        'mysql': run_inspection_task,
-        'pg': run_inspection_task,
-        'oracle': run_inspection_task,
-        'dm': run_inspection_task,
-        'sqlserver': run_inspection_task,
-        'tidb': run_inspection_task,
-        'ivorysql': run_inspection_task,
-        'kingbase': run_inspection_task,
-        'yashandb': run_inspection_task,
-        'gbase': run_inspection_task,
-        'oceanbase': run_inspection_task,
-    }
-    task_func = task_func_map.get(db_type, run_inspection_task)
-
-    t = threading.Thread(target=task_func, args=(task_id, db_info, inspector_name))
-    t.daemon = True
-    t.start()
+    # 统一分发：补 _db_type + JVM 类型走子进程，避免「正在巡检」永远不结束
+    _start_chat_inspection_task(task_id, db_type, db_info, inspector_name)
 
     # 通过 SSE 告诉前端巡检已启动
     yield f"data: {json.dumps({'type': 'inspect_start', 'task_id': task_id, 'message': f'🔍 已启动 **{matched_name or db_name or db_type}** 的巡检任务...', 'db_name': matched_name or ds.get('name', ''), 'host': ds.get('host', ''), 'port': ds.get('port', ''), 'db_type': db_type}, ensure_ascii=False)}\n\n"
@@ -9847,6 +9916,15 @@ def api_chat_stream():
 
         if not message:
             return jsonify({'error': '消息不能为空'}), 400
+
+        # ═══ 平台数据查询意图（优先于问答/巡检分类）═══
+        # 例如「列一下所有数据源」应直接查平台返回清单，而非交给 LLM 泛答。
+        platform_reply = _try_platform_query(message)
+        if platform_reply is not None:
+            def _gen_pq():
+                yield f"data: {json.dumps({'type': 'qa', 'message': platform_reply}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            return Response(_gen_pq(), mimetype='text/event-stream')
 
         # ═══ 意图分类（自动判断问答 vs 巡检）═══
         chat_intent = _classify_chat_intent(message)
@@ -10059,7 +10137,20 @@ def api_chat():
                 'cleared': True,
             })
 
-        # 0.5 分类意图：巡检执行 vs 知识问答
+        # 0.5 平台数据查询意图（优先于问答/巡检分类）
+        # 例如「列一下所有数据源」应直接查平台返回清单，而非交给 LLM 泛答。
+        platform_reply = _try_platform_query(message)
+        if platform_reply is not None:
+            return jsonify({
+                'ok': True,
+                'type': 'qa',
+                'message': platform_reply,
+                'rag_used': False,
+                'rag_disabled': False,
+                'platform_query': True,
+            })
+
+        # 0.6 分类意图：巡检执行 vs 知识问答
         chat_intent = _classify_chat_intent(message)
 
         # ─── 知识问答模式 ───
@@ -10195,25 +10286,8 @@ def api_chat():
                 'started_at': datetime.datetime.now().isoformat(),
             }
 
-            # 启动巡检线程
-            db_info['_db_type'] = db_type
-            task_func_map = {
-                'mysql': run_inspection_task,
-                'pg': run_inspection_task,
-                'oracle': run_inspection_task,
-                'dm': run_inspection_task,
-                'sqlserver': run_inspection_task,
-                'tidb': run_inspection_task,
-                'ivorysql': run_inspection_task,
-                'kingbase': run_inspection_task,
-                'yashandb': run_inspection_task,
-                'gbase':   run_inspection_task,
-                'oceanbase': run_inspection_task,
-            }
-            task_func = task_func_map.get(db_type, run_inspection_task)
-            t = threading.Thread(target=task_func, args=(task_id, db_info, inspector_name))
-            t.daemon = True
-            t.start()
+            # 统一分发：补 _db_type + JVM 类型走子进程，避免「正在巡检」永远不结束
+            _start_chat_inspection_task(task_id, db_type, db_info, inspector_name)
 
             return jsonify({
                 'ok': True,

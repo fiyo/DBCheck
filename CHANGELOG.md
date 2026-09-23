@@ -1,5 +1,14 @@
 # Changelog
 
+## v26.9.24.0 (待发布)
+- **修复 AI 聊天助手「正在巡检…」永远不结束（HGDB / 国产库必现）**
+  - **现象**：在 AI 助手聊天框发「巡检 XXX 连接数」后，界面持续转圈「正在巡检」无结果返回；发「列一下所有数据源」答非所问（LLM 凭空编造）。
+  - **根因**：聊天两条链路（SSE 流式 `_stream_inspection_response`、非流式 `/api/chat`）启动巡检时**漏写 `db_info['_db_type']`**，而正式巡检入口 `_run_inspection_subprocess` 已正确写入；`run_inspection_task` 取到 None 直接 `return`，却**未把 `tasks[id]['status']` 置为 error**，前端轮询永远拿到 `running` 无限转圈；同时 JVM 类数据库（HGDB/DB2/SQLServer-JDBC 等）此前没接到子进程通道，会退化到进程内起 JVM 钉死 gevent hub。错误事件用 socketio 单播发到聊天未 join 的 room，用户也看不到。
+  - **修复**：新增统一分发函数 `_start_chat_inspection_task`（与正式巡检入口对齐）——补 `_db_type` + `JVM_INSPECTION_DB_TYPES` 命中走 `_run_inspection_subprocess` 子进程 + 分发异常兜底 `status='error'`；`run_inspection_task` 缺 `_db_type` 早返回处补 `status='error'` 双保险；删除两处内联 `task_func_map`。
+- **新增「平台数据查询」意图（答非所问 → 直接查平台）**
+  - 规则命中「列举词（列出/查看/有哪些/所有/数量…）+ 目标词（数据源/实例/连接…）」时，直接调用 `get_instance_manager().get_all_instances(mask_password=True)` 返回真实清单表格（名称/类型/地址），不再交给 LLM 泛答；SSE 与非流式两路均优先于问答分类接入。
+  - `parse_intent` 的 db_type 枚举补全 hgdb/kingbase/ivorysql/mariadb/mongodb/highgo 等，并补 `highgo→hgdb`、`kingbasees→kingbase` 归一化，降低 LLM 猜类型概率。
+
 ## v26.9.23.0 (2026-09-23)
 - **受限容器环境 OpenBLAS 多线程创建被拦截，导致容器启动即崩溃（Docker 部署修复）**
   - **现象**：在国网云桌面、企业安全容器、定制 seccomp / LXC 嵌套虚拟化 / K8s 等受限容器里，用 Docker 部署 RaccoonX（DBCheck）启动即报 `OpenBLAS blas_thread_init: pthread_create failed for thread N of M: Operation not permitted`。
