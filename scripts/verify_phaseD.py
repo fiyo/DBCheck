@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
 # Author: fiyo (Jack Ge) - https://github.com/fiyo/DBCheck
+
 """阶段 D 验收：Workflow Builder UI + Reviewer 审计链前端（可视化）。
 
 纯逻辑（主进程，隔离临时库）：

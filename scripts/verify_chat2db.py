@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
 # Author: fiyo (Jack Ge) - https://github.com/fiyo/DBCheck
+
 """阶段 3（编排与生态）：Chat2DB 并入复用 MCP 通道 —— 验收脚本。
 
 纯逻辑（主进程，不 import web.app）：

@@ -1,4 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
+# Copyright 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
+# Author: fiyo (Jack Ge) - https://github.com/fiyo/DBCheck
+
 """端到端验证：用真实 HGDB 实例跑 run_target_inspection，检查 context 透出与定向抽取。"""
 import os
 import sys

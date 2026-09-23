@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
 # Author: fiyo (Jack Ge) - https://github.com/fiyo/DBCheck
+
 """阶段 B（多 Agent 把关与工具）验收脚本。
 
 验证范围（对标规划文档 4.3 / 4.4 B）：

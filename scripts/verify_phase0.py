@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
 # Author: fiyo (Jack Ge) - https://github.com/fiyo/DBCheck
+
 """
 阶段 0（多租户数据隔离底座）验收脚本 —— 对照规划文档 3.4 六条标准。
 

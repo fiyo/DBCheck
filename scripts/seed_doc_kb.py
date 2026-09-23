@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
 # Author: fiyo (Jack Ge) - https://github.com/fiyo/DBCheck
+
 """DocKB 官方文档知识库 - 种子示例数据。
 
 策展内容统一存放在随包种子 ``modules/config/doc_kb_seed.json``（单一数据源，

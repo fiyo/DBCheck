@@ -1,4 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
+# Copyright 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
+# Author: fiyo (Jack Ge) - https://github.com/fiyo/DBCheck
+
 """定向分析（focus_analyst）纯逻辑验证：主题识别 + 编排 + replan 抑制 + 过滤。"""
 import sys
 

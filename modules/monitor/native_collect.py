@@ -3,7 +3,6 @@
 # Copyright 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
 # Author: fiyo (Jack Ge) - https://github.com/fiyo/DBCheck
 
-
 """
 MongoDB / Redis 原生驱动采集通道（监控大屏）。
 
