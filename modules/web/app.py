@@ -9221,6 +9221,17 @@ def _classify_chat_intent(user_message: str) -> str:
         if kw in msg:
             return 'workflow'
 
+    # 具体问题定向分析（如「巡检连接数」「分析一下锁等待」「看下内存使用」）：
+    # 主题词 + 意图词双命中即直接走智能诊断中心的定向分析（监控→巡检→只答所问），
+    # 而不是全量巡检任务或普通问答。detect_focus_topic 自带广谱词排除
+    # （全库/体检/全面…不会误入），确定性规则不依赖 LLM。
+    try:
+        from modules.intelligence.planner import detect_focus_topic
+        if detect_focus_topic(msg):
+            return 'diagnose'
+    except Exception:
+        pass
+
     # 巡检关键词（已移除 诊断/diagnose，避免与智能诊断中心混淆）
     inspect_keywords = [
         '巡检', '检查', '全库', '完整', '报告',
@@ -9230,9 +9241,8 @@ def _classify_chat_intent(user_message: str) -> str:
         '启动巡检', '开始巡检', '执行巡检',
         'mysql-', 'pg-', 'oracle-', 'tidb-', 'dm-', 'sqlserver-',
     ]
-    for kw in inspect_keywords:
-        if kw in msg:
-            return 'inspect'
+    if any(kw in msg for kw in inspect_keywords):
+        return 'inspect'
 
     # 问答关键词（数据库知识类 + 上下文查询）
     qa_keywords = [
