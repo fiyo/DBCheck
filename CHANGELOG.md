@@ -1,6 +1,6 @@
 # Changelog
 
-## v26.9.24.0 (待发布)
+## v26.9.24.0 (2026-09-23)
 - **修复 AI 聊天助手「正在巡检…」永远不结束（HGDB / 国产库必现）**
   - **现象**：在 AI 助手聊天框发「巡检 XXX 连接数」后，界面持续转圈「正在巡检」无结果返回；发「列一下所有数据源」答非所问（LLM 凭空编造）。
   - **根因**：聊天两条链路（SSE 流式 `_stream_inspection_response`、非流式 `/api/chat`）启动巡检时**漏写 `db_info['_db_type']`**，而正式巡检入口 `_run_inspection_subprocess` 已正确写入；`run_inspection_task` 取到 None 直接 `return`，却**未把 `tasks[id]['status']` 置为 error**，前端轮询永远拿到 `running` 无限转圈；同时 JVM 类数据库（HGDB/DB2/SQLServer-JDBC 等）此前没接到子进程通道，会退化到进程内起 JVM 钉死 gevent hub。错误事件用 socketio 单播发到聊天未 join 的 room，用户也看不到。
@@ -8,6 +8,20 @@
 - **新增「平台数据查询」意图（答非所问 → 直接查平台）**
   - 规则命中「列举词（列出/查看/有哪些/所有/数量…）+ 目标词（数据源/实例/连接…）」时，直接调用 `get_instance_manager().get_all_instances(mask_password=True)` 返回真实清单表格（名称/类型/地址），不再交给 LLM 泛答；SSE 与非流式两路均优先于问答分类接入。
   - `parse_intent` 的 db_type 枚举补全 hgdb/kingbase/ivorysql/mariadb/mongodb/highgo 等，并补 `highgo→hgdb`、`kingbasees→kingbase` 归一化，降低 LLM 猜类型概率。
+- **AI 助手贯通智能诊断中心与工作流（P1）**
+  - 聊天意图分类扩展为 diagnose / workflow / inspect / qa 四类：「诊断 XX」「根因分析」「启动 XX 工作流」等可直接在聊天框触发智能诊断中心（`hub.dispatch / dispatch_stream` 逐事件流式播报协调员/进度/重规划/Reviewer 结论）或启动工作流任务；SSE 与非流式两路均接入。inspect 关键词移除「诊断」消歧，避免误判为普通巡检。
+  - 前端聊天流式渲染补 `type=qa` 分支（此前平台查询 SSE 响应被静默丢弃）。
+  - 聊天里「巡检某个具体问题」（如「巡检连接数」「分析一下锁等待」「看下内存使用」）自动识别为定向分析，**直通智能诊断中心**而非全量巡检任务；与诊断中心复用同一 `detect_focus_topic`（主题词+意图词双命中，广谱目标仍走普通巡检），确定性规则不依赖 LLM。
+- **智能诊断中心新增第 13 专家「定向分析专员」（focus_analyst）**
+  - 解决「让分析一个具体问题却甩出一堆无关结论」：主题+意图双命中进入定向模式（连接/锁/慢查询/内存/容量/复制/缓存/计算/IO 共 9 类主题），编排固定「运行监控 → 深度巡检 → 定向分析」并**抑制重规划**追加无关专家；确定性编排优先于 AI 编排。
+  - 三层分析降级：BIC-QA 已配置优先知识库分析 → 未配置走已配置 AI 模型从巡检结果分析 → 均不可用给原始相关数据，绝不编造。
+  - **定向数据精准抽取**：按 checkdb 巡检结果 context 键名正则只抽取对应主题数据段（如连接 → `sessions`/`hgdb_conn_summary`），不再把全库巡检数据一股脑喂给分析模型；键名覆盖全部库型（MySQL/PG/Oracle/DM 内置 + hgdb/uxdb/db2/sqlserver/redis/mongodb/clickhouse 插件，30 组矩阵回归）。
+  - 无关发现不丢弃：折叠进「其他发现」（前端默认收起可展开）；诊断结果与 AI 聊天入口同步生效。
+- **修复 HGDB 等 JPype 插件库型定向分析拿不到巡检数据**
+  - **根因**：插件路径巡检返回未透出 `context`，且 HGDB 走 JPype/JDBC 采集的行字典**键是 `java.lang.String` 包装对象**，子进程回传 `json.dumps` 序列化崩溃 → 兜底 `ok=False` → 定向分析拿空数据。
+  - **修复**：巡检内联与插件路径均透出 `context`（`_sanitize_for_json` 递归转换，dict 键强制转原生类型）；CLI 序列化兜底错误带上异常详情，便于定位。
+- **UI 打磨**
+  - 智能诊断中心专家卡片：长标题最多两行显示（不再截成一行看不全）；执行顺序角标移到左下角并改亮色橙渐变；定向分析专员卡片图标/主题色；定向分析结论横幅 + 「其他发现」折叠渲染。
 
 ## v26.9.23.0 (2026-09-23)
 - **受限容器环境 OpenBLAS 多线程创建被拦截，导致容器启动即崩溃（Docker 部署修复）**
