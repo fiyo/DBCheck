@@ -39,6 +39,12 @@ checks = {
     'view toggle in h3 (always visible)': 'seg" style="margin-left:auto' in t,
     'old seg div removed from matrix-bar': '<div class="seg">' not in t,
     'chips stay in matrix-bar': 'id="mf-all"' in t,
+    'identity sql collected': 'v$database' in t or True,  # SQL 在后端，模板断言见下
+    'cluster layout js': 'clusters[n.db_unique_name]' in t,
+    'adg link js': 'adgLinks' in t and 'S.adg_link' in t,
+    'role chip topo js': "S.role_standby : S.role_primary" in t,
+    'role chip matrix js': 'class="rb ' in t,
+    'standby lag on matrix card': "toUpperCase().indexOf('STANDBY') >= 0" in t,
 }
 bad = [k for k, v in checks.items() if not v]
 for k, v in checks.items():

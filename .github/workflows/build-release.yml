@@ -10,9 +10,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release tag, e.g. v26.9.24.2"
+        description: "Release tag, e.g. v26.9.25.0"
         required: true
-        default: "v26.9.24.2"
+        default: "v26.9.25.0"
 
 permissions:
   contents: write
@@ -257,16 +257,20 @@ jobs:
           allowUpdates: true
           files: release_assets/*
 
-      # 追加由 release.ps1 生成的发布说明（含 Docker 拉取、主要更新、安装提示）
+      # 动态生成追加说明：主要更新取自 CHANGELOG.md 当前 tag 段落（此前静态
+      # release_append.md 停留在旧版本导致每次 Release 说明固化，已删除该文件）；
+      # Docker 镜像 tag 由脚本按真实 TAG 注入，不再硬编码。
+      - name: Generate release notes appendix
+        run: python3 scripts/gen_release_append.py "$TAG" > release_append.md
+
       - name: Append release notes to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [ -f .github/release_append.md ]; then
-            NOTE=$(cat .github/release_append.md)
-          else
+          if [ ! -s release_append.md ]; then
             NOTE=$'\n---\n\n## ⚠️ 安装注意事项\n\n- **macOS**：当前分发包**未做 Apple 公证（二进制未签名）**。首次打开若被 Gatekeeper 拦截，请右键点击 App / 可执行文件 →「打开」并在弹窗中确认即可运行；如需彻底消除提示，后续可接入 Apple 开发者证书做正式公证。\n- **Windows**：解压后双击 `start.bat` 启动，浏览器访问 http://localhost:5003 。（注：Linux 客户端暂未发布，当前仅提供 Windows / macOS 安装包。）'
+            printf '%s\n' "$NOTE" > release_append.md
           fi
           BODY=$(gh release view "$TAG" --json body --jq '.body')
-          printf '%s%s\n' "$BODY" "$NOTE" > release_notes.md
+          printf '%s\n%s\n' "$BODY" "$(cat release_append.md)" > release_notes.md
           gh release edit "$TAG" --notes-file release_notes.md

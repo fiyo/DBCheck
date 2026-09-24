@@ -179,6 +179,10 @@
   .mcard .lg .emo { font-size: 13px; line-height: 1; }
   .mcard .nm { font-size: 11.5px; color: var(--tx); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mcard .st { margin-left: auto; flex: none; width: 7px; height: 7px; border-radius: 50%; }
+  .mcard .rb { flex: none; margin-left: auto; font-size: 9px; font-weight: 600; padding: 1px 5px; border-radius: 4px; }
+  .mcard .rb.p { color: var(--ok); background: rgba(46,204,113,.14); }
+  .mcard .rb.s { color: var(--blue); background: rgba(56,173,221,.14); }
+  .mcard .rb + .st { margin-left: 4px; }
   .mcard .st.crit { background: var(--crit); } .mcard .st.warn { background: var(--warn); }
   .mcard .st.ok { background: var(--ok); }
   .mcard .st.pending { background: var(--down); animation: mBreath 1.6s ease-in-out infinite; }
@@ -930,6 +934,11 @@ function renderMatrix(){
              ' · ' + S.d_active + ' ' + (n.conn ? n.conn.active : '–');
     if (n.tbs_free_pct !== null && n.tbs_free_pct !== undefined) r4 += ' · ' + S.node_tbs + ' ' + n.tbs_free_pct + '%';
     else if (n.repl_lag_s !== null && n.repl_lag_s !== undefined) r4 += ' · ' + S.node_repl + ' ' + n.repl_lag_s + 's';
+    // ADG 备库：即使有表空间数据也补显应用延迟（备库核心指标）
+    if (n.tbs_free_pct !== null && n.tbs_free_pct !== undefined &&
+        n.repl_lag_s !== null && n.repl_lag_s !== undefined &&
+        (n.role || '').toUpperCase().indexOf('STANDBY') >= 0)
+      r4 += ' · ' + S.node_repl + ' ' + n.repl_lag_s + 's';
     var alerts = [];
     if (n.status === 'down' || n.status === 'crit' || n.status === 'warn') alerts.push('<span class="al" style="color:' + cssCol + '">' + stTxt + '</span>');
     if (n.err) alerts.push('<span class="al" style="color:var(--crit)">⚠</span>');
@@ -937,10 +946,16 @@ function renderMatrix(){
     var cu = n.conn ? (n.conn.usage_pct || 0) : 0;
     var cuBar = cu > 0 ? '<span class="cu" style="width:' + Math.min(cu, 100).toFixed(0) + '%;background:' +
                 (cu >= 95 ? 'var(--crit)' : cu >= 80 ? 'var(--warn)' : 'var(--accent)') + '"></span>' : '';
+    var role = (n.role || '').toUpperCase();
+    var isStd = role.indexOf('STANDBY') >= 0;
+    var roleChip = role ? '<span class="rb ' + (isStd ? 's' : 'p') + '" title="' +
+        esc(n.role + (n.db_unique_name ? ' · ' + n.db_unique_name : '')) + '">' +
+        (isStd ? 'S' : 'P') + '</span>' : '';
     return '<div class="mcard s-' + n.status + '" onclick="openDetailById(\'' + esc(String(n.id)) + '\')">' +
            (n.err ? '<span class="errb"></span>' : '') +
            '<div class="r1"><span class="lg">' + dbLogoHtml(n.db_type) + '</span>' +
            '<span class="nm" title="' + esc(n.name) + '">' + esc(n.name) + '</span>' +
+           roleChip +
            '<span class="st ' + n.status + '" title="' + esc(stTxt) + '"></span></div>' +
            '<div class="qrow"><span class="qps">' + fmt(n.qps) + '</span><span class="qps-l">QPS</span></div>' +
            mSparkSvg(n.spark, cssCol) +
@@ -1040,8 +1055,18 @@ function layout(data){
            主干恒为主题色，分支短线按节点状态着色（故障只红支线，不整条主干变红） */
         var colStops = [[], []];
         var rowsUsed = 0;
+        /* RAC/ADG：同 db_unique_name 的主机排在一起并强制同列，保证集群外框连通 */
+        gHosts.sort(function(a, b){
+          var ca = (a.insts[0] && a.insts[0].db_unique_name) || '\uFFFF';
+          var cb2 = (b.insts[0] && b.insts[0].db_unique_name) || '\uFFFF';
+          return ca < cb2 ? -1 : ca > cb2 ? 1 : 0;
+        });
+        var colOfCluster = {};
         gHosts.forEach(function(h, hi){
-          var col = colH[0] <= colH[1] ? 0 : 1;
+          var ck = (h.insts[0] && h.insts[0].db_unique_name) || '';
+          var col = (ck && colOfCluster[ck] !== undefined) ? colOfCluster[ck]
+                  : (colH[0] <= colH[1] ? 0 : 1);
+          if (ck && colOfCluster[ck] === undefined) colOfCluster[ck] = col;
           var hx = colX[col], hy = colH[col];
           var n = h.insts.length;
           hostCol[h.group + '\u0001' + h.host] = { x: hx, y: hy, w: instW, h: hostH,
@@ -1117,8 +1142,49 @@ function layout(data){
     });
     world.w = Math.max(x0 + PAGE_COLS * colW + 30, 600);
   }
+  /* ── Oracle RAC/ADG：按 db_unique_name 归簇 + 主库(v$archive_dest)→备库配对 ──
+     非Oracle / 低权限(身份查询失败) / 历史回放(无该字段) 全部自然缺席，视图回落现状 */
+  var clusters = {};
+  topoData.forEach(function(n){
+    if (n.db_type !== 'oracle' || !n.db_unique_name) return;
+    var c = clusters[n.db_unique_name] ||
+            (clusters[n.db_unique_name] = { uname: n.db_unique_name, role: '', hosts: {}, ids: [] });
+    if (n.role && !c.role) c.role = n.role;
+    c.hosts[n.group + '\u0001' + n.host] = true;
+    c.ids.push(n.id);
+  });
+  var clusterRects = [];
+  Object.keys(clusters).forEach(function(u){
+    var c = clusters[u];
+    var blocks = Object.keys(c.hosts).map(function(hk){ return hostCol[hk]; }).filter(Boolean);
+    if (!blocks.length){ c.rect = null; return; }
+    var minX = Math.min.apply(null, blocks.map(function(b){ return b.x; }));
+    var minY = Math.min.apply(null, blocks.map(function(b){ return b.y; }));
+    var maxX = Math.max.apply(null, blocks.map(function(b){ return b.x + b.w; }));
+    var maxY = Math.max.apply(null, blocks.map(function(b){ return b.y + b.h; }));
+    c.ids.forEach(function(id){
+      var p = instPos[id];
+      if (!p) return;
+      minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+      maxX = Math.max(maxX, p.x + instW); maxY = Math.max(maxY, p.y + instH);
+    });
+    var xs = blocks.map(function(b){ return b.x; });
+    c.framed = xs.every(function(x){ return x === xs[0]; });   // 同列才画外框，跨列不框
+    c.rect = { x: minX - 10, y: minY - 26, w: maxX - minX + 20, h: maxY - minY + 34 };
+    if (c.framed) clusterRects.push(c);
+  });
+  var adgLinks = [];
+  topoData.forEach(function(n){
+    if (n.db_type !== 'oracle' || !n.dests || !n.dests.length || !n.db_unique_name) return;
+    n.dests.forEach(function(du){
+      if (du === n.db_unique_name || !clusters[du]) return;
+      if (!adgLinks.some(function(l){ return l.from === n.db_unique_name && l.to === du; }))
+        adgLinks.push({ from: n.db_unique_name, to: du });
+    });
+  });
   world.h = Math.max(y0 + 46 + maxRowsPerCol * (instH + vGap) + 30, 500);
-  return { hostCol: hostCol, instPos: instPos, columnTrunks: colTrunks };
+  return { hostCol: hostCol, instPos: instPos, columnTrunks: colTrunks,
+           clusters: clusters, clusterRects: clusterRects, adgLinks: adgLinks };
 }
 
 var layoutCache = { hostCol: {}, instPos: {} };
@@ -1146,6 +1212,78 @@ function drawTopo(){
   layoutCache = L;
   if (fittedForCount !== topoData.length) fitView(W, H);   // 再按最新世界拟合
   ctx.translate(view.ox, view.oy); ctx.scale(view.scale, view.scale);
+
+  /* ── Oracle RAC/ADG：集群外框（同列才画）+ 主备 redo 传输线（画在卡片下层）── */
+  ctx.textBaseline = 'middle';
+  (L.clusterRects || []).forEach(function(c){
+    var isStd = (c.role || '').toUpperCase().indexOf('STANDBY') >= 0;
+    var col = isStd ? C.blue : C.ok;
+    ctx.strokeStyle = col; ctx.globalAlpha = .5; ctx.setLineDash([6, 4]); ctx.lineWidth = 1.2;
+    rr(c.rect.x, c.rect.y, c.rect.w, c.rect.h, 12); ctx.stroke();
+    ctx.setLineDash([]); ctx.globalAlpha = 1;
+    var tag = '\u29C9 ' + c.uname + (c.role ? ' · ' + (isStd ? S.role_standby : S.role_primary) : '');
+    ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'left';
+    var tw = Math.min(ctx.measureText(tag).width + 16, c.rect.w - 20);
+    ctx.fillStyle = isStd ? '#12283a' : '#1d3a2a';
+    rr(c.rect.x + 10, c.rect.y - 9, tw, 18, 9); ctx.fill();
+    ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = col;
+    ctx.fillText(fitText(tag, tw - 12), c.rect.x + 18, c.rect.y);
+  });
+  (L.adgLinks || []).forEach(function(lk){
+    var fc = (L.clusters || {})[lk.from], tc = (L.clusters || {})[lk.to];
+    if (!fc || !tc || !fc.rect || !tc.rect) return;
+    var lineCol = C.accent;   // 备库簇状态决定线色：down/crit 红、warn 黄、其余主题色
+    topoData.forEach(function(n){
+      if (n.db_unique_name !== lk.to) return;
+      if (n.status === 'down' || n.status === 'crit') lineCol = C.crit;
+      else if (n.status === 'warn' && lineCol !== C.crit) lineCol = C.warn;
+    });
+    var worst = null;       // 备库簇最差 apply 延迟
+    topoData.forEach(function(n){
+      if (n.db_unique_name === lk.to && n.repl_lag_s !== null && n.repl_lag_s !== undefined &&
+          (worst === null || n.repl_lag_s > worst)) worst = n.repl_lag_s;
+    });
+    var a = fc.rect, b = tc.rect;
+    var x1, y1, x2, y2, horiz;
+    if (a.x + a.w < b.x || b.x + b.w < a.x){   // 水平分离 → 侧边连线（分组并排是常态）
+      horiz = true;
+      if (a.x + a.w < b.x){ x1 = a.x + a.w; x2 = b.x; } else { x1 = a.x; x2 = b.x + b.w; }
+      y1 = Math.max(a.y, b.y) + Math.min(a.h, b.h) / 2;
+      y2 = y1;
+    } else {                                    // 垂直分离 → 上下连线
+      horiz = false;
+      x1 = a.x + a.w / 2; x2 = b.x + b.w / 2;
+      if (a.y + a.h < b.y){ y1 = a.y + a.h; y2 = b.y; } else { y1 = a.y; y2 = b.y + b.h; }
+    }
+    ctx.strokeStyle = lineCol; ctx.globalAlpha = .65; ctx.lineWidth = 1.6;
+    var mid = horiz ? (x1 + x2) / 2 : (y1 + y2) / 2;
+    ctx.beginPath(); ctx.moveTo(x1, y1);
+    if (horiz) ctx.bezierCurveTo(mid, y1, mid, y2, x2, y2);
+    else ctx.bezierCurveTo(x1, mid, x2, mid, x2, y2);
+    ctx.stroke();
+    /* 流动粒子（主 → 备方向） */
+    function cbz(t, p1, c1, c2, p2){ var u = 1 - t; return u*u*u*p1 + 3*u*u*t*c1 + 3*u*t*t*c2 + t*t*t*p2; }
+    var tt = (flowT * .3) % 1;
+    var px = horiz ? cbz(tt, x1, mid, mid, x2) : cbz(tt, x1, x1, x2, x2);
+    var py = horiz ? cbz(tt, y1, y1, y2, y2) : cbz(tt, y1, mid, mid, y2);
+    ctx.fillStyle = lineCol; ctx.globalAlpha = .9;
+    ctx.beginPath(); ctx.arc(px, py, 2.6, 0, 6.3); ctx.fill();
+    ctx.globalAlpha = 1;
+    /* 延迟牌（线中点，实底可读） */
+    var lbl = S.adg_link + (worst !== null ? ' · ' + S.node_repl + ' ' + worst + 's' : '');
+    ctx.font = '10px sans-serif';
+    var lw = ctx.measureText(lbl).width + 14;
+    var lx = (x1 + x2) / 2 - lw / 2;
+    var ly = horiz ? y1 - 9 : (y1 + y2) / 2 - 9;
+    ctx.fillStyle = 'rgba(13,22,40,.96)';
+    rr(lx, ly, lw, 18, 9); ctx.fill();
+    ctx.strokeStyle = lineCol; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = lineCol; ctx.textAlign = 'center';
+    ctx.fillText(lbl, lx + lw / 2, ly + 9);
+    ctx.textAlign = 'left';
+  });
+
   var probe = { x: world.w / 2 - 70, y: 6, w: 140, h: 30 };
 
   function rr(x, y, w, h, r){ ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
@@ -1320,6 +1458,21 @@ function drawTopo(){
       ctx.fillStyle = C.tx2; ctx.fillText(S.node_status, p.x + 12, p.y + 35);
       ctx.fillStyle = col;   ctx.fillText(stx, p.x + 34, p.y + 35);
       ctx.fillStyle = C.tx2; ctx.fillText(S.node_conn + ' ' + (n.conn ? n.conn.total + '/' + n.conn.max_conn : '–'), p.x + 64, p.y + 35);
+      // 角色徽章（RAC/ADG 身份查询成功时）：主库绿 / 备库蓝
+      if (n.role){
+        var isStdR = n.role.toUpperCase().indexOf('STANDBY') >= 0;
+        var rTxt = isStdR ? S.role_standby : S.role_primary;
+        var rCol = isStdR ? C.blue : C.ok;
+        ctx.font = 'bold 9px sans-serif';
+        var rw = ctx.measureText(rTxt).width + 10;
+        var rx = p.x + instW - rw - 6;
+        ctx.fillStyle = isStdR ? 'rgba(56,173,221,.15)' : 'rgba(46,204,113,.15)';
+        rr(rx, p.y + 28, rw, 14, 7); ctx.fill();
+        ctx.strokeStyle = rCol; ctx.lineWidth = 1; ctx.stroke();
+        ctx.fillStyle = rCol; ctx.textAlign = 'center';
+        ctx.fillText(rTxt, rx + rw / 2, p.y + 35);
+        ctx.textAlign = 'left';
+      }
       // 第3行：QPS / TPS / 慢查询
       ctx.fillStyle = C.tx2;
       ctx.fillText('QPS ' + fmt(n.qps), p.x + 12, p.y + 52);
@@ -1334,7 +1487,8 @@ function drawTopo(){
       else if (n.stat_hint && !n.err) { extra = (n.stat_hint === 'view_server_state' ? S.hint_vss : S.hint_stat); exC = C.tx2; }
       ctx.font = '10px sans-serif';
       ctx.fillStyle = extra ? exC : C.tx2;
-      ctx.fillText(fitText(extra || (n.host + ':' + n.port), instW - 24), p.x + 12, p.y + 68);
+      // 卡片右下有角色徽章时第 4 行文本让位，避免重叠
+      ctx.fillText(fitText(extra || (n.host + ':' + n.port), instW - 24 - (n.role ? 54 : 0)), p.x + 12, p.y + 68);
       // 连接利用率条（节点底边）
       var cu = n.conn ? (n.conn.usage_pct || 0) : 0;
       if (cu > 0){

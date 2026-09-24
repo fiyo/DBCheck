@@ -126,6 +126,21 @@ ORACLE_REPL_SQL = (
 
 ORACLE_LOCKS_SQL = "SELECT count(*) AS n FROM v$session WHERE blocking_session IS NOT NULL"
 
+# ── RAC / ADG 身份与配对（监控用户权限要求不高于现有 v$sysstat / v$dataguard_stats）──
+# v$database：角色（PRIMARY / PHYSICAL STANDBY…）+ 集群唯一名（RAC 各实例相同）+ open_mode
+ORACLE_IDENTITY_SQL = (
+    "SELECT database_role, db_unique_name, name, open_mode FROM v$database"
+)
+# v$instance：RAC 实例身份（单机也返回一行：instance_number=1）
+ORACLE_INSTANCE_SQL = (
+    "SELECT instance_name, instance_number, host_name FROM v$instance"
+)
+# 主库侧归档目的地：声明往哪些 db_unique_name 送 redo → 前端自动画主备配对线
+ORACLE_DEST_SQL = (
+    "SELECT db_unique_name, status FROM v$archive_dest "
+    "WHERE status = 'VALID' AND destination IS NOT NULL"
+)
+
 SQLSERVER_STAT_SQL = (
     "SELECT counter_name, cntr_value FROM sys.dm_os_performance_counters "
     "WHERE counter_name IN ('Batch Requests/sec','Transactions/sec',"
@@ -255,7 +270,8 @@ SCREEN_SQLS = {
     'pg': {'stat': PG_STAT_SQL, 'tbs': PG_TBS_SQL, 'repl': PG_REPL_SQL,
            'locks': PG_LOCKS_SQL},
     'oracle': {'stat': ORACLE_STAT_SQL, 'tbs': ORACLE_TBS_SQL, 'repl': ORACLE_REPL_SQL,
-               'locks': ORACLE_LOCKS_SQL},
+               'locks': ORACLE_LOCKS_SQL, 'identity': ORACLE_IDENTITY_SQL,
+               'inst': ORACLE_INSTANCE_SQL, 'dest': ORACLE_DEST_SQL},
     'sqlserver': {'stat': SQLSERVER_STAT_SQL, 'tbs': SQLSERVER_TBS_SQL,
                   'locks': SQLSERVER_LOCKS_SQL},
     'dm': {'stat': DM_STAT_SQL, 'tbs': DM_TBS_SQL, 'repl': DM_REPL_SQL,
@@ -391,7 +407,12 @@ def collect_extra(engine, instance_id, db_type):
     """
     fam = db_family(db_type)
     sqls = SCREEN_SQLS.get(fam) if fam else None
-    counters, extras = {}, {'tbs': None, 'repl_lag_s': None, 'lock_waits': None}
+    counters, extras = {}, {'tbs': None, 'repl_lag_s': None, 'lock_waits': None,
+                            # RAC / ADG 身份与配对（仅 oracle family 填充，其余保持 None）
+                            'role': None, 'db_unique_name': None, 'db_name': None,
+                            'open_mode': None, 'instance_name': None,
+                            'instance_number': None, 'dests': None,
+                            'transport_lag_s': None, 'apply_lag_s': None}
     if not sqls:
         return counters, extras
 
@@ -482,10 +503,45 @@ def collect_extra(engine, instance_id, db_type):
                 for r in tbs]
         repl = q('repl')
         if repl:
-            lags = [_parse_dg_lag(_find_key(r, 'value')) for r in repl]
-            lags = [l for l in lags if l is not None]
+            # transport lag / apply lag 分开保留（ADG 传输线分开标注），repl_lag_s 取最差
+            for r in repl:
+                nm = str(_find_key(r, 'name') or '').lower()
+                lag = _parse_dg_lag(_find_key(r, 'value'))
+                if lag is None:
+                    continue
+                if 'transport' in nm:
+                    extras['transport_lag_s'] = lag
+                elif 'apply' in nm:
+                    extras['apply_lag_s'] = lag
+            lags = [l for l in (extras['transport_lag_s'], extras['apply_lag_s'])
+                    if l is not None]
             if lags:
                 extras['repl_lag_s'] = max(lags)
+        # RAC / ADG 身份（低权限/单机/查询失败均优雅降级为 None，不影响其它指标）
+        ident = q('identity')
+        if ident:
+            m = {str(k).lower(): v for k, v in (ident[0] or {}).items()}
+            # 精确小写列名取值（_find_key 模糊匹配会被 db_unique_name 含 'name' 干扰）
+            extras['role'] = (str(m.get('database_role') or '').strip() or None)
+            extras['db_unique_name'] = (str(m.get('db_unique_name') or '').strip() or None)
+            extras['db_name'] = (str(m.get('name') or '').strip() or None)
+            extras['open_mode'] = (str(m.get('open_mode') or '').strip() or None)
+        inst_rows = q('inst')
+        if inst_rows:
+            m2 = {str(k).lower(): v for k, v in (inst_rows[0] or {}).items()}
+            inum = _num(m2.get('instance_number'), 0)
+            extras['instance_name'] = (str(m2.get('instance_name') or '').strip() or None)
+            extras['instance_number'] = int(inum) if inum else None
+        dest_rows = q('dest')
+        if dest_rows:
+            dests = []
+            for r in dest_rows:
+                m3 = {str(k).lower(): v for k, v in (r or {}).items()}
+                dn = str(m3.get('db_unique_name') or '').strip()
+                if dn and dn not in dests:
+                    dests.append(dn)
+            if dests:
+                extras['dests'] = dests
         locks = q('locks')
         if locks:
             extras['lock_waits'] = int(_num(_scalar(locks)))
@@ -900,6 +956,9 @@ class ScreenCollector:
             'ts': time.time(),
             'conn': None, 'slowq': 0, 'qps': None, 'tps': None,
             'cache_hit_pct': None, 'lock_waits': None, 'repl_lag_s': None,
+            'role': None, 'db_unique_name': None, 'db_name': None, 'open_mode': None,
+            'instance_name': None, 'instance_number': None, 'dests': None,
+            'transport_lag_s': None, 'apply_lag_s': None,
             'tbs': None, 'err': None, 'status': 'ok', 'counters': {},
             'stat_hint': None,
             # 下钻明细：连接/会话 与 慢查询 逐行（截顶脱敏，详见 _sanitize_rows）
@@ -975,6 +1034,12 @@ class ScreenCollector:
             snap['tbs'] = extras.get('tbs')
             snap['repl_lag_s'] = extras.get('repl_lag_s')
             snap['lock_waits'] = extras.get('lock_waits')
+            # RAC / ADG 身份与配对（oracle 专属；None 不覆盖保持快照结构稳定）
+            for k in ('role', 'db_unique_name', 'db_name', 'open_mode',
+                      'instance_name', 'instance_number', 'dests',
+                      'transport_lag_s', 'apply_lag_s'):
+                if extras.get(k) is not None:
+                    snap[k] = extras[k]
             # 性能计数一条都没拿到时，把失败原因（权限提示码）透传给大屏
             if extras.get('stat_hint') and not any(
                     v is not None for v in (counters or {}).values()):
@@ -1022,6 +1087,9 @@ class ScreenCollector:
             'ts': ts,
             'conn': None, 'slowq': 0, 'qps': None, 'tps': None,
             'cache_hit_pct': None, 'lock_waits': None, 'repl_lag_s': None,
+            'role': None, 'db_unique_name': None, 'db_name': None, 'open_mode': None,
+            'instance_name': None, 'instance_number': None, 'dests': None,
+            'transport_lag_s': None, 'apply_lag_s': None,
             'tbs': None, 'err': err, 'status': 'pending', 'counters': {},
             'stat_hint': None, 'pending': True,
             'conn_rows': [], 'slow_rows': [],
@@ -1099,6 +1167,11 @@ def _build_nodes(snap):
             'qps': s.get('qps'), 'tps': s.get('tps'),
             'cache_hit_pct': s.get('cache_hit_pct'),
             'lock_waits': s.get('lock_waits'), 'repl_lag_s': s.get('repl_lag_s'),
+            'role': s.get('role'), 'db_unique_name': s.get('db_unique_name'),
+            'db_name': s.get('db_name'), 'open_mode': s.get('open_mode'),
+            'instance_name': s.get('instance_name'), 'instance_number': s.get('instance_number'),
+            'dests': s.get('dests'),
+            'transport_lag_s': s.get('transport_lag_s'), 'apply_lag_s': s.get('apply_lag_s'),
             'tbs': s.get('tbs'), 'tbs_free_pct': worst_tbs,
             'spark': s.get('spark') or [],
             'stat_hint': s.get('stat_hint'),
