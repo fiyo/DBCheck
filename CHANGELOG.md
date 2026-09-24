@@ -1,5 +1,12 @@
 # Changelog
 
+## v26.9.24.1 (2026-09-24)
+- **修复 PyInstaller 打包遗漏 `cryptography.hazmat.primitives.kdf`，oracledb thin 模式连接报 DPY-3016（Issue #57）**
+  - **现象**：Windows 冻结包（v26.9.20.1 起）连 Oracle 报 `DPY-3016: unsupported client library version` / 找不到 kdf 模块，源码直装正常。
+  - **根因**：3 个 PyInstaller spec（Windows/macOS/Linux）的 cryptography hiddenimports 为**手工罗列清单**，自 2026-06-04 后未随 cryptography 版本更新，遗漏 `cryptography.hazmat.primitives.kdf` 全部 8 个子模块（pbkdf2/scrypt/hkdf/x963kdf/kbkdf/concatkdf/argon2/kdf）；oracledb thin 模式运行时才动态导入 kdf，PyInstaller 静态分析扫不到 → 打包后缺模块即崩。
+  - **修复**（f2bc70f）：hiddenimports 改为 `collect_submodules('cryptography.hazmat')` 自动收集，另补 `cryptography.fernet` / `cryptography.utils` / `cryptography.__about__`；本地构建验证 PYZ 模块数 2652 → 2671，kdf 全部入包。
+  - **新增打包验证脚本** `scripts/verify_pyz_kdf.py`：解析冻结包 exe 内嵌 PYZ 目录，核验 kdf 等关键模块是否入包，可对任意发版包复跑。
+
 ## v26.9.24.0 (2026-09-23)
 - **修复 AI 聊天助手「正在巡检…」永远不结束（HGDB / 国产库必现）**
   - **现象**：在 AI 助手聊天框发「巡检 XXX 连接数」后，界面持续转圈「正在巡检」无结果返回；发「列一下所有数据源」答非所问（LLM 凭空编造）。
