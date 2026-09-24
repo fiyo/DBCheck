@@ -3,6 +3,8 @@
 
 import os
 
+from PyInstaller.utils.hooks import collect_submodules
+
 block_cipher = None
 
 # Build script cd's to project root before calling pyinstaller.
@@ -77,9 +79,13 @@ a = Analysis(
         'psutil', 'psutil._psutil_linux', 'psutil._linux',
         'charset_normalizer', 'charset_normalizer.md__mypyc',
         'certifi',
-        'cryptography', 'cryptography.hazmat', 'cryptography.hazmat.backends',
-        'cryptography.hazmat.bindings', 'cryptography.hazmat.primitives',
+        'cryptography',
+        'cryptography.fernet',
         'cryptography.utils',
+        'cryptography.__about__',
+        # fix(#57): oracledb thin 模式运行时动态导入 cryptography.hazmat.primitives.kdf.*，
+        # 手工罗列曾漏掉 kdf/hashes/serialization 等（DPY-3016），改为全量收集。
+        *collect_submodules('cryptography.hazmat'),
         'bcrypt',
         'markupsafe', 'markupsafe._speedups',
         'werkzeug', 'werkzeug._internal', 'werkzeug.utils', 'werkzeug.wrappers',
