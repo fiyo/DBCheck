@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version tag (e.g. v26.9.24.1)"
+        description: "Version tag (e.g. v26.9.24.2)"
         required: true
-        default: "v26.9.24.1"
+        default: "v26.9.24.2"
       push:
         description: "Also push to Docker Hub & GHCR?"
         required: false

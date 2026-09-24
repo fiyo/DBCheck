@@ -3,7 +3,7 @@
 Usage: python package_windows.py <distpath> <version>
 
   distpath  - path to 'dist' directory (contains RaccoonX-Windows folder)
-  version   - version string, e.g. v26.9.24.1
+  version   - version string, e.g. v26.9.24.2
 """
 import os
 import shutil

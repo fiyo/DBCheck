@@ -99,7 +99,7 @@
             font-variant-numeric: tabular-nums; }
   /* ── 中央拓扑 ── */
   #topo-panel { position: relative; }
-  #topo { position: absolute; inset: 30px 0 0 0; width: 100%; height: calc(100% - 30px); cursor: grab; }
+  #topo { position: absolute; inset: 33px 0 0 0; width: 100%; height: calc(100% - 33px); cursor: grab; display: none; }
   #topo.dragging { cursor: grabbing; }
   .topo-tip {
     position: absolute; display: none; pointer-events: none; z-index: 20;
@@ -143,6 +143,61 @@
             vertical-align: top; white-space: nowrap; max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
   .dtable th { color: var(--tx2); background: rgba(255,255,255,.04); position: sticky; top: 0; z-index: 1; }
   .dtable td.sql { white-space: pre-wrap; word-break: break-all; max-width: 420px; }
+  /* ── 实例状态矩阵（默认视图；异常置顶网格，可切换回拓扑） ── */
+  #matrix-wrap { position: absolute; inset: 33px 0 0 0; display: flex; flex-direction: column; min-height: 0; }
+  #matrix-bar { flex: none; display: flex; align-items: center; gap: 8px; padding: 7px 10px 5px; flex-wrap: wrap; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .seg button { background: none; border: none; color: var(--tx2); font-size: 11px; padding: 2px 10px; cursor: pointer; }
+  .seg button.on { background: var(--panel2); color: var(--tx); }
+  /* h3 内常驻视图切换：标题过长时省略，不挤掉切换按钮 */
+  #topo-panel h3 > span:first-child, #topo-panel h3 > span:nth-child(2) {
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mchip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px; font-size: 11px;
+           border: 1px solid var(--border); border-radius: 999px; color: var(--tx2);
+           cursor: pointer; background: none; user-select: none; }
+  .mchip.on { background: var(--panel2); color: var(--tx); border-color: var(--tx2); }
+  .mchip b { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .mchip.c-crit b { color: var(--crit); } .mchip.c-warn b { color: var(--warn); }
+  .mchip.c-ok b { color: var(--ok); } .mchip.c-all b { color: var(--tx); }
+  .mchip .dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+  #matrix-grid { flex: 1; min-height: 0; overflow-y: auto; display: grid;
+                 grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
+                 gap: 8px; padding: 4px 10px 10px; align-content: start; }
+  #matrix-grid::-webkit-scrollbar { width: 6px; }
+  #matrix-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  .mcard { position: relative; background: var(--panel2); border: 1px solid var(--border);
+           border-top: 3px solid var(--ok); border-radius: 8px; padding: 7px 9px 6px;
+           cursor: pointer; min-width: 0; overflow: hidden; }
+  .mcard:hover { border-color: var(--accent); }
+  .mcard.s-crit { border-top-color: var(--crit); }
+  .mcard.s-warn { border-top-color: var(--warn); }
+  .mcard.s-pending { border-top-color: var(--down); }
+  .mcard .r1 { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .mcard .lg { flex: none; width: 20px; height: 20px; border-radius: 5px; background: rgba(255,255,255,.92);
+               display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .mcard .lg img { max-width: 16px; max-height: 14px; object-fit: contain; }
+  .mcard .lg .emo { font-size: 13px; line-height: 1; }
+  .mcard .nm { font-size: 11.5px; color: var(--tx); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mcard .st { margin-left: auto; flex: none; width: 7px; height: 7px; border-radius: 50%; }
+  .mcard .st.crit { background: var(--crit); } .mcard .st.warn { background: var(--warn); }
+  .mcard .st.ok { background: var(--ok); }
+  .mcard .st.pending { background: var(--down); animation: mBreath 1.6s ease-in-out infinite; }
+  @keyframes mBreath { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
+  .mcard .errb { position: absolute; top: 0; right: 0; width: 0; height: 0;
+                 border-top: 20px solid var(--crit); border-left: 20px solid transparent; }
+  .mcard .errb::after { content: '!'; position: absolute; top: -18px; right: 5px;
+                        color: #fff; font-size: 10px; font-weight: 700; }
+  .mcard .qrow { display: flex; align-items: baseline; gap: 5px; margin-top: 5px; }
+  .mcard .qps { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--accent); }
+  .mcard.s-crit .qps { color: var(--crit); } .mcard.s-warn .qps { color: var(--warn); }
+  .mcard.s-pending .qps { color: var(--tx2); }
+  .mcard .qps-l { font-size: 11px; color: var(--tx2); }
+  .mcard .sp { display: block; width: 100%; height: 18px; margin-top: 3px; }
+  .mcard .r4 { margin-top: 4px; font-size: 11px; color: var(--tx2); overflow: hidden;
+               text-overflow: ellipsis; white-space: nowrap; }
+  .mcard .r4 .al { font-weight: 600; }
+  .mcard .cu { position: absolute; left: 2px; right: 2px; bottom: 1px; height: 2px;
+               border-radius: 2px; background: var(--accent); opacity: .85; }
   /* ── 底栏告警 ── */
   footer {
     height: 40px; flex: none; border-top: 1px solid var(--border); background: var(--panel);
@@ -335,7 +390,17 @@
   </aside>
 
   <div class="panel" id="topo-panel">
-    <h3>{{ S.topo_title }}</h3>
+    <h3><span id="h3-matrix">{{ S.matrix_title }}</span><span id="h3-topo" style="display:none">{{ S.topo_title }}</span><span class="seg" style="margin-left:auto;flex:none"><button id="vm-matrix" class="on" onclick="setViewMode('matrix')">{{ S.view_matrix }}</button><button id="vm-topo" onclick="setViewMode('topo')">{{ S.view_topo }}</button></span></h3>
+    <div id="matrix-wrap">
+      <div id="matrix-bar">
+        <span class="mchip c-all on" id="mf-all" onclick="setStatusFilter('all')">{{ S.f_all }} <b id="mf-n-all">0</b></span>
+        <span class="mchip c-crit" id="mf-crit" onclick="setStatusFilter('crit')"><span class="dot" style="background:var(--crit)"></span>{{ S.st_crit }} <b id="mf-n-crit">0</b></span>
+        <span class="mchip c-warn" id="mf-warn" onclick="setStatusFilter('warn')"><span class="dot" style="background:var(--warn)"></span>{{ S.st_warn }} <b id="mf-n-warn">0</b></span>
+        <span class="mchip c-ok" id="mf-ok" onclick="setStatusFilter('ok')"><span class="dot" style="background:var(--ok)"></span>{{ S.st_ok }} <b id="mf-n-ok">0</b></span>
+        <button class="mchip on" id="matrix-sort" onclick="toggleCritFirst()">⇅ {{ S.crit_first }}</button>
+      </div>
+      <div id="matrix-grid"></div>
+    </div>
     <canvas id="topo"></canvas>
     <div class="topo-tip" id="tip"></div>
     <div id="pageNav">
@@ -770,6 +835,119 @@ function statusColor(s){
   return s === 'down' ? C.down : s === 'crit' ? C.crit : s === 'warn' ? C.warn : C.ok;
 }
 
+/* ══ 实例状态矩阵（默认视图）═══
+   异常置顶网格替代连线拓扑的首屏：QPS/趋势/连接前置，点击卡片复用底部详情面板。
+   拓扑连线保留为可切换视图（拓扑交互/布局逻辑不变）。 */
+var viewMode = 'matrix';           // 'matrix' | 'topo'
+var statusFilter = 'all';          // 'all' | 'crit'(含 down) | 'warn' | 'ok'(含 pending)
+var critFirst = true;              // 排序：异常置顶
+function setViewMode(m){
+  viewMode = m;
+  var isM = m === 'matrix';
+  document.getElementById('matrix-wrap').style.display = isM ? 'flex' : 'none';
+  document.getElementById('topo').style.display = isM ? 'none' : 'block';
+  document.getElementById('h3-matrix').style.display = isM ? '' : 'none';
+  document.getElementById('h3-topo').style.display = isM ? 'none' : '';
+  document.getElementById('vm-matrix').classList.toggle('on', isM);
+  document.getElementById('vm-topo').classList.toggle('on', !isM);
+  if (isM){
+    document.getElementById('pageNav').style.display = 'none';
+    renderMatrix();
+  } else {
+    fittedForCount = -1;   // 隐藏期间 rect 为 0，强制下次 drawTopo 按真实可见尺寸重新拟合
+    resizeCanvas();        // 恢复画布位图尺寸（隐藏期间 resize 会把它清成 0）
+    updatePageNav();       // 按当前 topoPages 恢复分页器显隐
+  }
+}
+function setStatusFilter(f){
+  statusFilter = f;
+  ['all', 'crit', 'warn', 'ok'].forEach(function(k){
+    var el = document.getElementById('mf-' + k);
+    if (el) el.classList.toggle('on', k === f);
+  });
+  renderMatrix();
+}
+function toggleCritFirst(){
+  critFirst = !critFirst;
+  var b = document.getElementById('matrix-sort');
+  if (b) b.classList.toggle('on', critFirst);
+  renderMatrix();
+}
+function mRank(s){
+  if (s === 'down' || s === 'crit') return 0;
+  if (s === 'warn') return 1;
+  if (s === 'ok') return 2;
+  return 3;   // pending 排在正常之后
+}
+function mSparkSvg(sp, col){
+  if (!sp || sp.length < 2){
+    return '<svg class="sp" viewBox="0 0 100 20" preserveAspectRatio="none"><line x1="0" y1="19" x2="100" y2="19" stroke="' + col + '" stroke-opacity=".25" stroke-width="1.2"/></svg>';
+  }
+  var mx = Math.max.apply(null, sp), mn = Math.min.apply(null, sp);
+  if (mx <= 0) mx = 1;
+  if (mx - mn < mx * .05) mn = 0;   // 波动过小时基线归零，避免放大噪声成锯齿
+  var pts = sp.map(function(v, i){
+    return (i * 100 / (sp.length - 1)).toFixed(1) + ',' + (18 - (v - mn) / (mx - mn || 1) * 16).toFixed(1);
+  }).join(' ');
+  return '<svg class="sp" viewBox="0 0 100 20" preserveAspectRatio="none">' +
+         '<polyline points="' + pts + '" fill="none" stroke="' + col + '" stroke-width="1.4"/></svg>';
+}
+function renderMatrix(){
+  var grid = document.getElementById('matrix-grid');
+  if (!grid) return;
+  var all = topoData, cnt = { all: all.length, crit: 0, warn: 0, ok: 0 };
+  all.forEach(function(n){
+    if (n.status === 'down' || n.status === 'crit') cnt.crit++;
+    else if (n.status === 'warn') cnt.warn++;
+    else cnt.ok++;
+  });
+  ['all', 'crit', 'warn', 'ok'].forEach(function(k){
+    var el = document.getElementById('mf-n-' + k);
+    if (el) el.textContent = cnt[k];
+  });
+  var arr = all.filter(function(n){
+    if (statusFilter === 'crit') return n.status === 'down' || n.status === 'crit';
+    if (statusFilter === 'warn') return n.status === 'warn';
+    if (statusFilter === 'ok') return n.status === 'ok' || n.status === 'pending';
+    return true;
+  });
+  arr = arr.slice().sort(function(a, b){
+    if (critFirst){
+      var ra = mRank(a.status), rb = mRank(b.status);
+      if (ra !== rb) return ra - rb;
+    }
+    return ((b.qps || 0) - (a.qps || 0));
+  });
+  if (!arr.length){
+    grid.innerHTML = '<div class="no-data" style="grid-column:1/-1">' + esc(S.no_data) + '</div>';
+    return;
+  }
+  grid.innerHTML = arr.map(function(n){
+    var cssCol = { ok: 'var(--ok)', warn: 'var(--warn)', crit: 'var(--crit)', down: 'var(--down)', pending: 'var(--down)' }[n.status] || 'var(--ok)';
+    var qCol = (n.status === 'down' || n.status === 'crit') ? 'var(--crit)' : n.status === 'warn' ? 'var(--warn)' : n.status === 'pending' ? 'var(--tx2)' : 'var(--accent)';
+    var stTxt = { ok: S.st_ok, warn: S.st_warn, crit: S.st_crit, down: S.st_down, pending: S.st_pending }[n.status] || '';
+    var r4 = S.node_conn + ' ' + (n.conn ? n.conn.total + '/' + n.conn.max_conn : '–') +
+             ' · ' + S.d_active + ' ' + (n.conn ? n.conn.active : '–');
+    if (n.tbs_free_pct !== null && n.tbs_free_pct !== undefined) r4 += ' · ' + S.node_tbs + ' ' + n.tbs_free_pct + '%';
+    else if (n.repl_lag_s !== null && n.repl_lag_s !== undefined) r4 += ' · ' + S.node_repl + ' ' + n.repl_lag_s + 's';
+    var alerts = [];
+    if (n.status === 'down' || n.status === 'crit' || n.status === 'warn') alerts.push('<span class="al" style="color:' + cssCol + '">' + stTxt + '</span>');
+    if (n.err) alerts.push('<span class="al" style="color:var(--crit)">⚠</span>');
+    if (alerts.length) r4 += ' · ' + alerts.join(' ');
+    var cu = n.conn ? (n.conn.usage_pct || 0) : 0;
+    var cuBar = cu > 0 ? '<span class="cu" style="width:' + Math.min(cu, 100).toFixed(0) + '%;background:' +
+                (cu >= 95 ? 'var(--crit)' : cu >= 80 ? 'var(--warn)' : 'var(--accent)') + '"></span>' : '';
+    return '<div class="mcard s-' + n.status + '" onclick="openDetailById(\'' + esc(String(n.id)) + '\')">' +
+           (n.err ? '<span class="errb"></span>' : '') +
+           '<div class="r1"><span class="lg">' + dbLogoHtml(n.db_type) + '</span>' +
+           '<span class="nm" title="' + esc(n.name) + '">' + esc(n.name) + '</span>' +
+           '<span class="st ' + n.status + '" title="' + esc(stTxt) + '"></span></div>' +
+           '<div class="qrow"><span class="qps">' + fmt(n.qps) + '</span><span class="qps-l">QPS</span></div>' +
+           mSparkSvg(n.spark, cssCol) +
+           '<div class="r4">' + r4 + '</div>' + cuBar + '</div>';
+  }).join('');
+}
+
 /* 布局几何常量（layout 与 drawTopo 共用）；instH=82 为含内联指标的多行卡片 */
 var instW = 210, instH = 82, hostH = 34, vGap = 10, hostColGap = 24;
 
@@ -959,6 +1137,7 @@ function fitView(W, H){
 
 function drawTopo(){
   var W = topo.getBoundingClientRect().width, H = topo.getBoundingClientRect().height;
+  if (W < 10 || H < 10) return;   // 画布不可见（rect 为 0）时跳过，防止 fitView 用零尺寸算出错误缩放/偏移
   ctx.clearRect(0, 0, W, H);
   ctx.save();
   nodes = [];
@@ -1259,10 +1438,11 @@ function setTrendMode(m){
   drawTrend();
 }
 
-/* 帧循环：flowT 推进 + 重绘 */
+/* 帧循环：flowT 推进 + 重绘（矩阵视图下跳过拓扑重绘省 CPU；以内联 viewMode 为准，
+   不能用 topo.style.display 判断——画布初始由样式表隐藏，内联 style 为空会误判为可见） */
 function frame(){
   flowT += 0.016;
-  drawTopo();
+  if (viewMode === 'topo') drawTopo();
   requestAnimationFrame(frame);
 }
 
@@ -1534,6 +1714,7 @@ function refresh(data){
 
   layoutDirty = true;            // 节点数据变化，下次 drawTopo 重算布局（非每帧重排）
   topoData = data.nodes || [];
+  renderMatrix();                // 实例状态矩阵（默认视图）随每次刷新重渲染
   updateLoaders(data);
   // 全局空状态引导：明确无实例（nodes 为空，区别于仍在 pending 采集）时立即给出操作指引，不必等 30s 预热超时
   var _nodes = data.nodes || [];
