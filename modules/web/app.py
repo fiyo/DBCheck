@@ -9779,11 +9779,66 @@ def _start_chat_inspection_task(task_id, db_type, db_info, inspector_name,
             _task['error_msg'] = '巡检任务启动失败: %s' % e
 
 
+# 平台数据查询：数据源类型别名 → 实例存储的 db_type 集合（确定性匹配，不依赖 LLM）。
+# ASCII 别名用词边界正则匹配（避免 'dm' 误伤 'admin' 等），中文别名直接子串匹配。
+_PLATFORM_TYPE_ALIASES = [
+    # (显示名, [中文别名], [ASCII 别名], [db_type 集合])
+    ('达梦', ('达梦',), ('dm',), ('dm',)),
+    ('MySQL', (), ('mysql',), ('mysql',)),
+    ('MariaDB', (), ('mariadb',), ('mariadb',)),
+    ('PostgreSQL', ('pgsql',), ('postgresql', 'postgres', 'pgsql', 'pg'), ('pg',)),
+    ('Oracle', ('甲骨文',), ('oracle',), ('oracle', 'oracle_jdbc')),
+    ('SQL Server', (), ('sqlserver', 'sql server', 'mssql'), ('sqlserver', 'sqlserver_jdbc')),
+    ('MongoDB', ('芒果库',), ('mongodb', 'mongo'), ('mongodb',)),
+    ('Redis', (), ('redis',), ('redis',)),
+    ('HGDB', ('瀚高', '瀚高库'), ('hgdb', 'highgo'), ('hgdb',)),
+    ('Kingbase', ('人大金仓', '金仓'), ('kingbase', 'kingbasees'), ('kingbase',)),
+    ('IvorySQL', (), ('ivorysql',), ('ivorysql',)),
+    ('UXDB', (), ('uxdb',), ('uxdb',)),
+    ('GBase', ('南大通用',), ('gbase',), ('gbase',)),
+    ('DB2', (), ('db2',), ('db2',)),
+    ('ClickHouse', (), ('clickhouse',), ('clickhouse',)),
+    ('TiDB', (), ('tidb',), ('tidb',)),
+    ('OceanBase', (), ('oceanbase',), ('oceanbase',)),
+    ('YashanDB', ('崖山',), ('yashandb',), ('yashandb',)),
+]
+
+_ASCII_TYPE_PATTERNS = [
+    (label, canonical, re.compile(r'(?<![a-z0-9])' + re.escape(a) + r'(?![a-z0-9])'))
+    for label, _zh, ascii_aliases, types in _PLATFORM_TYPE_ALIASES
+    for a in ascii_aliases
+    for canonical in (tuple(t for t in types),)
+]
+
+
+def _detect_platform_type_filter(msg):
+    """从消息中确定性识别数据源类型词。返回 (显示名 or None, db_type 集合 or None)。
+
+    中文别名子串匹配 + ASCII 别名词边界匹配，两轮任一命中即返回；
+    未命中返回 (None, None)，调用方保持全量清单行为不变。
+    """
+    for label, zh_aliases, _a, types in _PLATFORM_TYPE_ALIASES:
+        for zh in zh_aliases:
+            if zh in msg:
+                return label, set(types)
+    for label, _t, pat in _ASCII_TYPE_PATTERNS:
+        if pat.search(msg):
+            # 回查显示名对应的完整 db_type 集合（同 label 可能多个 db_type 变体）
+            types = set()
+            for l2, _z, _a2, t2 in _PLATFORM_TYPE_ALIASES:
+                if l2 == label:
+                    types |= set(t2)
+            return label, types
+    return None, None
+
+
 def _try_platform_query(message):
     """平台数据查询意图：用户想查询平台自身的数据（数据源/实例列表等）。
 
     命中规则：同时包含「目标词（数据源/实例/连接/数据库等）」与「列举词（列出/查看/有哪些/所有/全部等）」。
     命中后直接读取 InstanceManager，返回真实清单，而不是交给 LLM 凭训练知识瞎编（答非所问）。
+    若消息中还带有明确的数据库类型词（达梦/MySQL/HGDB…），只返回该类型的数据源
+    （如「列一下达梦数据源」→ 仅 DM 实例），不满足时提示现有类型分布。
 
     未命中返回 None，caller 继续走 inspect/qa 分类。
     """
@@ -9791,11 +9846,16 @@ def _try_platform_query(message):
     if not msg:
         return None
 
+    type_label, type_filter = _detect_platform_type_filter(msg)
+
     has_target = any(k in msg for k in ('数据源', '实例', 'database', '连接',
                                         '数据库实例', 'datasource', 'instance', '连接配置'))
     has_listing = any(k in msg for k in ('列出', '列一下', '列出所有', '查看', '显示',
                                          '有哪些', '所有', '全部', '列举', '看看', 'list', 'show',
                                          '一共有', '有几个', '数量'))
+    # 提到具体类型 + 列举词也算查询意图（如「列一下达梦」「有哪些 mysql」）
+    if type_filter:
+        has_target = True
     if not (has_target and has_listing):
         return None
 
@@ -9806,10 +9866,23 @@ def _try_platform_query(message):
     except Exception as e:
         return '⚠️ 获取数据源列表失败：%s' % e
 
+    if type_filter:
+        instances = [i for i in instances if (i.get('db_type') or '').lower() in type_filter]
+        if not instances:
+            # 按类型统计现有分布，帮用户确认平台里到底有什么
+            dist = {}
+            for i in im.get_all_instances(mask_password=True):
+                dist[i.get('db_type', '-')] = dist.get(i.get('db_type', '-'), 0) + 1
+            dist_txt = '、'.join('%s(%d)' % (k, v) for k, v in sorted(dist.items()))
+            return ('平台当前没有 **%s** 类型的数据源。\n\n当前已配置的数据源类型：%s。'
+                    '如需添加，请到「数据源管理」新增。' % (type_label, dist_txt or '无'))
+
     if not instances:
         return '当前平台没有任何已配置的数据源。请先在「数据源管理」中添加数据库实例。'
 
-    lines = ['平台当前共有 **%d** 个已配置的数据源：' % len(instances), '',
+    head = ('平台当前共有 **%d** 个 **%s** 数据源：' % (len(instances), type_label)
+            if type_filter else '平台当前共有 **%d** 个已配置的数据源：' % len(instances))
+    lines = [head, '',
              '| # | 名称 | 类型 | 地址 |', '| --- | --- | --- | --- |']
     for i, inst in enumerate(instances, 1):
         name = inst.get('name', '-')
