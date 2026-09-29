@@ -585,6 +585,37 @@ def resolve_jdbc_driver_jars(plugin_db_type: str, version: Optional[str] = None)
     return None
 
 
+def list_driver_jars(plugin_db_type: str) -> List[str]:
+    """列出某插件类型的全部已登记驱动 jar（磁盘文件存在的）。
+
+    供 JVM 兼容性守卫使用：激活驱动需要更高版本 Java 时，从全部登记
+    变体中找兼容者。排序：激活驱动优先，其余按版本号降序（版本含
+    jre8/jre11 后缀时按数字正确比较）。
+    """
+    import re as _re
+    catalog_key = JDBC_PLUGIN_TO_CATALOG.get(plugin_db_type, plugin_db_type)
+    out: List[str] = []
+    try:
+        c = _conn()
+        rows = c.execute(
+            'SELECT jar_path, is_active, version FROM jdbc_driver_registry'
+            ' WHERE db_type=?', (catalog_key,)).fetchall()
+    except Exception:  # noqa: BLE001
+        return out
+
+    def _sort_key(r):
+        _v = str(r['version'] or '')
+        _nums = _re.findall(r'(\d+)', _v)
+        _vn = int(_nums[0]) if _nums else 0
+        return (int(r['is_active'] or 0), _vn)
+
+    for r in sorted(rows, key=_sort_key, reverse=True):
+        _p = r['jar_path']
+        if _p and os.path.isfile(_p):
+            out.append(os.path.abspath(_p))
+    return out
+
+
 def seed_driver_registry(seed_path: Optional[str] = None) -> int:
     """从随包种子 JSON 导入驱动登记（打包分发后首次启动自动补齐）。
 

@@ -421,6 +421,121 @@ def _sort_jars_by_version(jars: List[str]) -> List[str]:
     return sorted(jars, key=_ver, reverse=True)
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# 驱动 jar × JVM 版本兼容（UnsupportedClassVersionError 根治）
+# ═══════════════════════════════════════════════════════════════════════════
+# 背景：detect_java_home 策略性「JDK 8 优先」（ojdbc6/Connector/J 5.x 等老驱动
+# 只认 ≤8），而 mssql-jdbc 13.x 只发布 jre11+ 变体（class file 55）——Java 8 JVM
+# 加载即抛 UnsupportedClassVersionError。根治：解析 jar 所需 Java 版本，与生效
+# JVM 配对——兼容变体优先；jre8 字节码可运行于一切 ≥8 的 JVM，向下完全安全。
+def _jar_required_java_major(jar_path: str) -> int:
+    """解析驱动 jar 所需的最低 Java 主版本（0 = 无标记，视为不设限）。
+
+    识别两类命名：``mssql-jdbc-13.4.0.jre11.jar``（jreN）与
+    ``ojdbc8/ojdbc11``（JDK N 代号）；ojdbc14 属 JDK 1.4 时代老驱动，
+    实际可运行于任何现代 JVM，视为不设限。
+    """
+    import re
+    _n = os.path.basename(jar_path)
+    _m = re.search(r'jre(\d+)', _n, re.I)
+    if _m:
+        return int(_m.group(1))
+    _m = re.search(r'ojdbc(\d+)', _n, re.I)
+    if _m:
+        _v = int(_m.group(1))
+        if _v <= 8 or _v == 14:
+            return 0  # ojdbc6/8 只需 JDK8；ojdbc14 是 JDK 1.4 时代代号 → 均不设限
+        return _v  # ojdbc10 → 10、ojdbc11 → 11、ojdbc17 → 17
+    return 0
+
+
+def _jvm_major(java_home: Optional[str] = None) -> int:
+    """探测生效 JVM 的 Java 主版本（0 = 未知，调用方应跳过兼容过滤）。
+
+    ① ``<home>/release`` 文件的 JAVA_VERSION（"1.8.0_391" → 8，"17.0.10" → 17），
+    JDK 8u65+ 与 9+ 均带该文件；② 目录名启发式兜底
+    （jdk1.8.0_xxx / jre-1.8 → 8，jdk-17 → 17）。
+    """
+    _home = java_home or detect_java_home()
+    if not _home or not os.path.isdir(_home):
+        return 0
+    try:
+        _rel = os.path.join(_home, 'release')
+        if os.path.isfile(_rel):
+            with open(_rel, encoding='utf-8', errors='ignore') as _f:
+                for _line in _f:
+                    if _line.strip().startswith('JAVA_VERSION'):
+                        _v = _line.split('=', 1)[1].strip().strip('"')
+                        _parts = _v.split('.')
+                        _major = int(_parts[0])
+                        if _major == 1 and len(_parts) > 1:
+                            _major = int(_parts[1].split('_')[0])
+                        return _major
+    except Exception:  # noqa: BLE001 - 解析失败走目录名启发式
+        pass
+    import re
+    _n = os.path.basename(_home.rstrip('\\/')).lower()
+    _m = re.search(r'(?:jdk|jre)[-\s]?1\.(\d+)', _n)
+    if _m:
+        return int(_m.group(1))
+    _m = re.search(r'(?:jdk|jre)[-\s]?(\d+)', _n)
+    if _m:
+        return int(_m.group(1))
+    return 0
+
+
+def _order_jars_for_jvm(jars: List[str]) -> List[str]:
+    """把当前 JVM 可加载的 jar 排到前面（classpath 首个命中者生效）。
+
+    JVM 版本未知（0）时保持原序——不过滤、不重排，行为与历史一致。
+    """
+    _jv = _jvm_major()
+    if not _jv:
+        return jars
+    _ok = [j for j in jars if _jar_required_java_major(j) <= _jv]
+    _bad = [j for j in jars if _jar_required_java_major(j) > _jv]
+    return _ok + _bad
+
+
+def _prefer_jvm_compatible(db_type: str, jars: List[str]) -> List[str]:
+    """登记驱动不兼容当前 JVM 时，从已登记/磁盘驱动里找兼容变体顶上。
+
+    场景：激活驱动 mssql-jdbc-13.4.0.jre11 + JVM 8 → 自动换用已登记或
+    drivers/ 目录下的 jre8 变体（12.8.1.jre8 字节码 52，≥8 全兼容）。
+    找不到兼容变体时原样返回，让错误带修复指引浮出（见 _jdbc_error_result）。
+    """
+    if not jars:
+        return jars
+    _jv = _jvm_major()
+    if not _jv or _jar_required_java_major(jars[0]) <= _jv:
+        return jars
+    # ① 已登记的同类型驱动里找兼容变体（激活的排前）
+    try:
+        from modules.driver_registry import list_driver_jars
+        for _p in (list_driver_jars(db_type) or []):
+            if _jar_required_java_major(_p) <= _jv:
+                print('[jdbc] JVM %d 不兼容 %s，自动改用已登记兼容驱动 %s'
+                      % (_jv, os.path.basename(jars[0]), os.path.basename(_p)))
+                return [_p]
+    except Exception:  # noqa: BLE001 - 登记层失败继续磁盘兜底
+        pass
+    # ② 磁盘 drivers/<catalog>/ 兜底（含未登记的随包 jar）
+    try:
+        from modules.core.paths import PROJECT_ROOT
+        import glob as _glob
+        _catalog = JDBC_PLUGIN_TO_CATALOG.get(db_type, db_type)
+        _disk = _order_jars_for_jvm(_sort_jars_by_version(
+            _glob.glob(os.path.join(str(PROJECT_ROOT), 'drivers', _catalog, '**', '*.jar'),
+                       recursive=True)))
+        if _disk and _jar_required_java_major(_disk[0]) <= _jv:
+            print('[jdbc] JVM %d 不兼容 %s，自动改用磁盘兼容驱动 %s'
+                  % (_jv, os.path.basename(jars[0]), os.path.basename(_disk[0])))
+            return [_disk[0]]
+    except Exception:  # noqa: BLE001
+        pass
+    return jars
+
+
 def _append_driver_deps(db_type: str, jars: List[str]) -> List[str]:
     """附加驱动运行时依赖 jar（驱动 jar 未内置但 classpath 必需的依赖）。
 
@@ -457,7 +572,7 @@ def resolve_driver_jars(db_type: str, driver_version: str = '', *,
     try:
         _resolved = resolve_jdbc_driver_jars(db_type, driver_version or None)
         if _resolved:
-            return _append_driver_deps(db_type, _resolved)
+            return _append_driver_deps(db_type, _prefer_jvm_compatible(db_type, _resolved))
     except Exception:  # noqa: BLE001
         pass
     for _d in (fallback_dirs or []):
@@ -465,7 +580,8 @@ def resolve_driver_jars(db_type: str, driver_version: str = '', *,
             continue
         import glob
         _pat = os.path.join(_d, '**', '*.jar') if recursive else os.path.join(_d, '*.jar')
-        _jars = _sort_jars_by_version(glob.glob(_pat, recursive=recursive))
+        _jars = _order_jars_for_jvm(
+            _sort_jars_by_version(glob.glob(_pat, recursive=recursive)))
         if _jars:
             return _append_driver_deps(db_type, _jars)
     return None
@@ -725,6 +841,16 @@ def _jdbc_error_result(
             '  ① 服务端 dm.ini 将 COMM_ENCRYPT 设为 0（不加密）后重启实例；\n'
             '  ② 本机安装达梦数据库客户端（含加密库，安装后其 bin 目录自动生效）；\n'
             '  ③ 若服务端是 DM7/DM6，请改用对应版本的 JDBC 驱动。'
+        )
+    if 'UnsupportedClassVersionError' in str(e) or \
+            'compiled by a more recent version' in str(e):
+        _err += (
+            '\n\n[驱动 / Java 版本不匹配指引] 驱动 jar 比当前 JVM 新'
+            '（例如 mssql-jdbc 的 jre11 变体跑在 Java 8 上）。请任选其一：\n'
+            '  ① 到「数据库驱动管理」上传并激活 jre8 变体驱动'
+            '（如 mssql-jdbc-12.8.1.jre8.jar，可运行于一切 Java 8+ 环境）；\n'
+            '  ② 本机安装 JDK 11+，并让 JAVA_HOME 指向它。\n'
+            '  DBCheck 已自动优先选择兼容变体；若仍报错，说明本机没有已登记的兼容版本。'
         )
     return None, {'error': _err, 'driver': basename, 'url': url,
                   'driver_class': driver_class, 'mode': mode}
