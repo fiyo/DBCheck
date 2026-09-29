@@ -6953,6 +6953,80 @@ function formatBytes(bytes) {
         } catch(e) { toastError(e.message); }
       }
 
+      // ─── 数据源 JSON 导出/导入（升级迁移） ───────────────
+      async function exportDatasourcesJson() {
+        const ok = await showConfirmDialog(
+          '导出数据源',
+          '将导出当前可见的数据源为 JSON 文件（含 SSH/MongoDB/TLS 等全部连接参数与分组）。\n\n' +
+          '• 管理员导出将包含明文密码，便于升级后免重录——导出文件务必妥善保管，不要外传；\n' +
+          '• 非管理员导出不含密码，导入后需重新录入。');
+        if (!ok) return;
+        try {
+          let resp = await fetch('/api/pro/instances/export-json?with_password=1');
+          if (resp.status === 403) {
+            resp = await fetch('/api/pro/instances/export-json?with_password=0');
+          }
+          if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            toastError('导出失败: ' + (err.error || resp.status)); return;
+          }
+          const blob = await resp.blob();
+          const cd = resp.headers.get('Content-Disposition') || '';
+          const m = cd.match(/filename="?([^";]+)"?/);
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = (m && m[1]) || ('dbcheck-datasources-' + Date.now() + '.json');
+          document.body.appendChild(a); a.click(); a.remove();
+          URL.revokeObjectURL(a.href);
+          toastSuccess('数据源已导出');
+        } catch(e) { toastError('导出失败: ' + e.message); }
+      }
+
+      function importDatasourcesJson(btn) {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json,application/json';
+        input.onchange = async () => {
+          const file = input.files && input.files[0];
+          if (!file) return;
+          let payload;
+          try { payload = JSON.parse(await file.text()); }
+          catch(e) { toastError('JSON 解析失败：' + e.message); return; }
+          if (!payload || !Array.isArray(payload.instances) || !payload.instances.length) {
+            toastError('文件中没有 instances 数据，请确认是「数据源导出」生成的 JSON 文件'); return;
+          }
+          const n = payload.instances.length;
+          const pwdInfo = payload.with_password
+            ? '文件包含明文密码，导入后将按本机密钥重新加密存储。'
+            : '文件不含密码，导入后需到各数据源重新录入密码。';
+          const ok = await showConfirmDialog(
+            '导入数据源',
+            '文件中共 ' + n + ' 个数据源' + (Array.isArray(payload.groups) && payload.groups.length ? '、' + payload.groups.length + ' 个分组' : '') + '。\n\n' +
+            '导入规则：与现有数据源 ID 相同的将覆盖更新（以文件为准），其余作为新增。\n' + pwdInfo);
+          if (!ok) return;
+          if (btn) { btn.disabled = true; btn.dataset.oldText = btn.textContent; btn.textContent = '⤒ 导入中…'; }
+          try {
+            const res = await fetch('/api/pro/instances/import-json', {
+              method: 'POST', headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({ payload: payload })
+            });
+            const d = await res.json();
+            if (!res.ok || d.ok === false && !d.added && !d.updated) {
+              toastError('导入失败: ' + (d.error || d.message || res.status)); return;
+            }
+            let msg = '导入完成：' + (d.message || '');
+            if (d.errors && d.errors.length) msg += '\n' + d.errors.slice(0, 5).join('\n');
+            if (d.failed) { toastError(msg); } else { toastSuccess(msg); }
+            loadDataSources(currentGroupFilter);
+            loadGroupChips();
+          } catch(e) { toastError('导入失败: ' + e.message); }
+          finally {
+            if (btn) { btn.disabled = false; btn.textContent = btn.dataset.oldText || '⤒ 导入'; }
+          }
+        };
+        input.click();
+      }
+
       // ─── Rules Page ─────────────────────────────
       
       async function loadRules() {
@@ -9783,7 +9857,9 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
           <div class="card-title" data-page-node-id="I3JwLtLh4xujurjUlUEANr">
             <span data-page-node-id="FA4kTpWulGlOxXuM45DLP3">🗄️</span> <span data-i18n="webui.datasources_title" data-page-node-id="gEytgGYHZSEIClIN0CWGlD">数据源管理</span>
             <span class="badge" id="datasources-count" data-page-node-id="VPoZSzoIg6HYCTyBfNuwon">0</span>
-            <button class="btn btn-primary" style="margin-left:auto;padding:6px 14px;font-size:12px" onclick="showAddDatasourceModal()" data-page-node-id="Sz7f7EU39QKBq61TLPuCUG">➕ <span data-i18n="webui.datasources_add" data-page-node-id="d106HdzB5aF7yJbXxNIjtI">添加数据源</span></button>
+            <button class="btn btn-ghost" style="margin-left:auto;padding:6px 14px;font-size:12px" onclick="exportDatasourcesJson()" data-i18n="webui.ds_export" data-page-node-id="dSxP0rtBtn1">⤓ <span data-i18n="webui.ds_export" data-page-node-id="dSxP0rtBtn1t">导出</span></button>
+            <button class="btn btn-ghost" style="padding:6px 14px;font-size:12px" onclick="importDatasourcesJson(this)" data-i18n="webui.ds_import" data-page-node-id="dSxImptBtn1">⤒ <span data-i18n="webui.ds_import" data-page-node-id="dSxImptBtn1t">导入</span></button>
+            <button class="btn btn-primary" style="padding:6px 14px;font-size:12px" onclick="showAddDatasourceModal()" data-page-node-id="Sz7f7EU39QKBq61TLPuCUG">➕ <span data-i18n="webui.datasources_add" data-page-node-id="d106HdzB5aF7yJbXxNIjtI">添加数据源</span></button>
           </div>
           <!-- 分组筛选 -->
           <div style="margin:12px 0 4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap" data-page-node-id="nrAOtHzHI4HB9MHAXbqRMK">

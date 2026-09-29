@@ -2348,6 +2348,8 @@ ZI = {
     "webui.datasources_title": "数据源管理",
     "webui.datasources_empty": "暂无数据源，点击上方按钮添加",
     "webui.datasources_add": "添加数据源",
+    "webui.ds_export": "导出",
+    "webui.ds_import": "导入",
     "webui.datasources_edit": "编辑数据源",
     "webui.datasources_delete": "删除",
     "webui.datasources_test": "测试",

@@ -2320,6 +2320,8 @@ EN = {
     "webui.datasources_title": "Datasource Management",
     "webui.datasources_empty": "No datasources yet",
     "webui.datasources_add": "Add Datasource",
+    "webui.ds_export": "Export",
+    "webui.ds_import": "Import",
     "webui.datasources_edit": "Edit Datasource",
     "webui.datasources_delete": "Delete",
     "webui.datasources_test": "Test",

@@ -6760,6 +6760,70 @@ def api_pro_import_instances():
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
+@app.route('/api/pro/instances/export-json', methods=['GET'])
+def api_pro_export_instances_json():
+    """导出数据源为 JSON（升级/换机迁移）。
+
+    with_password=1 时导出明文密码——仅管理员可用；普通用户导出的文件
+    不含密码字段，导入后需重新录入。可见性过滤与 CSV 导出一致。
+    """
+    try:
+        import json
+        from modules.pro import get_instance_manager
+        from modules.access import principal_from_session, filter_visible
+        im = get_instance_manager()
+        user = principal_from_session()
+        visible = filter_visible(
+            user, im.get_all_instances(mask_password=True), 'instance')
+        ids = [i.get('id') for i in visible]
+        with_pwd = request.args.get('with_password') in ('1', 'true')
+        if with_pwd and not session.get('is_admin', False):
+            return jsonify({'ok': False, 'error': '含密码导出仅管理员可用'}), 403
+        payload = im.export_json(include_password=with_pwd, ids=ids)
+        fname = 'dbcheck-datasources-%s.json' % datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+        resp = Response(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            mimetype='application/json')
+        resp.headers['Content-Disposition'] = 'attachment; filename="%s"' % fname
+        return resp
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/pro/instances/import-json', methods=['POST'])
+def api_pro_import_instances_json():
+    """导入数据源 JSON（merge：同 id 覆盖更新，新数据源新增，密码重新加密）。"""
+    try:
+        import json
+        from modules.pro import get_instance_manager
+        from modules.access import principal_from_session, set_owner
+        data = request.get_json(silent=True) or {}
+        payload = data.get('payload')
+        if isinstance(payload, str):
+            try:
+                payload = json.loads(payload)
+            except Exception:
+                return jsonify({'ok': False, 'error': 'JSON 解析失败，请确认选择的是导出文件'})
+        if not isinstance(payload, dict):
+            return jsonify({'ok': False, 'error': '请提供导出文件内容'})
+        im = get_instance_manager()
+        before = {i.get('id') for i in im.get_all_instances()}
+        result = im.import_json(payload)
+        try:
+            user = principal_from_session()
+            for iid in {i.get('id') for i in im.get_all_instances()} - before:
+                set_owner('instance', iid, user)
+        except Exception as _own_err:
+            print('[access] JSON 导入数据源归属登记失败: ' + str(_own_err))
+        return jsonify(result)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
 # ══════════════════════════════════════════════════════════════
 #  Pro 数据源管理 API
 # ══════════════════════════════════════════════════════════════
