@@ -94,9 +94,9 @@ RaccoonX started as **DBCheck** and has evolved through continuous development a
 
 | Milestone          |         Status |
 | ------------------ | -------------: |
-| Docker image pulls |    **25,000+** |
-| GitHub Stars       |       **166+** |
-| GitHub Forks       |        **57+** |
+| Docker image pulls |    **28,000+** |
+| GitHub Stars       |       **171+** |
+| GitHub Forks       |        **58+** |
 | Database types     |        **21+** |
 | Inspection rules   |       **330+** |
 | Languages          |          **9** |

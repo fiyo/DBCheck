@@ -18,11 +18,11 @@
 [![GitHub Stars](https://img.shields.io/github/stars/fiyo/DBCheck?style=flat-square\&label=Stars)](https://github.com/fiyo/DBCheck/stargazers)
 [![GitHub Forks](https://img.shields.io/github/forks/fiyo/DBCheck?style=flat-square\&label=Forks)](https://github.com/fiyo/DBCheck/network/members)
 
-> 🗄️ **21+ 数据库类型**
-> 🔍 **330+ 巡检规则**
-> 🤖 **AI 辅助诊断**
-> 🔌 **可扩展插件架构**
-> 📜 **Apache License 2.0**
+* 🗄️ **21+ 数据库类型**
+* 🔍 **330+ 巡检规则**
+* 🤖 **AI 辅助诊断**
+* 🔌 **可扩展插件架构**
+* 📜 **Apache License 2.0**
 
 如果 RaccoonX 对你有帮助，欢迎给仓库点一个 ⭐。
 
@@ -94,9 +94,9 @@ RaccoonX 前身是 **DBCheck**，在持续开发与社区反馈中不断演进�
 
 | 里程碑             |         现状 |
 | ------------------ | -------------: |
-| Docker 镜像拉取       |    **25,000+** |
-| GitHub Stars       |       **166+** |
-| GitHub Forks       |        **57+** |
+| Docker 镜像拉取       |    **28,000+** |
+| GitHub Stars       |       **171+** |
+| GitHub Forks       |        **58+** |
 | 数据库类型             |        **21+** |
 | 巡检规则               |       **330+** |
 | 界面语言               |          **9** |
