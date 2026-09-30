@@ -18,7 +18,6 @@
 [![GitHub Stars](https://img.shields.io/github/stars/fiyo/DBCheck?style=flat-square\&label=Stars)](https://github.com/fiyo/DBCheck/stargazers)
 [![GitHub Forks](https://img.shields.io/github/forks/fiyo/DBCheck?style=flat-square\&label=Forks)](https://github.com/fiyo/DBCheck/network/members)
 
-> 🐳 **25,000+ Docker image pulls**
 > 🗄️ **21+ database types**
 > 🔍 **330+ inspection rules**
 > 🤖 **AI-assisted diagnostics**
