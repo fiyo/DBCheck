@@ -111,7 +111,7 @@ Docker 拉取次数代表镜像拉取量，不应解读为独立用户数或安�
 **给它一个 Star。**
 
 ```text
-25,000+ Docker Pulls
+28,000+ Docker Pulls
         ↓
      持续构建
         ↓

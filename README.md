@@ -111,7 +111,7 @@ If you have used RaccoonX, tested it, learned from it, or simply find the projec
 **Give it a Star.**
 
 ```text
-25,000+ Docker Pulls
+28,000+ Docker Pulls
         ↓
    Keep Building
         ↓
