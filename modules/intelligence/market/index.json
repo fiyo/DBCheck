@@ -1,0 +1,617 @@
+{
+  "schema": "dbcheck.market.index",
+  "generated_at": "2026-10-01 00:13:42",
+  "count": 6,
+  "templates": [
+    {
+      "name": "性能三查（慢查询 → 诊断 → 报告）",
+      "description": "只跑「慢查询 + 锁/阻塞」两个巡检组件做性能 triage，有 warning 以上发现才触发智能诊断 hub，最后落一份报告。条件分支演示：无异常时直接输出，不空跑诊断。",
+      "author": "DBCheck 官方",
+      "version": "1.0.0",
+      "category": "官方内置",
+      "tags": [],
+      "source": "official",
+      "steps": [
+        {
+          "id": "n1",
+          "kind": "start",
+          "ref": "",
+          "label": "开始",
+          "args": {},
+          "x": 40,
+          "y": 60
+        },
+        {
+          "id": "n2",
+          "kind": "inspect",
+          "ref": "",
+          "label": "巡检组件：慢查询",
+          "args": {
+            "match_title": "慢查询"
+          },
+          "x": 260,
+          "y": 40
+        },
+        {
+          "id": "n3",
+          "kind": "inspect",
+          "ref": "",
+          "label": "巡检组件：锁与阻塞",
+          "args": {
+            "match_title": "锁"
+          },
+          "x": 260,
+          "y": 180
+        },
+        {
+          "id": "n4",
+          "kind": "hub",
+          "ref": "hub",
+          "label": "智能诊断（仅异常时）",
+          "args": {
+            "when": {
+              "min_severity": "warning"
+            }
+          },
+          "x": 480,
+          "y": 110
+        },
+        {
+          "id": "n5",
+          "kind": "output",
+          "ref": "",
+          "label": "输出报告",
+          "args": {
+            "action": "report"
+          },
+          "x": 700,
+          "y": 110
+        },
+        {
+          "id": "n6",
+          "kind": "end",
+          "ref": "",
+          "label": "结束",
+          "args": {},
+          "x": 900,
+          "y": 110
+        }
+      ],
+      "edges": [
+        [
+          "n1",
+          "n2"
+        ],
+        [
+          "n1",
+          "n3"
+        ],
+        [
+          "n2",
+          "n4"
+        ],
+        [
+          "n3",
+          "n4"
+        ],
+        [
+          "n4",
+          "n5"
+        ],
+        [
+          "n5",
+          "n6"
+        ]
+      ]
+    },
+    {
+      "name": "容量体检（空间 → 报告 + 邮件）",
+      "description": "对「表空间/容量」章节做只读采集并直接产出报告邮件，适合每日定时巡检调度器挂载。",
+      "author": "DBCheck 官方",
+      "version": "1.0.0",
+      "category": "官方内置",
+      "tags": [],
+      "source": "official",
+      "steps": [
+        {
+          "id": "m1",
+          "kind": "start",
+          "ref": "",
+          "label": "开始",
+          "args": {},
+          "x": 40,
+          "y": 80
+        },
+        {
+          "id": "m2",
+          "kind": "inspect",
+          "ref": "",
+          "label": "巡检组件：容量",
+          "args": {
+            "match_title": "表空间"
+          },
+          "x": 260,
+          "y": 80
+        },
+        {
+          "id": "m3",
+          "kind": "inspect",
+          "ref": "",
+          "label": "巡检组件：磁盘/系统",
+          "args": {
+            "match_title": "磁盘"
+          },
+          "x": 260,
+          "y": 220
+        },
+        {
+          "id": "m4",
+          "kind": "output",
+          "ref": "",
+          "label": "邮件通知",
+          "args": {
+            "action": "email",
+            "to": ""
+          },
+          "x": 500,
+          "y": 150
+        },
+        {
+          "id": "m5",
+          "kind": "end",
+          "ref": "",
+          "label": "结束",
+          "args": {},
+          "x": 700,
+          "y": 150
+        }
+      ],
+      "edges": [
+        [
+          "m1",
+          "m2"
+        ],
+        [
+          "m1",
+          "m3"
+        ],
+        [
+          "m2",
+          "m4"
+        ],
+        [
+          "m3",
+          "m4"
+        ],
+        [
+          "m4",
+          "m5"
+        ]
+      ]
+    },
+    {
+      "name": "会话健康速查",
+      "description": "只跑「会话/连接」组件：三秒看清连接水位与会话明细，发现数 ≥ 1 即输出报告（组件数据类发现恒存在，必然触发输出）。",
+      "author": "DBCheck 官方",
+      "version": "1.0.0",
+      "category": "官方内置",
+      "tags": [],
+      "source": "official",
+      "steps": [
+        {
+          "id": "s1",
+          "kind": "start",
+          "ref": "",
+          "label": "开始",
+          "args": {},
+          "x": 40,
+          "y": 80
+        },
+        {
+          "id": "s2",
+          "kind": "inspect",
+          "ref": "",
+          "label": "巡检组件：会话",
+          "args": {
+            "match_title": "会话"
+          },
+          "x": 260,
+          "y": 80
+        },
+        {
+          "id": "s3",
+          "kind": "output",
+          "ref": "",
+          "label": "输出",
+          "args": {
+            "when": {
+              "min_findings": 1
+            },
+            "action": "report"
+          },
+          "x": 480,
+          "y": 80
+        },
+        {
+          "id": "s4",
+          "kind": "end",
+          "ref": "",
+          "label": "结束",
+          "args": {},
+          "x": 680,
+          "y": 80
+        }
+      ],
+      "edges": [
+        [
+          "s1",
+          "s2"
+        ],
+        [
+          "s2",
+          "s3"
+        ],
+        [
+          "s3",
+          "s4"
+        ]
+      ]
+    },
+    {
+      "name": "MySQL 慢查询专项 Triage（社区版）",
+      "description": "比内置「性能三查」更聚焦：慢查询 + 锁/阻塞 + 会话/连接三组件并行采集，仅 warning 以上发现才进智能诊断 hub，最后同时产出报告与邮件通知。适合作为 MySQL 实例每日性能巡检的常驻编排。",
+      "author": "社区贡献 @MySQL-OPS",
+      "version": "1.2.0",
+      "category": "社区·MySQL",
+      "tags": [
+        "MySQL",
+        "慢查询",
+        "性能",
+        "triage"
+      ],
+      "source": "community",
+      "homepage": "https://github.com/fiyo/DBCheck/discussions",
+      "steps": [
+        {
+          "id": "n1",
+          "kind": "start",
+          "ref": "",
+          "label": "开始",
+          "args": {},
+          "x": 40,
+          "y": 120
+        },
+        {
+          "id": "n2",
+          "kind": "inspect",
+          "ref": "",
+          "label": "巡检组件：慢查询",
+          "args": {
+            "match_title": "慢查询"
+          },
+          "x": 260,
+          "y": 40
+        },
+        {
+          "id": "n3",
+          "kind": "inspect",
+          "ref": "",
+          "label": "巡检组件：锁与阻塞",
+          "args": {
+            "match_title": "锁"
+          },
+          "x": 260,
+          "y": 160
+        },
+        {
+          "id": "n4",
+          "kind": "inspect",
+          "ref": "",
+          "label": "巡检组件：会话/连接",
+          "args": {
+            "match_title": "会话"
+          },
+          "x": 260,
+          "y": 280
+        },
+        {
+          "id": "n5",
+          "kind": "hub",
+          "ref": "hub",
+          "label": "智能诊断（仅异常时）",
+          "args": {
+            "when": {
+              "min_severity": "warning"
+            }
+          },
+          "x": 500,
+          "y": 160
+        },
+        {
+          "id": "n6",
+          "kind": "output",
+          "ref": "",
+          "label": "输出报告",
+          "args": {
+            "action": "report"
+          },
+          "x": 720,
+          "y": 100
+        },
+        {
+          "id": "n7",
+          "kind": "output",
+          "ref": "",
+          "label": "邮件通知",
+          "args": {
+            "action": "email",
+            "to": ""
+          },
+          "x": 720,
+          "y": 220
+        },
+        {
+          "id": "n8",
+          "kind": "end",
+          "ref": "",
+          "label": "结束",
+          "args": {},
+          "x": 940,
+          "y": 160
+        }
+      ],
+      "edges": [
+        [
+          "n1",
+          "n2"
+        ],
+        [
+          "n1",
+          "n3"
+        ],
+        [
+          "n1",
+          "n4"
+        ],
+        [
+          "n2",
+          "n5"
+        ],
+        [
+          "n3",
+          "n5"
+        ],
+        [
+          "n4",
+          "n5"
+        ],
+        [
+          "n5",
+          "n6"
+        ],
+        [
+          "n6",
+          "n7"
+        ],
+        [
+          "n7",
+          "n8"
+        ]
+      ]
+    },
+    {
+      "name": "Oracle 表空间容量预警（社区版）",
+      "description": "面向 Oracle 生产库：并行采集「表空间」与「容量」组件，warning 以上进诊断 hub 产出报告。表空间满是导致 Oracle 停写的头号风险，建议每日常驻巡检。",
+      "author": "社区贡献 @Oracle-DBA",
+      "version": "1.1.0",
+      "category": "社区·Oracle",
+      "tags": [
+        "Oracle",
+        "表空间",
+        "容量",
+        "预警"
+      ],
+      "source": "community",
+      "homepage": "https://github.com/fiyo/DBCheck/discussions",
+      "steps": [
+        {
+          "id": "o1",
+          "kind": "start",
+          "ref": "",
+          "label": "开始",
+          "args": {},
+          "x": 40,
+          "y": 100
+        },
+        {
+          "id": "o2",
+          "kind": "inspect",
+          "ref": "",
+          "label": "巡检组件：表空间",
+          "args": {
+            "match_title": "表空间"
+          },
+          "x": 260,
+          "y": 40
+        },
+        {
+          "id": "o3",
+          "kind": "inspect",
+          "ref": "",
+          "label": "巡检组件：容量",
+          "args": {
+            "match_title": "容量"
+          },
+          "x": 260,
+          "y": 160
+        },
+        {
+          "id": "o4",
+          "kind": "hub",
+          "ref": "hub",
+          "label": "智能诊断（仅异常时）",
+          "args": {
+            "when": {
+              "min_severity": "warning"
+            }
+          },
+          "x": 500,
+          "y": 100
+        },
+        {
+          "id": "o5",
+          "kind": "output",
+          "ref": "",
+          "label": "输出报告",
+          "args": {
+            "action": "report"
+          },
+          "x": 720,
+          "y": 100
+        },
+        {
+          "id": "o6",
+          "kind": "end",
+          "ref": "",
+          "label": "结束",
+          "args": {},
+          "x": 920,
+          "y": 100
+        }
+      ],
+      "edges": [
+        [
+          "o1",
+          "o2"
+        ],
+        [
+          "o1",
+          "o3"
+        ],
+        [
+          "o2",
+          "o4"
+        ],
+        [
+          "o3",
+          "o4"
+        ],
+        [
+          "o4",
+          "o5"
+        ],
+        [
+          "o5",
+          "o6"
+        ]
+      ]
+    },
+    {
+      "name": "PostgreSQL 流复制健康巡检（社区版）",
+      "description": "面向 PG 主从/流复制场景：并行采集「复制/流复制」与「表空间」两组件，warning 以上进诊断 hub，产出报告。可用于主备延迟与空间风险的每日巡检。",
+      "author": "社区贡献 @PG-Admin",
+      "version": "1.0.0",
+      "category": "社区·PostgreSQL",
+      "tags": [
+        "PostgreSQL",
+        "流复制",
+        "高可用",
+        "巡检"
+      ],
+      "source": "community",
+      "homepage": "https://github.com/fiyo/DBCheck/discussions",
+      "steps": [
+        {
+          "id": "p1",
+          "kind": "start",
+          "ref": "",
+          "label": "开始",
+          "args": {},
+          "x": 40,
+          "y": 100
+        },
+        {
+          "id": "p2",
+          "kind": "inspect",
+          "ref": "",
+          "label": "巡检组件：复制/流复制",
+          "args": {
+            "match_title": "流复制"
+          },
+          "x": 260,
+          "y": 40
+        },
+        {
+          "id": "p3",
+          "kind": "inspect",
+          "ref": "",
+          "label": "巡检组件：表空间",
+          "args": {
+            "match_title": "表空间"
+          },
+          "x": 260,
+          "y": 160
+        },
+        {
+          "id": "p4",
+          "kind": "hub",
+          "ref": "hub",
+          "label": "智能诊断（仅异常时）",
+          "args": {
+            "when": {
+              "min_severity": "warning"
+            }
+          },
+          "x": 500,
+          "y": 100
+        },
+        {
+          "id": "p5",
+          "kind": "output",
+          "ref": "",
+          "label": "输出报告",
+          "args": {
+            "action": "report"
+          },
+          "x": 720,
+          "y": 100
+        },
+        {
+          "id": "p6",
+          "kind": "end",
+          "ref": "",
+          "label": "结束",
+          "args": {},
+          "x": 920,
+          "y": 100
+        }
+      ],
+      "edges": [
+        [
+          "p1",
+          "p2"
+        ],
+        [
+          "p1",
+          "p3"
+        ],
+        [
+          "p2",
+          "p4"
+        ],
+        [
+          "p3",
+          "p4"
+        ],
+        [
+          "p4",
+          "p5"
+        ],
+        [
+          "p5",
+          "p6"
+        ]
+      ]
+    }
+  ]
+}

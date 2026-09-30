@@ -533,6 +533,98 @@ def market_builtin_ep():
         return jsonify({"ok": False, "msg": str(e)}), 500
 
 
+@intelligence_bp.route("/api/intelligence/market/list", methods=["GET"])
+def market_list_ep():
+    """市场资产聚合列表（内置 + 已发布 + 可选远程源 ?remote=url）。"""
+    try:
+        from .workflow_store import market_list
+
+        remote = request.args.get("remote")
+        items = market_list(remote_url=remote)
+        return jsonify({"ok": True, "items": items})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+
+@intelligence_bp.route("/api/intelligence/market/publish", methods=["POST"])
+def market_publish_ep():
+    """把本地工作流发布到市场（标记 published + 作者/版本元数据）。"""
+    data = request.get_json(silent=True) or {}
+    wf_id = data.get("workflow_id") or data.get("id")
+    if not wf_id:
+        return jsonify({"ok": False, "msg": "缺少 workflow_id"}), 400
+    try:
+        from .workflow_store import publish_workflow
+
+        r = publish_workflow(
+            int(wf_id), author=(data.get("author") or "").strip(),
+            version=data.get("version") or "1.0.0",
+            description=data.get("description") or "",
+            category=data.get("category") or "",
+            tags=data.get("tags") or [])
+        if not r.get("ok"):
+            return jsonify({"ok": False, "msg": r.get("error")}), 400
+        return jsonify(r)
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+
+@intelligence_bp.route("/api/intelligence/market/install", methods=["POST"])
+def market_install_ep():
+    """从市场 listing 安装到本地（前端传完整 listing item）。"""
+    data = request.get_json(silent=True) or {}
+    item = data.get("item") or data
+    if not isinstance(item, dict) or not item.get("steps"):
+        return jsonify({"ok": False, "msg": "listing 缺少 steps"}), 400
+    try:
+        from .workflow_store import install_listing
+
+        r = install_listing(item)
+        if not r.get("ok"):
+            return jsonify({"ok": False, "msg": r.get("error")}), 400
+        return jsonify(r)
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+
+@intelligence_bp.route("/api/intelligence/market/update", methods=["POST"])
+def market_update_ep():
+    """升级已安装的市场模板（用 listing 最新结构覆盖）。"""
+    data = request.get_json(silent=True) or {}
+    wf_id = data.get("workflow_id") or data.get("id")
+    item = data.get("item") or data.get("listing") or {}
+    if not wf_id:
+        return jsonify({"ok": False, "msg": "缺少 workflow_id"}), 400
+    try:
+        from .workflow_store import update_installed
+
+        r = update_installed(int(wf_id), item)
+        if not r.get("ok"):
+            return jsonify({"ok": False, "msg": r.get("error")}), 400
+        return jsonify(r)
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+
+@intelligence_bp.route("/api/intelligence/market/rate", methods=["POST"])
+def market_rate_ep():
+    """对模板评分（1–5）。"""
+    data = request.get_json(silent=True) or {}
+    wf_id = data.get("workflow_id") or data.get("id")
+    score = data.get("score")
+    if not wf_id or score is None:
+        return jsonify({"ok": False, "msg": "缺少 workflow_id 或 score"}), 400
+    try:
+        from .workflow_store import rate_workflow
+
+        r = rate_workflow(int(wf_id), score)
+        if not r.get("ok"):
+            return jsonify({"ok": False, "msg": r.get("error")}), 400
+        return jsonify(r)
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+
 # ── Workflow 任务管理（独立导航「工作流任务」） ──────────────────────────
 def _denorm_task(task: Dict[str, Any]) -> Dict[str, Any]:
     """给任务补充工作流名称等冗余字段，便于前端卡片直接渲染。"""

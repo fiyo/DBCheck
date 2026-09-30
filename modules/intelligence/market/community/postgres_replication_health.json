@@ -1,0 +1,22 @@
+{
+  "schema": "dbcheck.workflow",
+  "schema_version": 1,
+  "name": "PostgreSQL 流复制健康巡检（社区版）",
+  "description": "面向 PG 主从/流复制场景：并行采集「复制/流复制」与「表空间」两组件，warning 以上进诊断 hub，产出报告。可用于主备延迟与空间风险的每日巡检。",
+  "author": "社区贡献 @PG-Admin",
+  "version": "1.0.0",
+  "category": "社区·PostgreSQL",
+  "tags": ["PostgreSQL", "流复制", "高可用", "巡检"],
+  "homepage": "https://github.com/fiyo/DBCheck/discussions",
+  "steps": [
+    {"id": "p1", "kind": "start", "ref": "", "label": "开始", "args": {}, "x": 40, "y": 100},
+    {"id": "p2", "kind": "inspect", "ref": "", "label": "巡检组件：复制/流复制", "args": {"match_title": "流复制"}, "x": 260, "y": 40},
+    {"id": "p3", "kind": "inspect", "ref": "", "label": "巡检组件：表空间", "args": {"match_title": "表空间"}, "x": 260, "y": 160},
+    {"id": "p4", "kind": "hub", "ref": "hub", "label": "智能诊断（仅异常时）", "args": {"when": {"min_severity": "warning"}}, "x": 500, "y": 100},
+    {"id": "p5", "kind": "output", "ref": "", "label": "输出报告", "args": {"action": "report"}, "x": 720, "y": 100},
+    {"id": "p6", "kind": "end", "ref": "", "label": "结束", "args": {}, "x": 920, "y": 100}
+  ],
+  "edges": [
+    ["p1", "p2"], ["p1", "p3"], ["p2", "p4"], ["p3", "p4"], ["p4", "p5"], ["p5", "p6"]
+  ]
+}

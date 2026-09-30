@@ -46,11 +46,42 @@ def _init_db() -> None:
                     name      TEXT NOT NULL,
                     steps     TEXT NOT NULL DEFAULT '[]',
                     edges     TEXT NOT NULL DEFAULT '[]',
+                    description TEXT NOT NULL DEFAULT '',
+                    author    TEXT NOT NULL DEFAULT '',
+                    version   TEXT NOT NULL DEFAULT '1.0.0',
+                    category  TEXT NOT NULL DEFAULT '',
+                    tags      TEXT NOT NULL DEFAULT '[]',
+                    source    TEXT NOT NULL DEFAULT 'user',
+                    visibility TEXT NOT NULL DEFAULT 'local',
+                    installed_version TEXT NOT NULL DEFAULT '',
+                    parent_id INTEGER,
+                    rating_avg REAL NOT NULL DEFAULT 0,
+                    rating_count INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )
                 """
             )
+            # 迁移：旧库只有 6 列，补加市场/UGC 扩列（PRAGMA 探测，缺才 ALTER）
+            _wf_cols = {r[1] for r in conn.execute(
+                "PRAGMA table_info(workflows)").fetchall()}
+            _wf_new_cols = (
+                ("description", "TEXT", "''"),
+                ("author", "TEXT", "''"),
+                ("version", "TEXT", "'1.0.0'"),
+                ("category", "TEXT", "''"),
+                ("tags", "TEXT", "'[]'"),
+                ("source", "TEXT", "'user'"),
+                ("visibility", "TEXT", "'local'"),
+                ("installed_version", "TEXT", "''"),
+                ("parent_id", "INTEGER", "NULL"),
+                ("rating_avg", "REAL", "0"),
+                ("rating_count", "INTEGER", "0"),
+            )
+            for col, ctype, dflt in _wf_new_cols:
+                if col not in _wf_cols:
+                    conn.execute(
+                        f"ALTER TABLE workflows ADD COLUMN {col} {ctype} DEFAULT {dflt}")
             conn.commit()
             conn.close()
         finally:
@@ -58,11 +89,26 @@ def _init_db() -> None:
 
 
 def _row_to_dict(row: sqlite3.Row) -> Dict[str, Any]:
+    try:
+        tags = json.loads(row["tags"] or "[]")
+    except Exception:
+        tags = []
     return {
         "id": row["id"],
         "name": row["name"],
         "steps": json.loads(row["steps"] or "[]"),
         "edges": json.loads(row["edges"] or "[]"),
+        "description": row["description"] or "",
+        "author": row["author"] or "",
+        "version": row["version"] or "1.0.0",
+        "category": row["category"] or "",
+        "tags": tags if isinstance(tags, list) else [],
+        "source": row["source"] or "user",
+        "visibility": row["visibility"] or "local",
+        "installed_version": row["installed_version"] or "",
+        "parent_id": row["parent_id"],
+        "rating_avg": row["rating_avg"] or 0,
+        "rating_count": row["rating_count"] or 0,
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
@@ -97,8 +143,22 @@ def get_workflow(wf_id: int) -> Optional[Dict[str, Any]]:
 
 
 def save_workflow(name: str, steps: List[Dict[str, Any]], edges: List[Any],
-                  wf_id: Optional[int] = None) -> Dict[str, Any]:
-    """保存工作流。``wf_id`` 给定则幂等更新，否则新增。返回完整记录。"""
+                  wf_id: Optional[int] = None, *,
+                  description: Optional[str] = None,
+                  author: Optional[str] = None,
+                  version: Optional[str] = None,
+                  category: Optional[str] = None,
+                  tags: Optional[List[str]] = None,
+                  source: Optional[str] = None,
+                  visibility: Optional[str] = None,
+                  parent_id: Optional[int] = None,
+                  installed_version: Optional[str] = None) -> Dict[str, Any]:
+    """保存工作流。``wf_id`` 给定则幂等更新，否则新增。返回完整记录。
+
+    ``description/author/version/category/tags/source/visibility/parent_id/
+    installed_version`` 为市场/UGC 扩列，仅在显式提供（非 None）时写入，
+    未提供则保留既存值，避免覆盖。
+    """
     if not name or not name.strip():
         raise ValueError("工作流名称不能为空")
     steps = steps or []
@@ -117,21 +177,48 @@ def save_workflow(name: str, steps: List[Dict[str, Any]], edges: List[Any],
     with _LOCK:
         conn = sqlite3.connect(_DB_PATH)
         try:
+            opt = {
+                "description": description,
+                "author": author,
+                "version": version,
+                "category": category,
+                "tags": (json.dumps(tags, ensure_ascii=False)
+                         if isinstance(tags, list) else tags),
+                "source": source,
+                "visibility": visibility,
+                "parent_id": parent_id,
+                "installed_version": installed_version,
+            }
             if wf_id:
                 cur = conn.execute(
-                    "UPDATE workflows SET name=?, steps=?, edges=?, updated_at=? WHERE id=?",
-                    (name.strip(), json.dumps(steps, ensure_ascii=False),
-                     json.dumps(edges, ensure_ascii=False), now, wf_id),
-                )
+                    "SELECT * FROM workflows WHERE id=?", (wf_id,))
+                row = cur.fetchone()
+                exist = dict(zip([c[0] for c in cur.description], row)) if row else {}
+                setters = ["name=?", "steps=?", "edges=?", "updated_at=?"]
+                params = [name.strip(), json.dumps(steps, ensure_ascii=False),
+                          json.dumps(edges, ensure_ascii=False), now]
+                for k, v in opt.items():
+                    if v is not None:
+                        setters.append(f"{k}=?")
+                        params.append(v)
+                params.append(wf_id)
+                conn.execute(
+                    "UPDATE workflows SET " + ",".join(setters) + " WHERE id=?",
+                    params)
                 if cur.rowcount == 0:
                     wf_id = None  # 不存在则退化为新增
             if not wf_id:
+                cols = ["name", "steps", "edges", "created_at", "updated_at"]
+                vals = [name.strip(), json.dumps(steps, ensure_ascii=False),
+                        json.dumps(edges, ensure_ascii=False), now, now]
+                for k, v in opt.items():
+                    if v is not None:
+                        cols.append(k)
+                        vals.append(v)
+                ph = ",".join("?" * len(cols))
                 cur = conn.execute(
-                    "INSERT INTO workflows (name, steps, edges, created_at, updated_at) "
-                    "VALUES (?,?,?,?,?)",
-                    (name.strip(), json.dumps(steps, ensure_ascii=False),
-                     json.dumps(edges, ensure_ascii=False), now, now),
-                )
+                    "INSERT INTO workflows (" + ",".join(cols) + ") "
+                    "VALUES (" + ph + ")", vals)
                 wf_id = cur.lastrowid
             conn.commit()
             conn.row_factory = sqlite3.Row
@@ -200,6 +287,200 @@ def import_workflow(payload: Dict[str, Any]) -> Dict[str, Any]:
         return {"ok": True, "workflow": wf}
     except ValueError as e:
         return {"ok": False, "error": str(e)}
+
+
+# ── P1：工作流市场 UGC（publish / list / install / update / rate / remote） ──
+
+def publish_workflow(wf_id: int, *, author: str, version: str = "1.0.0",
+                     description: str = "", category: str = "",
+                     tags: Optional[List[str]] = None) -> Dict[str, Any]:
+    """将本地工作流发布到市场（标记 visibility=published 并写作者/版本元数据）。"""
+    wf = get_workflow(wf_id)
+    if not wf:
+        return {"ok": False, "error": "工作流不存在"}
+    save_workflow(
+        name=wf["name"], steps=wf["steps"], edges=wf["edges"], wf_id=wf_id,
+        description=description, author=author or "", version=version or "1.0.0",
+        category=category or "", tags=tags or [], source="user",
+        visibility="published")
+    return {"ok": True, "workflow": get_workflow(wf_id)}
+
+
+def _ver_tuple(v: str):
+    """把 'a.b.c' 版本号解析为可比元组；解析失败回退 (0,0,0)。"""
+    try:
+        return tuple(int(x) for x in str(v or "0").split(".")[:3])
+    except Exception:
+        return (0, 0, 0)
+
+
+def _listing_from_wf(wf: Dict[str, Any], *, installed: bool = False,
+                     has_update: bool = False) -> Dict[str, Any]:
+    return {
+        "id": wf["id"],
+        "name": wf["name"],
+        "description": wf["description"],
+        "author": wf["author"],
+        "version": wf["version"],
+        "category": wf["category"],
+        "tags": wf["tags"],
+        "source": wf["source"],
+        "visibility": wf["visibility"],
+        "steps": wf["steps"],
+        "edges": wf["edges"],
+        "installed": installed,
+        "installed_version": wf["installed_version"],
+        "has_update": has_update,
+        "rating_avg": wf["rating_avg"],
+        "rating_count": wf["rating_count"],
+    }
+
+
+def market_list(remote_url: Optional[str] = None) -> List[Dict[str, Any]]:
+    """聚合市场可安装资产：内置模板 + 已发布用户模板 + 可选远程源。"""
+    out: List[Dict[str, Any]] = []
+    # 1) 内置模板（代码内置，不落库）
+    try:
+        from .market_templates import builtin_templates
+        for i, t in enumerate(builtin_templates()):
+            out.append({
+                "id": "builtin::%s" % t.get("name", i),
+                "name": t.get("name", "内置模板"),
+                "description": t.get("description", ""),
+                "author": "DBCheck 官方",
+                "version": "1.0.0",
+                "category": "官方内置",
+                "tags": [],
+                "source": "builtin",
+                "visibility": "published",
+                "steps": t.get("steps", []),
+                "edges": t.get("edges", []),
+                "installed": False,
+                "installed_version": "",
+                "has_update": False,
+                "rating_avg": 0,
+                "rating_count": 0,
+            })
+    except Exception:
+        pass
+    # 2) 已发布用户模板
+    pub = [w for w in list_workflows() if w.get("visibility") == "published"]
+    installed_ids = {w.get("parent_id") for w in list_workflows()
+                     if isinstance(w.get("parent_id"), int)}
+    for w in pub:
+        installed = w["id"] in installed_ids
+        inst_ver = ""
+        inst_id = None
+        for ins in list_workflows():
+            if ins.get("parent_id") == w["id"]:
+                inst_ver = ins.get("installed_version", "")
+                inst_id = ins.get("id")
+        has_update = installed and _ver_tuple(inst_ver) < _ver_tuple(w["version"])
+        item = _listing_from_wf(w, installed=installed, has_update=has_update)
+        item["installed_id"] = inst_id
+        out.append(item)
+    # 3) 可选远程源
+    if remote_url:
+        out.extend(fetch_remote_market(remote_url))
+    return out
+
+
+def fetch_remote_market(url: str, timeout: int = 10) -> List[Dict[str, Any]]:
+    """拉取远程市场索引（JSON 数组）。每条需含 steps/edges；失败返回 []。"""
+    import ssl
+    import urllib.request
+    try:
+        ctx = ssl.create_default_context()
+        req = urllib.request.Request(url, headers={"User-Agent": "DBCheck/Market"})
+        with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        items = data if isinstance(data, list) else (data.get("templates") or [])
+        out = []
+        for it in items:
+            if not isinstance(it, dict) or not it.get("steps"):
+                continue
+            out.append({
+                "id": "remote::" + str(it.get("name", "")),
+                "name": it.get("name", "远程模板"),
+                "description": it.get("description", ""),
+                "author": it.get("author", "社区"),
+                "version": str(it.get("version", "1.0.0")),
+                "category": it.get("category", "社区"),
+                "tags": it.get("tags", []) if isinstance(it.get("tags"), list) else [],
+                "source": "remote",
+                "visibility": "published",
+                "steps": it.get("steps", []),
+                "edges": it.get("edges", []),
+                "installed": False,
+                "installed_version": "",
+                "has_update": False,
+                "rating_avg": 0,
+                "rating_count": 0,
+                "remote_url": url,
+            })
+        return out
+    except Exception:
+        return []
+
+
+def install_listing(item: Dict[str, Any]) -> Dict[str, Any]:
+    """从市场 listing 安装到本地（import 语义 + 记 installed_version/source）。"""
+    payload = {
+        "schema": "dbcheck.workflow",
+        "schema_version": 1,
+        "name": item.get("name", "市场模板"),
+        "description": item.get("description", ""),
+        "steps": item.get("steps", []),
+        "edges": item.get("edges", []),
+    }
+    r = import_workflow(payload)
+    if not r.get("ok"):
+        return r
+    wf = r["workflow"]
+    parent_id = item["id"] if isinstance(item.get("id"), int) else None
+    save_workflow(
+        name=wf["name"], steps=wf["steps"], edges=wf["edges"], wf_id=wf["id"],
+        description=item.get("description", ""), author=item.get("author", ""),
+        version=item.get("version", "1.0.0"), category=item.get("category", ""),
+        tags=item.get("tags", []), source="market",
+        installed_version=item.get("version", "1.0.0"), parent_id=parent_id)
+    return {"ok": True, "workflow": get_workflow(wf["id"])}
+
+
+def update_installed(wf_id: int, item: Dict[str, Any]) -> Dict[str, Any]:
+    """升级已安装的市场模板：用 listing 最新 steps/edges 覆盖，刷新版本。"""
+    wf = get_workflow(wf_id)
+    if not wf:
+        return {"ok": False, "error": "本地工作流不存在"}
+    save_workflow(
+        name=wf["name"], steps=item.get("steps", wf["steps"]),
+        edges=item.get("edges", wf["edges"]), wf_id=wf_id,
+        installed_version=item.get("version", wf.get("installed_version", "")))
+    return {"ok": True, "workflow": get_workflow(wf_id)}
+
+
+def rate_workflow(wf_id: int, score: float) -> Dict[str, Any]:
+    """对模板评分（1–5），增量更新 rating_avg/rating_count。"""
+    wf = get_workflow(wf_id)
+    if not wf:
+        return {"ok": False, "error": "工作流不存在"}
+    try:
+        s = max(1.0, min(5.0, float(score)))
+    except Exception:
+        return {"ok": False, "error": "评分需为 1–5 的数字"}
+    cnt = wf["rating_count"] + 1
+    avg = (wf["rating_avg"] * wf["rating_count"] + s) / cnt
+    _init_db()
+    with _LOCK:
+        conn = sqlite3.connect(_DB_PATH)
+        try:
+            conn.execute(
+                "UPDATE workflows SET rating_avg=?, rating_count=? WHERE id=?",
+                (round(avg, 2), cnt, wf_id))
+            conn.commit()
+        finally:
+            conn.close()
+    return {"ok": True, "workflow": get_workflow(wf_id)}
 
 
 # ─────────────────────────────────────────────────────────────────────────────

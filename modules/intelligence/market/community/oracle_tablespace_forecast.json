@@ -1,0 +1,22 @@
+{
+  "schema": "dbcheck.workflow",
+  "schema_version": 1,
+  "name": "Oracle 表空间容量预警（社区版）",
+  "description": "面向 Oracle 生产库：并行采集「表空间」与「容量」组件，warning 以上进诊断 hub 产出报告。表空间满是导致 Oracle 停写的头号风险，建议每日常驻巡检。",
+  "author": "社区贡献 @Oracle-DBA",
+  "version": "1.1.0",
+  "category": "社区·Oracle",
+  "tags": ["Oracle", "表空间", "容量", "预警"],
+  "homepage": "https://github.com/fiyo/DBCheck/discussions",
+  "steps": [
+    {"id": "o1", "kind": "start", "ref": "", "label": "开始", "args": {}, "x": 40, "y": 100},
+    {"id": "o2", "kind": "inspect", "ref": "", "label": "巡检组件：表空间", "args": {"match_title": "表空间"}, "x": 260, "y": 40},
+    {"id": "o3", "kind": "inspect", "ref": "", "label": "巡检组件：容量", "args": {"match_title": "容量"}, "x": 260, "y": 160},
+    {"id": "o4", "kind": "hub", "ref": "hub", "label": "智能诊断（仅异常时）", "args": {"when": {"min_severity": "warning"}}, "x": 500, "y": 100},
+    {"id": "o5", "kind": "output", "ref": "", "label": "输出报告", "args": {"action": "report"}, "x": 720, "y": 100},
+    {"id": "o6", "kind": "end", "ref": "", "label": "结束", "args": {}, "x": 920, "y": 100}
+  ],
+  "edges": [
+    ["o1", "o2"], ["o1", "o3"], ["o2", "o4"], ["o3", "o4"], ["o4", "o5"], ["o5", "o6"]
+  ]
+}

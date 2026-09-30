@@ -1,0 +1,26 @@
+{
+  "schema": "dbcheck.workflow",
+  "schema_version": 1,
+  "name": "MySQL 慢查询专项 Triage（社区版）",
+  "description": "比内置「性能三查」更聚焦：慢查询 + 锁/阻塞 + 会话/连接三组件并行采集，仅 warning 以上发现才进智能诊断 hub，最后同时产出报告与邮件通知。适合作为 MySQL 实例每日性能巡检的常驻编排。",
+  "author": "社区贡献 @MySQL-OPS",
+  "version": "1.2.0",
+  "category": "社区·MySQL",
+  "tags": ["MySQL", "慢查询", "性能", "triage"],
+  "homepage": "https://github.com/fiyo/DBCheck/discussions",
+  "steps": [
+    {"id": "n1", "kind": "start", "ref": "", "label": "开始", "args": {}, "x": 40, "y": 120},
+    {"id": "n2", "kind": "inspect", "ref": "", "label": "巡检组件：慢查询", "args": {"match_title": "慢查询"}, "x": 260, "y": 40},
+    {"id": "n3", "kind": "inspect", "ref": "", "label": "巡检组件：锁与阻塞", "args": {"match_title": "锁"}, "x": 260, "y": 160},
+    {"id": "n4", "kind": "inspect", "ref": "", "label": "巡检组件：会话/连接", "args": {"match_title": "会话"}, "x": 260, "y": 280},
+    {"id": "n5", "kind": "hub", "ref": "hub", "label": "智能诊断（仅异常时）", "args": {"when": {"min_severity": "warning"}}, "x": 500, "y": 160},
+    {"id": "n6", "kind": "output", "ref": "", "label": "输出报告", "args": {"action": "report"}, "x": 720, "y": 100},
+    {"id": "n7", "kind": "output", "ref": "", "label": "邮件通知", "args": {"action": "email", "to": ""}, "x": 720, "y": 220},
+    {"id": "n8", "kind": "end", "ref": "", "label": "结束", "args": {}, "x": 940, "y": 160}
+  ],
+  "edges": [
+    ["n1", "n2"], ["n1", "n3"], ["n1", "n4"],
+    ["n2", "n5"], ["n3", "n5"], ["n4", "n5"],
+    ["n5", "n6"], ["n6", "n7"], ["n7", "n8"]
+  ]
+}

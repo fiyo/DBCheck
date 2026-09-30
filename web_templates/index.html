@@ -5373,10 +5373,15 @@ async function loadWorkflows() {
       return;
     }
     if (cnt) cnt.textContent = d.workflows.length;
+    window.__wfList = d.workflows;
     box.innerHTML = d.workflows.map(function(w){
       var nc = (w.steps ? w.steps.length : 0);
       var ec = (w.edges ? w.edges.length : 0);
-      return '<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin:8px 0;background:var(--surface2)"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div><b>' + escHtml(w.name) + '</b> <span class="badge">' + nc + ' 节点</span>' + (ec ? ' <span class="badge">' + ec + ' 连线</span>' : '') + '</div><div style="display:flex;gap:6px"><button class="btn btn-ghost" style="font-size:12px;padding:3px 9px" onclick="wfLoad(' + w.id + ')">编辑</button><button class="btn btn-primary" style="font-size:12px;padding:3px 9px" onclick="wfShowRun(' + w.id + ')">执行</button><button class="btn btn-ghost" style="font-size:12px;padding:3px 9px" onclick="wfExport(' + w.id + ')" title="导出为可分享 JSON">导出</button><button class="btn btn-ghost" style="color:#EF4444;font-size:12px;padding:3px 9px" onclick="wfDelete(' + w.id + ')">删除</button></div></div></div>';
+      var published = (w.visibility === 'published');
+      var pubBtn = published
+        ? '<button class="btn btn-ghost" style="font-size:12px;padding:3px 9px" disabled title="已发布到市场">已发布</button>'
+        : '<button class="btn btn-ghost" style="font-size:12px;padding:3px 9px" onclick="wfShowPublish(' + w.id + ')">发布</button>';
+      return '<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin:8px 0;background:var(--surface2)"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div><b>' + escHtml(w.name) + '</b> <span class="badge">' + nc + ' 节点</span>' + (ec ? ' <span class="badge">' + ec + ' 连线</span>' : '') + (published ? ' <span class="badge" style="border-color:var(--accent);color:var(--accent)">已上架</span>' : '') + '</div><div style="display:flex;gap:6px"><button class="btn btn-ghost" style="font-size:12px;padding:3px 9px" onclick="wfLoad(' + w.id + ')">编辑</button><button class="btn btn-primary" style="font-size:12px;padding:3px 9px" onclick="wfShowRun(' + w.id + ')">执行</button><button class="btn btn-ghost" style="font-size:12px;padding:3px 9px" onclick="wfExport(' + w.id + ')" title="导出为可分享 JSON">导出</button>' + pubBtn + '<button class="btn btn-ghost" style="color:#EF4444;font-size:12px;padding:3px 9px" onclick="wfDelete(' + w.id + ')">删除</button></div></div></div>';
     }).join('');
   } catch(e) { toastError('加载列表失败：' + e.message); }
 }
@@ -5445,47 +5450,184 @@ async function wfExport(id) {
   } catch(e) { toastError('导出失败：' + e.message); }
 }
 
+// ── P1 工作流市场 UGC：市场弹窗 + 卡片 + 发布/评分/URL 安装/更新 ──────
+
 async function wfOpenMarket() {
   let modal = document.getElementById('wf-market-mask');
-  if (modal) { modal.style.display = 'flex'; }
-  else {
+  if (!modal) {
     modal = document.createElement('div');
     modal.id = 'wf-market-mask';
     modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10000;display:flex;align-items:center;justify-content:center';
-    modal.innerHTML = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:min(680px,92vw);max-height:82vh;overflow:auto;padding:18px 20px">' +
-      '<div style="display:flex;align-items:center;margin-bottom:12px"><b style="font-size:15px">📦 工作流模板市场</b>' +
+    modal.innerHTML = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:min(760px,94vw);max-height:84vh;overflow:auto;padding:18px 20px">' +
+      '<div style="display:flex;align-items:center;margin-bottom:10px"><b style="font-size:15px">📦 工作流模板市场</b>' +
       '<button class="btn btn-ghost" style="margin-left:auto;font-size:12px;padding:4px 10px" onclick="document.getElementById(\'wf-market-mask\').style.display=\'none\'">关闭</button></div>' +
-      '<div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">模板 = 运维 runbook as code：不携带实例信息，导入后按目标实例库型动态解析巡检组件。也支持从文件导入社区模板。</div>' +
-      '<div style="display:flex;gap:8px;margin-bottom:10px"><input type="file" id="wf-import-file" accept=".json" style="font-size:12px"><button class="btn btn-ghost" style="font-size:12px;padding:4px 12px" onclick="wfImportFile()">📥 从文件导入</button></div>' +
-      '<div id="wf-market-list"><div style="font-size:12.5px;color:var(--text-muted)">加载中…</div></div></div>';
+      '<div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">模板 = 运维 runbook as code：不携带实例信息，导入后按目标实例库型动态解析巡检组件。支持从内置模板、社区 URL 或本地文件安装；你的工作流可在列表点「发布」上架。</div>' +
+      '<div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap"><input id="wf-remote-url" placeholder="社区索引 URL（market/index.json）" value="https://raccoonx.cn/market/index.json" style="flex:1;min-width:200px;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text)">' +
+      '<button class="btn btn-ghost" style="font-size:12px;padding:4px 12px" onclick="wfMarketRemote()">🌐 从 URL 安装</button>' +
+      '<input type="file" id="wf-import-file" accept=".json" style="font-size:12px">' +
+      '<button class="btn btn-ghost" style="font-size:12px;padding:4px 12px" onclick="wfImportFile()">📥 从文件导入</button></div>' +
+      '<div id="wf-market-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;margin-top:6px"></div></div>';
     document.body.appendChild(modal);
     modal.addEventListener('click', function(e){ if (e.target === modal) modal.style.display = 'none'; });
   }
+  modal.style.display = 'flex';
   try {
-    const res = await fetch('/api/intelligence/market/builtin');
+    const res = await fetch('/api/intelligence/market/list');
     const d = await res.json();
-    const box = document.getElementById('wf-market-list');
-    if (!d.ok || !(d.templates || []).length) { box.innerHTML = '<div style="font-size:12.5px;color:var(--text-muted)">暂无内置模板</div>'; return; }
-    box.innerHTML = d.templates.map(function(t, i){
-      var kinds = {};
-      (t.steps || []).forEach(function(s){ kinds[s.kind] = (kinds[s.kind] || 0) + 1; });
-      var badge = Object.keys(kinds).map(function(k){ return '<span class="badge">' + k + '×' + kinds[k] + '</span>'; }).join(' ');
-      return '<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin:8px 0;background:var(--surface2)">' +
-        '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div><b>' + escHtml(t.name) + '</b> ' + badge + '</div>' +
-        '<button class="btn btn-primary" style="font-size:12px;padding:4px 12px" onclick="wfImportBuiltin(' + i + ')">导入</button></div>' +
-        '<div style="font-size:12px;color:var(--text-muted);margin-top:6px">' + escHtml(t.description || '') + '</div></div>';
-    }).join('');
-    window.__wfMarketTemplates = d.templates;
+    wfRenderMarket((d.ok && d.items) ? d.items : []);
   } catch(e) {
     const box = document.getElementById('wf-market-list');
-    if (box) box.innerHTML = '<div style="font-size:12.5px;color:#EF4444">加载失败：' + escHtml(e.message) + '</div>';
+    if (box) box.innerHTML = '<div style="font-size:12.5px;color:#EF4444;grid-column:1/-1">加载失败：' + escHtml(e.message) + '</div>';
   }
 }
 
-async function wfImportBuiltin(idx) {
-  const t = (window.__wfMarketTemplates || [])[idx];
-  if (!t) return;
-  await wfImportPayloads([t]);
+function wfRenderMarket(items) {
+  const box = document.getElementById('wf-market-list');
+  if (!box) return;
+  window.__wfMarketItems = items || [];
+  if (!items.length) { box.innerHTML = '<div style="font-size:12.5px;color:var(--text-muted);grid-column:1/-1">暂无市场模板</div>'; return; }
+  box.innerHTML = items.map(function(it, i){ return wfMarketCard(it, i); }).join('');
+}
+
+function wfStars(avg, count) {
+  const a = Number(avg) || 0;
+  const s = '★'.repeat(Math.round(a)) + '☆'.repeat(Math.max(0, 5 - Math.round(a)));
+  return '<span title="评分 ' + a.toFixed(1) + '">' + s + '</span>' + (count ? ' <span style="color:var(--text-muted)">(' + count + ')</span>' : '');
+}
+
+function wfMarketCard(it, i) {
+  const isInt = typeof it.id === 'number';
+  const srcLabel = it.source === 'builtin' ? '官方内置' : (it.source === 'remote' ? '社区' : (it.source === 'market' ? '已安装' : '已发布'));
+  const tags = (it.tags && it.tags.length ? it.tags : []).map(function(t){ return '<span class="badge">#' + escHtml(t) + '</span>'; }).join(' ');
+  const catTag = it.category ? '<span class="badge" style="border-color:var(--accent2);color:var(--accent2)">' + escHtml(it.category) + '</span>' : '';
+  const srcTag = '<span class="badge" style="border-color:var(--accent);color:var(--accent)">v' + escHtml(it.version || '1.0.0') + ' · ' + srcLabel + '</span>';
+  const rateRow = (isInt && (it.source === 'user' || it.source === 'market'))
+    ? '<div class="mpc-tags" style="margin-top:4px">' + [1,2,3,4,5].map(function(k){ return '<button class="badge" style="cursor:pointer;border-color:var(--warn);color:var(--warn);padding:1px 5px" onclick="wfRate(' + it.id + ',' + k + ')">' + k + '★</button>'; }).join('') + '</div>'
+    : '';
+  let action;
+  if (!isInt) {
+    action = '<button class="btn btn-primary" style="font-size:12px;padding:4px 12px" onclick="wfMarketInstall(' + i + ')">导入</button>';
+  } else if (it.source === 'market') {
+    action = '<span class="mkt-status">✓ 已安装</span>' + (it.has_update ? '<button class="btn btn-ghost" style="font-size:12px;padding:4px 10px" onclick="wfMarketUpdate(' + i + ')">更新</button>' : '');
+  } else if (it.source === 'user') {
+    action = it.installed ? '<span class="mkt-status">✓ 已上架</span>' : '<span class="badge" style="border-color:var(--accent);color:var(--accent)">已发布</span>';
+  } else {
+    action = '<button class="btn btn-primary" style="font-size:12px;padding:4px 12px" onclick="wfMarketInstall(' + i + ')">导入</button>';
+  }
+  return '<div class="market-plugin-card">' +
+    '<div class="mpc-title">' + escHtml(it.name) + '</div>' +
+    '<div class="mpc-tags">' + catTag + srcTag + tags + '</div>' +
+    '<div class="mpc-desc">' + escHtml(it.description || '') + '</div>' +
+    rateRow +
+    '<div class="mpc-footer"><span class="mpc-meta">' + wfStars(it.rating_avg, it.rating_count) + '</span>' +
+    '<span class="mpc-author">' + escHtml(it.author || '') + '</span>' +
+    '<span class="mpc-actions">' + action + '</span></div></div>';
+}
+
+async function wfMarketInstall(idx) {
+  const it = (window.__wfMarketItems || [])[idx];
+  if (!it) return;
+  try {
+    const res = await fetch('/api/intelligence/market/install', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item: it })
+    });
+    const d = await res.json();
+    if (!d.ok) { toastError(d.msg || '安装失败'); return; }
+    toastSuccess('已安装「' + (it.name || '') + '」');
+    loadWorkflows();
+    wfOpenMarket();
+  } catch(e) { toastError('安装失败：' + e.message); }
+}
+
+async function wfMarketUpdate(idx) {
+  const it = (window.__wfMarketItems || [])[idx];
+  if (!it || !it.installed_id) { toastError('找不到已安装副本'); return; }
+  try {
+    const res = await fetch('/api/intelligence/market/update', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workflow_id: it.installed_id, item: it })
+    });
+    const d = await res.json();
+    if (!d.ok) { toastError(d.msg || '更新失败'); return; }
+    toastSuccess('已更新到 v' + (it.version || ''));
+    wfOpenMarket();
+  } catch(e) { toastError('更新失败：' + e.message); }
+}
+
+async function wfMarketRemote() {
+  const inp = document.getElementById('wf-remote-url');
+  const url = inp && inp.value && inp.value.trim();
+  if (!url) { toastError('请先填写社区索引 URL'); return; }
+  try {
+    const res = await fetch('/api/intelligence/market/list?remote=' + encodeURIComponent(url));
+    const d = await res.json();
+    if (!d.ok) { toastError(d.msg || '拉取远程索引失败'); return; }
+    wfRenderMarket(d.items || []);
+    toastSuccess('已加载远程索引（' + ((d.items || []).length) + ' 项）');
+  } catch(e) { toastError('拉取失败：' + e.message); }
+}
+
+async function wfRate(id, score) {
+  try {
+    const res = await fetch('/api/intelligence/market/rate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workflow_id: id, score: score })
+    });
+    const d = await res.json();
+    if (!d.ok) { toastError(d.msg || '评分失败'); return; }
+    toastSuccess('已评分 ' + score + '★');
+    wfOpenMarket();
+  } catch(e) { toastError('评分失败：' + e.message); }
+}
+
+async function wfShowPublish(id) {
+  let m = document.getElementById('wf-publish-mask');
+  if (!m) {
+    m = document.createElement('div');
+    m.id = 'wf-publish-mask';
+    m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10001;display:flex;align-items:center;justify-content:center';
+    m.innerHTML = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:min(440px,92vw);padding:18px 20px">' +
+      '<div style="display:flex;align-items:center;margin-bottom:12px"><b style="font-size:15px">🚀 发布到市场</b><button class="btn btn-ghost" style="margin-left:auto;font-size:12px;padding:4px 10px" onclick="document.getElementById(\'wf-publish-mask\').style.display=\'none\'">关闭</button></div>' +
+      '<div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">发布后他人可在「市场」中浏览、安装、评分你的 runbook。仅发布编排元数据，不含实例信息。</div>' +
+      '<label style="font-size:12px">模板名称</label><input id="wf-pub-name" disabled style="width:100%;font-size:13px;padding:6px 8px;margin:4px 0 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text)">' +
+      '<label style="font-size:12px">作者 *</label><input id="wf-pub-author" placeholder="你的名字/昵称" style="width:100%;font-size:13px;padding:6px 8px;margin:4px 0 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text)">' +
+      '<div style="display:flex;gap:10px"><div style="flex:1"><label style="font-size:12px">版本</label><input id="wf-pub-version" value="1.0.0" style="width:100%;font-size:13px;padding:6px 8px;margin:4px 0 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text)"></div><div style="flex:1"><label style="font-size:12px">分类</label><input id="wf-pub-category" placeholder="如：性能/容灾" style="width:100%;font-size:13px;padding:6px 8px;margin:4px 0 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text)"></div></div>' +
+      '<label style="font-size:12px">描述</label><textarea id="wf-pub-desc" rows="2" placeholder="一句话介绍这个 runbook 解决什么问题" style="width:100%;font-size:13px;padding:6px 8px;margin:4px 0 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text)"></textarea>' +
+      '<label style="font-size:12px">标签（逗号分隔）</label><input id="wf-pub-tags" placeholder="慢查询,巡检,MySQL" style="width:100%;font-size:13px;padding:6px 8px;margin:4px 0 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text)">' +
+      '<button class="btn btn-primary" style="width:100%;font-size:13px;padding:8px" onclick="wfDoPublish()">发布</button>' +
+      '<div id="wf-pub-err" style="color:var(--danger);font-size:12px;margin-top:8px"></div></div>';
+    document.body.appendChild(m);
+    m.addEventListener('click', function(e){ if (e.target === m) m.style.display = 'none'; });
+  }
+  const w = (window.__wfList || []).find(function(x){ return x.id === id; });
+  document.getElementById('wf-pub-name').value = w ? w.name : '';
+  m.dataset.wfid = id;
+  m.style.display = 'flex';
+}
+
+async function wfDoPublish() {
+  const m = document.getElementById('wf-publish-mask');
+  const id = m && m.dataset.wfid;
+  if (!id) return;
+  const author = (document.getElementById('wf-pub-author').value || '').trim();
+  if (!author) { document.getElementById('wf-pub-err').textContent = '作者不能为空'; return; }
+  const version = (document.getElementById('wf-pub-version').value || '1.0.0').trim() || '1.0.0';
+  const category = (document.getElementById('wf-pub-category').value || '').trim();
+  const description = (document.getElementById('wf-pub-desc').value || '').trim();
+  const tags = (document.getElementById('wf-pub-tags').value || '').split(',').map(function(s){return s.trim();}).filter(Boolean);
+  try {
+    const res = await fetch('/api/intelligence/market/publish', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workflow_id: id, author: author, version: version, category: category, description: description, tags: tags })
+    });
+    const d = await res.json();
+    if (!d.ok) { document.getElementById('wf-pub-err').textContent = (d.msg || '发布失败'); return; }
+    toastSuccess('已发布到市场');
+    m.style.display = 'none';
+    loadWorkflows();
+    wfOpenMarket();
+  } catch(e) { document.getElementById('wf-pub-err').textContent = '发布失败：' + e.message; }
 }
 
 async function wfImportFile() {
