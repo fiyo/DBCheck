@@ -2650,7 +2650,9 @@ def _ct_mongodb(data, flavor):
 #   - 等待期间用 gevent.sleep 让出执行权 → 界面全程可用；
 #   - 超时直接杀子进程树，JVM 随之消失，主进程不受任何残留影响。
 JDBC_SUBPROCESS_DB_TYPES = ('hgdb', 'db2', 'sqlserver_jdbc', 'oracle_jdbc', 'oracle', 'ivorysql', 'pg', 'kingbase', 'yashandb', 'mysql', 'mariadb', 'tidb', 'oceanbase')
-JDBC_TEST_TIMEOUT = 30  # 秒；需覆盖 JVM 冷启动(3~10s) + JDBC 登录超时(10~15s)
+JDBC_TEST_TIMEOUT = 50  # 秒；需覆盖 JVM 冷启动(3~10s) + JDBC 登录超时(10~15s)；
+# Oracle 走 thin(16s 上限) → thick(12s 上限) 两段尝试（见 oracle_conn_test._THIN_TOTAL_S），
+# 加上杀软对新版未签名 exe 每次子进程 spawn 的实时扫描，30s 在部分用户环境不够。
 
 # 需要整条巡检任务隔离到子进程的数据库类型（均依赖进程内 JVM/JPype）。
 # 与 driver_registry.JDBC_PLUGIN_TO_CATALOG 对齐：6 个 JDBC 插件 + 核心内置 dm/gbase/ivorysql，
@@ -2765,9 +2767,18 @@ def run_jdbc_test_subprocess(db_type, data, extra_kwargs=None, timeout=JDBC_TEST
             while proc.poll() is None:
                 if time.monotonic() >= deadline:
                     _kill_process_tree(proc)
+                    # 附带子进程日志尾段：里程碑打印（如 oracle thin/thick 阶段）
+                    # 能直接暴露卡在哪一步，而非只有一句笼统超时
+                    _tail = ''
+                    try:
+                        with open(_out_path, 'r', encoding='utf-8', errors='replace') as _f:
+                            _tail = (_f.read() or '')[-500:].strip()
+                    except OSError:
+                        pass
                     return False, (f'连接测试超时（已超过 {timeout} 秒）。'
                                    f'请检查主机地址、端口与网络连通性，'
-                                   f'并确认 JDBC 驱动 jar 与 Java 运行环境已就绪。')
+                                   f'并确认 JDBC 驱动 jar 与 Java 运行环境已就绪。'
+                                   + (f'\n\n子进程日志尾段：\n{_tail}' if _tail else ''))
                 _cooperative_sleep(0.05)
 
         # 子进程可能在写完结果后才退出，输出文件此时已完整

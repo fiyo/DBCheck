@@ -17,7 +17,7 @@ gevent>=24.0.0
 # ── Database Drivers ───────────────────────────────────────────────────────
 pymysql>=1.0.0
 psycopg2-binary>=2.9.0
-oracledb>=1.4.0
+oracledb>=1.4.0,<27    # 钉上界防 CI 漂移：26.x(2026-09) 为大版本跳变，3.x→26.x 曾致 11g 连接行为变化（thin 握手挂起），升级前必须在真实 11g 上回归
 pyodbc>=4.0.0           # SQL Server (also requires ODBC Driver 17)
 gbase8sdb>=0.2.0        # GBase 8s (官方 Python 驱动，需 GBase SDK)
 jaydebeapi>=1.2.0       # GBase 8s JDBC 连接（需 JDK + jdbc jar）

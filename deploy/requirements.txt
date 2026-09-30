@@ -33,7 +33,7 @@ Werkzeug>=3.0.0         # Flask 依赖；inspection_api.py 直接 from werkzeug.
 # ── Database Drivers ──────────────────────────────────────────────────────────
 pymysql>=1.0.0          # MySQL / TiDB
 psycopg2-binary>=2.9.0   # PostgreSQL / IvorySQL
-oracledb>=1.4.0         # Oracle (recommended, pure Python, no Instant Client)
+oracledb>=1.4.0,<27    # 钉上界防 CI 漂移：26.x(2026-09) 为大版本跳变，3.x→26.x 曾致 11g 连接行为变化（thin 握手挂起），升级前必须在真实 11g 上回归         # Oracle (recommended, pure Python, no Instant Client)
 # cx_Oracle>=8.0.0      # Oracle (legacy, requires Oracle Instant Client)
 dmpython>=1.0.0         # Dameng DM8
 # YashanDB: 驱动重组后 wheel 已移除，统一走 JDBC（drivers/yashandb/ 下 jar，见 modules/jdbc_connector.py）；

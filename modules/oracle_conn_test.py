@@ -21,8 +21,45 @@ Oracle 连接测试独立模块（纯函数，无 Flask / 线程副作用）。
 import os
 import sys
 import json
+import threading
 
 from modules.core.paths import PROJECT_ROOT
+
+# ── 连接尝试线程上限（秒）────────────────────────────────────────────────────
+# 背景：oracledb thin 的 tcp_connect_timeout 只覆盖 TCP connect，协议握手/认证
+# 阶段没有任何超时；thick(OCI) connect 更是完全无超时。老 11g 服务端 + 新版
+# python-oracledb（26.x 大版本，2026-09 起 CI 未钉版拉入）在握手阶段互等时，
+# 连接调用会无限挂起 → 子进程被 app 层 30 秒兜底杀掉，用户只见笼统的
+# 「连接测试超时」。用线程上限把「挂起」转成「可处置的超时」：thin 挂起时
+# 还能落到 thick 回退，thick 挂起时给出可读错误，均赶在子进程兜底之前。
+_THIN_CAP_S = 16   # > tcp_connect_timeout(15)：真网络超时仍走 DPY-6001 原生指引
+_THICK_CAP_S = 12
+_THIN_TOTAL_S = _THIN_CAP_S + _THICK_CAP_S  # 28s < 子进程 30s 兜底
+
+
+def _attempt_with_cap(fn, cap_s):
+    """在守护线程中执行 fn：正常返回其结果；抛异常则原样抛出；超时返回 None。
+
+    挂起线程随子进程退出自然回收（daemon），不泄漏到宿主进程。
+    """
+    box = {}
+
+    def _runner():
+        try:
+            box['value'] = fn()
+            box['done'] = True
+        except BaseException as _e:  # noqa: BLE001 - 需把任意驱动异常转交主线程
+            box['error'] = _e
+            box['done'] = True
+
+    th = threading.Thread(target=_runner, daemon=True)
+    th.start()
+    th.join(cap_s)
+    if not box.get('done'):
+        return None  # 超时挂起
+    if 'error' in box:
+        raise box['error']
+    return box.get('value')
 
 # 与 modules.web.app 保持完全一致的 BASE_DIR 语义：
 # 开发模式用项目根目录；PyInstaller 打包后用 exe 所在目录
@@ -142,6 +179,11 @@ def _ct_oracle_pro(data):
     import oracledb
     import re as _re
 
+    def _init_thick():
+        """PATH 默认搜索的 thick 初始化（Instant Client 在 PATH 时命中）。"""
+        oracledb.init_oracle_client()
+        return True
+
     _jdbc = (data.get('jdbc_url') or '').strip()
     _has_dsn = bool(_jdbc and _jdbc.lstrip().upper().startswith('(DESCRIPTION'))
     if _has_dsn:
@@ -196,61 +238,92 @@ def _ct_oracle_pro(data):
                 else:
                     raise
             conn.close()
+            return True
 
+        def _safe_dsn_str():
+            return _re.sub(r'(PASSWORD\s*=\s*)[^)]+', r'\1***', str(dsn),
+                           flags=_re.IGNORECASE) if isinstance(dsn, str) else str(dsn)
+
+        # ① thin 尝试（线程上限防握手挂起：tcp_connect_timeout 只管 TCP connect）
+        print('[oracle-test] thin 尝试: dsn=%s (上限 %ds)' % (_safe_dsn_str(), _THIN_CAP_S),
+              flush=True)
+        _thin_err = None
+        _thin_ok = False
+        _thin_hang = False
         try:
-            _try_connect()
-            return {'ok': True, 'message': '连接成功'}
+            _thin_ok = bool(_attempt_with_cap(_try_connect, _THIN_CAP_S))
+            if not _thin_ok:
+                _thin_hang = True  # 线程超时未返回 → 握手挂起
         except Exception as e:
-            err_msg = str(e)
-            if 'DPY-3010' in err_msg or 'DPY-3015' in err_msg:
-                _thick_ok = False
-                try:
-                    oracledb.init_oracle_client()
-                    _thick_ok = True
-                except Exception:
-                    pass
-                if not _thick_ok:
-                    _lib_dir = _find_oracle_client_lib_dir()
-                    if _lib_dir:
-                        try:
-                            oracledb.init_oracle_client(lib_dir=_lib_dir)
-                            _thick_ok = True
-                        except Exception:
-                            pass
-                if not _thick_ok:
-                    try:
-                        with open(os.path.join(BASE_DIR, 'dbc_config.json')) as f:
-                            _cfg = json.load(f)
-                        _lib_dir = _cfg.get('oracle_client_lib_dir', '')
-                        if _lib_dir and os.path.isdir(_lib_dir):
-                            oracledb.init_oracle_client(lib_dir=_lib_dir)
-                            _thick_ok = True
-                    except Exception:
-                        pass
-                if not _thick_ok:
-                    return {'ok': False, 'error': 'Oracle 11g 及以下版本需要 Oracle Instant Client。'
-                                                '请通过左侧导航"Oracle Client"设置页，点击"一键下载并安装"按钮自动下载安装。'}
-                try:
-                    _try_connect()
-                    return {'ok': True, 'message': '连接成功'}
-                except Exception as e2:
-                    return {'ok': False, 'error': f'Oracle 连接失败（thick mode）: {e2}'}
-            elif 'unexpected keyword argument' in err_msg.lower() or type(e).__name__ == 'TypeError':
+            _thin_err = e
+        if _thin_ok:
+            print('[oracle-test] thin 连接成功', flush=True)
+            return {'ok': True, 'message': '连接成功'}
+        print('[oracle-test] thin 未成功: %s' % ('握手挂起' if _thin_hang else
+              ('%s: %s' % (type(_thin_err).__name__, str(_thin_err)[:200]))), flush=True)
+
+        # ② 失败分类：能落 thick 回退的（11g 特征）→ thick；纯网络问题 → 原生指引
+        #    触发条件：DPY-3010/3015（26.x 仍保留）+ 版本/口令验证器文案 + thin 握手挂起
+        err_msg = str(_thin_err) if _thin_err else ''
+        _low = err_msg.lower()
+        _need_thick = _thin_hang or 'DPY-3010' in err_msg or 'DPY-3015' in err_msg \
+            or ('version' in _low and 'supported' in _low) \
+            or 'password verifier' in _low
+        if not _need_thick:
+            if 'unexpected keyword argument' in _low or type(_thin_err).__name__ == 'TypeError':
                 # 驱动连接参数错误（如传入了 oracledb 不认识的 kwarg），不应误判为「连接超时」
-                return {'ok': False, 'error': f'Oracle 驱动连接参数错误: {type(e).__name__}: {err_msg[:300]}'}
-            elif 'timed out' in err_msg.lower() or 'timeout' in err_msg.lower():
+                return {'ok': False, 'error': f'Oracle 驱动连接参数错误: {type(_thin_err).__name__}: {err_msg[:300]}'}
+            if 'timed out' in _low or 'timeout' in _low:
                 # 把实际用于连接的 DSN/地址 + oracledb 原始异常暴露出来，方便排查：
                 # 真 TCP 超时（DPY-6001/ORA-12170）vs 握手/权限问题被误判为超时（如 SYSDBA+服务名）
-                _safe_dsn = _re.sub(r'(PASSWORD\s*=\s*)[^)]+', r'\1***', str(dsn),
-                                    flags=_re.IGNORECASE) if isinstance(dsn, str) else str(dsn)
-                _detail = f'（原始异常: {type(e).__name__}: {err_msg[:400]}）'
+                _detail = f'（原始异常: {type(_thin_err).__name__}: {err_msg[:400]}）'
                 if ssh_host:
-                    return {'ok': False, 'error': f'连接超时，SSH 隧道已建立但无法访问 Oracle（实际 DSN: {_safe_dsn}）{_detail}，'
+                    return {'ok': False, 'error': f'连接超时，SSH 隧道已建立但无法访问 Oracle（实际 DSN: {_safe_dsn_str()}）{_detail}，'
                                                 f'请检查数据库监听地址、Service Name/SID 及防火墙'}
-                return {'ok': False, 'error': f'连接超时，Oracle 可能无法直连（实际 DSN: {_safe_dsn}）{_detail}，'
+                return {'ok': False, 'error': f'连接超时，Oracle 可能无法直连（实际 DSN: {_safe_dsn_str()}）{_detail}，'
                                               f'请在数据源中配置 SSH，或确认上方主机地址/端口/服务名/SYSDBA 是否正确'}
-            else:
-                return {'ok': False, 'error': str(e)}
+            return {'ok': False, 'error': err_msg}
+
+        # ③ thick 回退（11g 需 Instant Client）：init 与 connect 全程线程上限防挂起
+        print('[oracle-test] 走 thick 回退（Oracle Instant Client）', flush=True)
+        _thick_ok = False
+        try:
+            _thick_ok = bool(_attempt_with_cap(lambda: _init_thick(), _THICK_CAP_S // 2))
+        except Exception:
+            pass
+        if not _thick_ok:
+            _lib_dir = _find_oracle_client_lib_dir()
+            if _lib_dir:
+                try:
+                    _thick_ok = bool(_attempt_with_cap(
+                        lambda: (oracledb.init_oracle_client(lib_dir=_lib_dir), True)[1],
+                        _THICK_CAP_S // 2))
+                except Exception:
+                    pass
+            if not _thick_ok:
+                try:
+                    with open(os.path.join(BASE_DIR, 'dbc_config.json')) as f:
+                        _cfg = json.load(f)
+                    _lib_dir = _cfg.get('oracle_client_lib_dir', '')
+                    if _lib_dir and os.path.isdir(_lib_dir):
+                        _thick_ok = bool(_attempt_with_cap(
+                            lambda: (oracledb.init_oracle_client(lib_dir=_lib_dir), True)[1],
+                            _THICK_CAP_S // 2))
+                except Exception:
+                    pass
+        if not _thick_ok:
+            return {'ok': False, 'error': 'Oracle 11g 及以下版本超出 oracledb thin 模式支持范围（12.1+），'
+                                        'thick 回退需要 Oracle Instant Client 但未检测到（查找目录 drivers/oracle_client）。'
+                                        '推荐：改用数据源类型「Oracle (JDBC)」连接 11g——在「数据库驱动管理」页上传 ojdbc6/ojdbc8 驱动 jar 即可，无需 Instant Client。'}
+        print('[oracle-test] thick 客户端就绪, lib_dir=%s' % (_lib_dir or '(PATH)'), flush=True)
+        try:
+            _thick_out = _attempt_with_cap(_try_connect, _THICK_CAP_S)
+        except Exception as e2:
+            return {'ok': False, 'error': f'Oracle 连接失败（thick mode）: {e2}'}
+        if _thick_out is None:
+            return {'ok': False, 'error': f'Oracle thick 连接超过 {_THICK_CAP_S} 秒无响应'
+                                          f'（实际 DSN: {_safe_dsn_str()}），请检查监听与防火墙'}
+        return {'ok': True, 'message': '连接成功'}
     finally:
         if _tunnel:
             _tunnel.close()
