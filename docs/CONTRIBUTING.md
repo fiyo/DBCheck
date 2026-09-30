@@ -1,6 +1,6 @@
 # 贡献指南 / Contributing
 
-感谢你参与 DBCheck 的贡献！ 🎉
+感谢你参与 RaccoonX（DBCheck）的贡献！ 🎉
 
 ## 提交流程 / How to Contribute
 
@@ -30,4 +30,4 @@
 ## 联系方式 / Contact
 
 - 邮箱：sdfiyon@gmail.com
-- 官网：https://dbcheck.top
+- 官网：https://raccoonx.cn
