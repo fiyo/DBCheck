@@ -59,6 +59,7 @@ menus_data = [
     ('sql-audit',         'menu.sql-audit',        0, 60),
     ('autonomy',         'menu.autonomy',          0, 61),
     ('fleet',            'menu.fleet',             0, 62),
+    ('xinchuang',        'menu.xinchuang',         0, 63),
     ('twin',             'menu.twin',              0, 625),
     ('data-management',  'menu.data-management', 0, 66),
     ('about',            'menu.about',           0, 67),

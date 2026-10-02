@@ -3381,6 +3381,8 @@ ZI.update({
     "menu.autonomy": "安全自治",
     "menu.fleet": "智能基线",
     "menu.twin": "拓扑巡检",
+    "menu.xinchuang": "信创合规",
+    "webui.xinchuang_subtitle": "对纳管实例做信创化程度盘点：国产（信创）占比、国外数据库待替换清单、库型分布。",
     "menu.trend": "趋势分析",
     "menu.wizard": "数据库巡检",
 

@@ -37,40 +37,76 @@ from modules.core.paths import PROJECT_ROOT, DATA_DIR
 DRIVERS_DB_PATH = str(DATA_DIR / 'drivers.db')
 DRIVERS_DIR = str(PROJECT_ROOT / 'drivers')
 
-# ── 25 类 db_type 元数据（驱动类提示/常用 Maven 坐标）────────────
+# ── 28 类 db_type 元数据（驱动类提示/常用 Maven 坐标）────────────
 # is_jdbc=True 表示该类型标准走 JDBC；False 表示无标准 JDBC（mongo/es 等，
 # 阶段 A 仍开放登记——可由用户自行指定 driver_class + jar 路径）。
+# xinchuang=True 表示该类型属信创（信息技术应用创新）目录内的国产数据库；
+# 该字段为「权威默认清单」，用户可在信创合规页覆盖（xinchuang_overrides）。
 DB_TYPE_CATALOG: List[Dict] = [
-    {'key': 'mysql',         'name_zh': 'MySQL',         'name_en': 'MySQL',         'driver_class_hint': 'com.mysql.cj.jdbc.Driver',         'is_jdbc': True,  'order': 1},
-    {'key': 'mariadb',       'name_zh': 'MariaDB',       'name_en': 'MariaDB',       'driver_class_hint': 'org.mariadb.jdbc.Driver',           'is_jdbc': True,  'order': 2},
-    {'key': 'oracle',        'name_zh': 'Oracle',        'name_en': 'Oracle',        'driver_class_hint': 'oracle.jdbc.driver.OracleDriver',    'is_jdbc': True,  'order': 3},
-    {'key': 'sqlserver',     'name_zh': 'SqlServer',     'name_en': 'SQL Server',    'driver_class_hint': 'com.microsoft.sqlserver.jdbc.SQLServerDriver', 'is_jdbc': True, 'order': 4},
-    {'key': 'postgresql',    'name_zh': 'PostgreSQL',    'name_en': 'PostgreSQL',    'driver_class_hint': 'org.postgresql.Driver',              'is_jdbc': True,  'order': 5},
-    {'key': 'db2',           'name_zh': 'DB2',           'name_en': 'IBM Db2',       'driver_class_hint': 'com.ibm.db2.jcc.DB2Driver',          'is_jdbc': True,  'order': 6},
-    {'key': 'dm',            'name_zh': 'DM',            'name_en': 'DM (达梦)',     'driver_class_hint': 'dm.jdbc.driver.DmDriver',            'is_jdbc': True,  'order': 7},
-    {'key': 'kingbase',      'name_zh': 'KingBase',      'name_en': 'KingbaseES',    'driver_class_hint': 'com.kingbase8.Driver',               'is_jdbc': True,  'order': 8},
-    {'key': 'oscar',         'name_zh': 'Oscar',         'name_en': 'Oscar (神州通用)', 'driver_class_hint': 'com.oscar.Driver',                 'is_jdbc': True,  'order': 9},
-    {'key': 'gbase8a',       'name_zh': 'GBase8A',       'name_en': 'GBase 8a',      'driver_class_hint': 'com.gbase.jdbc.Driver',              'is_jdbc': True,  'order': 10},
-    {'key': 'gbase8s',       'name_zh': 'GBase8S',       'name_en': 'GBase 8s',      'driver_class_hint': 'com.gbasedbt.jdbc.Driver',            'is_jdbc': True,  'order': 11},
-    {'key': 'highgo',        'name_zh': 'HighGo',        'name_en': 'HighGo (瀚高)', 'driver_class_hint': 'org.postgresql.Driver',              'is_jdbc': True,  'order': 12},
-    {'key': 'sybase',        'name_zh': 'Sybase',        'name_en': 'Sybase ASE',    'driver_class_hint': 'com.sybase.jdbc4.jdbc.SybDriver',    'is_jdbc': True,  'order': 13},
-    {'key': 'hive',          'name_zh': 'Hive',          'name_en': 'Apache Hive',   'driver_class_hint': 'org.apache.hive.jdbc.HiveDriver',    'is_jdbc': True,  'order': 14},
-    {'key': 'sqlite3',       'name_zh': 'Sqlite3',       'name_en': 'SQLite',        'driver_class_hint': 'org.sqlite.JDBC',                    'is_jdbc': True,  'order': 15},
-    {'key': 'opengauss',     'name_zh': 'OpenGauss',     'name_en': 'openGauss',     'driver_class_hint': 'org.opengauss.Driver',               'is_jdbc': True,  'order': 16},
-    {'key': 'clickhouse',    'name_zh': 'ClickHouse',    'name_en': 'ClickHouse',    'driver_class_hint': 'com.clickhouse.jdbc.ClickHouseDriver', 'is_jdbc': True, 'order': 17},
-    {'key': 'mongodb',       'name_zh': 'MongoDB',       'name_en': 'MongoDB',       'driver_class_hint': '',                                   'is_jdbc': False, 'order': 18},
-    {'key': 'elasticsearch', 'name_zh': 'ElasticSearch', 'name_en': 'ElasticSearch', 'driver_class_hint': '',                                   'is_jdbc': False, 'order': 19},
-    {'key': 'starrocks',     'name_zh': 'StarRocks',     'name_en': 'StarRocks',     'driver_class_hint': 'com.mysql.cj.jdbc.Driver',            'is_jdbc': True,  'order': 20},
-    {'key': 'greenplum',     'name_zh': 'Greenplum',     'name_en': 'Greenplum',     'driver_class_hint': 'org.postgresql.Driver',               'is_jdbc': True,  'order': 21},
-    {'key': 'doris',         'name_zh': 'Doris',         'name_en': 'Apache Doris',  'driver_class_hint': 'com.mysql.cj.jdbc.Driver',            'is_jdbc': True,  'order': 22},
-    {'key': 'oceanbase',     'name_zh': 'OceanBase',     'name_en': 'OceanBase',     'driver_class_hint': 'com.oceanbase.jdbc.Driver',          'is_jdbc': True,  'order': 23},
-    {'key': 'tdengine',      'name_zh': 'TDengine',      'name_en': 'TDengine',      'driver_class_hint': 'com.taosdata.jdbc.rsdriver',         'is_jdbc': True,  'order': 24},
-    {'key': 'uxdb',          'name_zh': 'UXDB',          'name_en': 'UXDB (优炫)',   'driver_class_hint': 'com.uxsino.uxdb.Driver',          'is_jdbc': True,  'order': 25},
-    {'key': 'ivorysql',      'name_zh': 'IvorySQL',      'name_en': 'IvorySQL',      'driver_class_hint': 'org.postgresql.Driver',            'is_jdbc': True,  'order': 26},
-    {'key': 'yashandb',      'name_zh': 'YashanDB',      'name_en': 'YashanDB (崖山)', 'driver_class_hint': 'com.yashandb.jdbc.Driver',        'is_jdbc': True,  'order': 27},
-    {'key': 'tidb',          'name_zh': 'TiDB',          'name_en': 'TiDB',           'driver_class_hint': 'com.mysql.cj.jdbc.Driver',          'is_jdbc': True,  'order': 28},
+    {'key': 'mysql',         'name_zh': 'MySQL',         'name_en': 'MySQL',         'driver_class_hint': 'com.mysql.cj.jdbc.Driver',         'is_jdbc': True,  'order': 1,  'xinchuang': False},
+    {'key': 'mariadb',       'name_zh': 'MariaDB',       'name_en': 'MariaDB',       'driver_class_hint': 'org.mariadb.jdbc.Driver',           'is_jdbc': True,  'order': 2,  'xinchuang': False},
+    {'key': 'oracle',        'name_zh': 'Oracle',        'name_en': 'Oracle',        'driver_class_hint': 'oracle.jdbc.driver.OracleDriver',    'is_jdbc': True,  'order': 3,  'xinchuang': False},
+    {'key': 'sqlserver',     'name_zh': 'SqlServer',     'name_en': 'SQL Server',    'driver_class_hint': 'com.microsoft.sqlserver.jdbc.SQLServerDriver', 'is_jdbc': True, 'order': 4, 'xinchuang': False},
+    {'key': 'postgresql',    'name_zh': 'PostgreSQL',    'name_en': 'PostgreSQL',    'driver_class_hint': 'org.postgresql.Driver',              'is_jdbc': True,  'order': 5,  'xinchuang': False},
+    {'key': 'db2',           'name_zh': 'DB2',           'name_en': 'IBM Db2',       'driver_class_hint': 'com.ibm.db2.jcc.DB2Driver',          'is_jdbc': True,  'order': 6,  'xinchuang': False},
+    {'key': 'dm',            'name_zh': 'DM',            'name_en': 'DM (达梦)',     'driver_class_hint': 'dm.jdbc.driver.DmDriver',            'is_jdbc': True,  'order': 7,  'xinchuang': True},
+    {'key': 'kingbase',      'name_zh': 'KingBase',      'name_en': 'KingbaseES',    'driver_class_hint': 'com.kingbase8.Driver',               'is_jdbc': True,  'order': 8,  'xinchuang': True},
+    {'key': 'oscar',         'name_zh': 'Oscar',         'name_en': 'Oscar (神州通用)', 'driver_class_hint': 'com.oscar.Driver',                'is_jdbc': True,  'order': 9,  'xinchuang': True},
+    {'key': 'gbase8a',       'name_zh': 'GBase8A',       'name_en': 'GBase 8a',      'driver_class_hint': 'com.gbase.jdbc.Driver',              'is_jdbc': True,  'order': 10, 'xinchuang': True},
+    {'key': 'gbase8s',       'name_zh': 'GBase8S',       'name_en': 'GBase 8s',      'driver_class_hint': 'com.gbasedbt.jdbc.Driver',            'is_jdbc': True,  'order': 11, 'xinchuang': True},
+    {'key': 'highgo',        'name_zh': 'HighGo',        'name_en': 'HighGo (瀚高)', 'driver_class_hint': 'org.postgresql.Driver',              'is_jdbc': True,  'order': 12, 'xinchuang': True},
+    {'key': 'sybase',        'name_zh': 'Sybase',        'name_en': 'Sybase ASE',    'driver_class_hint': 'com.sybase.jdbc4.jdbc.SybDriver',    'is_jdbc': True,  'order': 13, 'xinchuang': False},
+    {'key': 'hive',          'name_zh': 'Hive',          'name_en': 'Apache Hive',   'driver_class_hint': 'org.apache.hive.jdbc.HiveDriver',    'is_jdbc': True,  'order': 14, 'xinchuang': False},
+    {'key': 'sqlite3',       'name_zh': 'Sqlite3',       'name_en': 'SQLite',        'driver_class_hint': 'org.sqlite.JDBC',                    'is_jdbc': True,  'order': 15, 'xinchuang': False},
+    {'key': 'opengauss',     'name_zh': 'OpenGauss',     'name_en': 'openGauss',     'driver_class_hint': 'org.opengauss.Driver',               'is_jdbc': True,  'order': 16, 'xinchuang': True},
+    {'key': 'clickhouse',    'name_zh': 'ClickHouse',    'name_en': 'ClickHouse',    'driver_class_hint': 'com.clickhouse.jdbc.ClickHouseDriver', 'is_jdbc': True, 'order': 17, 'xinchuang': False},
+    {'key': 'mongodb',       'name_zh': 'MongoDB',       'name_en': 'MongoDB',       'driver_class_hint': '',                                   'is_jdbc': False, 'order': 18, 'xinchuang': False},
+    {'key': 'elasticsearch', 'name_zh': 'ElasticSearch', 'name_en': 'ElasticSearch', 'driver_class_hint': '',                                   'is_jdbc': False, 'order': 19, 'xinchuang': False},
+    {'key': 'starrocks',     'name_zh': 'StarRocks',     'name_en': 'StarRocks',     'driver_class_hint': 'com.mysql.cj.jdbc.Driver',            'is_jdbc': True,  'order': 20, 'xinchuang': False},
+    {'key': 'greenplum',     'name_zh': 'Greenplum',     'name_en': 'Greenplum',     'driver_class_hint': 'org.postgresql.Driver',               'is_jdbc': True,  'order': 21, 'xinchuang': False},
+    {'key': 'doris',         'name_zh': 'Doris',         'name_en': 'Apache Doris',  'driver_class_hint': 'com.mysql.cj.jdbc.Driver',            'is_jdbc': True,  'order': 22, 'xinchuang': True},
+    {'key': 'oceanbase',     'name_zh': 'OceanBase',     'name_en': 'OceanBase',     'driver_class_hint': 'com.oceanbase.jdbc.Driver',          'is_jdbc': True,  'order': 23, 'xinchuang': True},
+    {'key': 'tdengine',      'name_zh': 'TDengine',      'name_en': 'TDengine',      'driver_class_hint': 'com.taosdata.jdbc.rsdriver',         'is_jdbc': True,  'order': 24, 'xinchuang': True},
+    {'key': 'uxdb',          'name_zh': 'UXDB',          'name_en': 'UXDB (优炫)',   'driver_class_hint': 'com.uxsino.uxdb.Driver',          'is_jdbc': True,  'order': 25, 'xinchuang': True},
+    {'key': 'ivorysql',      'name_zh': 'IvorySQL',      'name_en': 'IvorySQL',      'driver_class_hint': 'org.postgresql.Driver',            'is_jdbc': True,  'order': 26, 'xinchuang': True},
+    {'key': 'yashandb',      'name_zh': 'YashanDB',      'name_en': 'YashanDB (崖山)', 'driver_class_hint': 'com.yashandb.jdbc.Driver',        'is_jdbc': True,  'order': 27, 'xinchuang': True},
+    {'key': 'tidb',          'name_zh': 'TiDB',          'name_en': 'TiDB',           'driver_class_hint': 'com.mysql.cj.jdbc.Driver',          'is_jdbc': True,  'order': 28, 'xinchuang': True},
 ]
 DB_TYPE_KEYS = frozenset(d['key'] for d in DB_TYPE_CATALOG)
+
+
+def normalize_db_type(db_type: str) -> str:
+    """归一化 db_type 用于信创合规判定与聚合。
+
+    业务约定：``_jdbc`` 后缀只是 JDBC 连接实现方式，不改变数据库种类；
+    所有带 ``_jdbc`` 的类型按去掉 ``_jdbc`` 后的基础类型判断。例如
+    oracle_jdbc/oracle → oracle，sqlserver_jdbc/sqlserver → sqlserver，
+    db2_jdbc → db2，uxdb_jdbc → uxdb。
+
+    此外瀚高（HighGo）在 DB_TYPE_CATALOG 的权威 key 是 'highgo'，而数据源/
+    插件常用 hgdb / hgdb_jdbc 表示，统一归一到 highgo。
+    """
+    dt = (db_type or '').lower().strip()
+    if dt.endswith('_jdbc'):
+        dt = dt[: -len('_jdbc')]
+    if dt == 'hgdb':
+        dt = 'highgo'
+    return dt
+
+
+def xinchuang_default(db_type: str) -> bool:
+    """信创（国产）默认判定：命中 DB_TYPE_CATALOG 的 xinchuang 字段。
+
+    仅作权威默认；用户在信创合规页的覆盖（xinchuang_overrides）优先级更高，
+    由 modules.intelligence.compliance.classify 统一裁决。
+    """
+    if not db_type:
+        return False
+    dt = normalize_db_type(db_type)
+    for d in DB_TYPE_CATALOG:
+        if d['key'] == dt:
+            return bool(d.get('xinchuang', False))
+    return False
 
 
 # ── SQLite 线程本地连接 ─────────────────────────────────────

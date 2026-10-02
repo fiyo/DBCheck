@@ -3351,6 +3351,8 @@ EN.update({
     "menu.autonomy": "Safe Autonomy",
     "menu.fleet": "Smart Baseline",
     "menu.twin": "Topology Inspection",
+    "menu.xinchuang": "Xinchuang Compliance",
+    "webui.xinchuang_subtitle": "Xinchuang (domestic) compliance overview of managed instances: domestic ratio, foreign-DB replacement list, and DB-type distribution.",
     "menu.trend": "Trend Analysis",
     "menu.wizard": "Database Inspection",
 

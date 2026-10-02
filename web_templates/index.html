@@ -4362,6 +4362,38 @@ function renderDiagResultInto(d, findingsId, planId, pvId, reviewId) {
          </details>`
       : '';
     f.innerHTML = (focusBanner + mainHtml + sideHtml) || '<div style="font-size:12px;color:var(--text-muted)">未发现明确风险。</div>';
+    // ── 信创合规联动（2026-10-02）：诊断结果顶部注入国产化标签 ──
+    const _xcdt = (d.target_meta && d.target_meta.db_type) || '';
+    if (_xcdt && f) {
+      fetch('/api/intelligence/compliance/tag?db_type=' + encodeURIComponent(_xcdt))
+        .then(r => r.json())
+        .then(j => {
+          if (!j.ok || !j.data) return;
+          const t = j.data;
+          let banner;
+          if (t.is_domestic) {
+            banner = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid rgba(22,163,74,.4);background:rgba(22,163,74,.08);border-radius:10px;padding:8px 12px;margin:0 0 10px">'
+              + '<span style="font-weight:700;color:#16A34A">✓ 国产（信创）数据库</span>'
+              + '<span style="font-size:12px;color:var(--text-muted)">' + escHtml(t.label_zh || t.normalized || t.db_type) + ' · 已符合国家信创导向</span>'
+              + '</div>';
+          } else if (t.is_foreign) {
+            const repl = (t.replacement_labels && t.replacement_labels.length) ? t.replacement_labels.join(' / ') : '暂无明确单库替代';
+            banner = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid rgba(220,38,38,.4);background:rgba(220,38,38,.08);border-radius:10px;padding:8px 12px;margin:0 0 10px">'
+              + '<span style="font-weight:700;color:#DC2626">⚠ 国外数据库</span>'
+              + '<span style="font-size:12px;color:var(--text-muted)">' + escHtml(t.label_zh || t.normalized || t.db_type) + ' · 建议国产化替代：' + escHtml(repl) + '</span>'
+              + '<button class="btn btn-ghost" style="font-size:12px;padding:3px 10px;margin-left:auto" onclick="showPage(\'xinchuang\'); loadXinchuangPage()">查看信创合规态势 →</button>'
+              + '</div>';
+          } else {
+            banner = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid var(--border);background:var(--surface2);border-radius:10px;padding:8px 12px;margin:0 0 10px">'
+              + '<span style="font-weight:700;color:var(--text-muted)">ⓘ 未知库类型</span>'
+              + '<span style="font-size:12px;color:var(--text-muted)">' + escHtml(t.db_type || t.normalized) + ' · 可在「信创合规」页「分类管理」中标注</span>'
+              + '<button class="btn btn-ghost" style="font-size:12px;padding:3px 10px;margin-left:auto" onclick="showPage(\'xinchuang\'); loadXinchuangPage()">去标注 →</button>'
+              + '</div>';
+          }
+          f.insertAdjacentHTML('afterbegin', banner);
+        })
+        .catch(() => {});
+    }
   }
   const p = document.getElementById(planId);
   if (p) p.innerHTML = (d.plan || []).map(s => `<div style="border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin:10px 0;background:var(--surface2)">
@@ -7589,6 +7621,9 @@ function wfCloseRunDrawer() {
     </div>
     <div class="nav-item" onclick="showPage('twin')" id="nav-twin" data-page-node-id="tWiN1nav">
       <span class="icon" data-page-node-id="tWiN2icon"><svg viewBox="0 0 24 24" aria-hidden="true" data-page-node-id="tWiN3icon"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/><path d="M11 7h4a2 2 0 0 1 2 2v4M13 17H9a2 2 0 0 1-2-2v-4"/></svg></span> <span data-page-node-id="tWiN4label">拓扑巡检</span>
+    </div>
+    <div class="nav-item" onclick="showPage('xinchuang'); loadXinchuangPage()" id="nav-xinchuang" data-page-node-id="xInCh1nav">
+      <span class="icon" data-page-node-id="xInCh2icon"><svg viewBox="0 0 24 24" aria-hidden="true" data-page-node-id="xInCh3icon"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span> <span data-page-node-id="xInCh4label">信创合规</span>
     </div>
     <div class="nav-item" onclick="showPage('sql-editor')" id="nav-sql-editor" data-page-node-id="N1B30jWZmpX0kKvfSud965">
       <span class="icon" data-page-node-id="WB7ROL3LKzu9sulipRzqIc"><svg viewBox="0 0 24 24" aria-hidden="true" data-page-node-id="S8uYKaDi3JnNbYhUH6Xgos"><path d="m16 18 6-6-6-6" data-page-node-id="xcl9gEKKlFmaJlU8By7ej5"/><path d="m8 6-6 6 6 6" data-page-node-id="rzyAKbzdAFplGGNCEnupxb"/></svg></span> <span data-i18n="webui.nav_sql_editor" data-page-node-id="tkBf0jEEQGjTiW7sM7OFlL">SQL 编辑器</span>
@@ -11652,6 +11687,207 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
         </div>
       </div><!-- /page-twin -->
 
+      <!-- ══ Page: 信创合规态势（P2） ══ -->
+      <div class="page" id="page-xinchuang" style="display:none;" data-page-node-id="xInChpage">
+        <style>
+          .xc-stats{display:flex;gap:12px;flex-wrap:wrap;margin:14px 0}
+          .xc-st{flex:1;min-width:130px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+          .xc-st .n{font-size:24px;font-weight:800;line-height:1}
+          .xc-st .l{font-size:12px;color:var(--text-muted);margin-top:5px}
+          .xc-st.ring{display:flex;align-items:center;gap:16px}
+          .xc-ring-wrap{position:relative;width:96px;height:96px;flex:none}
+          .xc-ring-wrap .xc-ring-num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800}
+          .xc-table{width:100%;border-collapse:collapse;font-size:12.5px}
+          .xc-table th{text-align:left;padding:8px 10px;color:var(--text-muted);font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap}
+          .xc-table td{padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
+          .xc-table tr:hover td{background:var(--surface2)}
+          .xc-badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px}
+          .xc-drawer{position:fixed;top:0;right:0;height:100%;width:min(560px,94vw);background:var(--surface);border-left:1px solid var(--border);box-shadow:-8px 0 28px rgba(0,0,0,.32);transform:translateX(100%);transition:transform .22s ease;z-index:10002;display:flex;flex-direction:column}
+          .xc-drawer.open{transform:translateX(0)}
+          .xc-drawer-head{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border)}
+          .xc-drawer-body{padding:16px 18px;overflow-y:auto;flex:1}
+          .xc-drawer-mask{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:10001;display:none}
+          .xc-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:9px;margin-bottom:8px;font-size:12.5px}
+        </style>
+
+        <!-- Hero -->
+        <div class="card xc-hero" data-page-node-id="xInChero">
+          <div class="card-title" data-page-node-id="xInCtitle">
+            🛡️ 信创合规态势
+            <span style="margin-left:auto;font-size:11px;color:var(--text-muted);font-weight:400" data-page-node-id="xInChint">加权合规率 · 生产/核心实例权重加倍</span>
+          </div>
+          <div style="color:var(--text-muted);font-size:12.5px;margin-bottom:12px" data-page-node-id="xInChsub">
+            对纳管实例做信创化程度盘点：国产（信创）占比、国外数据库待替换清单、库型分布。判定以权威默认清单为基准，可在「分类管理」中按库类型覆盖。
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap" data-page-node-id="xInChctrl">
+            <button class="btn btn-ghost" onclick="loadXinchuangPage()" data-page-node-id="xInChrefresh">↻ 刷新</button>
+            <button class="btn btn-ghost" onclick="xcDownloadReport('html')" data-page-node-id="xInChhtml">⬇ 报告(HTML)</button>
+            <button class="btn btn-ghost" onclick="xcDownloadReport('json')" data-page-node-id="xInChjson">⬇ 报告(JSON)</button>
+            <button class="btn btn-primary" onclick="loadXinchuangMap()" data-page-node-id="xInChmanage">⚙ 分类管理</button>
+          </div>
+        </div>
+
+        <!-- 统计 + 评分环 -->
+        <div class="xc-stats" id="xc-stats" data-page-node-id="xInChstats"></div>
+
+        <!-- 库型分布 -->
+        <div class="card" data-page-node-id="xInChtypetable">
+          <div class="card-title" data-page-node-id="xInChtypetitle">库型分布</div>
+          <div style="overflow-x:auto" data-page-node-id="xInChtypewrap">
+            <table class="xc-table" data-page-node-id="xInChtypetbl">
+              <thead><tr data-page-node-id="xInChtypehead">
+                <th data-page-node-id="xInCht1">类型</th><th data-page-node-id="xInCht2">db_type</th>
+                <th data-page-node-id="xInCht3">总数</th><th data-page-node-id="xInCht4">国产</th>
+                <th data-page-node-id="xInCht5">国外</th><th data-page-node-id="xInCht6">待定</th>
+                <th data-page-node-id="xInCht7">判定</th>
+              </tr></thead>
+              <tbody id="xc-type-tbody" data-page-node-id="xInChtypetbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 待替换清单 -->
+        <div class="card" data-page-node-id="xInChrisktable">
+          <div class="card-title" data-page-node-id="xInChrisktitle">
+            国外数据库待替换清单
+            <span id="xc-risk-count" style="margin-left:auto;font-size:11px;color:var(--text-muted);font-weight:400" data-page-node-id="xInChriskcnt"></span>
+          </div>
+          <div style="overflow-x:auto" data-page-node-id="xInChriskwrap">
+            <table class="xc-table" data-page-node-id="xInChrisktbl">
+              <thead><tr data-page-node-id="xInChriskhead">
+                <th data-page-node-id="xInChr1">实例</th><th data-page-node-id="xInChr2">主机</th>
+                <th data-page-node-id="xInChr3">类型</th><th data-page-node-id="xInChr4">业务组</th>
+                <th data-page-node-id="xInChr5">建议国产替代</th>
+              </tr></thead>
+              <tbody id="xc-risk-tbody" data-page-node-id="xInChrisktbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 分类管理抽屉 -->
+        <div class="xc-drawer" id="xc-drawer" data-page-node-id="xInChdrawer">
+          <div class="xc-drawer-head" data-page-node-id="xInChdhead">
+            <b data-page-node-id="xInChdtitle">信创分类管理</b>
+            <button class="btn btn-ghost" style="padding:4px 10px" onclick="xcCloseDrawer()" data-page-node-id="xInChdclose">✕</button>
+          </div>
+          <div class="xc-drawer-body" id="xc-drawer-body" data-page-node-id="xInChdbody"></div>
+        </div>
+        <div class="xc-drawer-mask" id="xc-drawer-mask" onclick="xcCloseDrawer()" data-page-node-id="xInChdmask"></div>
+      </div><!-- /page-xinchuang -->
+
+      <script>
+      // ── 信创合规态势（P2） ──────────────────────────────
+      let __xcRisk = [], __xcMap = [];
+
+      async function loadXinchuangPage() {
+        const box = document.getElementById('xc-stats');
+        if (box) box.innerHTML = '<div class="xc-st"><div class="l">加载中…</div></div>';
+        try {
+          const res = await fetch('/api/intelligence/compliance/overview');
+          const d = await res.json();
+          if (!d.ok) { if (box) box.innerHTML = '<div class="xc-st" style="color:#EF4444">加载失败：' + escHtml(d.msg || '') + '</div>'; return; }
+          const o = d.overview;
+          __xcRisk = o.risk_instances || [];
+          renderXinchuangStats(o);
+          renderXinchuangTypes(o.by_type || []);
+          renderXinchuangRisk(__xcRisk);
+        } catch (e) {
+          if (box) box.innerHTML = '<div class="xc-st" style="color:#EF4444">加载失败：' + escHtml(e.message) + '</div>';
+        }
+      }
+
+      function xcScoreColor(s) { return s >= 70 ? '#16A34A' : (s >= 40 ? '#D97706' : '#DC2626'); }
+
+      function renderXinchuangStats(o) {
+        const color = xcScoreColor(o.score);
+        const circ = 2 * Math.PI * 42;
+        const off = circ * (1 - (o.compliance_rate || 0) / 100);
+        const html =
+          '<div class="xc-st ring">' +
+            '<div class="xc-ring-wrap"><svg viewBox="0 0 96 96" width="96" height="96">' +
+              '<circle cx="48" cy="48" r="42" fill="none" stroke="var(--border)" stroke-width="9"/>' +
+              '<circle cx="48" cy="48" r="42" fill="none" stroke="' + color + '" stroke-width="9" stroke-linecap="round" stroke-dasharray="' + circ.toFixed(1) + '" stroke-dashoffset="' + off.toFixed(1) + '" transform="rotate(-90 48 48)"/>' +
+            '</svg><div class="xc-ring-num" style="color:' + color + '">' + o.score + '</div></div>' +
+            '<div><div style="font-size:13px;font-weight:600">信创合规评分</div>' +
+            '<div style="font-size:12px;color:var(--text-muted)">合规率 ' + o.compliance_rate + '% · 加权</div></div>' +
+          '</div>' +
+          xcStat(o.total, '纳管实例总数') +
+          xcStat(o.domestic, '国产(信创)', '#16A34A') +
+          xcStat(o.foreign, '国外(待替换)', '#DC2626') +
+          xcStat(o.neutral, '待定(未知)', '#6b7280');
+        document.getElementById('xc-stats').innerHTML = html;
+      }
+      function xcStat(n, l, c) {
+        return '<div class="xc-st"><div class="n" ' + (c ? 'style="color:' + c + '"' : '') + '>' + n + '</div><div class="l">' + l + '</div></div>';
+      }
+
+      function renderXinchuangTypes(rows) {
+        const tb = document.getElementById('xc-type-tbody');
+        if (!tb) return;
+        if (!rows.length) { tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">暂无实例</td></tr>'; return; }
+        tb.innerHTML = rows.map(function (b) {
+          const cls = b.xinchuang === null ? '待定' : (b.xinchuang ? '国产' : '国外');
+          const cb = b.xinchuang === null ? 'background:#6b7280' : (b.xinchuang ? 'background:#16A34A' : 'background:#DC2626');
+          return '<tr><td>' + escHtml(b.name_zh) + '</td><td>' + escHtml(b.db_type) + '</td><td>' + b.total + '</td><td>' + b.domestic + '</td><td>' + b.foreign + '</td><td>' + b.neutral + '</td><td><span class="xc-badge" style="' + cb + ';color:#fff">' + cls + '</span></td></tr>';
+        }).join('');
+      }
+
+      function renderXinchuangRisk(list) {
+        const tb = document.getElementById('xc-risk-tbody');
+        const cnt = document.getElementById('xc-risk-count');
+        if (cnt) cnt.textContent = list.length ? ('共 ' + list.length + ' 个待替换') : '';
+        if (!tb) return;
+        if (!list.length) { tb.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#16A34A">✓ 无国外数据库实例</td></tr>'; return; }
+        tb.innerHTML = list.map(function (r) {
+          const sugg = (r.suggestion_names && r.suggestion_names.length) ? r.suggestion_names.map(function (s) { return escHtml(s); }).join('、') : '暂无明确单库替代，建议评估国产分布式/多模方案';
+          return '<tr><td>' + escHtml(r.name) + '</td><td>' + escHtml(r.host || '') + '</td><td>' + escHtml(r.db_type_name) + '</td><td>' + escHtml(r.group) + '</td><td>' + sugg + '</td></tr>';
+        }).join('');
+      }
+
+      function xcDownloadReport(fmt) {
+        window.open('/api/intelligence/compliance/report?fmt=' + fmt, '_blank');
+      }
+
+      async function loadXinchuangMap() {
+        const body = document.getElementById('xc-drawer-body');
+        body.innerHTML = '<div style="color:var(--text-muted);font-size:12.5px">加载中…</div>';
+        document.getElementById('xc-drawer').classList.add('open');
+        document.getElementById('xc-drawer-mask').style.display = 'block';
+        try {
+          const res = await fetch('/api/intelligence/compliance/xinchuang-map');
+          const d = await res.json();
+          if (!d.ok) { body.innerHTML = '<div style="color:#EF4444">加载失败：' + escHtml(d.msg || '') + '</div>'; return; }
+          __xcMap = d.items || [];
+          body.innerHTML = '<div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">覆盖优先于默认清单；国产库标 ✅，国外库标 ⬜。点击切换即生效。</div>' +
+            __xcMap.map(function (it, i) {
+              const eff = it.effective_xinchuang;
+              const badge = eff ? '<span class="xc-badge" style="background:#16A34A;color:#fff">国产</span>' : '<span class="xc-badge" style="background:#DC2626;color:#fff">国外</span>';
+              const ov = it.override ? '<span style="font-size:10px;color:var(--accent2)">已覆盖</span>' : '';
+              return '<div class="xc-row"><div><b>' + escHtml(it.name_zh) + '</b> <span style="color:var(--text-muted)">' + escHtml(it.db_type) + '</span> ' + ov + ' ' + badge + '</div>' +
+                '<button class="btn btn-ghost" style="font-size:12px;padding:3px 10px" onclick="xcToggle(' + i + ')">' + (eff ? '改为国外' : '改为国产') + '</button></div>';
+            }).join('');
+        } catch (e) { body.innerHTML = '<div style="color:#EF4444">加载失败：' + escHtml(e.message) + '</div>'; }
+      }
+      async function xcToggle(i) {
+        const it = __xcMap[i]; if (!it) return;
+        const newVal = !it.effective_xinchuang;
+        try {
+          const res = await fetch('/api/intelligence/compliance/xinchuang-override', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ db_type: it.db_type, value: newVal })
+          });
+          const d = await res.json();
+          if (!d.ok) { toastError(d.msg || '保存失败'); return; }
+          await loadXinchuangMap();
+          loadXinchuangPage();
+        } catch (e) { toastError(e.message); }
+      }
+      function xcCloseDrawer() {
+        document.getElementById('xc-drawer').classList.remove('open');
+        document.getElementById('xc-drawer-mask').style.display = 'none';
+      }
+      </script>
+
       {% if pro_available %}
             <div class="page" id="page-flow" style="display:none;padding:0;" data-page-node-id="V78O7ZrLpeEFP4pwaQIXz4">
         <iframe src="/flow" title="智能巡检编排中心" style="width:100%;height:100%;min-height:0;border:0;flex:1;display:block;" data-page-node-id="hIuPosGnFrWTi7X6XCXx0A"></iframe>
@@ -12309,6 +12545,7 @@ function showPage(name) {
     'sql-audit': ['SQL 审核', '提交 SQL 变更前的安全审计：解析、规则校验、风险评分（MVP1 仅只读分析，不执行）'],
     'autonomy': ['安全自治 DBA 闭环', '检测→诊断→提议→审批闸门→执行→复检 的可审计自治闭环（P0-c 看板）'],
     'fleet': ['智能基线 · Smart Baseline', '无监督基线学习 + 漂移检测 + 容量预测：从单点巡检到全库智能（P1）'],
+    'xinchuang': [i18n('menu.xinchuang') || '信创合规', i18n('webui.xinchuang_subtitle') || '对纳管实例做信创化程度盘点：国产（信创）占比、国外数据库待替换清单、库型分布。'],
   };
   const t = titles[name] || [name, ''];
   document.getElementById('topbar-title').textContent = t[0];

@@ -625,6 +625,109 @@ def market_rate_ep():
         return jsonify({"ok": False, "msg": str(e)}), 500
 
 
+# ── 信创合规态势（P2） ───────────────────────────────────
+@intelligence_bp.route("/api/intelligence/compliance/overview", methods=["GET"])
+def compliance_overview_ep():
+    try:
+        from . import compliance
+
+        overview = compliance.build_overview()
+        return jsonify({"ok": True, "overview": overview})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+
+@intelligence_bp.route("/api/intelligence/compliance/report", methods=["GET"])
+def compliance_report_ep():
+    try:
+        from . import compliance
+
+        fmt = (request.args.get("fmt") or "html").lower()
+        if fmt not in ("html", "json"):
+            fmt = "html"
+        overview = compliance.build_overview()
+        if fmt == "json":
+            return Response(
+                compliance.build_report(overview, "json"),
+                mimetype="application/json",
+                headers={"Content-Disposition": "attachment; filename=compliance_report.json"},
+            )
+        return Response(
+            compliance.build_report(overview, "html"),
+            mimetype="text/html",
+            headers={"Content-Disposition": "attachment; filename=compliance_report.html"},
+        )
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+
+@intelligence_bp.route("/api/intelligence/compliance/xinchuang-map", methods=["GET"])
+def compliance_xinchuang_map_ep():
+    try:
+        from . import compliance
+        from modules.driver_registry import DB_TYPE_CATALOG
+
+        ov = compliance.get_override_map()
+        items = []
+        for d in DB_TYPE_CATALOG:
+            dt = d["key"]
+            overridden = dt in ov
+            eff = ov[dt] if overridden else bool(d.get("xinchuang", False))
+            items.append({
+                "db_type": dt, "name_zh": d["name_zh"], "name_en": d["name_en"],
+                "default_xinchuang": bool(d.get("xinchuang", False)),
+                "override": overridden, "effective_xinchuang": eff,
+            })
+        return jsonify({"ok": True, "items": items, "overrides": ov})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+
+@intelligence_bp.route("/api/intelligence/compliance/xinchuang-override", methods=["POST"])
+def compliance_xinchuang_override_set_ep():
+    try:
+        from . import compliance
+
+        data = request.get_json(force=True, silent=True) or {}
+        db_type = data.get("db_type")
+        value = bool(data.get("value"))
+        if not db_type:
+            return jsonify({"ok": False, "msg": "db_type 必填"}), 400
+        r = compliance.set_override(db_type, value)
+        if not r.get("ok"):
+            return jsonify({"ok": False, "msg": r.get("error")}), 500
+        return jsonify(r)
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+
+@intelligence_bp.route("/api/intelligence/compliance/xinchuang-override/<db_type>", methods=["DELETE"])
+def compliance_xinchuang_override_clear_ep(db_type):
+    try:
+        from . import compliance
+
+        r = compliance.clear_override(db_type)
+        if not r.get("ok"):
+            return jsonify({"ok": False, "msg": r.get("error")}), 500
+        return jsonify(r)
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+
+@intelligence_bp.route("/api/intelligence/compliance/tag")
+def compliance_tag_ep():
+    """给单个 db_type 打信创合规标签（诊断中心联动）。"""
+    try:
+        from . import compliance
+
+        db_type = (request.args.get("db_type") or "").strip()
+        if not db_type:
+            return jsonify({"ok": False, "msg": "db_type 必填"}), 400
+        return jsonify({"ok": True, "data": compliance.tag_db_type(db_type)})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+
 # ── Workflow 任务管理（独立导航「工作流任务」） ──────────────────────────
 def _denorm_task(task: Dict[str, Any]) -> Dict[str, Any]:
     """给任务补充工作流名称等冗余字段，便于前端卡片直接渲染。"""
