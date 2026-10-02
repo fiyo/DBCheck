@@ -85,11 +85,16 @@ def normalize_db_type(db_type: str) -> str:
 
     此外瀚高（HighGo）在 DB_TYPE_CATALOG 的权威 key 是 'highgo'，而数据源/
     插件常用 hgdb / hgdb_jdbc 表示，统一归一到 highgo。
+
+    注意：**不强制小写**——手工添加的自定义库名（如 Vastbase / AntDB）必须
+    保留用户输入的原始大小写用于展示；大小写不敏感的匹配在各自判定函数内
+    单独用 .lower() 处理。
     """
-    dt = (db_type or '').lower().strip()
-    if dt.endswith('_jdbc'):
+    dt = (db_type or '').strip()
+    low = dt.lower()
+    if low.endswith('_jdbc'):
         dt = dt[: -len('_jdbc')]
-    if dt == 'hgdb':
+    if low == 'hgdb':
         dt = 'highgo'
     return dt
 
@@ -104,7 +109,7 @@ def xinchuang_default(db_type: str) -> bool:
         return False
     dt = normalize_db_type(db_type)
     for d in DB_TYPE_CATALOG:
-        if d['key'] == dt:
+        if d['key'] == dt.lower():
             return bool(d.get('xinchuang', False))
     return False
 

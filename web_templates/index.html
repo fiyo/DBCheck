@@ -4377,16 +4377,23 @@ function renderDiagResultInto(d, findingsId, planId, pvId, reviewId) {
               + '<span style="font-size:12px;color:var(--text-muted)">' + escHtml(t.label_zh || t.normalized || t.db_type) + ' · 已符合国家信创导向</span>'
               + '</div>';
           } else if (t.is_foreign) {
-            const repl = (t.replacement_labels && t.replacement_labels.length) ? t.replacement_labels.join(' / ') : '暂无明确单库替代';
+            const repl = (t.replacement_detail && t.replacement_detail.length)
+              ? t.replacement_detail.map(function (s) {
+                  const rel = s.relation ? ' <span style="color:#185FA5">' + escHtml(s.relation) + '</span>' : '';
+                  const eff = s.effort ? ' <span style="color:#854F0B">改动' + escHtml(s.effort) + '</span>' : '';
+                  const b = s.certified ? ' <span style="color:#16A34A;font-weight:600">[国测]</span>' : '';
+                  return escHtml(s.label) + rel + eff + b;
+                }).join(' / ')
+              : '暂无明确单库替代';
             banner = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid rgba(220,38,38,.4);background:rgba(220,38,38,.08);border-radius:10px;padding:8px 12px;margin:0 0 10px">'
               + '<span style="font-weight:700;color:#DC2626">⚠ 国外数据库</span>'
-              + '<span style="font-size:12px;color:var(--text-muted)">' + escHtml(t.label_zh || t.normalized || t.db_type) + ' · 建议国产化替代：' + escHtml(repl) + '</span>'
+              + '<span style="font-size:12px;color:var(--text-muted)">' + escHtml(t.label_zh || t.normalized || t.db_type) + ' · 建议国产化替代（' + repl + '）：</span>'
               + '<button class="btn btn-ghost" style="font-size:12px;padding:3px 10px;margin-left:auto" onclick="showPage(\'xinchuang\'); loadXinchuangPage()">查看信创合规态势 →</button>'
               + '</div>';
           } else {
             banner = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid var(--border);background:var(--surface2);border-radius:10px;padding:8px 12px;margin:0 0 10px">'
               + '<span style="font-weight:700;color:var(--text-muted)">ⓘ 未知库类型</span>'
-              + '<span style="font-size:12px;color:var(--text-muted)">' + escHtml(t.db_type || t.normalized) + ' · 可在「信创合规」页「分类管理」中标注</span>'
+              + '<span style="font-size:12px;color:var(--text-muted)">' + escHtml(t.db_type || t.normalized) + ' · 可在「信创合规」页「库型维护」中标注</span>'
               + '<button class="btn btn-ghost" style="font-size:12px;padding:3px 10px;margin-left:auto" onclick="showPage(\'xinchuang\'); loadXinchuangPage()">去标注 →</button>'
               + '</div>';
           }
@@ -11717,13 +11724,13 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
             <span style="margin-left:auto;font-size:11px;color:var(--text-muted);font-weight:400" data-page-node-id="xInChint">加权合规率 · 生产/核心实例权重加倍</span>
           </div>
           <div style="color:var(--text-muted);font-size:12.5px;margin-bottom:12px" data-page-node-id="xInChsub">
-            对纳管实例做信创化程度盘点：国产（信创）占比、国外数据库待替换清单、库型分布。判定以权威默认清单为基准，可在「分类管理」中按库类型覆盖。
+            对纳管实例做信创化程度盘点：国产（信创）占比、国外数据库待替换清单、库型分布。判定以权威默认清单为基准，可在「库型维护」中按库类型覆盖。
           </div>
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap" data-page-node-id="xInChctrl">
             <button class="btn btn-ghost" onclick="loadXinchuangPage()" data-page-node-id="xInChrefresh">↻ 刷新</button>
             <button class="btn btn-ghost" onclick="xcDownloadReport('html')" data-page-node-id="xInChhtml">⬇ 报告(HTML)</button>
             <button class="btn btn-ghost" onclick="xcDownloadReport('json')" data-page-node-id="xInChjson">⬇ 报告(JSON)</button>
-            <button class="btn btn-primary" onclick="loadXinchuangMap()" data-page-node-id="xInChmanage">⚙ 分类管理</button>
+            <button class="btn btn-primary" onclick="loadXinchuangMaintain()" data-page-node-id="xInChmanage">⚙ 库型维护（分类 + 国测）</button>
           </div>
         </div>
 
@@ -11737,8 +11744,7 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
             <table class="xc-table" data-page-node-id="xInChtypetbl">
               <thead><tr data-page-node-id="xInChtypehead">
                 <th data-page-node-id="xInCht1">类型</th><th data-page-node-id="xInCht2">db_type</th>
-                <th data-page-node-id="xInCht3">总数</th><th data-page-node-id="xInCht4">国产</th>
-                <th data-page-node-id="xInCht5">国外</th><th data-page-node-id="xInCht6">待定</th>
+                <th data-page-node-id="xInCht3">实例数</th>
                 <th data-page-node-id="xInCht7">判定</th>
               </tr></thead>
               <tbody id="xc-type-tbody" data-page-node-id="xInChtypetbody"></tbody>
@@ -11752,22 +11758,28 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
             国外数据库待替换清单
             <span id="xc-risk-count" style="margin-left:auto;font-size:11px;color:var(--text-muted);font-weight:400" data-page-node-id="xInChriskcnt"></span>
           </div>
+          <div id="xc-risk-sort" data-page-node-id="xInChrisksort"></div>
+          <div style="font-size:11.5px;color:var(--text-muted);margin:0 0 10px;line-height:1.7" data-page-node-id="xInChriskdesc">
+            推荐口径：<b>同源</b>=同内核分支（如 PostgreSQL→瀚高/openGauss），改动少；
+            <b>兼容</b>=语法/协议层兼容（如 Oracle→达梦）；
+            <b>适配</b>=需重写评估。改动量：少/中/多。<b>国测</b>=通过国家信创测评。
+          </div>
           <div style="overflow-x:auto" data-page-node-id="xInChriskwrap">
             <table class="xc-table" data-page-node-id="xInChrisktbl">
               <thead><tr data-page-node-id="xInChriskhead">
                 <th data-page-node-id="xInChr1">实例</th><th data-page-node-id="xInChr2">主机</th>
                 <th data-page-node-id="xInChr3">类型</th><th data-page-node-id="xInChr4">业务组</th>
-                <th data-page-node-id="xInChr5">建议国产替代</th>
+                <th data-page-node-id="xInChr5">候选替代 / 决策</th>
               </tr></thead>
               <tbody id="xc-risk-tbody" data-page-node-id="xInChrisktbody"></tbody>
             </table>
           </div>
         </div>
 
-        <!-- 分类管理抽屉 -->
+        <!-- 库型维护抽屉（信创分类 + 国测认证 合并） -->
         <div class="xc-drawer" id="xc-drawer" data-page-node-id="xInChdrawer">
           <div class="xc-drawer-head" data-page-node-id="xInChdhead">
-            <b data-page-node-id="xInChdtitle">信创分类管理</b>
+            <b data-page-node-id="xInChdtitle">库型维护 · 信创分类 + 国测认证</b>
             <button class="btn btn-ghost" style="padding:4px 10px" onclick="xcCloseDrawer()" data-page-node-id="xInChdclose">✕</button>
           </div>
           <div class="xc-drawer-body" id="xc-drawer-body" data-page-node-id="xInChdbody"></div>
@@ -11777,7 +11789,8 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
 
       <script>
       // ── 信创合规态势（P2） ──────────────────────────────
-      let __xcRisk = [], __xcMap = [];
+      let __xcRisk = [];
+      let __xcSort = 'lineage';  // lineage=同源优先 | guoce=国测优先 | effort=改动少优先
 
       async function loadXinchuangPage() {
         const box = document.getElementById('xc-stats');
@@ -11824,11 +11837,11 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
       function renderXinchuangTypes(rows) {
         const tb = document.getElementById('xc-type-tbody');
         if (!tb) return;
-        if (!rows.length) { tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">暂无实例</td></tr>'; return; }
+        if (!rows.length) { tb.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted)">暂无实例</td></tr>'; return; }
         tb.innerHTML = rows.map(function (b) {
           const cls = b.xinchuang === null ? '待定' : (b.xinchuang ? '国产' : '国外');
           const cb = b.xinchuang === null ? 'background:#6b7280' : (b.xinchuang ? 'background:#16A34A' : 'background:#DC2626');
-          return '<tr><td>' + escHtml(b.name_zh) + '</td><td>' + escHtml(b.db_type) + '</td><td>' + b.total + '</td><td>' + b.domestic + '</td><td>' + b.foreign + '</td><td>' + b.neutral + '</td><td><span class="xc-badge" style="' + cb + ';color:#fff">' + cls + '</span></td></tr>';
+          return '<tr><td>' + escHtml(b.name_zh) + '</td><td>' + escHtml(b.db_type) + '</td><td>' + b.total + '</td><td><span class="xc-badge" style="' + cb + ';color:#fff">' + cls + '</span></td></tr>';
         }).join('');
       }
 
@@ -11836,19 +11849,94 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
         const tb = document.getElementById('xc-risk-tbody');
         const cnt = document.getElementById('xc-risk-count');
         if (cnt) cnt.textContent = list.length ? ('共 ' + list.length + ' 个待替换') : '';
+        xcSortChips();
         if (!tb) return;
         if (!list.length) { tb.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#16A34A">✓ 无国外数据库实例</td></tr>'; return; }
-        tb.innerHTML = list.map(function (r) {
-          const sugg = (r.suggestion_names && r.suggestion_names.length) ? r.suggestion_names.map(function (s) { return escHtml(s); }).join('、') : '暂无明确单库替代，建议评估国产分布式/多模方案';
-          return '<tr><td>' + escHtml(r.name) + '</td><td>' + escHtml(r.host || '') + '</td><td>' + escHtml(r.db_type_name) + '</td><td>' + escHtml(r.group) + '</td><td>' + sugg + '</td></tr>';
-        }).join('');
+        let html = '';
+        list.forEach(function (r, idx) {
+          const sugg = sortSuggestions(r.suggestions || [], __xcSort);
+          const n = sugg.length;
+          const summ = n ? (n + ' 个候选 · 点击展开决策') : '暂无明确单库替代';
+          html += '<tr class="xc-risk-row" style="cursor:pointer" onclick="xcToggleRisk(' + idx + ')">'
+            + '<td>' + escHtml(r.name) + '</td>'
+            + '<td>' + escHtml(r.host || '') + '</td>'
+            + '<td>' + escHtml(r.db_type_name) + '</td>'
+            + '<td>' + escHtml(r.group) + '</td>'
+            + '<td><span style="font-size:12.5px;color:var(--text-muted)">' + escHtml(summ) + '</span> <span style="color:var(--text-muted)">▾</span></td>'
+            + '</tr>';
+          html += '<tr id="xc-risk-detail-' + idx + '" style="display:none"><td colspan="5" style="background:rgba(0,0,0,0.015);padding:10px 14px">' + renderRiskDetail(r, sugg) + '</td></tr>';
+        });
+        tb.innerHTML = html;
+      }
+
+      function renderRiskDetail(r, sugg) {
+        if (!sugg.length) {
+          const note = (r && r.empty_note) ? r.empty_note : '暂无明确单库替代，建议结合业务读写模型评估国产分布式/多模方案。';
+          return '<div style="font-size:12.5px;color:var(--text-muted);padding:4px 2px">' + escHtml(note) + '</div>';
+        }
+        return '<div style="display:flex;flex-direction:column;gap:8px">' + sugg.map(function (s) {
+          const guoce = s.certified ? '<span style="font-size:11px;padding:1px 7px;border-radius:5px;background:#EAF3DE;color:#3B6D11">国测</span>' : '';
+          const compat = s.compat ? '<span style="font-size:11px;color:var(--text-muted)">兼容度 ' + escHtml(s.compat) + '</span>' : '';
+          return '<div style="border:1px solid var(--border,#e5e7eb);border-radius:8px;padding:10px">'
+            + '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
+            + '<b style="font-size:13px">' + escHtml(s.label) + '</b>'
+            + xcRelBadge(s.relation) + guoce + xcEffBadge(s.effort) + compat
+            + '</div>'
+            + (s.reason ? '<div style="font-size:12.5px;margin-top:6px;line-height:1.6"><b>理由</b>：' + escHtml(s.reason) + '</div>' : '')
+            + (s.diff ? '<div style="font-size:12.5px;color:var(--text-muted);margin-top:3px;line-height:1.6"><b>差异</b>：' + escHtml(s.diff) + '</div>' : '')
+            + '</div>';
+        }).join('') + '</div>';
+      }
+
+      function xcRelBadge(r) {
+        if (!r) return '';
+        const m = {'同源': ['#EEEDFE', '#534AB7'], '兼容': ['#E6F1FB', '#185FA5'], '适配': ['#FAEEDA', '#854F0B']};
+        const c = m[r] || ['#f1f5f9', '#475569'];
+        return '<span style="font-size:11px;padding:1px 7px;border-radius:5px;background:' + c[0] + ';color:' + c[1] + '">' + escHtml(r) + '</span>';
+      }
+      function xcEffBadge(e) {
+        if (!e) return '';
+        const m = {'少': ['#EAF3DE', '#3B6D11'], '中': ['#FAEEDA', '#854F0B'], '多': ['#FCEBEB', '#A32D2D']};
+        const c = m[e] || ['#f1f5f9', '#475569'];
+        return '<span style="font-size:11px;padding:1px 7px;border-radius:5px;background:' + c[0] + ';color:' + c[1] + '">改动' + escHtml(e) + '</span>';
+      }
+
+      function sortSuggestions(arr, mode) {
+        const a = (arr || []).slice();
+        if (mode === 'lineage') {
+          const rk = {'同源': 0, '兼容': 1, '适配': 2};
+          a.sort(function (x, y) { return ((rk[x.relation] !== undefined ? rk[x.relation] : 3) - (rk[y.relation] !== undefined ? rk[y.relation] : 3)) || (x.priority - y.priority); });
+        } else if (mode === 'guoce') {
+          a.sort(function (x, y) { return ((y.certified ? 1 : 0) - (x.certified ? 1 : 0)) || (x.priority - y.priority); });
+        } else if (mode === 'effort') {
+          const rk = {'少': 0, '中': 1, '多': 2};
+          a.sort(function (x, y) { return ((rk[x.effort] !== undefined ? rk[x.effort] : 3) - (rk[y.effort] !== undefined ? rk[y.effort] : 3)) || (x.priority - y.priority); });
+        }
+        return a;
+      }
+
+      function xcSortChips() {
+        const box = document.getElementById('xc-risk-sort');
+        if (!box) return;
+        const modes = [['lineage', '同源优先'], ['guoce', '国测优先'], ['effort', '改动少优先']];
+        box.innerHTML = modes.map(function (m) {
+          const active = __xcSort === m[0];
+          const st = active ? 'background:#185FA5;color:#fff' : 'border:1px solid var(--border,#e5e7eb);color:var(--text-muted)';
+          return '<span onclick="xcSetSort(\'' + m[0] + '\')" style="cursor:pointer;font-size:12px;padding:3px 12px;border-radius:6px;' + st + '">' + m[1] + '</span>';
+        }).join(' ');
+      }
+      function xcSetSort(m) { __xcSort = m; xcSortChips(); renderXinchuangRisk(__xcRisk); }
+      function xcToggleRisk(idx) {
+        const el = document.getElementById('xc-risk-detail-' + idx);
+        if (!el) return;
+        el.style.display = (el.style.display === 'none') ? 'table-row' : 'none';
       }
 
       function xcDownloadReport(fmt) {
         window.open('/api/intelligence/compliance/report?fmt=' + fmt, '_blank');
       }
 
-      async function loadXinchuangMap() {
+      async function loadXinchuangMaintain() {
         const body = document.getElementById('xc-drawer-body');
         body.innerHTML = '<div style="color:var(--text-muted);font-size:12.5px">加载中…</div>';
         document.getElementById('xc-drawer').classList.add('open');
@@ -11857,28 +11945,118 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
           const res = await fetch('/api/intelligence/compliance/xinchuang-map');
           const d = await res.json();
           if (!d.ok) { body.innerHTML = '<div style="color:#EF4444">加载失败：' + escHtml(d.msg || '') + '</div>'; return; }
-          __xcMap = d.items || [];
-          body.innerHTML = '<div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">覆盖优先于默认清单；国产库标 ✅，国外库标 ⬜。点击切换即生效。</div>' +
-            __xcMap.map(function (it, i) {
+          window.__xcMaintain = d.items || [];
+          const note = d.guoce_note || '';
+          const rows = window.__xcMaintain;
+          if (!rows.length) { body.innerHTML = '<div style="color:var(--text-muted)">暂无可维护的库型</div>'; return; }
+          let html = '<div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">本界面统一维护「信创分类」与「国测认证」：内置库型判定以权威默认清单为基准；自定义库型在添加时指定国产/国外与国测。' + escHtml(note) + '</div>' +
+            '<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;padding:10px;border:1px solid var(--border);border-radius:8px">' +
+              '<div style="font-size:12px;font-weight:600;color:var(--text)">添加自定义库型</div>' +
+              '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+                '<input id="xc-add-type" placeholder="库类型名（如 Vastbase / AntDB）" style="flex:1;min-width:140px;font-size:12px;padding:5px 8px;border:1px solid var(--border,#ddd);border-radius:6px;background:transparent;color:var(--text)">' +
+                '<input id="xc-add-name" placeholder="中文名（可选）" style="flex:1;min-width:140px;font-size:12px;padding:5px 8px;border:1px solid var(--border,#ddd);border-radius:6px;background:transparent;color:var(--text)">' +
+              '</div>' +
+              '<div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">' +
+                '<label style="font-size:12px;color:var(--text)"><input type="radio" name="xc-add-xc" value="1" checked onchange="xcAddXcChange(1)"> 国产（信创）</label>' +
+                '<label style="font-size:12px;color:var(--text)"><input type="radio" name="xc-add-xc" value="0" onchange="xcAddXcChange(0)"> 国外</label>' +
+                '<label id="xc-add-guoce-wrap" style="font-size:12px;color:var(--text)"><input type="checkbox" id="xc-add-guoce"> 国测（已通过国家信创测评）</label>' +
+                '<button class="btn btn-primary" style="font-size:12px;padding:4px 12px;margin-left:auto" onclick="xcCustomAdd()">添加库型</button>' +
+              '</div>' +
+            '</div>' +
+            rows.map(function (it, i) {
+              const isCustom = !!it.custom;
               const eff = it.effective_xinchuang;
-              const badge = eff ? '<span class="xc-badge" style="background:#16A34A;color:#fff">国产</span>' : '<span class="xc-badge" style="background:#DC2626;color:#fff">国外</span>';
-              const ov = it.override ? '<span style="font-size:10px;color:var(--accent2)">已覆盖</span>' : '';
-              return '<div class="xc-row"><div><b>' + escHtml(it.name_zh) + '</b> <span style="color:var(--text-muted)">' + escHtml(it.db_type) + '</span> ' + ov + ' ' + badge + '</div>' +
-                '<button class="btn btn-ghost" style="font-size:12px;padding:3px 10px" onclick="xcToggle(' + i + ')">' + (eff ? '改为国外' : '改为国产') + '</button></div>';
+              const xcBadge = eff ? '<span class="xc-badge" style="background:#16A34A;color:#fff">国产</span>' : '<span class="xc-badge" style="background:#DC2626;color:#fff">国外</span>';
+              let gcBadge, gcBtn;
+              if (!it.effective_xinchuang) {
+                // 国外库不适用国测，不提供标记/取消按钮
+                gcBadge = '<span style="font-size:11px;color:#6b7280">—</span>';
+                gcBtn = '<span style="font-size:10px;color:#9ca3af">国外库不适用</span>';
+              } else if (it.certified) {
+                gcBadge = '<span class="xc-badge" style="background:#7C3AED;color:#fff">国测</span>';
+                gcBtn = '<button class="btn btn-ghost" style="font-size:12px;padding:3px 10px" onclick="xcGuoceToggle(' + i + ',false)">取消国测</button>';
+              } else {
+                gcBadge = '<span style="font-size:11px;color:#6b7280">—</span>';
+                gcBtn = '<button class="btn btn-ghost" style="font-size:12px;padding:3px 10px" onclick="xcGuoceToggle(' + i + ',true)">标记国测</button>';
+              }
+              const delBtn = isCustom ? '<button class="btn btn-ghost" style="font-size:12px;padding:3px 10px" onclick="xcCustomRemove(' + i + ')">删除</button>' : '';
+              const tag = isCustom ? ' <span style="font-size:10px;color:var(--accent2)">自定义</span>' : (it.override ? ' <span style="font-size:10px;color:var(--accent2)">已覆盖</span>' : '');
+              return '<div class="xc-row" style="flex-wrap:wrap;gap:8px">' +
+                '<div style="flex:1;min-width:160px"><b>' + escHtml(it.name_zh) + '</b> <span style="color:var(--text-muted)">' + escHtml(it.db_type) + '</span>' + tag + '</div>' +
+                '<div style="display:flex;align-items:center;gap:6px">' + xcBadge + '</div>' +
+                '<div style="display:flex;align-items:center;gap:6px">' + gcBadge + gcBtn + delBtn + '</div>' +
+              '</div>';
             }).join('');
+          body.innerHTML = html;
         } catch (e) { body.innerHTML = '<div style="color:#EF4444">加载失败：' + escHtml(e.message) + '</div>'; }
       }
-      async function xcToggle(i) {
-        const it = __xcMap[i]; if (!it) return;
-        const newVal = !it.effective_xinchuang;
+      async function xcGuoceToggle(i, val) {
+        const it = (window.__xcMaintain || [])[i]; if (!it) return;
         try {
-          const res = await fetch('/api/intelligence/compliance/xinchuang-override', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ db_type: it.db_type, value: newVal })
-          });
+          let res;
+          if (it.custom) {
+            res = await fetch('/api/intelligence/compliance/custom/' + encodeURIComponent(it.db_type) + '/certified', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ value: val })
+            });
+          } else {
+            res = await fetch('/api/intelligence/compliance/guoce', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ db_type: it.db_type, value: val })
+            });
+          }
           const d = await res.json();
           if (!d.ok) { toastError(d.msg || '保存失败'); return; }
-          await loadXinchuangMap();
+          await loadXinchuangMaintain();
+          loadXinchuangPage();
+        } catch (e) { toastError(e.message); }
+      }
+      function xcAddXcChange(val) {
+        // 选「国外」时禁用国测勾选并清空；选回「国产」时恢复可用
+        const chk = document.getElementById('xc-add-guoce');
+        const wrap = document.getElementById('xc-add-guoce-wrap');
+        if (!chk || !wrap) return;
+        if (val === 0) {
+          chk.checked = false;
+          chk.disabled = true;
+          wrap.style.opacity = '0.4';
+          wrap.style.cursor = 'not-allowed';
+        } else {
+          chk.disabled = false;
+          wrap.style.opacity = '1';
+          wrap.style.cursor = 'default';
+        }
+      }
+      async function xcCustomAdd() {
+        const typeInp = document.getElementById('xc-add-type');
+        const nameInp = document.getElementById('xc-add-name');
+        const type = (typeInp && typeInp.value || '').trim();
+        if (!type) { toastError('请输入库类型名'); return; }
+        const name = (nameInp && nameInp.value || '').trim();
+        const xcRadio = document.querySelector('input[name="xc-add-xc"]:checked');
+        const xinchuang = xcRadio ? xcRadio.value === '1' : true;
+        const guoceEl = document.getElementById('xc-add-guoce');
+        let certified = !!(guoceEl && guoceEl.checked);
+        if (!xinchuang) certified = false; // 国外库不可标记国测，强制兜底
+        try {
+          const res = await fetch('/api/intelligence/compliance/custom', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ db_type: type, name_zh: name, xinchuang: xinchuang, certified: certified })
+          });
+          const d = await res.json();
+          if (!d.ok) { toastError(d.msg || '添加失败'); return; }
+          toastSuccess('已添加自定义库型：' + type);
+          await loadXinchuangMaintain();
+          loadXinchuangPage();
+        } catch (e) { toastError(e.message); }
+      }
+      async function xcCustomRemove(i) {
+        const it = (window.__xcMaintain || [])[i]; if (!it) return;
+        try {
+          const res = await fetch('/api/intelligence/compliance/custom/' + encodeURIComponent(it.db_type), { method: 'DELETE' });
+          const d = await res.json();
+          if (!d.ok) { toastError(d.msg || '删除失败'); return; }
+          await loadXinchuangMaintain();
           loadXinchuangPage();
         } catch (e) { toastError(e.message); }
       }

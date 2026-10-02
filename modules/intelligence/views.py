@@ -665,7 +665,7 @@ def compliance_report_ep():
 def compliance_xinchuang_map_ep():
     try:
         from . import compliance
-        from modules.driver_registry import DB_TYPE_CATALOG
+        from modules.driver_registry import DB_TYPE_CATALOG, normalize_db_type
 
         ov = compliance.get_override_map()
         items = []
@@ -677,8 +677,19 @@ def compliance_xinchuang_map_ep():
                 "db_type": dt, "name_zh": d["name_zh"], "name_en": d["name_en"],
                 "default_xinchuang": bool(d.get("xinchuang", False)),
                 "override": overridden, "effective_xinchuang": eff,
+                "certified": compliance.is_certified(dt),
+                "custom": False,
             })
-        return jsonify({"ok": True, "items": items, "overrides": ov})
+        # 自定义库型（不在 catalog，来自 xinchuang_custom_types：含中文名 + 国产/国外 + 国测）
+        for ct in compliance.get_custom_types():
+            items.append({
+                "db_type": ct["db_type"], "name_zh": ct["name_zh"], "name_en": ct["name_zh"],
+                "default_xinchuang": ct["xinchuang"], "override": False,
+                "effective_xinchuang": ct["xinchuang"],
+                "certified": ct["certified"], "custom": True,
+            })
+        return jsonify({"ok": True, "items": items, "overrides": ov,
+                        "guoce_note": compliance.GUOCE_NOTE})
     except Exception as e:
         return jsonify({"ok": False, "msg": str(e)}), 500
 
@@ -724,6 +735,91 @@ def compliance_tag_ep():
         if not db_type:
             return jsonify({"ok": False, "msg": "db_type 必填"}), 400
         return jsonify({"ok": True, "data": compliance.tag_db_type(db_type)})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+
+@intelligence_bp.route("/api/intelligence/compliance/guoce", methods=["POST"])
+def compliance_guoce_set_ep():
+    """设置某 db_type 是否通过国测（覆盖默认名单）。"""
+    try:
+        from . import compliance
+
+        data = request.get_json(force=True, silent=True) or {}
+        db_type = data.get("db_type")
+        value = bool(data.get("value"))
+        if not db_type:
+            return jsonify({"ok": False, "msg": "db_type 必填"}), 400
+        r = compliance.set_certified(db_type, value)
+        if not r.get("ok"):
+            return jsonify({"ok": False, "msg": r.get("error")}), 500
+        return jsonify(r)
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+
+@intelligence_bp.route("/api/intelligence/compliance/guoce/<db_type>", methods=["DELETE"])
+def compliance_guoce_clear_ep(db_type):
+    """清除某 db_type 的国测覆盖，回退到默认名单。"""
+    try:
+        from . import compliance
+
+        r = compliance.clear_certified(db_type)
+        if not r.get("ok"):
+            return jsonify({"ok": False, "msg": r.get("error")}), 500
+        return jsonify(r)
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+
+@intelligence_bp.route("/api/intelligence/compliance/custom", methods=["POST"])
+def compliance_custom_add_ep():
+    """添加 / 更新一个自定义库型（国产/国外 + 国测 + 中文名）。"""
+    try:
+        from . import compliance
+
+        data = request.get_json(force=True, silent=True) or {}
+        db_type = (data.get("db_type") or "").strip()
+        name_zh = (data.get("name_zh") or "").strip()
+        xinchuang = bool(data.get("xinchuang", True))
+        certified = bool(data.get("certified", False))
+        if not db_type:
+            return jsonify({"ok": False, "msg": "db_type 必填"}), 400
+        r = compliance.add_custom_type(db_type, name_zh, xinchuang, certified)
+        if not r.get("ok"):
+            err = r.get("error") or "添加失败"
+            return jsonify({"ok": False, "msg": err}), (400 if "已在内置" in err else 500)
+        return jsonify(r)
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+
+@intelligence_bp.route("/api/intelligence/compliance/custom/<db_type>/certified", methods=["POST"])
+def compliance_custom_certified_ep(db_type):
+    """切换自定义库型的国测标记。"""
+    try:
+        from . import compliance
+
+        data = request.get_json(force=True, silent=True) or {}
+        value = bool(data.get("value"))
+        r = compliance.set_custom_certified(db_type, value)
+        if not r.get("ok"):
+            return jsonify({"ok": False, "msg": r.get("error")}), 500
+        return jsonify(r)
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+
+
+@intelligence_bp.route("/api/intelligence/compliance/custom/<db_type>", methods=["DELETE"])
+def compliance_custom_clear_ep(db_type):
+    """删除一个自定义库型。"""
+    try:
+        from . import compliance
+
+        r = compliance.clear_custom_type(db_type)
+        if not r.get("ok"):
+            return jsonify({"ok": False, "msg": r.get("error")}), 500
+        return jsonify(r)
     except Exception as e:
         return jsonify({"ok": False, "msg": str(e)}), 500
 
