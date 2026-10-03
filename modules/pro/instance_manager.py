@@ -525,6 +525,13 @@ class InstanceManager:
                 c.execute('ALTER TABLE instances ADD COLUMN "ssh_key_password" TEXT DEFAULT \'\'')
             except Exception:
                 pass
+            # 迁移：为旧表添加 jdbc_url 列（JDBC 完整连接串，Oracle JDBC 等优先于
+            # host/port/service_name；缺失会导致监控采集回退用车段字段重建 URL，
+            # 触发 issue #58 —— 大屏误报 Oracle 宕机）
+            try:
+                c.execute('ALTER TABLE instances ADD COLUMN "jdbc_url" TEXT DEFAULT \'\'')
+            except Exception:
+                pass
             # 确保表存在
             c.execute("""
                 CREATE TABLE IF NOT EXISTS instances (
@@ -544,7 +551,8 @@ class InstanceManager:
                     connection_mode TEXT DEFAULT 'odbc',
                     encrypt INTEGER DEFAULT 0,
                     trust_server_certificate INTEGER DEFAULT 1,
-                    driver_version TEXT DEFAULT '', use_sid INTEGER DEFAULT 0
+                    driver_version TEXT DEFAULT '', use_sid INTEGER DEFAULT 0,
+                    jdbc_url TEXT DEFAULT ''
                 )
             """)
             c.execute("DELETE FROM instances")
@@ -556,8 +564,8 @@ class InstanceManager:
                      connect_mode, auth_source, auth_mechanism, replica_set, tls, tls_ca_file, tls_cert_key_file, tls_allow_invalid_certs,
                      ssh_host, ssh_port, ssh_user, ssh_password, ssh_key_file, ssh_key_password, ssh_enabled,
                      tags, "group", enabled, description, created_at, updated_at, connection_mode,
-                     encrypt, trust_server_certificate, use_sid, driver_version)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     encrypt, trust_server_certificate, use_sid, driver_version, jdbc_url)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     d.get("id", ""), d.get("name", ""), d.get("db_type", ""),
                     d.get("host", ""), d.get("port", 0), d.get("user", ""),
@@ -586,7 +594,8 @@ class InstanceManager:
                     1 if d.get("encrypt") else 0,
                     1 if d.get("trust_server_certificate") else 0,
                     1 if d.get("use_sid") else 0,
-                    d.get("driver_version", "")
+                    d.get("driver_version", ""),
+                    d.get("jdbc_url", "")
                 ))
             conn.commit()
         except Exception as e:
