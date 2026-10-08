@@ -172,10 +172,22 @@ ORACLE_DEST_SQL = (
     "WHERE status = 'VALID' AND destination IS NOT NULL"
 )
 
+# SQL Server 性能计数器名随服务器语言本地化：中文实例的 sys.dm_os_performance_counters
+# 返回「批请求/秒」「事务数/秒」等而非英文名，只匹配英文名在中文实例上查 0 行
+# → 大屏 QPS/TPS 恒空（连接数正常、sa 权限正常却无吞吐的典型症状）。
+# 匹配表收录英/中命名 → 统一指标键；SQLSERVER_STAT_SQL 的 IN 清单由表键派生，保证两边同步。
+SQLSERVER_COUNTER_MAP = {
+    'batch requests/sec': 'batch_req', '批请求/秒': 'batch_req',
+    'transactions/sec': 'trans', '事务数/秒': 'trans',
+    'buffer cache hit ratio': 'hit', '缓冲区高速缓存命中率': 'hit',
+    'buffer cache hit ratio base': 'hit_base', '缓冲区高速缓存命中率基': 'hit_base',
+}
+
 SQLSERVER_STAT_SQL = (
     "SELECT counter_name, cntr_value FROM sys.dm_os_performance_counters "
-    "WHERE counter_name IN ('Batch Requests/sec','Transactions/sec',"
-    "'Buffer cache hit ratio','Buffer cache hit ratio base')"
+    "WHERE counter_name IN (%s)" % ",".join(
+        ("N'%s'" if any(ord(c) > 127 for c in k) else "'%s'") % k.replace("'", "''")
+        for k in SQLSERVER_COUNTER_MAP)
 )
 
 SQLSERVER_LOCKS_SQL = (
@@ -644,13 +656,17 @@ def collect_extra(engine, instance_id, db_type):
         st = {}
         for r in rows or []:
             k = _find_key(r, 'counter_name')
-            if k is not None:
-                st[str(k).lower()] = _num(_find_key(r, 'cntr_value'))
+            if k is None:
+                continue
+            ck = SQLSERVER_COUNTER_MAP.get(str(k).strip().lower())
+            if ck:
+                # 同计数器多行（如 Transactions/sec 按库一行）累加，得实例级总值
+                st[ck] = st.get(ck, 0) + _num(_find_key(r, 'cntr_value'))
         counters = {
-            'batch_req': st.get('batch requests/sec'),
-            'trans': st.get('transactions/sec'),
-            'hit': st.get('buffer cache hit ratio'),
-            'hit_base': st.get('buffer cache hit ratio base'),
+            'batch_req': st.get('batch_req'),
+            'trans': st.get('trans'),
+            'hit': st.get('hit'),
+            'hit_base': st.get('hit_base'),
         }
         tbs = q('tbs')
         if tbs:

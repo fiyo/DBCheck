@@ -1525,35 +1525,42 @@ function fitText(txt, maxW){
 }
 
 /* 趋势图渲染：全局合计 / 实例下钻（按节点 spark 迷你趋势）两种模式 */
-var trendMode = 'global';          // 'global' = 全库合计 QPS；'inst' = 各实例 QPS 迷你趋势 Top8
+/* 实例下钻模式独立色板：每实例一色（深色底高区分度），超出后循环取色 */
+var TREND_PALETTE = ['#38BDF8','#E11D48','#F59E0B','#A78BFA','#F97316','#22D3EE',
+                     '#F472B6','#4ADE80','#FACC15','#60A5FA','#FB7185','#34D399',
+                     '#C084FC','#2DD4BF','#FBBF24','#818CF8'];
+var trendMode = 'global';          // 'global' = 全库合计 QPS；'inst' = 各实例 QPS 迷你趋势（全部实例）
 var lastOverview = null;           // 最近一次 refresh 的完整数据，供切换模式后重渲染
 var lastRefreshTs = 0;             // 最近一次成功拿到数据的时间戳（数据新鲜度基准）
 function drawTrend(){
   if (!lastOverview) return;
   var data = lastOverview;
   if (trendMode === 'inst'){
-    // 实例下钻：取 spark（每个实例最近 N 个 QPS 采样）最新值最高的 Top8，右对齐到同一时间窗
+    // 实例下钻：展示全部有趋势数据的实例（不再 Top8 截断），展示序按最新 QPS 降序；
+    // 配色按实例名序稳定分配（刷新/重排后同实例颜色不跳变）
     var arr = (data.nodes || []).filter(function(n){ return (n.spark || []).length > 1 && n.status !== 'pending'; })
-              .sort(function(a, b){ return (b.spark[b.spark.length - 1] || 0) - (a.spark[a.spark.length - 1] || 0); })
-              .slice(0, 8);
+              .sort(function(a, b){ return (b.spark[b.spark.length - 1] || 0) - (a.spark[a.spark.length - 1] || 0); });
     if (!arr.length){
       chart('c-trend').setOption({ graphic: [{ type: 'text', left: 'center', top: 'middle',
         style: { text: S.no_data, fill: C.tx2, fontSize: 12 } }] }, true);
       return;
     }
+    var byName = arr.slice().sort(function(a, b){ return a.name < b.name ? -1 : a.name > b.name ? 1 : 0; });
+    var colorOf = {};
+    byName.forEach(function(n, i){ colorOf[n.id] = TREND_PALETTE[i % TREND_PALETTE.length]; });
     var len = Math.max.apply(null, arr.map(function(n){ return n.spark.length; }));
     var xs = []; for (var i = 0; i < len; i++) xs.push(i === len - 1 ? 'now' : '');
     var series = arr.map(function(n){
       var s = n.spark, pad = len - s.length, d = [];
       for (var k = 0; k < pad; k++) d.push(null);
       s.forEach(function(v){ d.push({ value: v, iid: n.id }); });
-      var col = statusColor(n.status);
+      var col = colorOf[n.id];
       return { name: n.name, type: 'line', data: d, smooth: true, symbol: 'none',
                lineStyle: { width: 1.4, color: col }, areaStyle: { color: col + '14' } };
     });
     chart('c-trend').setOption({
       animation: false, grid: BASE_GRID,
-      color: arr.map(function(n){ return statusColor(n.status); }),
+      color: arr.map(function(n){ return colorOf[n.id]; }),
       tooltip: Object.assign({ trigger: 'axis',
         formatter: function(ps){
           return ps.filter(function(p){ return p.value != null; })

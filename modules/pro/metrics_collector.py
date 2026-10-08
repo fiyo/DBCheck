@@ -71,8 +71,13 @@ COUNTER_KEYS = {
     'oracle_jdbc': {'ora_user_commits', 'ora_physical_reads', 'ora_redo_size',
                     'ora_user_calls', 'ora_session_logical_reads',
                     'ora_db_block_gets', 'ora_consistent_gets'},
-    'sqlserver': {'io_read_count', 'io_write_count', 'io_read_bytes', 'io_write_bytes'},
-    'mssql':   {'io_read_count', 'io_write_count', 'io_read_bytes', 'io_write_bytes'},
+    'sqlserver': {'io_read_count', 'io_write_count', 'io_read_bytes', 'io_write_bytes',
+                  'mssql_batch_requests', 'mssql_transactions'},
+    'mssql':   {'io_read_count', 'io_write_count', 'io_read_bytes', 'io_write_bytes',
+                'mssql_batch_requests', 'mssql_transactions'},
+    # sqlserver_jdbc 与 sqlserver 同协议同指标口径（pyodbc 直连，见 _connect）
+    'sqlserver_jdbc': {'io_read_count', 'io_write_count', 'io_read_bytes', 'io_write_bytes',
+                       'mssql_batch_requests', 'mssql_transactions'},
     # MongoDB 计数器（来自 serverStatus）：opcounters / 连接 / 网络 / 全局锁
     'mongodb': {
         'mongodb_opcounters_insert', 'mongodb_opcounters_query',
@@ -376,7 +381,9 @@ class MetricsCollector:
         if db_type == 'dm':
             import dmPython
             return dmPython.connect(user=user, password=password, server='%s:%d' % (host, port))
-        if db_type in ('sqlserver', 'mssql'):
+        if db_type in ('sqlserver', 'mssql', 'sqlserver_jdbc'):
+            # sqlserver_jdbc（插件标识）与 sqlserver 同为 TDS 线协议，pyodbc 直连
+            # （与监控大屏 _create_connection 同口径：绝不走 JDBC 插件起 JVM）。
             import pyodbc
             # 支持 DSN 或 host/port 直连
             conn_str = inst.get('connection_string') or ''
@@ -671,7 +678,7 @@ class MetricsCollector:
                 return self._collect_oracle(conn)
             if db_type == 'dm':
                 return self._collect_dm(conn)
-            if db_type in ('sqlserver', 'mssql'):
+            if db_type in ('sqlserver', 'mssql', 'sqlserver_jdbc'):
                 return self._collect_sqlserver(conn)
             if db_type == 'mongodb':
                 return self._collect_mongodb(conn)
@@ -947,19 +954,30 @@ class MetricsCollector:
                 m['total_sessions'] = m.get('total_sessions', 0) + int(row[1])
         except Exception:
             pass
-        # 批处理请求/秒 等计数器（sys.dm_os_performance_counters）
+        # 吞吐计数器（sys.dm_os_performance_counters）
+        #   Batch Requests/sec → mssql_batch_requests（QPS 近似，全局单值）
+        #   Transactions/sec   → mssql_transactions（TPS 近似，按库多行，需求和为实例级）
+        # 计数器名随服务器语言本地化（中文实例为「批请求/秒」「事务数/秒」），英中名都匹配；
+        # Transactions/sec 属 'Transactions' 对象而非 'SQL Statistics'，故去掉
+        # object_name 过滤、直接按 counter_name IN 取，否则 TPS 计数器会被漏采。
         try:
             cur.execute("""
-                SELECT object_name, counter_name, cntr_value
+                SELECT counter_name, cntr_value
                 FROM sys.dm_os_performance_counters
-                WHERE object_name LIKE '%SQL Statistics%'
-                  AND counter_name IN ('SQL Compilations/sec', 'SQL Re-Compilations/sec',
-                                       'Batch Requests/sec')
+                WHERE counter_name IN ('Batch Requests/sec', N'批请求/秒',
+                                       'Transactions/sec', N'事务数/秒',
+                                       'SQL Compilations/sec', 'SQL Re-Compilations/sec')
             """)
             for row in cur.fetchall():
-                cname = str(row[1]).lower().replace('/sec','').replace(' ','_')
-                key = 'mssql_' + cname
-                m[key] = _to_num(row[2])
+                cname = (str(row[0]).strip().lower()
+                         .replace('/sec', '').replace('/秒', '').replace(' ', '_'))
+                val = _to_num(row[1]) or 0
+                if cname in ('batch_requests', '批请求'):
+                    m['mssql_batch_requests'] = val
+                elif cname in ('transactions', '事务数'):
+                    m['mssql_transactions'] = m.get('mssql_transactions', 0) + val
+                else:
+                    m['mssql_' + cname] = val
         except Exception:
             pass
         # 数据库级 I/O

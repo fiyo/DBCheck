@@ -1,5 +1,14 @@
 # Changelog
 
+## v26.10.9.0 (2026-10-08)
+- **修复：SQL Server（含 sqlserver_jdbc 型）吞吐 QPS/TPS 全链路缺失（用户反馈，sa 账号仍无 QPS）**
+  - 根因三层：① 深采 `_connect`/`_collect_deep`/`COUNTER_KEYS` 均不认 `sqlserver_jdbc`（插件型实例整条深采链路断，详情页只剩 TCP 探测数据）；② `_collect_sqlserver` 原 SQL 带 `object_name LIKE '%SQL Statistics%'` 过滤，而 `Transactions/sec` 属 'Transactions' 对象 → TPS 计数器漏采，且吞吐计数未入速率白名单、无 `rate_*` 序列；③ `sys.dm_os_performance_counters` 的 counter_name **随服务器语言本地化**（中文实例返回「批请求/秒」「事务数/秒」），英文 IN 清单查 0 行 → 监控大屏 QPS 恒空（连接数正常、sa 权限正常，唯独 stat 空）。
+  - 修复：`_connect`+`_collect_deep` 元组加 `sqlserver_jdbc`（pyodbc 直连，与监控大屏同口径，绝不走 JVM）；`COUNTER_KEYS` 补 `sqlserver_jdbc` 键并纳入 `mssql_batch_requests`/`mssql_transactions`；`_collect_sqlserver` 去 object_name 过滤、计数器名英/中双语匹配（`N'批请求/秒'`/`N'事务数/秒'`）、TPS 按多库求和（Transactions/sec 每库一行）；监控大屏 `screen_metrics.py` 新增 `SQLSERVER_COUNTER_MAP`（英/中名 → 统一指标键），stat SQL 的 IN 清单由 map 派生永续同步，大屏 TPS 同改多库累加（原只取最后一行、数值偏低）。
+  - 验证：mock 5 项全过（大屏中文名解析 / COUNTER_KEYS 三键齐备 / 深采中文名解析 / `_collect_deep('sqlserver_jdbc')` 路由 / `rate_mssql_batch_requests`+`rate_mssql_transactions` 序列生成）；三步验证 compileall → import web_ui → discover_plugins()==11（含 sqlserver_jdbc）。
+- **修复：监控大屏「全库 QPS 趋势·按实例」实例不全 + 线条同色（用户反馈）**
+  - 根因：① `.slice(0, 8)` 只取最新 QPS 最高的 Top8，QPS 为 0/低的实例被裁掉；② 线色取 `statusColor(n.status)` 按实例状态着色，健康实例全为同一绿色。
+  - 修复：去掉 Top8 截断，展示全部有趋势数据的实例（展示序按最新 QPS 降序，图例 type:scroll 可翻页）；新增 16 色 `TREND_PALETTE` 每实例一色，按实例名序稳定分配（刷新/重排后同实例颜色不跳变）。
+
 ## v26.10.8.3 (2026-10-08)
 - **改进：监控大屏 OceanBase 表空间「需 ANALYZE TABLE」常驻弱提示（用户反馈）**
   - 背景：OceanBase MySQL 租户的 `information_schema.tables.data_length/index_length` 在对该库执行 `ANALYZE TABLE` 之前为 NULL/0（现有 `COALESCE` 只兜底成 0、**不保证数值准确**），用户反馈表空间显示数值不准确。MySQL/MariaDB/TiDB 由存储引擎自发维护、Oracle/DM 走 `dba_data_files`、PostgreSQL 走 `pg_database_size()`，均无需 ANALYZE——唯有 OB 有此问题。
