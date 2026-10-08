@@ -147,7 +147,7 @@ ENV OPENBLAS_NUM_THREADS=1 \
 # DBCHECK_VERSION 可在构建时覆盖: --build-arg DBCHECK_VERSION=v26.10.8.2
 # 注意：CI / build-multiarch.sh 传入的值带 v 前缀（如 v26.10.8.2），
 # 这里用 ${DBCHECK_VERSION#v} 去掉前缀，保证镜像内 VERSION.txt 与标签一致。
-ARG DBCHECK_VERSION=26.10.8.1
+ARG DBCHECK_VERSION=26.10.8.2
 RUN echo "${DBCHECK_VERSION#v}" > /app/VERSION.txt
 
 # Ensure data and pro_data directories exist for volume mounts
