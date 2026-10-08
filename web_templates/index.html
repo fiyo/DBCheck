@@ -3492,6 +3492,11 @@ async function executeFixSql(taskId, sql) {
   <script src="/static/js/xterm-addon-fit.js"></script>
   <script src="/static/js/xterm-addon-attach.js"></script>
   <script src="/static/js/socket.io.min.js"></script>
+  <!-- 全局 Socket.IO 连接：历史版本缺失此创建调用，导致所有 typeof socket !== 'undefined'
+       守卫的实时推送（实时监控 metrics / 巡检任务日志 / AI 助手 chat_task_log 等）静默失效，
+       前端从未 join 房间、收不到任何 emit——实时监控图表因此"好久不更新"。
+       此处必须在任何 socket.on(...) 顶层注册代码之前建立连接；emit 先于连接会被客户端缓冲，无需等握手。 -->
+  <script>var socket = io();</script>
   <!-- 健康态势大屏：ECharts 本地离线包（无网环境优先），本地失败再回退 CDN -->
   <script src="/static/js/echarts.min.js"></script>
   <script>
@@ -21445,6 +21450,11 @@ function initMonitor() {
   try {
     if (typeof socket !== 'undefined') {
       socket.emit('join', { task_id: 'monitor' });
+      // 断线重连后服务端房间成员按连接计会全部丢失，必须在 connect 时重新 join，
+      // 否则一次网络抖动/服务重启后推送再度静默断流（图表又"不更新"）。
+      socket.on('connect', function () {
+        socket.emit('join', { task_id: 'monitor' });
+      });
       socket.on('metrics', function (data) {
         if (!data || !data.snapshots) return;
         data.snapshots.forEach(function (snap) { pushMonitorSnapshot(snap); });
