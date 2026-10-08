@@ -19,11 +19,16 @@ import os
 import sys
 import threading
 import json
+import logging
 from collections import deque
 from modules.pro.instance_manager import get_instance_manager
 from modules.core.paths import PROJECT_ROOT
 import modules.monitor.queries as mq
 from modules.monitor.screen_metrics import SCREEN_SQLS
+
+# 监控专属 logger：经 loghub 汇聚到「运行日志」页（category=monitor），且默认不写
+# 共享控制台（由 MonitorConsoleFilter 过滤），从根上避免污染巡检 / 控制台输出。
+_log = logging.getLogger('dbcheck.monitor')
 
 
 # ── JDBC 批量采集通道 ─────────────────────────────────────────
@@ -210,7 +215,7 @@ class MonitorEngine:
             instances = [i for i in all_instances if i.get('enabled', True)]
             # 明确标识：后台监控采集是独立后台任务，遍历全部已保存实例，
             # 与用户手动发起的巡检无关，避免日志混流被误判为「巡检串库」。
-            print(f"[Monitor] ===== 后台监控采集任务（独立后台线程，遍历 {len(instances)} 个实例，与手动巡检无关）=====", flush=True)
+            _log.info("===== 后台监控采集任务（独立后台线程，遍历 %d 个实例，与手动巡检无关）=====", len(instances))
             if not instances:
                 return
 
@@ -222,7 +227,7 @@ class MonitorEngine:
             for inst in instances:
                 iid = inst['id']
                 if not inst.get('host'):
-                    print(f"[Monitor] 跳过空 host 实例: {iid}", flush=True)
+                    _log.info("跳过空 host 实例: %s", iid)
                     continue
                 db_type = mq.normalize_db_type(inst.get('db_type', ''))
                 label = f"{inst.get('name', iid)} ({inst.get('host', '?')}:{inst.get('port', '?')})"
@@ -232,7 +237,7 @@ class MonitorEngine:
                     sq = self._collect_slow(iid, db_type, label)
                     new_slow[iid] = sq
                 except Exception as e:
-                    print(f"[Monitor] 慢查询采集失败 {label}: {e}", flush=True)
+                    _log.warning("慢查询采集失败 %s: %s", label, e)
                     new_slow[iid] = {
                         'data': [], 'error': _friendly_db_error(e),
                         'ts': time.time(), 'db_type': db_type, 'label': label,
@@ -250,7 +255,7 @@ class MonitorEngine:
                         'db_type': db_type,
                     })
                 except Exception as e:
-                    print(f"[Monitor] 连接采集失败 {label}: {e}", flush=True)
+                    _log.warning("连接采集失败 %s: %s", label, e)
                     new_conn[iid] = {
                         'data': [], 'error': _friendly_db_error(e),
                         'ts': time.time(), 'total': 0, 'max_conn': 0,
@@ -267,7 +272,7 @@ class MonitorEngine:
                     'instances': conn_history_items,
                 })
         except Exception as e:
-            print(f"[Monitor] 采集失败: {e}", flush=True)
+            _log.error("采集失败: %s", e)
 
     # ═══════════════════════════════════════════════════════════
     #  采集实现
@@ -290,10 +295,10 @@ class MonitorEngine:
                 # 记忆化：首行错误摘要打印一次，后续轮直接 fallback，不再重复刷日志
                 if fallback_sql and ('does not exist' in low or "doesn't exist" in low):
                     self._slow_prim_skip.add(instance_id)
-                    print(f"[Monitor] {label} 慢查询主 SQL 依赖缺失（{str(e).splitlines()[0][:100]}），"
-                          f"后续轮次直接使用 fallback", flush=True)
+                    _log.info("%s 慢查询主 SQL 依赖缺失（%s），后续轮次直接使用 fallback",
+                              label, str(e).splitlines()[0][:100])
                 else:
-                    print(f"[Monitor] 慢查询 SQL 失败 {label}: {e}", flush=True)
+                    _log.warning("慢查询 SQL 失败 %s: %s", label, e)
                 if not fallback_sql:
                     return {'data': [], 'error': _friendly_db_error(e),
                             'ts': time.time(), 'db_type': db_type, 'label': label}
@@ -302,9 +307,9 @@ class MonitorEngine:
             try:
                 rows = self._connect_and_query(instance_id, fallback_sql)
                 if instance_id not in self._slow_prim_skip:
-                    print(f"[Monitor] {label} 使用 fallback 慢查询 SQL", flush=True)
+                    _log.info("%s 使用 fallback 慢查询 SQL", label)
             except Exception as fb:
-                print(f"[Monitor] 慢查询 fallback 亦失败 {label}: {fb}", flush=True)
+                _log.warning("慢查询 fallback 亦失败 %s: %s", label, fb)
                 return {'data': [], 'error': _friendly_db_error(fb),
                         'ts': time.time(), 'db_type': db_type, 'label': label}
 
@@ -328,7 +333,7 @@ class MonitorEngine:
         try:
             rows = self._connect_and_query(instance_id, conn_sql)
         except Exception as e:
-            print(f"[Monitor] 连接 SQL 失败 {label}: {e}", flush=True)
+            _log.warning("连接 SQL 失败 %s: %s", label, e)
             return {'data': [], 'error': _friendly_db_error(e),
                     'ts': time.time(), 'total': 0, 'max_conn': mq.MAX_CONNECTION_DEFAULTS.get(db_type, 100),
                     'connections': {'active': 0, 'idle': 0, 'blocked': 0}, 'usage_pct': 0,
@@ -463,6 +468,15 @@ class MonitorEngine:
             'user': inst.get('user') or '',
             'password': inst.get('password') or '',
             'database': inst.get('database') or inst.get('service_name') or '',
+            # Oracle 专属字段必须透传：监控子进程此前漏传 service_name/sid/
+            # use_sid/sysdba，导致 build_jdbc_url 对 oracle_jdbc 落到硬编码默认
+            # 'ORCLCDB'（或旧 SID 格式默认 'ORCL'），连错服务名 → ORA-12514 →
+            # 大屏误判宕机；而测试连接（插件 test_connection）正确传 service_name
+            # → 测试过、监控挂。sys 用户必须以 SYSDBA 登录，漏传则同样连不上。
+            'service_name': inst.get('service_name') or '',
+            'sid': inst.get('sid') or '',
+            'use_sid': bool(inst.get('use_sid', False)),
+            'sysdba': bool(inst.get('sysdba', False)),
             'jdbc_url': inst.get('jdbc_url') or '',
             'ssl': bool(inst.get('ssl', False)),
             'driver_version': inst.get('driver_version') or '',

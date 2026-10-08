@@ -60,6 +60,7 @@ menus_data = [
     ('autonomy',         'menu.autonomy',          0, 61),
     ('fleet',            'menu.fleet',             0, 62),
     ('xinchuang',        'menu.xinchuang',         0, 63),
+    ('run-log',          'menu.run-log',           0, 64),
     ('twin',             'menu.twin',              0, 625),
     ('data-management',  'menu.data-management', 0, 66),
     ('about',            'menu.about',           0, 67),

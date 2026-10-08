@@ -1145,6 +1145,28 @@ select option { background: var(--surface2); }
 .log-box .log-line.err { color: #EF4444; }
 .log-box .log-line.info { color: #0A2A6E; }
 
+/* 运行日志页：分类过滤芯片 + 日志行 */
+.filter-chip {
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text-muted);
+  border-radius: 16px;
+  padding: 4px 14px;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.filter-chip:hover { border-color: var(--accent); color: var(--text); }
+.filter-chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+#run-log-area { color: var(--text); }
+#run-log-area .log-line { white-space: pre-wrap; word-break: break-all; padding: 1px 0; border-bottom: 1px solid rgba(128,128,128,.06); }
+#run-log-area .log-line.err { color: #EF4444; }
+#run-log-area .log-line.warn { color: #F59E0B; }
+
 .progress-bar-wrap {
   background: var(--surface2);
   border-radius: 6px; height: 6px; overflow: hidden;
@@ -7632,6 +7654,9 @@ function wfCloseRunDrawer() {
     <div class="nav-item" onclick="showPage('xinchuang'); loadXinchuangPage()" id="nav-xinchuang" data-page-node-id="xInCh1nav">
       <span class="icon" data-page-node-id="xInCh2icon"><svg viewBox="0 0 24 24" aria-hidden="true" data-page-node-id="xInCh3icon"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span> <span data-page-node-id="xInCh4label">信创合规</span>
     </div>
+    <div class="nav-item" onclick="showPage('run-log')" id="nav-run-log" data-page-node-id="rUnL0g1nav">
+      <span class="icon" data-page-node-id="rUnL0g2icon"><svg viewBox="0 0 24 24" aria-hidden="true" data-page-node-id="rUnL0g3icon"><path d="M4 4h16v12H5l-1 4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8 9h8M8 12h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span> <span data-i18n="menu.run-log" data-page-node-id="rUnL0g4label">运行日志</span>
+    </div>
     <div class="nav-item" onclick="showPage('sql-editor')" id="nav-sql-editor" data-page-node-id="N1B30jWZmpX0kKvfSud965">
       <span class="icon" data-page-node-id="WB7ROL3LKzu9sulipRzqIc"><svg viewBox="0 0 24 24" aria-hidden="true" data-page-node-id="S8uYKaDi3JnNbYhUH6Xgos"><path d="m16 18 6-6-6-6" data-page-node-id="xcl9gEKKlFmaJlU8By7ej5"/><path d="m8 6-6 6 6 6" data-page-node-id="rzyAKbzdAFplGGNCEnupxb"/></svg></span> <span data-i18n="webui.nav_sql_editor" data-page-node-id="tkBf0jEEQGjTiW7sM7OFlL">SQL 编辑器</span>
     </div>
@@ -9618,6 +9643,37 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
             <button class="btn btn-primary" onclick="downloadServerReport()" data-i18n="webui.server_inspect_download" data-page-node-id="DU1aABv0nia1QY0SG73qkg">📥 下载巡检报告</button>
             <button class="btn btn-ghost" onclick="shareServerReport()" data-i18n="webui.server_inspect_share" data-page-node-id="HOjYVU9hJhK0yVp28KM0Cp">📤 分享报告</button>
           </div>
+        </div>
+      </div>
+
+      <!-- ══ Page: Run Log (运行日志) ══ -->
+      <div class="page" id="page-run-log" data-page-node-id="rUnL0gPage">
+        <div class="card" data-page-node-id="rUnL0gCard">
+          <div class="card-title" data-page-node-id="rUnL0gTitle"><span data-page-node-id="rUnL0gIcon">📑</span> <span data-i18n="menu.run-log" data-page-node-id="rUnL0gTitleTxt">运行日志</span>
+            <span style="float:right;font-size:12px;color:var(--text-muted);font-weight:400" id="run-log-meta" data-page-node-id="rUnL0gMeta"></span>
+          </div>
+
+          <!-- 分类过滤芯片（巡检 / 定时巡检 / 智能诊断 / 监控 / 系统） -->
+          <div id="run-log-filters" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px" data-page-node-id="rUnL0gFilters">
+            <button class="filter-chip active" data-cat="all" onclick="runLogSetCat('all')" data-page-node-id="rUnL0gC0">全部</button>
+            <button class="filter-chip" data-cat="inspection" onclick="runLogSetCat('inspection')" data-page-node-id="rUnL0gC1">巡检</button>
+            <button class="filter-chip" data-cat="scheduled" onclick="runLogSetCat('scheduled')" data-page-node-id="rUnL0gC2">定时巡检</button>
+            <button class="filter-chip" data-cat="diagnosis" onclick="runLogSetCat('diagnosis')" data-page-node-id="rUnL0gC3">智能诊断</button>
+            <button class="filter-chip" data-cat="monitor" onclick="runLogSetCat('monitor')" data-page-node-id="rUnL0gC4">监控</button>
+            <button class="filter-chip" data-cat="system" onclick="runLogSetCat('system')" data-page-node-id="rUnL0gC5">系统</button>
+          </div>
+
+          <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap" data-page-node-id="rUnL0gToolbar">
+            <input type="text" id="run-log-search" class="form-input" style="max-width:280px" placeholder="关键字过滤..." data-page-node-id="rUnL0gSearch" onkeydown="if(event.key==='Enter') runLogReload()" />
+            <button class="btn btn-ghost" onclick="runLogReload()" data-page-node-id="rUnL0gBtnFilter">🔍 筛选</button>
+            <label style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:4px;cursor:pointer" data-page-node-id="rUnL0gAutoLabel">
+              <input type="checkbox" id="run-log-autorefresh" checked onchange="runLogToggleAuto()" data-page-node-id="rUnL0gAuto" /> 自动刷新
+            </label>
+            <span style="flex:1"></span>
+            <button class="btn btn-ghost" onclick="runLogClear()" data-page-node-id="rUnL0gBtnClear">🧹 清屏</button>
+          </div>
+
+          <div id="run-log-area" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;font-family:Consolas,Monaco,monospace;font-size:12px;max-height:60vh;overflow-y:auto;line-height:1.8;white-space:pre-wrap" data-page-node-id="rUnL0gArea"></div>
         </div>
       </div>
 
@@ -12724,6 +12780,7 @@ function showPage(name) {
     'autonomy': ['安全自治 DBA 闭环', '检测→诊断→提议→审批闸门→执行→复检 的可审计自治闭环（P0-c 看板）'],
     'fleet': ['智能基线 · Smart Baseline', '无监督基线学习 + 漂移检测 + 容量预测：从单点巡检到全库智能（P1）'],
     'xinchuang': [i18n('menu.xinchuang') || '信创合规', i18n('webui.xinchuang_subtitle') || '对纳管实例做信创化程度盘点：国产（信创）占比、国外数据库待替换清单、库型分布。'],
+    'run-log': [i18n('menu.run-log') || '运行日志', i18n('webui.run_log_subtitle') || '统一汇聚巡检 / 定时巡检 / 智能诊断 / 监控 的运行日志，可按分类过滤。'],
   };
   const t = titles[name] || [name, ''];
   document.getElementById('topbar-title').textContent = t[0];
@@ -12751,6 +12808,7 @@ function showPage(name) {
   if (name === 'um-admin') loadUmAdminPage();
   if (name === 'oracle-client') loadDrivers();
   if (name === 'plugin-market') loadMarketPlugins();
+  if (name === 'run-log') loadRunLog();
     if (name === 'remote-shell') {
         initRemoteShellPage();
         switchRemoteTab('connection');
@@ -24452,6 +24510,60 @@ async function deleteBackupHistory(recordId) {
       statusEl.textContent = '❌ 请求失败: ' + e.message;
       statusEl.style.color = 'var(--danger)';
     }
+  }
+
+  // ─── 运行日志（loghub）───
+  var _runLogCat = 'all';
+  var _runLogTimer = null;
+  var _RUNLOG_CAT_LABELS = {
+    inspection: '巡检', scheduled: '定时巡检', diagnosis: '智能诊断',
+    monitor: '监控', system: '系统'
+  };
+  function runLogSetCat(cat) {
+    _runLogCat = cat;
+    var chips = document.querySelectorAll('#run-log-filters .filter-chip');
+    chips.forEach(function(c){ c.classList.toggle('active', c.getAttribute('data-cat') === cat); });
+    runLogReload();
+  }
+  function runLogToggleAuto() {
+    var cb = document.getElementById('run-log-autorefresh');
+    if (cb && cb.checked) runLogStartTimer(); else runLogStopTimer();
+  }
+  function runLogStopTimer() { if (_runLogTimer) { clearTimeout(_runLogTimer); _runLogTimer = null; } }
+  function runLogStartTimer() { runLogStopTimer(); _runLogTimer = setTimeout(function(){ runLogReload(); }, 2000); }
+  function runLogClear() { var a = document.getElementById('run-log-area'); if (a) a.innerHTML = ''; }
+  function runLogReload() {
+    var area = document.getElementById('run-log-area'); if (!area) return;
+    var cat = (_runLogCat === 'all') ? '' : _runLogCat;
+    var q = (document.getElementById('run-log-search') || {}).value || '';
+    var url = '/api/loghub?limit=500'
+            + (cat ? '&categories=' + encodeURIComponent(cat) : '')
+            + (q ? '&search=' + encodeURIComponent(q) : '');
+    fetch(url).then(function(r){ return r.json(); }).then(function(data){
+      if (!data.ok) return;
+      var html = '';
+      (data.logs || []).forEach(function(l){
+        var cls = (l.level === 'ERROR') ? ' err' : ((l.level === 'WARNING') ? ' warn' : '');
+        var label = _RUNLOG_CAT_LABELS[l.category] || l.category;
+        html += '<div class="log-line' + cls + '">[' + l.time + '] [' + label + '] '
+              + (typeof escapeHtml === 'function' ? escapeHtml(l.msg) : l.msg) + '</div>';
+      });
+      area.innerHTML = html;
+      area.scrollTop = area.scrollHeight;
+      var meta = document.getElementById('run-log-meta');
+      if (meta) meta.textContent = '共 ' + (data.logs ? data.logs.length : 0) + ' 条';
+      var cb = document.getElementById('run-log-autorefresh');
+      if (cb && cb.checked) runLogStartTimer();
+    }).catch(function(){
+      var cb = document.getElementById('run-log-autorefresh');
+      if (cb && cb.checked) runLogStartTimer();
+    });
+  }
+  function loadRunLog() {
+    _runLogCat = 'all';
+    var chips = document.querySelectorAll('#run-log-filters .filter-chip');
+    chips.forEach(function(c){ c.classList.toggle('active', c.getAttribute('data-cat') === 'all'); });
+    runLogReload();
   }
 
   async function startServerInspect() {

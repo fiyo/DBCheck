@@ -3383,6 +3383,8 @@ ZI.update({
     "menu.twin": "拓扑巡检",
     "menu.xinchuang": "信创合规",
     "webui.xinchuang_subtitle": "对纳管实例做信创化程度盘点：国产（信创）占比、国外数据库待替换清单、库型分布。",
+    "menu.run-log": "运行日志",
+    "webui.run_log_subtitle": "统一汇聚巡检 / 定时巡检 / 智能诊断 / 监控 的运行日志，可按分类过滤，根治监控日志混入巡检日志。",
     "menu.trend": "趋势分析",
     "menu.wizard": "数据库巡检",
 

@@ -380,7 +380,10 @@ def build_jdbc_url(
         )
         return _url
 
-    _svc = service_name or _prof.get('service_default') or _db
+    # Oracle：service_name 缺失时优先回落到 database（监控子进程把真实服务名
+    # 经 database 字段带入），再回落硬编码默认（ORCLCDB）。此前顺序是
+    # service_name or 默认 or _db，导致真实服务名被默认覆盖 → 连错服务 ORA-12514。
+    _svc = service_name or _db or _prof.get('service_default')
     _server = gbase_server_name or _prof.get('server_default') or 'gbase01'
 
     # HGDB：追加 PG 系超时参数段（connectTimeout/loginTimeout/socketTimeout），

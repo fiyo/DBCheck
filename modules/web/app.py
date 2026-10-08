@@ -15,6 +15,7 @@ from modules.core.paths import PROJECT_ROOT
 import os, sys, platform, threading, datetime, json, uuid, time, re, random, sqlite3, secrets
 import signal
 import traceback
+import logging
 import io
 from pathlib import Path
 
@@ -1035,6 +1036,25 @@ def _web_log_is_console_only(msg):
     return False
 
 
+# ── 中央日志中枢：把巡检 / 诊断等运行日志按分类写入 loghub ──
+def _hub_log(msg, category='inspection'):
+    """把一条运行日志写入 loghub（带 category 标签）。
+
+    智能分析 / AI 诊断类消息自动归到 ``diagnosis`` 分类，便于「运行日志」页按
+    巡检 / 定时巡检 / 智能诊断 / 监控 过滤查看。日志同时仍走原有 task['log'] 与
+    socketio 推送（保持巡检面板不变），此处只是额外汇聚到中枢。
+    """
+    if not msg:
+        return
+    _cat = category
+    if _cat == 'inspection' and ('智能分析' in msg or 'AI 诊断' in msg or msg.startswith('[诊断]')):
+        _cat = 'diagnosis'
+    try:
+        logging.getLogger('dbcheck.' + _cat).info(msg)
+    except Exception:
+        pass
+
+
 def run_inspection_task(task_id, db_info, inspector_name, template_id=None, chapter_ids=None):
     """
     通用数据库巡检任务函数
@@ -1353,6 +1373,8 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None, chap
         msg = data.get('msg', '')
         if msg and task is not None:
             task.setdefault('log', []).append(msg)
+        if event == 'log':
+            _hub_log(msg, data.get('category', 'inspection'))
         emit(event, data, room=task_id)
 
     cfg = task_configs.get(db_type)
@@ -1715,6 +1737,8 @@ def run_config_task(task_id, db_info, output_format='txt'):
         msg = data.get('msg', '')
         if msg and task is not None:
             task.setdefault('log', []).append(msg)
+        if event == 'log':
+            _hub_log(msg, data.get('category', 'inspection'))
         emit(event, data, room=task_id)
 
     _emit('log', {'msg': f"[{_ts()}] Starting Config Baseline check..."})
@@ -1804,6 +1828,8 @@ def run_index_task(task_id, db_info, output_format='txt'):
         msg = data.get('msg', '')
         if msg and task is not None:
             task.setdefault('log', []).append(msg)
+        if event == 'log':
+            _hub_log(msg, data.get('category', 'inspection'))
         emit(event, data, room=task_id)
 
     _emit('log', {'msg': f"[{_ts()}] Starting Index Health Analysis..."})
@@ -5228,6 +5254,8 @@ def _run_server_inspect_task(task_id, ssh_info):
         msg = data.get('msg', '')
         if msg and task is not None:
             task.setdefault('log', []).append(msg)
+        if event == 'log':
+            _hub_log(msg, data.get('category', 'inspection'))
         emit(event, data, room=task_id)
 
     try:
@@ -9043,6 +9071,31 @@ def api_inspection_sql_logs():
         return jsonify({'ok': False, 'error': str(e)})
 
 
+@app.route('/api/loghub')
+def api_loghub():
+    """获取带分类标签的运行日志（供「运行日志」页按分类过滤）。
+
+    查询参数：
+      - categories: 逗号分隔的分类 key，如 inspection,monitor；缺省=全部
+      - levels:     逗号分隔的级别（大写），如 INFO,ERROR；含 ALL/缺省=全部
+      - search:     关键字子串（不区分大小写）
+      - limit:      返回条数上限（默认 500）
+    """
+    try:
+        from modules.loghub import query_logs, get_categories
+        cats = request.args.get('categories')
+        levels = request.args.get('levels')
+        search = request.args.get('search')
+        limit = request.args.get('limit', 500, type=int)
+        category_list = [c for c in cats.split(',') if c] if cats else None
+        level_list = [l for l in levels.split(',') if l] if levels else None
+        logs = query_logs(categories=category_list, levels=level_list,
+                          limit=limit, search=search, reverse=True)
+        return jsonify({'ok': True, 'logs': logs, 'categories': get_categories()})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)})
+
+
 # ══════════════════════════════════════════════════════════════
 #  AI 聊天巡检 API
 # ══════════════════════════════════════════════════════════════
@@ -12030,6 +12083,14 @@ def main():
 
     # ── 启动 Banner：必须是第一段控制台输出（早于下方插件加载日志）──
     _print_startup_banner()
+
+    # ── 中央日志中枢：汇聚各子系统带分类标签的日志，供「运行日志」页过滤 ──
+    # 必须在监控线程 / 巡检任务启动前安装，确保捕获全量日志；幂等。
+    try:
+        from modules.loghub import init_loghub
+        init_loghub()
+    except Exception as _e:
+        print(f"[startup] 初始化日志中枢失败（降级继续）: {_e}")
 
     _setup_driver_paths()
     # ── 初始化插件系统 ──

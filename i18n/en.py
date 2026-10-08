@@ -3353,6 +3353,8 @@ EN.update({
     "menu.twin": "Topology Inspection",
     "menu.xinchuang": "Xinchuang Compliance",
     "webui.xinchuang_subtitle": "Xinchuang (domestic) compliance overview of managed instances: domestic ratio, foreign-DB replacement list, and DB-type distribution.",
+    "menu.run-log": "Runtime Logs",
+    "webui.run_log_subtitle": "Unified runtime logs for inspection / scheduled inspection / AI diagnosis / monitoring, filterable by category.",
     "menu.trend": "Trend Analysis",
     "menu.wizard": "Database Inspection",
 
