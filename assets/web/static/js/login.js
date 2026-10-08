@@ -59,7 +59,7 @@ function loadVersion(){
   fetch('/version.json')
     .then(r => r.json())
     .then(d => {
-      const v = (d && d.version) || 'v26.10.8.2';
+      const v = (d && d.version) || 'v26.10.8.3';
       const el1 = document.getElementById('login-version');
       const el2 = document.getElementById('footer-version');
       if (el1) el1.textContent = v;

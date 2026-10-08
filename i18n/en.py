@@ -2871,6 +2871,7 @@ EN = {
     "webui.screen_trend": "Total QPS Trend (15 min)",
     "webui.screen_tbs_top": "Tablespace Lowest Free Top 10 (%)",
     "webui.screen_tbs_used_top": "Tablespace Highest Used Top 10 (MB)",
+    "webui.screen_tbs_analyze_hint": "OceanBase tablespace stats come from information_schema and require ANALYZE TABLE to be accurate; values may be 0 or estimates before that.",
     "webui.screen_repl_top": "Replication Lag Top 10 (s)",
     "webui.screen_repl_no_data": "No replication instances (primary/standalone not collected)",
     "webui.screen_lock_top": "Lock Waits Top 10",

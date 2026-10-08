@@ -5905,7 +5905,7 @@ def monitor_screen_page():
     # 大屏页文案走 i18n：一次取齐注入模板（JS 内再经 tojson 使用）
     _keys = ['probe', 'subtitle', 'k_online', 'k_warn', 'k_crit', 'k_conn', 'k_qps', 'k_tps',
              'btn_fs', 'topo_title', 'qps_top', 'conn_util_top', 'conns_top', 'trend',
-             'tbs_top', 'tbs_used_top', 'repl_top', 'repl_no_data', 'lock_top', 'slowq_top', 'health',
+             'tbs_top', 'tbs_used_top', 'tbs_analyze_hint', 'repl_top', 'repl_no_data', 'lock_top', 'slowq_top', 'health',
              'trend_global', 'trend_by_inst', 'fresh_label', 'fresh_stale',
              'st_ok', 'st_warn', 'st_crit', 'st_down', 'st_pending', 'st_unsupported',
              'node_status', 'node_conn', 'node_slowq', 'node_tbs', 'node_repl',

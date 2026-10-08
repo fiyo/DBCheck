@@ -1,5 +1,10 @@
 # Changelog
 
+## v26.10.8.3 (2026-10-08)
+- **改进：监控大屏 OceanBase 表空间「需 ANALYZE TABLE」常驻弱提示（用户反馈）**
+  - 背景：OceanBase MySQL 租户的 `information_schema.tables.data_length/index_length` 在对该库执行 `ANALYZE TABLE` 之前为 NULL/0（现有 `COALESCE` 只兜底成 0、**不保证数值准确**），用户反馈表空间显示数值不准确。MySQL/MariaDB/TiDB 由存储引擎自发维护、Oracle/DM 走 `dba_data_files`、PostgreSQL 走 `pg_database_size()`，均无需 ANALYZE——唯有 OB 有此问题。
+  - 修复：后端 `screen_metrics.assemble_overview` 新增 `tbs_analyze_hint` 标志（`any(normalize_db_type(db_type)=='oceanbase' for n in nodes)`，与现有 OB 查询路径同一归一化口径）；前端监控大屏表空间面板（`#tbs-list`）上方常驻一条淡蓝弱提示「OceanBase 表空间统计取自 information_schema，需对业务库执行 ANALYZE TABLE 后才准确，未执行时可能为 0 或估算值」，按 `tbs_analyze_hint` 显隐，不依赖表空间有无数据都显示。新增 zh/en 双语文案 + `.tbs-hint` 样式。
+
 ## v26.10.8.2 (2026-10-08)
 - **修复：Oracle（含自定义端口）监控大屏误报宕机（用户反馈）**
   - 根因：监控的 `oracle_jdbc` 采集走 JDBC 子进程通道（`MonitorEngine._jdbc_run_batch` → `jdbc_collect_cli.py` → `open_jdbc_connection`），该链路的 payload **只传 `database` 占位、漏传 `service_name`/`sid`/`use_sid`/`sysdba`**；`build_jdbc_url` 对 `oracle_jdbc` 的回落逻辑 `_svc = service_name or 'ORCLCDB' or _db` 在 `service_name` 缺失时落到硬编码默认 `ORCLCDB`，丢弃真实服务名 → `ORA-12514` 监听不认识该服务 → 连接失败 → 大屏判宕机。而**测试连接**走 `oracle_jdbc` 插件的 `test_connection`（显式传 `service_name`），故测试过、监控挂。该回归自 JDBC 子进程监控方案引入（`a0a5fef`，2026-09-15）起就存在。用户反馈的「自定义端口」实为**误判**——端口在 payload 中本就正确传入（`int(payload.get('port') or 0)`）。

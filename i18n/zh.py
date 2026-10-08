@@ -2901,6 +2901,7 @@ ZI = {
     "webui.screen_trend": "全库 QPS 趋势（15 分钟）",
     "webui.screen_tbs_top": "表空间剩余最危 Top 10（%）",
     "webui.screen_tbs_used_top": "表空间已用最大 Top 10（MB）",
+    "webui.screen_tbs_analyze_hint": "OceanBase 表空间统计取自 information_schema，需对业务库执行 ANALYZE TABLE 后才准确，未执行时可能为 0 或估算值。",
     "webui.screen_repl_top": "复制延迟 Top 10（秒）",
     "webui.screen_repl_no_data": "无复制实例（主库/单机不采集）",
     "webui.screen_lock_top": "锁等待 Top 10",

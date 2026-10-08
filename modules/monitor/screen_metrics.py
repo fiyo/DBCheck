@@ -1359,6 +1359,9 @@ def assemble_overview(nodes, collector, trend=None):
         'trend': [{'ts': t['ts'], 'qps': t['qps']} for t in trend],
         'alerts': alerts[:50],
         'nodes': nodes,
+        # OceanBase 表空间统计取自 information_schema，需 ANALYZE TABLE 后才准确；
+        # 拓扑中存在 OceanBase 实例时，前端在表空间面板常驻一条弱提示。
+        'tbs_analyze_hint': any(normalize_db_type(n.get('db_type')) == 'oceanbase' for n in nodes),
     }
 
 
