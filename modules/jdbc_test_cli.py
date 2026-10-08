@@ -571,6 +571,81 @@ def _mysql_fallback(kind, host, port, user, password, database, reason):
         return False, f'{kind} JDBC 失败: {reason}；pymysql 回退也失败: {e2}'
 
 
+def _oceanbase_native_fallback(host, port, user, password, database, reason):
+    """OceanBase 原生回退（pymysql）：JDBC 不可用时的兜底，并针对 OB 给出明确诊断。
+
+    OceanBase MySQL 租户的连接语义与 MySQL 不同：握手是 lazy 的，连接阶段不校验
+    租户/host 白名单，直到执行首个查询（如 SELECT VERSION()）时服务器才校验，
+    不通过即断开 → 表现为 pymysql 的 (2013, 'Lost connection to MySQL server
+    during query')。pymysql 回退无法像官方 JDBC 驱动那样完整解析集群/租户，
+    故在 OB 上稳定性弱于 JDBC；此处把这类错误翻译成可操作的诊断，而不是丢一个
+    裸的 (2013, ...) 让用户无从下手。
+    """
+    try:
+        import pymysql
+    except ImportError:
+        return False, (f'{reason}；且未安装 pymysql（pip install pymysql）。\n'
+                       f'建议到「数据库驱动管理」上传 OceanBase 官方 JDBC 驱动 jar'
+                       f'（com.oceanbase.jdbc.Driver），官方驱动对 OB 租户/集群解析最完整。')
+    try:
+        _kw = dict(host=host, port=int(port), user=user, password=password,
+                   connect_timeout=10, charset='utf8mb4', read_timeout=30)
+        if database:
+            _kw['database'] = database
+        _c = pymysql.connect(**_kw)
+        _cur = _c.cursor()
+        try:
+            _cur.execute('SELECT VERSION()')
+            _ver = _cur.fetchone()[0]
+            return True, f'OceanBase 连接成功（pymysql 回退）：{_ver}'
+        finally:
+            _cur.close()
+            _c.close()
+    except pymysql.err.OperationalError as e:
+        _code = e.args[0] if e.args else None
+        if _code in (2013, 2006):
+            # 区分「用户名未带租户」与「已带租户但仍被断」两种情形，避免误判：
+            # 当前 user 已含 @ 说明租户格式正确，应把排查重心移到远程授权 / JDBC 驱动。
+            _has_tenant = '@' in user
+            if _has_tenant:
+                _uname, _tenant = user.split('@', 1)[0], user.split('@', 1)[1]
+                _hint = (
+                    f'{reason}\n'
+                    f'【OceanBase 专属诊断】连接已建立，但执行首个查询时被 OceanBase 服务器断开'
+                    f'（错误 {_code}）。\n'
+                    f'当前 user={user!r} 已携带租户（租户名={_tenant!r}），租户格式正确，'
+                    f'可排除「用户名未带租户」这一项。\n'
+                    f'最可能为以下原因之一：\n'
+                    f'1) OB 用户未授权远程登录（最常见）：请在 OB 用 sys 租户执行\n'
+                    f"   CREATE USER '{_uname}'@'%' IDENTIFIED BY '密码';\n"
+                    f"   GRANT ALL PRIVILEGES ON *.* TO '{_uname}'@'%' WITH GRANT OPTION;\n"
+                    f"   （默认 '{_uname}'@'localhost' 仅允许本机登录，远程连接会在首个查询被断，"
+                    f"表现为 2013）。\n"
+                    f'2) 强烈建议到「数据库驱动管理」上传 OceanBase 官方 JDBC 驱动 jar'
+                    f'（com.oceanbase.jdbc.Driver）：官方驱动对 OB 租户/集群解析最完整，'
+                    f'pymysql 回退在部分 OB 版本上不稳定。\n'
+                    f'3) 若租户不在默认集群，用户名需写成 "user@tenant#cluster"。'
+                )
+            else:
+                _hint = (
+                    f'{reason}\n'
+                    f'【OceanBase 专属诊断】连接已建立，但执行首个查询时被 OceanBase 服务器断开'
+                    f'（错误 {_code}）。常见原因与对策：\n'
+                    f'1) 用户名必须携带租户：当前 user={user!r}，应为 "用户名@租户名"'
+                    f'（如 root@sys / root@test），否则 OB 无法定位租户。\n'
+                    f'2) OB 用户未授权远程登录：请在 OB 用 sys 租户执行 '
+                    f"GRANT ALL PRIVILEGES ON *.* TO '用户名'@'%' IDENTIFIED BY '密码'; "
+                    f"（默认 '用户名'@'localhost' 仅允许本机登录，远程连接会在首个查询被断）。\n"
+                    f'3) 强烈建议到「数据库驱动管理」上传 OceanBase 官方 JDBC 驱动 jar'
+                    f'（com.oceanbase.jdbc.Driver）：官方驱动对 OB 租户/集群解析最完整，'
+                    f'pymysql 回退在部分 OB 版本上不稳定。'
+                )
+            return False, _hint
+        return False, f'{reason}；pymysql 回退也失败: {e}'
+    except Exception as e2:  # noqa: BLE001
+        return False, f'{reason}；pymysql 回退也失败: {e2}'
+
+
 def _test_mysql_jdbc(payload):
     """MySQL JDBC 连接测试——统一连接层优先，回退 pymysql。"""
     _host = payload.get('host')
@@ -713,8 +788,8 @@ def _test_oceanbase_jdbc(payload):
             fallback_dirs=[os.path.join(str(PROJECT_ROOT), 'drivers', 'oceanbase')],
         )
         if _conn is None:
-            return _mysql_fallback('OceanBase', _host, _port, _user, _pw, _db,
-                                   (_meta or {}).get('error') or 'JDBC 连接失败')
+            return _oceanbase_native_fallback(_host, _port, _user, _pw, _db,
+                                             (_meta or {}).get('error') or 'JDBC 连接失败')
         _cur = _conn.cursor()
         try:
             _cur.execute('SELECT 1')
@@ -724,7 +799,7 @@ def _test_oceanbase_jdbc(payload):
             _conn.close()
         return True, f'OceanBase 连接成功（JDBC 驱动：{(_meta or {}).get("driver")}）'
     except Exception as e:  # noqa: BLE001
-        return _mysql_fallback('OceanBase', _host, _port, _user, _pw, _db, str(e))
+        return _oceanbase_native_fallback(_host, _port, _user, _pw, _db, str(e))
 
 
 def _test_dm_dmpython(payload, jdbc_reason=None):

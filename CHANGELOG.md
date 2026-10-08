@@ -1,12 +1,19 @@
 # Changelog
 
-## v26.10.8.1 (2026-10-08)
+## v26.10.8.2 (2026-10-08)
 - **修复：Oracle（含自定义端口）监控大屏误报宕机（用户反馈）**
   - 根因：监控的 `oracle_jdbc` 采集走 JDBC 子进程通道（`MonitorEngine._jdbc_run_batch` → `jdbc_collect_cli.py` → `open_jdbc_connection`），该链路的 payload **只传 `database` 占位、漏传 `service_name`/`sid`/`use_sid`/`sysdba`**；`build_jdbc_url` 对 `oracle_jdbc` 的回落逻辑 `_svc = service_name or 'ORCLCDB' or _db` 在 `service_name` 缺失时落到硬编码默认 `ORCLCDB`，丢弃真实服务名 → `ORA-12514` 监听不认识该服务 → 连接失败 → 大屏判宕机。而**测试连接**走 `oracle_jdbc` 插件的 `test_connection`（显式传 `service_name`），故测试过、监控挂。该回归自 JDBC 子进程监控方案引入（`a0a5fef`，2026-09-15）起就存在。用户反馈的「自定义端口」实为**误判**——端口在 payload 中本就正确传入（`int(payload.get('port') or 0)`）。
   - 修复：`_jdbc_run_batch` payload 补全 `service_name`/`sid`/`use_sid`/`sysdba`（`sysdba=true` 时透传 `internal_logon=sysdba`，避免 sys 用户 ORA-28009）；`jdbc_collect_cli.py` 透传上述字段；`build_jdbc_url` oracle_jdbc 回落改为 `service_name or _db or default`，防御性避免真实服务名被 `ORCLCDB` 覆盖。
 - **修复：根治监控日志混入巡检日志（issue #59 收尾）**
   - 根因：巡检任务与监控后台线程同为进程内线程，共用同一 stdout；监控用 `print('[Monitor] ...')` 直接写控制台且无分类标签，污染共享控制台、且无按分类过滤的视图。
   - 修复：新建中央日志中枢 `modules/loghub.py`（线程安全环形缓冲 3000 条 + 按 logger 名派生 category + `MonitorConsoleFilter` 将 `dbcheck.monitor` 剥离共享控制台 + 监控专属 `monitor.log`）；监控日志统一改走 `logging.getLogger('dbcheck.monitor')`；巡检/诊断经 `_emit` 闭包写入中枢；新增「运行日志」导航页（全部/巡检/定时巡检/智能诊断/监控/系统 五类过滤芯片 + 关键字搜索 + 自动刷新），由 `GET /api/loghub` 按 category/level/search 过滤供给。监控噪声自此彻底离开共享控制台，且巡检日志可按分类过滤。
+
+- **修复：OceanBase 监控大屏表空间 / QPS-TPS 缺失（用户反馈）**
+  - 根因：① 大屏 `screen_metrics.py` 对 oceanbase 直接套 MySQL 家族的 `SHOW GLOBAL STATUS`——OB 不提供 Queries/Com_commit/Com_rollback/Innodb_* 计数器，QPS/TPS 差值恒为空；② 表空间容量查 `information_schema.tables` 的 `data_length+index_length`，OB 未 ANALYZE 前这些列 NULL/0 → SUM 全 NULL 显示 0；③ 监控页深采 `metrics_collector._collect_oceanbase` 的 `COUNTER_KEYS['oceanbase']` 只认 `queries`（OB 不返回）→ 无 `rate_*` 序列 → 前端判「暂不支持深采」。
+  - 修复：大屏改用 OB 原生 `gv$sysstat`（聚合全 observer，失败退 `v$sysstat`）stat_id 口径（与 OCP 官方一致）：QPS=stat_id 40000/40002/40004/40006/40008、TPS=30005、缓存命中=50008/50009；表空间 SQL 加 COALESCE 防 SUM 全 NULL；深采补 `ob_qps`/`ob_tps`/`buffer_cache_hit_pct`，`queries` 缺失时用 `ob_qps` 兜底 → 吞吐图出序列。
+- **修复：OceanBase 新建数据源测试连接 2013（用户反馈）**
+  - 根因：`(2013, 'Lost connection...')` 是 pymysql 元组格式，必来自 pymysql 回退（JDBC 异常形态不同）——该环境 OB JDBC 驱动未装/不可用 → 回退 pymysql → 连上 OB 后首个查询被断。OB 连接握手 lazy，执行首查询才校验 `user@租户` 与 host 白名单（`'user'@'localhost'` 仅本机），不通过即断开。另有两短板：`run_jdbc_test_subprocess` payload **丢弃 database**；pro 端点 `_ct_oceanbase` 直接 `pymysql.connect().close()` 裸抛 2013 无诊断。
+  - 修复：`jdbc_test_cli._oceanbase_native_fallback` 捕获 2013/2006 翻译为 OB 专属诊断（user 须 `@租户` / `GRANT...@'%'` 远程授权 / 上传官方 JDBC 驱动）；诊断文案智能检测 user 是否已带 `@`，已带则不再把「未带租户」列主因；`test_oceanbase_connection` 透传 database 进 `extra_kwargs`（修漏传）；`_ct_oceanbase` pro 分支复用专属回退且不再强制 `sys` 库。
 
 ## v26.10.8.0 (2026-10-08)
 - **修复：AI 助手巡检/诊断多数据源串库（issue #59 防护）**

@@ -1939,7 +1939,7 @@ def test_oceanbase_connection(host, port, user, password, database=None, driver_
     return run_jdbc_test_subprocess('oceanbase', {
         'host': host, 'port': port, 'user': user, 'password': password,
         'database': database,
-    }, extra_kwargs={'driver_version': driver_version})
+    }, extra_kwargs={'driver_version': driver_version, 'database': database})
 
 def test_tidb_connection(host, port, user, password, database=None, driver_version=''):
     """测试 TiDB 连接（统一 JDBC 子进程优先，回退 pymysql）。"""
@@ -2412,10 +2412,17 @@ def _ct_oceanbase(data, flavor):
                                             data['password'], data.get('database'),
                                             data.get('driver_version', '') or '')
         return {'ok': ok, 'msg': msg}
-    import pymysql
-    _db = data.get('database') or 'sys'
-    pymysql.connect(host=data['host'], port=data['port'], user=_ob_user,
-                    password=data['password'], database=_db, connect_timeout=10).close()
+    # pro flavor（数据源管理页面）：原生 pymysql 直连。复用 OceanBase 专属回退，
+    # 捕获 (2013, 'Lost connection ...') 等并给出针对 OB 的诊断（租户格式 / host
+    # 白名单 / 建议装官方 JDBC 驱动），而非抛一个裸的 pymysql 错误元组。
+    from modules.jdbc_test_cli import _oceanbase_native_fallback
+    # 测试连接只需验证可连，不强制指定库（避免 'sys' 在非 sys 租户下引发误判）；
+    # 仅当用户显式填了库名时才带上。首个查询 SELECT VERSION() 与库无关。
+    _db = data.get('database') or None
+    ok, msg = _oceanbase_native_fallback(data['host'], data['port'], _ob_user,
+                                        data['password'], _db, 'OceanBase 原生连接失败')
+    if not ok:
+        return {'ok': False, 'msg': msg}
     return _conn_ok('pro')
 
 

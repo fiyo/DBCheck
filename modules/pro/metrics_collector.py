@@ -52,8 +52,8 @@ COUNTER_KEYS = {
               'slow_queries', 'aborted_connects', 'threads_created'},
     'tidb': {'queries', 'bytes_received', 'bytes_sent', 'connections',
              'slow_queries', 'aborted_connects', 'threads_created'},
-    'oceanbase': {'queries', 'bytes_received', 'bytes_sent', 'connections',
-                  'slow_queries', 'aborted_connects', 'threads_created'},
+    'oceanbase': {'queries', 'ob_qps', 'ob_tps', 'bytes_received', 'bytes_sent',
+                  'connections', 'slow_queries', 'aborted_connects', 'threads_created'},
     'postgresql': {'xact_commit', 'xact_rollback', 'blks_read', 'blks_hit',
                    'deadlocks', 'conflicts', 'tup_returned', 'tup_fetched',
                    'tup_inserted', 'tup_updated', 'tup_deleted'},
@@ -766,6 +766,42 @@ class MetricsCollector:
             m['sysstat'] = sysstat
         except Exception:
             m['sysstat'] = {}
+
+        # ── 4b) OB 原生 QPS/TPS/缓存命中计数器（stat_id 跨版本稳定，口径同 OCP）──
+        # OB 的 SHOW GLOBAL STATUS 不提供 Queries/Com_commit/Com_rollback，
+        # 速率图（rate_*）必须以 v$sysstat 计数器为源：
+        #   ob_qps = 40000 select + 40002 insert + 40004 replace + 40006 update
+        #            + 40008 delete；ob_tps = 30005 transaction_count；
+        #   buffer_cache_hit_pct = 50008 hit / (50008 + 50009 miss)
+        try:
+            _OB_STAT_IDS = '40000,40002,40004,40006,40008,30005,50008,50009'
+            try:
+                cur.execute(
+                    "SELECT stat_id, SUM(value) FROM gv$sysstat "
+                    "WHERE stat_id IN (%s) AND class < 1000 GROUP BY stat_id" % _OB_STAT_IDS)
+            except Exception:
+                cur.execute(
+                    "SELECT stat_id, SUM(value) FROM v$sysstat "
+                    "WHERE stat_id IN (%s) AND class < 1000 GROUP BY stat_id" % _OB_STAT_IDS)
+            st = {}
+            for row in cur.fetchall():
+                if row and len(row) >= 2:
+                    try:
+                        st[int(_to_num(row[0]))] = _to_num(row[1])
+                    except (TypeError, ValueError):
+                        continue
+            if st:
+                m['ob_qps'] = sum(st.get(i, 0) for i in (40000, 40002, 40004, 40006, 40008))
+                m['ob_tps'] = st.get(30005, 0)
+                c_hit, c_miss = st.get(50008), st.get(50009)
+                if c_hit is not None and c_miss is not None and (c_hit + c_miss) > 0:
+                    m['buffer_cache_hit_pct'] = round(c_hit / (c_hit + c_miss) * 100.0, 1)
+                # SHOW GLOBAL STATUS 缺 queries 时用 OB 原生 SQL 计数兜底，
+                # 保证 rate_queries（吞吐图主序列）在 OB 上可用
+                if not m.get('queries'):
+                    m['queries'] = m['ob_qps']
+        except Exception:
+            pass
 
         # ── 5) memstore_water_level：GV$OB_MEMSTORE 水位百分比 ──
         try:

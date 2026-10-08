@@ -81,6 +81,37 @@ MYSQL_TBS_SQL = (
 MYSQL_REPL_SQL = "SHOW SLAVE STATUS"
 MYSQL_REPL_SQL8 = "SHOW REPLICA STATUS"
 
+# ── OceanBase（MySQL 租户）专属 ──
+# OB 的 SHOW GLOBAL STATUS 不提供 Queries / Com_commit / Com_rollback / Innodb_*
+# 计数器，QPS/TPS/缓存命中必须走 OB 原生 v$sysstat。stat_id 跨版本稳定，
+# 口径与 OCP 官方监控指标一致：
+#   QPS = 40000 select + 40002 insert + 40004 replace + 40006 update + 40008 delete
+#   TPS = 30005 transaction_count
+#   缓存命中 = 50008 block cache hit / 50009 block cache miss
+OB_QPS_STAT_IDS = (40000, 40002, 40004, 40006, 40008)
+OB_TPS_STAT_ID = 30005
+OB_CACHE_HIT_STAT_ID = 50008
+OB_CACHE_MISS_STAT_ID = 50009
+OB_STAT_SQL = (
+    "SELECT stat_id, SUM(value) AS value FROM gv$sysstat "
+    "WHERE stat_id IN (40000,40002,40004,40006,40008,30005,50008,50009) "
+    "AND class < 1000 GROUP BY stat_id"
+)
+# gv$ 不可达（低权限/老版本）时退回本机 v$：仅统计当前 observer，口径略窄但可用
+OB_STAT_SQL_LOCAL = (
+    "SELECT stat_id, SUM(value) AS value FROM v$sysstat "
+    "WHERE stat_id IN (40000,40002,40004,40006,40008,30005,50008,50009) "
+    "AND class < 1000 GROUP BY stat_id"
+)
+# OB 租户 information_schema.tables 的 data_length/index_length 在未 ANALYZE 前
+# 常为 NULL，SUM 全 NULL 会把 total_mb 变 None（前端显示 0），COALESCE 加固
+OB_TBS_SQL = (
+    "SELECT table_schema AS name, "
+    "ROUND(SUM(COALESCE(data_length, 0) + COALESCE(index_length, 0)) / 1048576, 1) AS total_mb "
+    "FROM information_schema.tables GROUP BY table_schema "
+    "ORDER BY total_mb DESC LIMIT 10"
+)
+
 PG_STAT_SQL = (
     "SELECT "
     "(SELECT COALESCE(SUM(xact_commit), 0) FROM pg_stat_database) AS xact_commit, "
@@ -407,6 +438,10 @@ def collect_extra(engine, instance_id, db_type):
     """
     fam = db_family(db_type)
     sqls = SCREEN_SQLS.get(fam) if fam else None
+    if sqls and normalize_db_type(db_type) == 'oceanbase':
+        # OceanBase（MySQL 租户）：计数器换 OB 原生 v$sysstat，容量查询 COALESCE 加固
+        sqls = dict(sqls, ob_stat=OB_STAT_SQL, ob_stat_local=OB_STAT_SQL_LOCAL,
+                    tbs=OB_TBS_SQL)
     counters, extras = {}, {'tbs': None, 'repl_lag_s': None, 'lock_waits': None,
                             # RAC / ADG 身份与配对（仅 oracle family 填充，其余保持 None）
                             'role': None, 'db_unique_name': None, 'db_name': None,
@@ -432,20 +467,46 @@ def collect_extra(engine, instance_id, db_type):
             return None
 
     if fam == 'mysql':
-        rows = q('stat')
-        st = {}
-        for r in rows or []:
-            k = _find_key(r, 'variable_name')
-            v = _find_key(r, 'value')
-            if k is not None:
-                st[str(k).lower()] = _num(v)
-        counters = {
-            'questions': st.get('questions'),
-            'com_commit': st.get('com_commit'),
-            'com_rollback': st.get('com_rollback'),
-            'buf_reads': st.get('innodb_buffer_pool_read_requests'),
-            'buf_disk': st.get('innodb_buffer_pool_reads'),
-        }
+        if normalize_db_type(db_type) == 'oceanbase':
+            # ── OceanBase：SHOW GLOBAL STATUS 在 OB 上无 Queries/Com_* 计数器，
+            # QPS/TPS/缓存命中走 OB 原生 v$sysstat（stat_id 口径同 OCP 官方）。
+            # counters 键名复用 _rate 的既有组合：
+            #   QPS ← 'questions'；TPS ← 'com_commit'+'com_rollback'；
+            #   缓存命中 ← 'hit'/'hit_base'（_commit_snap 直接算百分比）
+            rows = q('ob_stat') or q('ob_stat_local')
+            st = {}
+            for r in rows or []:
+                sid = int(_num(_find_key(r, 'stat_id'), -1))
+                if sid >= 0:
+                    st[sid] = _num(_find_key(r, 'value'))
+            ob_qps = sum((st.get(i) or 0) for i in OB_QPS_STAT_IDS) if st else None
+            ob_tps = st.get(OB_TPS_STAT_ID)
+            c_hit = st.get(OB_CACHE_HIT_STAT_ID)
+            c_miss = st.get(OB_CACHE_MISS_STAT_ID)
+            counters = {}
+            if ob_qps:
+                counters['questions'] = ob_qps
+            if ob_tps is not None:
+                counters['com_commit'] = ob_tps
+                counters['com_rollback'] = 0
+            if c_hit is not None and c_miss is not None and (c_hit + c_miss) > 0:
+                counters['hit'] = c_hit
+                counters['hit_base'] = c_hit + c_miss
+        else:
+            rows = q('stat')
+            st = {}
+            for r in rows or []:
+                k = _find_key(r, 'variable_name')
+                v = _find_key(r, 'value')
+                if k is not None:
+                    st[str(k).lower()] = _num(v)
+            counters = {
+                'questions': st.get('questions'),
+                'com_commit': st.get('com_commit'),
+                'com_rollback': st.get('com_rollback'),
+                'buf_reads': st.get('innodb_buffer_pool_read_requests'),
+                'buf_disk': st.get('innodb_buffer_pool_reads'),
+            }
         tbs = q('tbs')
         if tbs:
             extras['tbs'] = [
