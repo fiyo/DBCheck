@@ -78,6 +78,13 @@ JDBC_PROFILES: Dict[str, Dict[str, Any]] = {
         'port': 5432,
         'db_default': 'ivorysql',
     },
+    'halodb': {
+        # HaloDB（羲和）兼容 PostgreSQL 协议：用标准 PG 驱动 + jdbc:postgresql://
+        'driver_class': 'org.postgresql.Driver',
+        'url': 'jdbc:postgresql://{host}:{port}/{db}',
+        'port': 5432,
+        'db_default': 'halo',
+    },
     'pg': {
         'driver_class': 'org.postgresql.Driver',
         'url': 'jdbc:postgresql://{host}:{port}/{db}',

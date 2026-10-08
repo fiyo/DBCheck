@@ -1960,6 +1960,26 @@ def _builtin_default_baselines() -> Dict[str, List[Dict[str, Any]]]:
             {'param_name': 'oracle_compatibility', 'query_sql': "SELECT setting FROM pg_settings WHERE name = 'ivorysql.oracle_compatibility'", 'operator': '=', 'expected_value': 'on', 'risk_level': 'LOW', 'description_zh': 'Oracle 兼容模式应开启（仅 ORAMODE）', 'description_en': 'Oracle compatibility mode should be on (ORAMODE only)'},
         ],
         # ═══════════════════════════════════════════
+        # HaloDB（羲和，PG14 内核血统，复用 PG 体系基线）
+        # ═══════════════════════════════════════════
+        'halodb': [
+            # ── 安全 ──
+            {'param_name': 'password_encryption', 'query_sql': "SHOW password_encryption", 'operator': '=', 'expected_value': 'scram-sha-256', 'risk_level': 'HIGH', 'description_zh': '密码加密应使用 scram-sha-256', 'description_en': 'Password encryption should use scram-sha-256'},
+            {'param_name': 'ssl', 'query_sql': "SHOW ssl", 'operator': '=', 'expected_value': 'on', 'risk_level': 'HIGH', 'description_zh': 'SSL 连接应开启', 'description_en': 'SSL should be enabled'},
+            {'param_name': 'log_connections', 'query_sql': "SHOW log_connections", 'operator': '=', 'expected_value': 'on', 'risk_level': 'MEDIUM', 'description_zh': '应记录连接日志', 'description_en': 'Connection logging should be enabled'},
+            # ── 性能 ──
+            {'param_name': 'max_connections', 'query_sql': "SHOW max_connections", 'operator': '>=', 'expected_value': '200', 'risk_level': 'MEDIUM', 'description_zh': '最大连接数应 >= 200', 'description_en': 'Max connections should be >= 200'},
+            {'param_name': 'shared_buffers', 'query_sql': "SHOW shared_buffers", 'operator': '>=', 'expected_value': '128MB', 'risk_level': 'MEDIUM', 'description_zh': '共享缓冲区应 >= 128MB', 'description_en': 'Shared buffers should be >= 128MB'},
+            {'param_name': 'work_mem', 'query_sql': "SHOW work_mem", 'operator': '>=', 'expected_value': '4MB', 'risk_level': 'LOW', 'description_zh': '工作内存应 >= 4MB', 'description_en': 'Work memory should be >= 4MB'},
+            {'param_name': 'effective_cache_size', 'query_sql': "SHOW effective_cache_size", 'operator': '>=', 'expected_value': '4096MB', 'risk_level': 'LOW', 'description_zh': '有效缓存大小应 >= 4GB', 'description_en': 'Effective cache size should be >= 4GB'},
+            # ── 高可用 ──
+            {'param_name': 'wal_level', 'query_sql': "SHOW wal_level", 'operator': '>=', 'expected_value': 'replica', 'risk_level': 'HIGH', 'description_zh': 'WAL 级别应 >= replica', 'description_en': 'WAL level should be >= replica'},
+            {'param_name': 'archive_mode', 'query_sql': "SHOW archive_mode", 'operator': '=', 'expected_value': 'on', 'risk_level': 'MEDIUM', 'description_zh': '归档模式应开启', 'description_en': 'Archive mode should be on'},
+            # ── 运维 ──
+            {'param_name': 'autovacuum', 'query_sql': "SHOW autovacuum", 'operator': '=', 'expected_value': 'on', 'risk_level': 'MEDIUM', 'description_zh': '自动清理（autovacuum）应开启', 'description_en': 'Autovacuum should be enabled'},
+            {'param_name': 'database_compat_mode', 'query_sql': "SELECT setting FROM pg_settings WHERE name = 'database_compat_mode'", 'operator': '=', 'expected_value': 'postgresql', 'risk_level': 'LOW', 'description_zh': '兼容模式应与业务一致（默认 postgresql）', 'description_en': 'Compat mode should match the business (default postgresql)'},
+        ],
+        # ═══════════════════════════════════════════
         # YashanDB
         # ═══════════════════════════════════════════
         'yashandb': [

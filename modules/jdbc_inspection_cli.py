@@ -58,7 +58,7 @@ DONE_PREFIX = "__DBCHECK_INSP_DONE__"
 
 # 本 CLI 需要隔离执行的 JVM 数据库类型
 # 全部走 JDBC 的巡检类型：6 个 JDBC 插件 + 核心内置 dm/gbase/ivorysql（与 driver_registry.JDBC_PLUGIN_TO_CATALOG 对齐）
-JVM_INSPECTION_DB_TYPES = ('hgdb', 'db2', 'sqlserver_jdbc', 'oracle_jdbc', 'dm', 'gbase', 'clickhouse', 'uxdb', 'ivorysql', 'pg', 'kingbase', 'yashandb', 'mysql', 'mariadb', 'tidb', 'oceanbase')
+JVM_INSPECTION_DB_TYPES = ('hgdb', 'db2', 'sqlserver_jdbc', 'oracle_jdbc', 'dm', 'gbase', 'clickhouse', 'uxdb', 'ivorysql', 'halodb', 'pg', 'kingbase', 'yashandb', 'mysql', 'mariadb', 'tidb', 'oceanbase')
 
 
 def _ensure_project_root_on_path():

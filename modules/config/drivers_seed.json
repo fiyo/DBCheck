@@ -281,6 +281,16 @@
       "is_active": 1,
       "uploaded_at": "2026-08-17 22:30:33",
       "note": ""
+    },
+    {
+      "db_type": "halodb",
+      "version": "42.7.13",
+      "driver_class": "org.postgresql.Driver",
+      "jar_filename": "postgresql-42.7.13.jar",
+      "file_size": 1220948,
+      "is_active": 1,
+      "uploaded_at": "2026-10-08 21:40:00",
+      "note": "HaloDB 兼容 PG 协议，复用 PostgreSQL JDBC 驱动"
     }
   ]
 }

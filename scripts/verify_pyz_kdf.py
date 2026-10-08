@@ -5,7 +5,7 @@
 """Verify cryptography kdf modules are packed inside a PyInstaller onefile exe (Issue #57)."""
 import struct, sys, zlib
 
-path = r"D:\DBCheck\dist\RaccoonX-Windows-x86_64-v26.10.9.0\dbcheck.exe"
+path = r"D:\DBCheck\dist\RaccoonX-Windows-x86_64-v26.10.9.1\dbcheck.exe"
 MAGIC = b"MEI\014\013\012\013\016"
 
 with open(path, "rb") as f:

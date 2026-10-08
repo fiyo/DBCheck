@@ -15,7 +15,9 @@
       "sql_editor": false,
       "show_database_field": true,
       "connect_test": "oracle",
-      "baseline": { "reuse": "oracle" }
+      "baseline": {
+        "reuse": "oracle"
+      }
     },
     {
       "db_type": "mysql",
@@ -31,7 +33,9 @@
       "sql_editor": true,
       "show_database_field": true,
       "connect_test": "mysql",
-      "baseline": { "reuse": "mysql" }
+      "baseline": {
+        "reuse": "mysql"
+      }
     },
     {
       "db_type": "mariadb",
@@ -47,7 +51,9 @@
       "sql_editor": true,
       "show_database_field": true,
       "connect_test": "mysql",
-      "baseline": { "reuse": "mysql" }
+      "baseline": {
+        "reuse": "mysql"
+      }
     },
     {
       "db_type": "oceanbase",
@@ -63,7 +69,9 @@
       "sql_editor": true,
       "show_database_field": true,
       "connect_test": "mysql",
-      "baseline": { "reuse": "mysql" }
+      "baseline": {
+        "reuse": "mysql"
+      }
     },
     {
       "db_type": "pg",
@@ -79,7 +87,9 @@
       "sql_editor": true,
       "show_database_field": true,
       "connect_test": "pg",
-      "baseline": { "reuse": "pg" }
+      "baseline": {
+        "reuse": "pg"
+      }
     },
     {
       "db_type": "dm",
@@ -95,7 +105,9 @@
       "sql_editor": false,
       "show_database_field": true,
       "connect_test": "dm",
-      "baseline": { "reuse": "dm" }
+      "baseline": {
+        "reuse": "dm"
+      }
     },
     {
       "db_type": "sqlserver",
@@ -111,7 +123,9 @@
       "sql_editor": false,
       "show_database_field": true,
       "connect_test": "sqlserver",
-      "baseline": { "reuse": "sqlserver" }
+      "baseline": {
+        "reuse": "sqlserver"
+      }
     },
     {
       "db_type": "tidb",
@@ -127,7 +141,9 @@
       "sql_editor": true,
       "show_database_field": true,
       "connect_test": "tidb",
-      "baseline": { "reuse": "tidb" }
+      "baseline": {
+        "reuse": "tidb"
+      }
     },
     {
       "db_type": "ivorysql",
@@ -143,7 +159,9 @@
       "sql_editor": true,
       "show_database_field": true,
       "connect_test": "ivorysql",
-      "baseline": { "reuse": "pg" }
+      "baseline": {
+        "reuse": "pg"
+      }
     },
     {
       "db_type": "yashandb",
@@ -159,7 +177,9 @@
       "sql_editor": false,
       "show_database_field": true,
       "connect_test": "yashandb",
-      "baseline": { "reuse": "yashandb" }
+      "baseline": {
+        "reuse": "yashandb"
+      }
     },
     {
       "db_type": "kingbase",
@@ -175,7 +195,9 @@
       "sql_editor": true,
       "show_database_field": true,
       "connect_test": "kingbase",
-      "baseline": { "reuse": "pg" }
+      "baseline": {
+        "reuse": "pg"
+      }
     },
     {
       "db_type": "gbase",
@@ -192,6 +214,24 @@
       "show_database_field": true,
       "connect_test": "gbase",
       "baseline": null
+    },
+    {
+      "db_type": "halodb",
+      "label": "HaloDB",
+      "port": 5432,
+      "user": "halo",
+      "default_database": "halo",
+      "icon": "/halodb.png",
+      "emoji": "🌌",
+      "description": "适用于 HaloDB（羲和）实例，兼容 PostgreSQL 协议，通过 psycopg2 连接",
+      "compat_tag": "信创",
+      "protocol": "pg",
+      "sql_editor": true,
+      "show_database_field": true,
+      "connect_test": "halodb",
+      "baseline": {
+        "reuse": "pg"
+      }
     }
   ]
 }

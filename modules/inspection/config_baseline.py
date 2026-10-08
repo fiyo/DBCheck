@@ -1803,6 +1803,7 @@ register_baseline_checker('oceanbase', check_mysql_config_baseline)
 register_baseline_checker('pg', check_pg_config_baseline)
 register_baseline_checker('ivorysql', check_pg_config_baseline)
 register_baseline_checker('kingbase', check_pg_config_baseline)
+register_baseline_checker('halodb', check_pg_config_baseline)  # HaloDB（羲和）PG14 内核，复用 PG 基线
 register_baseline_checker('oracle', check_oracle_config_baseline)
 register_baseline_checker('dm', check_dm_config_baseline)
 register_baseline_checker('sqlserver', check_sqlserver_config_baseline)
@@ -2549,6 +2550,71 @@ def _get_default_baselines():
             'risk_level': 'MEDIUM',
             'description_zh': '预加载库，建议包含 pg_stat_statements',
             'description_en': 'Shared preload libraries, recommended include pg_stat_statements',
+        },
+        # ── HaloDB（羲和，PG14 内核，复用 PG 基线）──────────────
+        {
+            'db_type': 'halodb', 'param_name': 'max_connections',
+            'query_sql': "SELECT name, setting FROM pg_settings WHERE name = 'max_connections';",
+            'operator': '>=', 'expected_value': '200',
+            'risk_level': 'MEDIUM',
+            'description_zh': '最大连接数，建议不低于 200',
+            'description_en': 'Max connections, recommended >= 200',
+        },
+        {
+            'db_type': 'halodb', 'param_name': 'shared_buffers',
+            'query_sql': "SELECT name, setting FROM pg_settings WHERE name = 'shared_buffers';",
+            'operator': '>=', 'expected_value': '256MB',
+            'risk_level': 'HIGH',
+            'description_zh': '共享缓冲区大小，建议不低于 256MB',
+            'description_en': 'Shared buffers, recommended >= 256MB',
+        },
+        {
+            'db_type': 'halodb', 'param_name': 'effective_cache_size',
+            'query_sql': "SELECT name, setting FROM pg_settings WHERE name = 'effective_cache_size';",
+            'operator': '>=', 'expected_value': '4GB',
+            'risk_level': 'MEDIUM',
+            'description_zh': '有效缓存大小，建议设置为总内存的 75%',
+            'description_en': 'Effective cache size, recommended 75% of total memory',
+        },
+        {
+            'db_type': 'halodb', 'param_name': 'work_mem',
+            'query_sql': "SELECT name, setting FROM pg_settings WHERE name = 'work_mem';",
+            'operator': '>=', 'expected_value': '4MB',
+            'risk_level': 'MEDIUM',
+            'description_zh': '工作内存，建议不低于 4MB',
+            'description_en': 'Work mem, recommended >= 4MB',
+        },
+        {
+            'db_type': 'halodb', 'param_name': 'maintenance_work_mem',
+            'query_sql': "SELECT name, setting FROM pg_settings WHERE name = 'maintenance_work_mem';",
+            'operator': '>=', 'expected_value': '128MB',
+            'risk_level': 'LOW',
+            'description_zh': '维护工作内存，建议不低于 128MB',
+            'description_en': 'Maintenance work mem, recommended >= 128MB',
+        },
+        {
+            'db_type': 'halodb', 'param_name': 'wal_level',
+            'query_sql': "SELECT name, setting FROM pg_settings WHERE name = 'wal_level';",
+            'operator': '=', 'expected_value': 'replica',
+            'risk_level': 'LOW',
+            'description_zh': 'WAL 级别，建议 replica 以支持流复制和备份',
+            'description_en': 'WAL level, recommended replica for replication support',
+        },
+        {
+            'db_type': 'halodb', 'param_name': 'autovacuum',
+            'query_sql': "SELECT name, setting FROM pg_settings WHERE name = 'autovacuum';",
+            'operator': '=', 'expected_value': 'on',
+            'risk_level': 'HIGH',
+            'description_zh': '自动 VACUUM，建议开启',
+            'description_en': 'Autovacuum, recommended on',
+        },
+        {
+            'db_type': 'halodb', 'param_name': 'database_compat_mode',
+            'query_sql': "SELECT name, setting FROM pg_settings WHERE name = 'database_compat_mode';",
+            'operator': '=', 'expected_value': 'postgresql',
+            'risk_level': 'LOW',
+            'description_zh': '兼容模式应与业务一致（默认 postgresql）',
+            'description_en': 'Compat mode should match the business (default postgresql)',
         },
         # ── YashanDB ──────────────────────────────────────
         {

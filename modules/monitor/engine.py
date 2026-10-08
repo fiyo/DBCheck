@@ -656,7 +656,8 @@ class MonitorEngine:
             # 数据源测试不指定库名时同口径）。
             raw_type = (inst.get('db_type') or '').lower()
             default_db = {'hgdb': 'highgo', 'kingbase': 'kingbase',
-                          'uxdb': 'uxdb', 'vastbase': 'vastbase'}.get(raw_type)
+                          'uxdb': 'uxdb', 'vastbase': 'vastbase',
+                          'halodb': 'halo'}.get(raw_type)
             import psycopg2
             return psycopg2.connect(
                 host=host, port=port, user=user, password=password,

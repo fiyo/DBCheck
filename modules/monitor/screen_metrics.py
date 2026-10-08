@@ -49,6 +49,7 @@ _DB_FAMILY = {
     'oracle': 'oracle',
     'sqlserver': 'sqlserver', 'mssql': 'sqlserver',
     'dm': 'dm', 'kingbase': 'pg', 'hgdb': 'pg', 'uxdb': 'pg', 'vastbase': 'pg',
+    'halodb': 'pg',
     'gbase': 'gbase', 'db2': 'db2', 'clickhouse': 'clickhouse',
 }
 

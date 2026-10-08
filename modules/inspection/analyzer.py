@@ -1615,6 +1615,7 @@ class AIAdvisor:
         if lang == 'zh':
             db_type_name = {'mysql': 'MySQL', 'pg': 'PostgreSQL', 'oracle': 'Oracle',
                             'sqlserver': 'SQL Server', 'tidb': 'TiDB', 'ivorysql': 'IvorySQL',
+                            'halodb': 'HaloDB',
                             'kingbase': 'KingbaseES', 'gbase': 'GBase 8s'}.get(db_type, db_type.upper())
             if mode == 'diagnosis':
                 tail = (
@@ -2820,6 +2821,9 @@ def run_full_analysis(db_type: str, host: str, port, label: str,
         issues = smart_analyze_tidb(context)
     elif db_type == 'ivorysql':
         issues = smart_analyze_ivorysql(context)
+    elif db_type == 'halodb':
+        # HaloDB（羲和）为 PG14 内核血统，复用 PG 智能分析
+        issues = smart_analyze_pg(context)
     elif db_type == 'yashandb':
         issues = smart_analyze_yashandb(context)
     elif db_type == 'gbase':

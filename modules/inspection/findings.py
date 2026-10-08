@@ -31,7 +31,7 @@ _LEGACY_PREFIX = {
     "mysql": "mysql", "pg": "pg", "postgresql": "pg", "oracle": "oracle",
     "oracle_jdbc": "oracle", "dm": "dm", "sqlserver": "sqlserver",
     "tidb": "tidb", "ivorysql": "ivorysql", "kingbase": "kingbase",
-    "yashandb": "yashandb", "gbase": "gbase",
+    "halodb": "halodb", "yashandb": "yashandb", "gbase": "gbase",
 }
 
 # 巡检结论里的级别字段取值（col4=处理优先级 / col2=风险等级）

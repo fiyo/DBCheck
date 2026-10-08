@@ -145,8 +145,8 @@ def get_lock_tree(db_type: str, db_info: Dict[str, Any]) -> Dict[str, Any]:
         {"ok": False, "error": "..."}  （不支持类型或查询失败）
     """
     t = (db_type or "").lower().replace("oracle_full", "oracle")
-    # 类型归一：hgdb/kingbase/uxdb/ivorysql 内核是 PG
-    if t in ("hgdb", "hgdb_jdbc", "kingbase", "uxdb", "uxdb_jdbc", "ivorysql", "postgresql"):
+    # 类型归一：hgdb/kingbase/uxdb/ivorysql/halodb 内核是 PG
+    if t in ("hgdb", "hgdb_jdbc", "kingbase", "uxdb", "uxdb_jdbc", "ivorysql", "halodb", "postgresql"):
         t = "pg"
     if t == "mariadb":
         t = "mariadb"

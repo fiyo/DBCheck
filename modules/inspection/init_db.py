@@ -3725,6 +3725,289 @@ IVORYSQL_DEFAULT_CHAPTERS = [
         ]
     },
 ]
+# ==================== HaloDB 羲和数据库（PG14 内核血统，复用 PG 体系查询） ====================
+
+HALODB_DEFAULT_CHAPTERS = [
+    {
+        'chapter_number': 1,
+        'chapter_title_zh': '健康状态概览',
+        'chapter_title_en': 'Health Overview',
+        'description': '数据库整体健康状态概览',
+        'queries': [
+            {'key': 'halodb_version', 'sql': "SELECT version();",
+             'desc_zh': '获取 HaloDB 版本',       'desc_en': 'Get HaloDB version'},
+            {'key': 'halodb_uptime', 'sql': "SELECT now() - pg_postmaster_start_time() AS uptime;",
+             'desc_zh': '数据库运行时长',        'desc_en': 'Database uptime'},
+        ]
+    },
+    {
+        'chapter_number': 2,
+        'chapter_title_zh': '连接状态检查',
+        'chapter_title_en': 'Connection Status',
+        'description': '数据库连接相关状态检查',
+        'queries': [
+            {'key': 'pg_conn_detail', 'sql': "SELECT state, count(*) AS count FROM pg_stat_activity WHERE state IS NOT NULL GROUP BY state ORDER BY count DESC;",
+             'desc_zh': '连接状态分布',              'desc_en': 'Connection state breakdown'},
+            {'key': 'pg_wait_events', 'sql': "SELECT wait_event_type, wait_event, count(*) AS count FROM pg_stat_activity WHERE wait_event IS NOT NULL GROUP BY wait_event_type, wait_event ORDER BY count DESC LIMIT 10;",
+             'desc_zh': '等待事件 TOP 10',          'desc_en': 'Top 10 wait events'},
+        ]
+    },
+    {
+        'chapter_number': 3,
+        'chapter_title_zh': 'HaloDB 配置检查',
+        'chapter_title_en': 'HaloDB Configuration',
+        'description': 'HaloDB 关键配置参数（含兼容模式）',
+        'queries': [
+            {'key': 'shared_buffers',         'sql': "SHOW shared_buffers;",
+             'desc_zh': '共享缓冲区大小',         'desc_en': 'Shared buffers size'},
+            {'key': 'halodb_compat_mode', 'sql': "SELECT name, setting FROM pg_settings WHERE name = 'database_compat_mode';",
+             'desc_zh': '兼容模式（postgresql/oracle/mysql）', 'desc_en': 'Database compat mode (postgresql/oracle/mysql)'},
+            {'key': 'pg_settings_key', 'sql': """
+                SELECT name, setting, unit, short_desc
+                FROM pg_settings
+                WHERE name IN ('max_connections','shared_buffers','work_mem','maintenance_work_mem',
+                               'effective_cache_size','wal_level','archive_mode','database_compat_mode')
+                ORDER BY name;
+            """,
+             'desc_zh': '关键参数一览',               'desc_en': 'Key parameters overview'},
+        ]
+    },
+    {
+        'chapter_number': 4,
+        'chapter_title_zh': '性能分析',
+        'chapter_title_en': 'Performance Analysis',
+        'description': '数据库性能指标和锁分析',
+        'queries': [
+            {'key': 'pg_lock_info', 'sql': "SELECT count(*) AS total_locks, sum(CASE WHEN granted THEN 1 ELSE 0 END) AS granted_locks, sum(CASE WHEN NOT granted THEN 1 ELSE 0 END) AS waiting_locks FROM pg_locks;",
+             'desc_zh': '锁数量统计',                'desc_en': 'Lock count statistics'},
+            {'key': 'pg_long_xact', 'sql': """
+                SELECT pid, usename, datname, application_name, state, xact_start,
+                       EXTRACT(EPOCH FROM (now() - xact_start)) AS xact_seconds,
+                       left(query, 200) AS query
+                FROM pg_stat_activity
+                WHERE xact_start IS NOT NULL AND state != 'idle'
+                ORDER BY xact_start;
+            """,
+             'desc_zh': '长事务列表',                 'desc_en': 'Long transactions'},
+        ]
+    },
+    {
+        'chapter_number': 5,
+        'chapter_title_zh': '数据库空间使用',
+        'chapter_title_en': 'Database Space Usage',
+        'description': '数据库和表空间使用情况',
+        'queries': [
+            {'key': 'pg_db_size',    'sql': "SELECT datname AS database_name, pg_size_pretty(pg_database_size(datname)) AS size FROM pg_database WHERE datistemplate=false ORDER BY pg_database_size(datname) DESC;",
+             'desc_zh': '各数据库大小',            'desc_en': 'Database sizes'},
+            {'key': 'pg_tablespace', 'sql': "SELECT spcname AS tablespace_name, pg_size_pretty(pg_tablespace_size(oid)) AS size FROM pg_tablespace ORDER BY pg_tablespace_size(oid) DESC;",
+             'desc_zh': '表空间大小',            'desc_en': 'Tablespace sizes'},
+        ]
+    },
+    {
+        'chapter_number': 6,
+        'chapter_title_zh': '表与索引分析',
+        'chapter_title_en': 'Table & Index Analysis',
+        'description': '表膨胀、索引使用率分析',
+        'queries': [
+            {'key': 'pg_table_stats', 'sql': """
+                SELECT schemaname, relname AS tablename,
+                       n_live_tup AS live_rows, n_dead_tup AS dead_rows,
+                       round(n_dead_tup * 100.0 / NULLIF(n_live_tup + n_dead_tup, 0), 2) AS dead_ratio,
+                       last_vacuum, last_autovacuum, last_analyze, last_autoanalyze
+                FROM pg_stat_user_tables
+                ORDER BY n_dead_tup DESC LIMIT 15;
+            """,
+             'desc_zh': '表死行统计（需 vacuum）', 'desc_en': 'Table dead tuples (vacuum needed)'},
+            {'key': 'pg_index_usage', 'sql': """
+                SELECT schemaname, relname AS tablename, indexrelname AS indexname,
+                       idx_scan, idx_tup_read, idx_tup_fetch
+                FROM pg_stat_user_indexes
+                ORDER BY idx_scan ASC LIMIT 15;
+            """,
+             'desc_zh': '索引扫描次数（低者可考虑删除）', 'desc_en': 'Index scan count (low = candidate for removal)'},
+        ]
+    },
+    {
+        'chapter_number': 7,
+        'chapter_title_zh': '复制状态检查',
+        'chapter_title_en': 'Replication Status',
+        'description': '流复制状态检查',
+        'queries': [
+            {'key': 'pg_replication', 'sql': "SELECT pid, usename, application_name, client_addr, state, sent_lsn, write_lsn, flush_lsn, replay_lsn, sync_state FROM pg_stat_replication;",
+             'desc_zh': '流复制状态',               'desc_en': 'Streaming replication status'},
+        ]
+    },
+    {
+        'chapter_number': 8,
+        'chapter_title_zh': 'WAL 与检查点',
+        'chapter_title_en': 'WAL & Checkpoint Analysis',
+        'description': 'WAL 生成量和检查点频率',
+        'queries': [
+            {'key': 'pg_wal_rate', 'sql': """
+                SELECT pg_walfile_name(pg_current_wal_lsn()) AS current_wal_file,
+                       pg_wal_lsn_diff(pg_current_wal_lsn(), '0/0') AS wal_bytes_total;
+            """,
+             'desc_zh': '当前 WAL 位置',          'desc_en': 'Current WAL position'},
+            {'key': 'pg_checkpoint', 'sql': "SELECT * FROM pg_stat_bgwriter;",
+             'desc_zh': '检查点写入统计',            'desc_en': 'Checkpoint write stats'},
+        ]
+    },
+    {
+        'chapter_number': 9,
+        'chapter_title_zh': '表空间与磁盘',
+        'chapter_title_en': 'Tablespace & Disk',
+        'description': '表空间使用和磁盘 I/O',
+        'queries': [
+            {'key': 'pg_tablespace_size', 'sql': "SELECT spcname, pg_size_pretty(pg_tablespace_size(oid)) AS size FROM pg_tablespace;",
+             'desc_zh': '表空间大小',               'desc_en': 'Tablespace sizes'},
+        ]
+    },
+    {
+        'chapter_number': 10,
+        'chapter_title_zh': '数据库年龄与事务ID',
+        'chapter_title_en': 'Database Age & Transaction ID',
+        'description': '防止事务 ID 回卷',
+        'queries': [
+            {'key': 'pg_database_age', 'sql': """
+                SELECT datname, age(datfrozenxid) AS xid_age,
+                       round(age(datfrozenxid) * 100.0 / 2147483647, 2) AS wraparound_risk
+                FROM pg_database
+                ORDER BY age(datfrozenxid) DESC;
+            """,
+             'desc_zh': '数据库年龄（xid 回卷风险）', 'desc_en': 'Database age (xid wraparound risk)'},
+        ]
+    },
+    {
+        'chapter_number': 11,
+        'chapter_title_zh': '扩展与 pg_stat_statements',
+        'chapter_title_en': 'Extensions & pg_stat_statements',
+        'description': '是否启用 pg_stat_statements',
+        'queries': [
+            {'key': 'pg_extensions', 'sql': "SELECT * FROM pg_available_extensions WHERE installed_version IS NOT NULL ORDER BY name;",
+             'desc_zh': '已安装扩展',               'desc_en': 'Installed extensions'},
+        ]
+    },
+    {
+        'chapter_number': 12,
+        'chapter_title_zh': 'TOP SQL 分析',
+        'chapter_title_en': 'Top SQL Analysis',
+        'description': '最耗时/最频繁的 SQL',
+        'queries': [
+            {'key': 'pg_top_elapsed', 'sql': """
+                SELECT queryid, query, calls, total_time, mean_time, rows
+                FROM pg_stat_statements
+                ORDER BY total_time DESC
+                LIMIT 10;
+            """,
+             'desc_zh': 'TOP SQL（总耗时，需 pg_stat_statements）', 'desc_en': 'Top SQL by total time (requires pg_stat_statements)'},
+            {'key': 'pg_top_calls', 'sql': """
+                SELECT queryid, query, calls, total_time, mean_time, rows
+                FROM pg_stat_statements
+                ORDER BY calls DESC
+                LIMIT 10;
+            """,
+             'desc_zh': 'TOP SQL（执行次数，需 pg_stat_statements）', 'desc_en': 'Top SQL by calls (requires pg_stat_statements)'},
+        ]
+    },
+    {
+        'chapter_number': 13,
+        'chapter_title_zh': '用户与角色权限',
+        'chapter_title_en': 'Users & Roles',
+        'description': '数据库用户和角色权限',
+        'queries': [
+            {'key': 'pg_users', 'sql': "SELECT usename, usesuper, usecreatedb, userepl, usebypassrls, passwd IS NOT NULL AS has_password FROM pg_user ORDER BY usename;",
+             'desc_zh': '数据库用户列表',              'desc_en': 'Database users list'},
+            {'key': 'pg_roles', 'sql': "SELECT rolname, rolsuper, rolinherit, rolcreaterole, rolcreatedb, rolcanlogin, rolreplication FROM pg_roles ORDER BY rolname;",
+             'desc_zh': '角色列表',                   'desc_en': 'Roles list'},
+        ]
+    },
+    {
+        'chapter_number': 14,
+        'chapter_title_zh': '数据库连接池状态',
+        'chapter_title_en': 'Connection Pool Status',
+        'description': '连接池相关信息',
+        'queries': [
+            {'key': 'pg_conn_by_db', 'sql': "SELECT datname, count(*) AS conn_count, count(*) FILTER (WHERE state='active') AS active_count FROM pg_stat_activity GROUP BY datname ORDER BY conn_count DESC;",
+             'desc_zh': '按数据库统计连接数',        'desc_en': 'Connections by database'},
+        ]
+    },
+    {
+        'chapter_number': 15,
+        'chapter_title_zh': '备份与恢复状态',
+        'chapter_title_en': 'Backup & Recovery Status',
+        'description': '备份工具和恢复相关信息',
+        'queries': [
+            {'key': 'pg_is_in_recovery', 'sql': "SELECT pg_is_in_recovery() AS is_standby, CASE WHEN pg_is_in_recovery() THEN pg_last_wal_receive_lsn() ELSE pg_current_wal_lsn() END AS last_lsn;",
+             'desc_zh': '是否处于恢复模式',           'desc_en': 'Is in recovery mode'},
+        ]
+    },
+    {
+        'chapter_number': 16,
+        'chapter_title_zh': '表统计信息新鲜度',
+        'chapter_title_en': 'Table Statistics Freshness',
+        'description': '统计信息最后收集时间',
+        'queries': [
+            {'key': 'pg_stat_last_analyze', 'sql': """
+                SELECT schemaname, relname, last_analyze, last_autoanalyze, n_live_tup
+                FROM pg_stat_user_tables
+                WHERE last_analyze IS NULL OR last_analyze < now() - interval '7 days'
+                ORDER BY last_analyze ASC NULLS FIRST
+                LIMIT 20;
+            """,
+             'desc_zh': '统计信息过期的表（>7天）', 'desc_en': 'Tables with stale stats (>7 days)'},
+        ]
+    },
+    {
+        'chapter_number': 17,
+        'chapter_title_zh': '索引大小与维护',
+        'chapter_title_en': 'Index Size & Maintenance',
+        'description': '索引大小和是否需要重建',
+        'queries': [
+            {'key': 'pg_index_size', 'sql': """
+                SELECT schemaname, relname AS tablename, indexrelname AS indexname,
+                       pg_size_pretty(pg_relation_size(indexrelid)) AS index_size
+                FROM pg_stat_user_indexes
+                ORDER BY pg_relation_size(indexrelid) DESC
+                LIMIT 20;
+            """,
+             'desc_zh': '索引大小 TOP 20',        'desc_en': 'Top 20 largest indexes'},
+        ]
+    },
+    {
+        'chapter_number': 18,
+        'chapter_title_zh': '数据库对象统计',
+        'chapter_title_en': 'Database Object Statistics',
+        'description': '表、索引、序列等对象数量',
+        'queries': [
+            {'key': 'pg_table_count', 'sql': "SELECT schemaname, count(*) AS table_count FROM pg_stat_user_tables GROUP BY schemaname;",
+             'desc_zh': '各 schema 表数量',     'desc_en': 'Table count by schema'},
+            {'key': 'pg_index_count', 'sql': "SELECT schemaname, count(*) AS index_count FROM pg_stat_user_indexes GROUP BY schemaname;",
+             'desc_zh': '各 schema 索引数量',    'desc_en': 'Index count by schema'},
+        ]
+    },
+    {
+        'chapter_number': 19,
+        'chapter_title_zh': '死锁与错误日志',
+        'chapter_title_en': 'Deadlocks & Error Logs',
+        'description': '死锁统计和日志配置',
+        'queries': [
+            {'key': 'pg_deadlocks', 'sql': "SELECT datname, deadlocks FROM pg_stat_database ORDER BY deadlocks DESC;",
+             'desc_zh': '各库死锁次数',              'desc_en': 'Deadlocks by database'},
+        ]
+    },
+    {
+        'chapter_number': 20,
+        'chapter_title_zh': '插件与扩展状态',
+        'chapter_title_en': 'Extensions & Plugins',
+        'description': '已安装扩展和可用扩展',
+        'queries': [
+            {'key': 'pg_installed_ext', 'sql': "SELECT extname, extversion, extrelocatable FROM pg_extension ORDER BY extname;",
+             'desc_zh': '已安装扩展详情',             'desc_en': 'Installed extensions detail'},
+            {'key': 'pg_available_ext', 'sql': "SELECT name, default_version, installed_version FROM pg_available_extensions WHERE installed_version IS NULL ORDER BY name LIMIT 20;",
+             'desc_zh': '可安装扩展（前20）',        'desc_en': 'Available extensions (top 20)'},
+        ]
+    },
+]
 # ==================== YashanDB 崖山数据库 ====================
 
 
@@ -4152,11 +4435,12 @@ def init_default_templates(db_path: str = None, force: bool = False):
         ('oceanbase', 'OceanBase 默认巡检模板',    'OceanBase Default Inspection Template',    OCEANBASE_DEFAULT_CHAPTERS,  'v1', 1, 1),  # OceanBase 专有章节定义（剔除 OB 不支持的 query_key，默认端口 2881）
         ('postgresql', 'PostgreSQL 默认巡检模板',   'PostgreSQL Default Inspection Template',   POSTGRESQL_DEFAULT_CHAPTERS,   'v1', 1, 1),
         ('oracle',     'Oracle 默认巡检模板',        'Oracle Default Inspection Template',         ORACLE_DEFAULT_CHAPTERS,         'v1', 1, 1),
-        ('oracle',     'Oracle 11g 巡检模板',        'Oracle 11g Inspection Template',             ORACLE_11G_CHAPTERS,             '11g', 0, 1),
+        ('oracle',     'Oracle 11g 巡检模板',        'Oracle 11g Inspection Template',             ORACLE_11G_CHAPTERS,             '11g', 1, 1),  # is_default=1：与 12c+ 模板各占一个默认位（update_template 按 11g/非11g 分组互斥），否则 get_default_template(major<=11) 永远匹配不到
         ('sqlserver',  'SQL Server 默认巡检模板',    'SQL Server Default Inspection Template',    SQLSERVER_DEFAULT_CHAPTERS,    'v1', 1, 1),
         ('dm8',       'DM8 达梦默认巡检模板',      'DM8 Default Inspection Template',          DM8_DEFAULT_CHAPTERS,          'v1', 1, 1),
         ('tidb',      'TiDB 默认巡检模板',          'TiDB Default Inspection Template',          TIDB_DEFAULT_CHAPTERS,          'v1', 1, 1),
         ('ivorysql',  'IvorySQL 默认巡检模板',    'IvorySQL Default Inspection Template',    IVORYSQL_DEFAULT_CHAPTERS,    'v1', 1, 1),
+        ('halodb',    'HaloDB 默认巡检模板',      'HaloDB Default Inspection Template',      HALODB_DEFAULT_CHAPTERS,      'v1', 1, 1),  # HaloDB（羲和）PG14 内核，复用 PG 体系查询
         ('kingbase',   'KingbaseES 默认巡检模板', 'KingbaseES Default Inspection Template',  KINGBASE_DEFAULT_CHAPTERS, 'v1', 1, 1),
         ('yashandb',  'YashanDB 默认巡检模板',    'YashanDB Default Inspection Template',    YASHANDB_DEFAULT_CHAPTERS,    'v1', 1, 1),
         ('gbase',     'GBase 8s 默认巡检模板',     'GBase 8s Default Inspection Template',     GBASE_DEFAULT_CHAPTERS,     'v1', 1, 1),
@@ -4167,7 +4451,20 @@ def init_default_templates(db_path: str = None, force: bool = False):
         from modules.inspection.dal import get_all_templates as _get_all_templates
         existing = None
         if is_default:
-            existing = get_default_template(db_type, db_path)
+            # Oracle 同类型存在两个默认模板（11g / 非 11g 各一），
+            # 必须带版本条件查找，否则 LIMIT 1 无 ORDER BY 命中不确定
+            if db_type == 'oracle':
+                _major = 11 if version == '11g' else 19
+                existing = get_default_template(db_type, db_path, db_version_major=_major)
+            else:
+                existing = get_default_template(db_type, db_path)
+            if existing is None:
+                # 默认标记缺失（存量库旧状态）时按名称兜底查找，
+                # 命中后走下方「补齐默认标记」逻辑而非重建（避免 UNIQUE 冲突）
+                for t in _get_all_templates(db_path):
+                    if t.get('db_type') == db_type and t.get('template_name') == template_name:
+                        existing = t
+                        break
         else:
             # 非默认模板：按 db_type + 名称查找
             all_tmpls = _get_all_templates(db_path)
@@ -4177,7 +4474,13 @@ def init_default_templates(db_path: str = None, force: bool = False):
                     break
 
         if existing and not force:
-            print(f"⚠️  {db_type} {template_name} 已存在（ID: {existing['id']}），跳过")
+            if is_default and not existing.get('is_default'):
+                # 存量库升级：模板已播种但默认标记缺失（如 11g 模板旧版 is_default=0），补齐
+                from modules.inspection.dal import update_template as _update_template
+                _update_template(existing['id'], is_default=1, db_path=db_path)
+                print(f"✅ {db_type} {template_name} 已存在（ID: {existing['id']}），已补齐默认标记")
+            else:
+                print(f"⚠️  {db_type} {template_name} 已存在（ID: {existing['id']}），跳过")
             continue
 
         if existing and force:

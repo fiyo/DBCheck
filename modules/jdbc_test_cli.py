@@ -83,7 +83,7 @@ RESULT_PREFIX = "__DBCHECK_JDBC_TEST_RESULT__"
 # 与巡检子进程 JVM_INSPECTION_DB_TYPES / driver_registry.JDBC_PLUGIN_TO_CATALOG
 # 对齐为 8 类型（6 个 JDBC 插件 + 核心内置 dm/gbase）：
 #   hgdb / db2 / sqlserver_jdbc / oracle_jdbc / clickhouse / uxdb / dm / gbase
-SUPPORTED_DB_TYPES = ('hgdb', 'db2', 'sqlserver_jdbc', 'oracle_jdbc', 'clickhouse', 'uxdb', 'dm', 'gbase', 'ivorysql', 'pg', 'kingbase', 'yashandb', 'mysql', 'mariadb', 'tidb', 'oceanbase')
+SUPPORTED_DB_TYPES = ('hgdb', 'db2', 'sqlserver_jdbc', 'oracle_jdbc', 'clickhouse', 'uxdb', 'dm', 'gbase', 'ivorysql', 'halodb', 'pg', 'kingbase', 'yashandb', 'mysql', 'mariadb', 'tidb', 'oceanbase')
 
 
 def _test_gbase_jdbc(payload):
@@ -369,6 +369,50 @@ def _test_ivorysql_jdbc(payload):
         return True, f'IvorySQL 连接成功（JDBC 驱动：{(_meta or {}).get("driver")}）'
     except Exception as e:  # noqa: BLE001
         return False, f'IvorySQL JDBC 连接失败：{e}'
+
+
+def _test_halodb_jdbc(payload):
+    """HaloDB（羲和）JDBC 连接测试——兼容 PostgreSQL 协议，复用 PG JDBC 驱动。
+
+    与 _test_ivorysql_jdbc 同一套路：统一连接层（open_jdbc_connection）+
+    drivers/postgresql/ 回退；JDBC 不可用时回退 psycopg2。
+    """
+    _host = payload.get('host')
+    try:
+        _port = int(payload.get('port') or 5432)
+    except (TypeError, ValueError):
+        _port = 5432
+    _user = payload.get('user') or ''
+    _pw = payload.get('password') or ''
+    _kw = payload.get('kwargs') or {}
+    _dv = _kw.get('driver_version') or ''
+    _db = _kw.get('database') or 'halo'
+
+    _err = _tcp_preflight(_host, _port)
+    if _err:
+        return False, _err
+
+    try:
+        from modules.jdbc_connector import open_jdbc_connection
+        _conn, _meta = open_jdbc_connection(
+            'halodb', _host, _port, _user, _pw,
+            database=_db,
+            driver_version=_dv,
+            fallback_dirs=[os.path.join(str(PROJECT_ROOT), 'drivers', 'postgresql')],
+        )
+        if _conn is None:
+            return False, (_meta or {}).get('error') or 'HaloDB JDBC 连接失败'
+        _cur = _conn.cursor()
+        try:
+            _cur.execute('SELECT 1')
+            _cur.fetchall()
+        finally:
+            _cur.close()
+            _conn.close()
+        return True, f'HaloDB 连接成功（JDBC 驱动：{(_meta or {}).get("driver")}）'
+    except Exception as e:  # noqa: BLE001
+        # JDBC 不可用/失败 → psycopg2 原生回退（PG 线协议直连）
+        return _pg_fallback('HaloDB', _host, _port, _user, _pw, _db, str(e))
 
 
 def _pg_fallback(kind, host, port, user, password, database, reason):
@@ -899,6 +943,10 @@ def run_test(payload):
     # IvorySQL（兼容 PG 协议）：统一 JDBC 连接层，复用 PostgreSQL 驱动
     if db_type == 'ivorysql':
         return _test_ivorysql_jdbc(payload)
+
+    # HaloDB（羲和，兼容 PG 协议）：统一 JDBC 连接层，复用 PostgreSQL 驱动
+    if db_type == 'halodb':
+        return _test_halodb_jdbc(payload)
 
     # PostgreSQL / KingbaseES / YashanDB（PG 系）：统一 JDBC 连接层，
     # JDBC 不可用时回退原生驱动（psycopg2 / yasdb）

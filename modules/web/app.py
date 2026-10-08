@@ -175,6 +175,7 @@ def _parse_report_filename(name: str):
         ('SQLServer巡检报告_', 'sqlserver'),
         ('TiDB巡检报告_', 'tidb'),
         ('IvorySQL巡检报告_', 'ivorysql'),
+        ('HaloDB巡检报告_', 'halodb'),
         ('YashanDB巡检报告_', 'yashandb'),
         ('GBase 8s巡检报告_', 'gbase'),
     ]
@@ -525,9 +526,10 @@ try:
     import modules.entrypoints.main_sqlserver as main_sqlserver
     import modules.entrypoints.main_tidb as main_tidb
     import modules.entrypoints.main_ivorysql as main_ivorysql
+    import modules.entrypoints.main_halodb as main_halodb
     import modules.entrypoints.main_kingbase as main_kingbase
 except ImportError:
-    main_mysql = main_pg = main_dm = main_oracle_full = main_sqlserver = main_tidb = main_ivorysql = None
+    main_mysql = main_pg = main_dm = main_oracle_full = main_sqlserver = main_tidb = main_ivorysql = main_halodb = None
 
 # 静态资源已收口到 assets/web/（阶段5：原 web_templates 下的 static/、icons/ 及各 png/ico/js 等）。
 # 因 static_url_path='/'，前端所有绝对引用（/static/...、/icons/...、/xxx.png 等）自动映射到 static_folder 根。
@@ -1084,6 +1086,12 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None, chap
         if _db in ('', 'postgres'):
             db_info['database'] = 'uxdb'
 
+    # HaloDB 数据库名修正：若未设置或为 postgres（从 PG 复制而来），则改为 halo
+    if db_type == 'halodb':
+        _db = db_info.get('database') or ''
+        if _db in ('', 'postgres'):
+            db_info['database'] = 'halo'
+
     _insp_name = db_info.get('name') or db_info.get('ip') or '?'
     _insp_host = f"{db_info.get('ip')}:{db_info.get('port')}"
     print(f"[巡检] ===== 巡检任务开始：目标 {_insp_name} ({_insp_host}) db_type={db_type} =====\n"
@@ -1267,6 +1275,24 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None, chap
             err_module_key='webui.err_ivorysql_module',
             label_default='unknown',
             db_name_default='ivorysql',
+        ),
+        'halodb': dict(
+            module_name='main_halodb',
+            connect_test=test_halodb_connection,
+            connect_test_args=lambda info: [info['ip'], info['port'], info['user'], info['password'], info.get('database', 'halo'), info.get('driver_version', '')],
+            getdata_args=lambda info: ([info['ip'], info['port'], info['user'], info['password']],
+                                       {'ssh_info': {}, 'template_id': template_id, 'database': info.get('database', 'halo'),
+                                        'driver_version': info.get('driver_version', '')}),
+            conn_attr='conn_db2',
+            smart_analyze='smart_analyze_pg',
+            filename_key='webui.halodb_report_filename',
+            history_db_type='halodb',
+            instance_prefix='halodb',
+            error_task_name='HaloDB',
+            log_start_key='webui.log_halodb_start',
+            err_module_key='webui.err_halodb_module',
+            label_default='unknown',
+            db_name_default='halo',
         ),
         'kingbase': dict(
             module_name='main_kingbase',
@@ -1766,14 +1792,14 @@ def run_config_task(task_id, db_info, output_format='txt'):
                 charset='utf8mb4'
             )
             db_label = 'OceanBase'
-        elif db_type in ('pg', 'ivorysql', 'kingbase'):
+        elif db_type in ('pg', 'ivorysql', 'halodb', 'kingbase'):
             import psycopg2
             conn = psycopg2.connect(
                 host=db_info['host'], port=int(db_info['port']),
                 user=db_info['user'], password=db_info['password'],
                 database=db_info.get('database', 'postgres')
             )
-            db_label = 'IvorySQL' if db_type == 'ivorysql' else 'PostgreSQL'
+            db_label = 'IvorySQL' if db_type == 'ivorysql' else ('HaloDB' if db_type == 'halodb' else 'PostgreSQL')
         else:
             raise ValueError(f"Unsupported db_type: {db_type}")
 
@@ -1857,14 +1883,14 @@ def run_index_task(task_id, db_info, output_format='txt'):
                 charset='utf8mb4'
             )
             db_label = 'OceanBase'
-        elif db_type in ('pg', 'ivorysql', 'kingbase'):
+        elif db_type in ('pg', 'ivorysql', 'halodb', 'kingbase'):
             import psycopg2
             conn = psycopg2.connect(
                 host=db_info['host'], port=int(db_info['port']),
                 user=db_info['user'], password=db_info['password'],
                 database=db_info.get('database', 'postgres')
             )
-            db_label = 'IvorySQL' if db_type == 'ivorysql' else 'PostgreSQL'
+            db_label = 'IvorySQL' if db_type == 'ivorysql' else ('HaloDB' if db_type == 'halodb' else 'PostgreSQL')
         else:
             raise ValueError(f"Unsupported db_type: {db_type}")
 
@@ -1979,6 +2005,18 @@ def test_ivorysql_connection(host, port, user, password, database='ivorysql', dr
     否则回退 drivers/postgresql/ 自动发现。
     """
     return run_jdbc_test_subprocess('ivorysql', {
+        'host': host, 'port': port, 'user': user, 'password': password,
+        'database': database,
+    }, extra_kwargs={'driver_version': driver_version})
+
+
+def test_halodb_connection(host, port, user, password, database='halo', driver_version=''):
+    """测试 HaloDB（羲和）连接（统一 JDBC：兼容 PG 协议，复用 PostgreSQL 驱动）。
+
+    与 IvorySQL 同套路：独立子进程内建连（JVM 不进主进程，避免钉死
+    gevent hub）；JDBC 不可用时 jdbc_test_cli 内回退 psycopg2。
+    """
+    return run_jdbc_test_subprocess('halodb', {
         'host': host, 'port': port, 'user': user, 'password': password,
         'database': database,
     }, extra_kwargs={'driver_version': driver_version})
@@ -2454,6 +2492,19 @@ def _ct_ivorysql(data, flavor):
     return _conn_ok('pro')
 
 
+def _ct_halodb(data, flavor):
+    """HaloDB（羲和）连接测试：regular 走 JDBC 子进程（复用 PG 驱动）；pro 走 psycopg2 直连。"""
+    _db = data.get('database') or 'halo'
+    if flavor == 'regular':
+        ok, msg = test_halodb_connection(data['host'], data['port'], data['user'],
+                                         data['password'], _db, data.get('driver_version', '') or '')
+        return {'ok': ok, 'msg': msg}
+    import psycopg2
+    psycopg2.connect(host=data['host'], port=data['port'], user=data['user'],
+                     password=data['password'], dbname=_db, connect_timeout=10).close()
+    return _conn_ok('pro')
+
+
 def _ct_kingbase(data, flavor):
     """KingbaseES 连接测试：regular 走 KingbaseES JDBC 子进程（jdbc:kingbase8:// +
     com.kingbase8.jdbc.Driver，类型 'kingbase'）；pro 走 psycopg2 直连。
@@ -2699,7 +2750,7 @@ JDBC_TEST_TIMEOUT = 50  # 秒；需覆盖 JVM 冷启动(3~10s) + JDBC 登录超�
 # 需要整条巡检任务隔离到子进程的数据库类型（均依赖进程内 JVM/JPype）。
 # 与 driver_registry.JDBC_PLUGIN_TO_CATALOG 对齐：6 个 JDBC 插件 + 核心内置 dm/gbase/ivorysql，
 # 任何新增 JDBC 类型必须同步加入，否则主进程内启 JVM 会钉死 gevent hub。
-JVM_INSPECTION_DB_TYPES = ('hgdb', 'db2', 'sqlserver_jdbc', 'oracle_jdbc', 'dm', 'gbase', 'clickhouse', 'uxdb', 'ivorysql', 'pg', 'kingbase', 'yashandb', 'mysql', 'mariadb', 'tidb', 'oceanbase')
+JVM_INSPECTION_DB_TYPES = ('hgdb', 'db2', 'sqlserver_jdbc', 'oracle_jdbc', 'dm', 'gbase', 'clickhouse', 'uxdb', 'ivorysql', 'halodb', 'pg', 'kingbase', 'yashandb', 'mysql', 'mariadb', 'tidb', 'oceanbase')
 JDBC_INSPECTION_TIMEOUT = 3600  # 巡检任务整体硬超时（秒）
 
 
@@ -3226,6 +3277,7 @@ register_connection_tester('mariadb', _ct_mariadb)
 register_connection_tester('oceanbase', _ct_oceanbase)
 register_connection_tester('pg', _ct_pg)
 register_connection_tester('ivorysql', _ct_ivorysql)
+register_connection_tester('halodb', _ct_halodb)
 register_connection_tester('kingbase', _ct_kingbase)
 register_connection_tester('oracle', _ct_oracle)
 register_connection_tester('dm', _ct_dm)
@@ -5157,15 +5209,15 @@ def api_start_config_baseline():
     try:
         data = request.json
         db_type = data.get('db_type', 'mysql')
-        if db_type not in ('mysql', 'pg', 'ivorysql', 'oceanbase'):
-            return jsonify({'ok': False, 'msg': 'Only MySQL, PostgreSQL and IvorySQL are supported'})
+        if db_type not in ('mysql', 'pg', 'ivorysql', 'halodb', 'oceanbase'):
+            return jsonify({'ok': False, 'msg': 'Only MySQL, PostgreSQL, IvorySQL, HaloDB are supported'})
 
         db_info = {
             'host': data.get('host', ''),
             'port': int(data.get('port', 0) or (3306 if db_type == 'mysql' else 2881 if db_type == 'oceanbase' else 5432)),
             'user': data.get('user', ''),
             'password': data.get('password', ''),
-            'database': data.get('database') or ('ivorysql' if db_type == 'ivorysql' else ('postgres' if db_type == 'pg' else '')),
+            'database': data.get('database') or ('ivorysql' if db_type == 'ivorysql' else ('halo' if db_type == 'halodb' else ('postgres' if db_type == 'pg' else ''))),
             'label': data.get('name', data.get('host', 'unknown')),
             'db_type': db_type,
         }
@@ -5509,15 +5561,15 @@ def api_start_index_health():
     try:
         data = request.json
         db_type = data.get('db_type', 'mysql')
-        if db_type not in ('mysql', 'pg', 'ivorysql', 'oceanbase'):
-            return jsonify({'ok': False, 'msg': 'Only MySQL, PostgreSQL and IvorySQL are supported'})
+        if db_type not in ('mysql', 'pg', 'ivorysql', 'halodb', 'oceanbase'):
+            return jsonify({'ok': False, 'msg': 'Only MySQL, PostgreSQL, IvorySQL, HaloDB are supported'})
 
         db_info = {
             'host': data.get('host', ''),
             'port': int(data.get('port', 0) or (3306 if db_type == 'mysql' else 2881 if db_type == 'oceanbase' else 5432)),
             'user': data.get('user', ''),
             'password': data.get('password', ''),
-            'database': data.get('database') or ('ivorysql' if db_type == 'ivorysql' else ('postgres' if db_type == 'pg' else '')),
+            'database': data.get('database') or ('ivorysql' if db_type == 'ivorysql' else ('halo' if db_type == 'halodb' else ('postgres' if db_type == 'pg' else ''))),
             'label': data.get('name', data.get('host', 'unknown')),
             'db_type': db_type,
         }
@@ -7373,10 +7425,10 @@ def api_ds_databases(ds_id):
             cur.execute("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA ORDER BY SCHEMA_NAME")
             databases = [r[0] for r in cur.fetchall()]
             conn.close()
-        elif db_type in ('postgresql', 'ivorysql', 'kingbase', 'hgdb'):
+        elif db_type in ('postgresql', 'ivorysql', 'halodb', 'kingbase', 'hgdb'):
             import psycopg2
-            # kingbase 默认库名为 kingbase，HGDB 默认库名为 highgo，PG/IvorySQL 为 postgres
-            _pg_default_db = 'kingbase' if db_type == 'kingbase' else ('highgo' if db_type == 'hgdb' else ('ivorysql' if db_type == 'ivorysql' else 'postgres'))
+            # kingbase 默认库名为 kingbase，HGDB 默认库名为 highgo，HaloDB 默认业务库为 halo，PG/IvorySQL 为 postgres
+            _pg_default_db = 'kingbase' if db_type == 'kingbase' else ('highgo' if db_type == 'hgdb' else ('ivorysql' if db_type == 'ivorysql' else ('halo' if db_type == 'halodb' else 'postgres')))
             conn = psycopg2.connect(host=host, port=port, user=user, password=pwd,
                                     dbname=_pg_default_db, connect_timeout=timeout)
             cur = conn.cursor()
@@ -7624,7 +7676,7 @@ def api_ds_objects(ds_id):
                 elif row[1] == 'VIEW':
                     views.append(row[0])
             conn.close()
-        elif db_type in ('postgresql', 'ivorysql', 'kingbase', 'hgdb'):
+        elif db_type in ('postgresql', 'ivorysql', 'halodb', 'kingbase', 'hgdb'):
             import psycopg2
             conn = psycopg2.connect(host=host, port=port, user=user, password=pwd,
                                     dbname=database, connect_timeout=timeout)
@@ -8155,9 +8207,9 @@ def api_execute_sql():
             rows = cursor.fetchmany(200)
             has_more = len(rows) >= 200
 
-        elif db_type in ('postgresql', 'ivorysql', 'kingbase', 'hgdb'):
+        elif db_type in ('postgresql', 'ivorysql', 'halodb', 'kingbase', 'hgdb'):
             import psycopg2
-            db_name = database or ('highgo' if db_type == 'hgdb' else ('ivorysql' if db_type == 'ivorysql' else 'postgres'))
+            db_name = database or ('highgo' if db_type == 'hgdb' else ('ivorysql' if db_type == 'ivorysql' else ('halo' if db_type == 'halodb' else 'postgres')))
             conn = psycopg2.connect(
                 host=host, port=port, user=user, password=pwd,
                 dbname=db_name, connect_timeout=10
@@ -8877,7 +8929,7 @@ def api_inspection_execute_sql():
             cursor.close()
             conn.close()
 
-        elif db_type in ('postgresql', 'pg', 'ivorysql'):
+        elif db_type in ('postgresql', 'pg', 'ivorysql', 'halodb'):
             import psycopg2
             conn = psycopg2.connect(
                 host=db_info.get('host', ''),
@@ -9555,7 +9607,7 @@ def parse_intent(user_message: str) -> dict:
     system_prompt = """你是一个数据库巡检助手。用户会用自然语言描述巡检需求。
 请从用户输入中提取以下字段，以 JSON 格式输出：
 {
-  "db_type": "mysql|mariadb|pg|postgresql|oracle|dm|sqlserver|tidb|kingbase|ivorysql|hgdb|highgo|yashandb|gbase|oceanbase|mongodb|db2|clickhouse|uxdb|unknown",
+  "db_type": "mysql|mariadb|pg|postgresql|oracle|dm|sqlserver|tidb|kingbase|ivorysql|halodb|hgdb|highgo|yashandb|gbase|oceanbase|mongodb|db2|clickhouse|uxdb|unknown",
   "db_name": "数据源名称（如 MySQL-01，注意保留 HgDB/HGDB/瀚高 等原生大小写与品牌名）或空字符串",
   "scope": "connection_count|lock_wait|slow_queries|all",
   "need_report": true或false
@@ -9783,7 +9835,7 @@ def execute_simple_query(db_info: dict, db_type: str, scope: str) -> str:
             cur.close()
             conn.close()
 
-        elif db_type in ('pg', 'ivorysql', 'kingbase'):
+        elif db_type in ('pg', 'ivorysql', 'halodb', 'kingbase'):
             import psycopg2
             conn = psycopg2.connect(
                 host=db_info.get('host', ''),
@@ -10007,6 +10059,7 @@ _PLATFORM_TYPE_ALIASES = [
     ('HGDB', ('瀚高', '瀚高库'), ('hgdb', 'highgo'), ('hgdb',)),
     ('Kingbase', ('人大金仓', '金仓'), ('kingbase', 'kingbasees'), ('kingbase',)),
     ('IvorySQL', (), ('ivorysql',), ('ivorysql',)),
+    ('HaloDB', ('羲和', 'halo'), ('halodb',), ('halodb',)),
     ('UXDB', (), ('uxdb',), ('uxdb',)),
     ('GBase', ('南大通用',), ('gbase',), ('gbase',)),
     ('DB2', (), ('db2',), ('db2',)),
@@ -11587,7 +11640,7 @@ def api_home_stats():
             result['rule_builtin_count'] = len(engine.builtin_rules)
             result['rule_custom_count'] = len(engine.custom_rules)
             # 按 db_type 统计
-            db_types = ['mysql', 'mariadb', 'postgresql', 'pg', 'oracle', 'dm8', 'dm', 'sqlserver', 'tidb', 'ivorysql', 'yashandb', 'kingbase']
+            db_types = ['mysql', 'mariadb', 'postgresql', 'pg', 'oracle', 'dm8', 'dm', 'sqlserver', 'tidb', 'ivorysql', 'halodb', 'yashandb', 'kingbase']
             rule_by_db = {}
             for dt in db_types:
                 rules_for_db = engine.list_rules(db_type=dt)

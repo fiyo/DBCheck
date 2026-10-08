@@ -61,6 +61,8 @@ COUNTER_KEYS = {
            'deadlocks', 'conflicts'},
     'ivorysql': {'xact_commit', 'xact_rollback', 'blks_read', 'blks_hit', 'deadlocks'},
     'kingbase': {'xact_commit', 'xact_rollback', 'blks_read', 'blks_hit', 'deadlocks'},
+    # HaloDB（羲和）为 PG14 内核血统，统计视图同 PG
+    'halodb': {'xact_commit', 'xact_rollback', 'blks_read', 'blks_hit', 'deadlocks'},
     'uxdb': {'xact_commit', 'xact_rollback', 'blks_read', 'blks_hit',
              'deadlocks', 'conflicts', 'numbackends'},
     'uxdb_jdbc': {'xact_commit', 'xact_rollback', 'blks_read', 'blks_hit',
@@ -328,9 +330,11 @@ class MetricsCollector:
                                    password=password, database=db_name,
                                    connect_timeout=CONNECT_TIMEOUT,
                                    read_timeout=t, write_timeout=t)
-        if db_type in ('postgresql', 'pg', 'ivorysql', 'kingbase'):
+        if db_type in ('postgresql', 'pg', 'ivorysql', 'kingbase', 'halodb'):
             import psycopg2
-            dbname = inst.get('database') or ('kingbase' if db_type == 'kingbase' else 'postgres')
+            dbname = inst.get('database') or (
+                'kingbase' if db_type == 'kingbase'
+                else ('halo' if db_type == 'halodb' else 'postgres'))
             return psycopg2.connect(host=host, port=port, user=user,
                                     password=password, dbname=dbname,
                                     connect_timeout=CONNECT_TIMEOUT,
@@ -670,7 +674,7 @@ class MetricsCollector:
                 return self._collect_mysql(conn)
             if db_type == 'oceanbase':
                 return self._collect_oceanbase(conn)
-            if db_type in ('postgresql', 'pg', 'ivorysql', 'kingbase'):
+            if db_type in ('postgresql', 'pg', 'ivorysql', 'kingbase', 'halodb'):
                 return self._collect_postgres(conn)
             if db_type in ('uxdb', 'uxdb_jdbc'):
                 return self._collect_uxdb(conn)

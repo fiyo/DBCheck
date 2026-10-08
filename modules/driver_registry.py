@@ -71,6 +71,7 @@ DB_TYPE_CATALOG: List[Dict] = [
     {'key': 'ivorysql',      'name_zh': 'IvorySQL',      'name_en': 'IvorySQL',      'driver_class_hint': 'org.postgresql.Driver',            'is_jdbc': True,  'order': 26, 'xinchuang': True},
     {'key': 'yashandb',      'name_zh': 'YashanDB',      'name_en': 'YashanDB (崖山)', 'driver_class_hint': 'com.yashandb.jdbc.Driver',        'is_jdbc': True,  'order': 27, 'xinchuang': True},
     {'key': 'tidb',          'name_zh': 'TiDB',          'name_en': 'TiDB',           'driver_class_hint': 'com.mysql.cj.jdbc.Driver',          'is_jdbc': True,  'order': 28, 'xinchuang': True},
+    {'key': 'halodb',        'name_zh': 'HaloDB',        'name_en': 'HaloDB (羲和)',   'driver_class_hint': 'org.postgresql.Driver',            'is_jdbc': True,  'order': 29, 'xinchuang': True},
 ]
 DB_TYPE_KEYS = frozenset(d['key'] for d in DB_TYPE_CATALOG)
 
@@ -528,6 +529,7 @@ JDBC_PLUGIN_TO_CATALOG = {
     'mariadb': 'mariadb',      # MariaDB Connector/J（org.mariadb.jdbc.Driver）
     'tidb': 'mysql',           # TiDB 兼容 MySQL 协议，复用 MySQL Connector/J
     'oceanbase': 'oceanbase',  # OceanBase 官方驱动（com.oceanbase.jdbc.Driver）
+    'halodb': 'postgresql',    # HaloDB（羲和）兼容 PG 协议，复用 PostgreSQL JDBC 驱动
 }
 
 

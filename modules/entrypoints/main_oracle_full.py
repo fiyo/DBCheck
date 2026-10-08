@@ -3102,10 +3102,13 @@ def single_inspection(args):
     template_id = getattr(args, 'template_id', None)
 
     # ── 若无指定 template_id，自动查询 DB 默认模板（is_default=1）─
+    # Oracle 按版本分组：11g 及以下匹配 version='11g' 的默认模板（11g 无
+    # dba_registry_sqlpatch/FETCH FIRST 等 12c+ 特性，必须用 11g 专属章节）
     if template_id is None:
         try:
             from modules.inspection.dal import get_default_template as _get_default_template
-            _default = _get_default_template('oracle')
+            _major = int(ver_major) if str(ver_major).strip().isdigit() else None
+            _default = _get_default_template('oracle', db_version_major=_major)
             if _default:
                 template_id = _default.get('id')
         except Exception:

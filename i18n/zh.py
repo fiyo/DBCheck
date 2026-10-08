@@ -382,6 +382,8 @@ ZI = {
     "webui.err_tidb_module": "TiDB 模块未安装",
     "webui.log_ivorysql_start": "[{ts}] [IvorySQL] 开始巡检...",
     "webui.err_ivorysql_module": "IvorySQL 模块未安装",
+    "webui.log_halodb_start": "[{ts}] [HaloDB] 开始巡检...",
+    "webui.err_halodb_module": "HaloDB 模块未安装",
     "webui.log_yashandb_start": "[{ts}] [YashanDB] 开始巡检...",
     "webui.err_yashandb_module": "YashanDB 模块未安装",
     "webui.err_db_connect": "数据库连接失败: {ver}",
@@ -1821,6 +1823,7 @@ ZI = {
     "webui.log_hgdb_start": "[{ts}] [HGDB] 开始巡检...",
     "webui.err_hgdb_module": "HGDB 模块未安装",
     "webui.ivorysql_report_filename": "IvorySQL巡检报告_{ip}_{name}_{ts}",
+    "webui.halodb_report_filename": "HaloDB巡检报告_{ip}_{name}_{ts}",
     "webui.yashandb_report_filename": "YashanDB巡检报告_{ip}_{name}_{ts}",
     "webui.oracle_jdbc_report_filename": "Oracle_JDBC巡检报告_{ip}_{name}_{ts}",
 

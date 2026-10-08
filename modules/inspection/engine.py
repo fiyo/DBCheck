@@ -664,6 +664,10 @@ class BaseInspectionEngine:
     def _classify_sql_error(item_name, err_str):
         """将 SQL 执行错误分类为友好描述"""
         err_lower = err_str.lower()
+        # ORA-00942 / 表或视图不存在：区分「视图不存在」与「字典视图无权限」
+        # （如 registry$history 仅 SYS/SYSDBA 可查，DBA 角色默认无授权，JDBC 中文报错不含 'does not exist'）
+        if 'ora-00942' in err_lower or 'table or view does not exist' in err_lower or '表或视图不存在' in err_lower:
+            return f'⚠️ 章节「{item_name}」：视图不存在或当前账号无权限（部分字典视图仅 SYSDBA 可查，如 registry$history），已跳过'
         if 'invalid object name' in err_lower or '42s02' in err_lower or 'does not exist' in err_lower:
             return f'⚠️ 章节「{item_name}」：所需表/视图不存在（功能未配置），已跳过'
         if 'permission' in err_lower or 'denied' in err_lower or '42501' in err_lower:
@@ -848,7 +852,7 @@ class BaseInspectionEngine:
                 variables_items = []
             for i, (name, stmt) in enumerate(variables_items):
                 # IvorySQL/PG: 跳过需 pg_stat_statements 扩展的查询（未安装时静默跳过）
-                if self.db_type in ('ivorysql', 'pg') and name in ('pg_top_elapsed', 'pg_top_calls'):
+                if self.db_type in ('ivorysql', 'halodb', 'pg') and name in ('pg_top_elapsed', 'pg_top_calls'):
                     if not getattr(self, '_pg_stat_statements_available', None):
                         self.context[name] = []
                         continue
@@ -1523,7 +1527,7 @@ class BaseInspectionEngine:
         db_type_display = {
             'dm8': 'DM8', 'mysql': 'MySQL', 'mariadb': 'MariaDB', 'postgresql': 'PostgreSQL',
             'oracle': 'Oracle', 'sqlserver': 'SQL Server',
-            'tidb': 'TiDB', 'ivorysql': 'IvorySQL',
+            'tidb': 'TiDB', 'ivorysql': 'IvorySQL', 'halodb': 'HaloDB',
             'mongodb': 'MongoDB'
         }.get(self.db_type, self.db_type.upper())
         
@@ -1800,7 +1804,7 @@ class BaseInspectionEngine:
                 except Exception as e:
                     error_str = str(e)
                     # PG/IvorySQL: 回滚防止事务级联 abort
-                    if self.db_type in ('pg', 'ivorysql') and self.conn:
+                    if self.db_type in ('pg', 'ivorysql', 'halodb') and self.conn:
                         try:
                             self.conn.rollback()
                         except Exception:
@@ -2480,7 +2484,7 @@ class BaseInspectionEngine:
             db_type_display = {
                 'dm8': 'DM8', 'mysql': 'MySQL', 'mariadb': 'MariaDB', 'postgresql': 'PostgreSQL',
                 'oracle': 'Oracle', 'sqlserver': 'SQL Server',
-                'tidb': 'TiDB', 'ivorysql': 'IvorySQL'
+                'tidb': 'TiDB', 'ivorysql': 'IvorySQL', 'halodb': 'HaloDB'
             }.get(self.db_type, self.db_type.upper())
             
             title_text = f'{db_type_display} 数据库健康巡检报告' if is_zh else f'{db_type_display} Database Health Inspection Report'

@@ -433,6 +433,7 @@ _DB_TYPE_ALIASES = {
     'sqlserver_jdbc': 'sqlserver',
     'tdsqlc_mysql': 'mysql',
     'hgdb': 'pg', 'kingbase': 'pg', 'uxdb': 'pg', 'vastbase': 'pg',
+    'halodb': 'pg',   # HaloDB（羲和）PG14 内核，连接与模板复用 pg
     'gbase8s': 'gbase',   # driver_registry catalog 名 → monitor 模板键
 }
 

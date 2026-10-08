@@ -1,5 +1,16 @@
 # Changelog
 
+## v26.10.9.1 (2026-10-08)
+- **新增：HaloDB（羲和数据库）全链路接入**
+  - 连接/巡检/监控/智能分析/基线/规则引擎全打通：复刻 PG 系（kingbase/ivorysql）套路，JDBC 复用 postgresql-42.7.13.jar（`jdbc:postgresql://`），psycopg2 直连回退；openHalo initdb 默认管理库为 `halo0root`，业务库默认 `halo`，库名自动修正（''/'postgres'→'halo'）。
+  - 覆盖清单（13 处）：新建 `modules/entrypoints/main_halodb.py`（HaloDBInspector，db_type='halodb'）；`init_db.py` 新增 `HALODB_DEFAULT_CHAPTERS` 20 章（含 `database_compat_mode` 兼容模式检查）并注册默认模板；`web/app.py` task_configs 加 `halodb`（smart_analyze 复用 `smart_analyze_pg`）+ 库名修正 + 报告文件名识别；`engine.py`/`findings.py`/`lock_health.py` 类型归一；`run.py`/`web/api.py` CLI 与外部 REST API 补齐；`dal.py` 内置基线种子 11 条 + `config_baseline.py` 默认清单 8 条（重启幂等自动补齐）；新建 `modules/pro/rules/builtin/halodb.yaml` 规则 12 条；`driver_registry.py` 注册 halodb（xinchuang: True，国产）；`i18n` zh/en 新增 `webui.halodb_*`；前端模板编辑器下拉加 HaloDB。
+  - 真连验证：openHalo 容器（127.0.0.1:15432）测试连接 + 全量巡检 PASS（20 章采集、docx 报告生成、智能分析输出 PG 系建议）；三步验证 compileall → import web_ui → discover_plugins()==11。
+- **修复：Oracle 11g 巡检 opatch_history ORA-00942 + 版本模板选择（用户反馈）**
+  - 根因三层：① `registry$history` 仅 SYS/SYSDBA 可查（未授权 DBA 角色），非 SYSDBA 连接必报 ORA-00942，属 Oracle 字典权限特性，与模板选择无关；② 完整巡检路径（`main_oracle_full`）自动取默认模板从不传版本号 → 11g 永远错拿 12c+ 默认模板（内含 5 处 `FETCH FIRST`，11g 必挂 ORA-00933）；③ `Oracle 11g 巡检模板` 播种 `is_default=0`，而 `get_default_template` 版本匹配要求 `is_default=1` → 11g 版本匹配形同虚设。
+  - 修复：`engine.py` 错误分类器新增 ORA-00942 识别（含 JDBC 中文报错「表或视图不存在」，原先漏分类落「查询失败」），提示明确指向 SYSDBA 权限；`main_oracle_full` 自动选模板传入 `db_version_major`，11g 及以下自动命中 `Oracle 11g 巡检模板`；`init_db.py` 11g 模板 `is_default` 0→1（与 12c+ 模板各占一个默认位，`update_template` 本按 11g/非11g 分组互斥），播种存在性检查按版本分组（原 `LIMIT 1` 无 `ORDER BY` 命中不确定），存量库默认标记缺失按名称兜底补齐（不重建、不撞 UNIQUE 约束）。
+  - 验证：分类器 4 用例（ORA-00942 中/英/权限/其他）全对；播种三场景（全新库 11g→11g 模板、19c→默认模板；存量 is_default=0 自动补齐；幂等重跑不重复播种）全过。
+  - 用户侧消除 opatch_history 警告（二选一）：数据源勾选 SYSDBA 连接；或 SYS 执行 `GRANT SELECT ON sys.registry$history TO <巡检账号>;`
+
 ## v26.10.9.0 (2026-10-08)
 - **修复：SQL Server（含 sqlserver_jdbc 型）吞吐 QPS/TPS 全链路缺失（用户反馈，sa 账号仍无 QPS）**
   - 根因三层：① 深采 `_connect`/`_collect_deep`/`COUNTER_KEYS` 均不认 `sqlserver_jdbc`（插件型实例整条深采链路断，详情页只剩 TCP 探测数据）；② `_collect_sqlserver` 原 SQL 带 `object_name LIKE '%SQL Statistics%'` 过滤，而 `Transactions/sec` 属 'Transactions' 对象 → TPS 计数器漏采，且吞吐计数未入速率白名单、无 `rate_*` 序列；③ `sys.dm_os_performance_counters` 的 counter_name **随服务器语言本地化**（中文实例返回「批请求/秒」「事务数/秒」），英文 IN 清单查 0 行 → 监控大屏 QPS 恒空（连接数正常、sa 权限正常，唯独 stat 空）。

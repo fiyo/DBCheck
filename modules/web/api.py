@@ -140,7 +140,7 @@ def _get_valid_db_types():
     用于 db_type 参数校验
     """
     # 内置数据库类型
-    built_in = ['mysql', 'mariadb', 'pg', 'postgresql', 'oracle', 'dm', 'sqlserver', 'tidb', 'ivorysql', 'yashandb', 'kingbase', 'gbase', 'oceanbase']
+    built_in = ['mysql', 'mariadb', 'pg', 'postgresql', 'oracle', 'dm', 'sqlserver', 'tidb', 'ivorysql', 'halodb', 'yashandb', 'kingbase', 'gbase', 'oceanbase']
     valid = set(built_in)
     
     # 添加插件数据库类型
@@ -367,11 +367,11 @@ def _parse_iso(iso_str):
 
 
 def _default_port(db_type):
-    return {'mysql': 3306, 'mariadb': 3306, 'pg': 5432, 'oracle': 1521, 'oracle_jdbc': 1521, 'dm': 5236, 'sqlserver': 1433, 'tidb': 4000, 'ivorysql': 5432, 'yashandb': 1688, 'kingbase': 54321, 'gbase': 5258, 'oceanbase': 2881, 'clickhouse': 8123}.get(db_type, 3306)
+    return {'mysql': 3306, 'mariadb': 3306, 'pg': 5432, 'oracle': 1521, 'oracle_jdbc': 1521, 'dm': 5236, 'sqlserver': 1433, 'tidb': 4000, 'ivorysql': 5432, 'halodb': 5432, 'yashandb': 1688, 'kingbase': 54321, 'gbase': 5258, 'oceanbase': 2881, 'clickhouse': 8123}.get(db_type, 3306)
 
 
 def _default_user(db_type):
-    return {'mysql': 'root', 'mariadb': 'root', 'pg': 'postgres', 'oracle': 'system', 'oracle_jdbc': 'system', 'dm': 'SYSDBA', 'sqlserver': 'sa', 'tidb': 'root', 'ivorysql': 'postgres', 'yashandb': 'sys', 'kingbase': 'kingbase', 'gbase': 'gbasedbt', 'oceanbase': 'root', 'clickhouse': 'default'}.get(db_type, 'root')
+    return {'mysql': 'root', 'mariadb': 'root', 'pg': 'postgres', 'oracle': 'system', 'oracle_jdbc': 'system', 'dm': 'SYSDBA', 'sqlserver': 'sa', 'tidb': 'root', 'ivorysql': 'postgres', 'halodb': 'halo', 'yashandb': 'sys', 'kingbase': 'kingbase', 'gbase': 'gbasedbt', 'oceanbase': 'root', 'clickhouse': 'default'}.get(db_type, 'root')
 
 
 # ── 查询任务状态 ──────────────────────────────────────────────
@@ -470,7 +470,7 @@ def _execute_inspect(db_type, host, port, user, password, inspector, body, ssh):
         'password': password,
         'label': f'API-{inspector}',
     }
-    if db_type in ('pg', 'postgresql', 'ivorysql', 'kingbase', 'gbase'):
+    if db_type in ('pg', 'postgresql', 'ivorysql', 'halodb', 'kingbase', 'gbase'):
         db_info['database'] = body.get('database', 'postgres')
     if db_type == 'oracle':
         db_info['service_name'] = body.get('service_name', '')
@@ -503,6 +503,7 @@ def _execute_inspect(db_type, host, port, user, password, inspector, body, ssh):
         'sqlserver': ri.run_sqlserver,
         'tidb': ri.run_tidb,
         'ivorysql': ri.run_ivorysql,
+        'halodb': ri.run_halodb,
         'yashandb': ri.run_yashandb,
         'kingbase': ri.run_kingbase,
         'gbase':    ri.run_gbase,
