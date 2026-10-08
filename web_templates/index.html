@@ -23111,6 +23111,50 @@ function clearChatSession() {
 }
 
 // 发送带上下文的聊天消息（用于快捷按钮选择数据源）
+// 渲染「候选数据源确认」芯片按钮（AI 助手巡检确认，issue #59）
+// candidates: [{id, name, db_type, host, port}]，兼容旧版纯名称字符串数组。
+// 点选后携带 instance_id 回传，后端按 id 直取实例，不再依赖 LLM 二次解析名称。
+function renderChatCandidateButtons(candidates) {
+  const container = document.getElementById('chat-messages');
+  if (!container) return;
+  const wrapper = document.createElement('div');
+  wrapper.className = 'chat-msg ai';
+  wrapper.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;padding:2px 16px 10px;';
+  (candidates || []).forEach(function(c) {
+    if (typeof c === 'string') c = { name: c };
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.style.cssText =
+      'display:inline-flex;align-items:center;gap:7px;padding:7px 14px;border-radius:18px;'
+      + 'border:1px solid var(--border);background:var(--surface2);color:var(--text);'
+      + 'font-size:13px;line-height:1.4;cursor:pointer;transition:all var(--trans);text-align:left;';
+    btn.innerHTML =
+      '<span style="width:7px;height:7px;border-radius:50%;background:var(--accent);flex-shrink:0;"></span>'
+      + '<span>' + escapeHtml(c.name || '') + '</span>'
+      + (c.db_type
+          ? '<span style="font-size:11px;color:var(--text-muted);border:1px solid var(--border);'
+            + 'border-radius:10px;padding:1px 8px;background:var(--surface);white-space:nowrap;">'
+            + escapeHtml(c.db_type) + '</span>'
+          : '');
+    btn.onmouseenter = function() {
+      btn.style.borderColor = 'var(--accent)';
+      btn.style.background = 'var(--surface)';
+      btn.style.transform = 'translateY(-1px)';
+    };
+    btn.onmouseleave = function() {
+      btn.style.borderColor = 'var(--border)';
+      btn.style.background = 'var(--surface2)';
+      btn.style.transform = '';
+    };
+    btn.onclick = function() {
+      sendChatMessageWithContext('巡检 ' + (c.name || ''), { instance_id: c.id || '', db_name: c.name || '' });
+    };
+    wrapper.appendChild(btn);
+  });
+  container.appendChild(wrapper);
+  container.scrollTop = container.scrollHeight;
+}
+
 async function sendChatMessageWithContext(message, context) {
   if (!message) return;
   setInputEnabled(false);
@@ -23148,25 +23192,7 @@ async function sendChatMessageWithContext(message, context) {
     } else if (data.type === 'ask') {
       addChatMessage(data.message, 'ai', false);
       if (data.candidates && data.candidates.length > 0) {
-        const container = document.getElementById('chat-messages');
-        const wrapper = document.createElement('div');
-        wrapper.className = 'chat-msg ai';
-        wrapper.style.padding = '8px 16px';
-        data.candidates.forEach(function(name) {
-          const btn = document.createElement('button');
-          btn.className = 'btn btn-outline-primary btn-sm me-2 mb-2';
-          btn.style.borderRadius = '16px';
-          btn.style.fontSize = '13px';
-          btn.textContent = name;
-          btn.onclick = (function(n, dbType) {
-            return function() {
-              sendChatMessageWithContext('巡检 ' + n, {db_type: dbType, db_name: n});
-            };
-          })(name, data.db_type);
-          wrapper.appendChild(btn);
-        });
-        container.appendChild(wrapper);
-        container.scrollTop = container.scrollHeight;
+        renderChatCandidateButtons(data.candidates);
       }
     } else if (data.type === 'report') {
       setChatMode('inspect');
@@ -23338,25 +23364,8 @@ async function sendChatMessage() {
             } else if (data.type === 'inspect_ask') {
               // 需要用户选择数据源
               if (!aiMsgEl) aiMsgEl = addChatMessage('', 'ai', false);
-              aiMsgEl.innerHTML = '<span style="color:var(--text-secondary)">' + data.message + '</span>';
-              // 显示选择按钮
-              const container = document.getElementById('chat-messages');
-              const wrapper = document.createElement('div');
-              wrapper.className = 'chat-msg ai';
-              wrapper.style.padding = '8px 16px';
-              (data.candidates || []).forEach(function(name) {
-                const btn = document.createElement('button');
-                btn.className = 'btn btn-outline-primary btn-sm me-2 mb-2';
-                btn.style.borderRadius = '16px';
-                btn.style.fontSize = '13px';
-                btn.textContent = name;
-                btn.onclick = function() {
-                  sendChatMessageWithContext('巡检 ' + name, {db_type: data.db_type, db_name: name});
-                };
-                wrapper.appendChild(btn);
-              });
-              container.appendChild(wrapper);
-              container.scrollTop = container.scrollHeight;
+              aiMsgEl.innerHTML = '<span style="color:var(--text-muted)">' + escapeHtml(data.message || '') + '</span>';
+              renderChatCandidateButtons(data.candidates);
               setInputEnabled(true);
               return;  // 不需要继续读取 SSE
 
@@ -23425,6 +23434,9 @@ async function sendChatMessage() {
         addChatMessage(data.message, 'ai', false);
       } else if (data.type === 'ask') {
         addChatMessage(data.message, 'ai', false);
+        if (data.candidates && data.candidates.length > 0) {
+          renderChatCandidateButtons(data.candidates);
+        }
       } else if (data.type === 'report') {
         setChatMode('inspect');
         addChatMessage(data.message, 'ai', false);

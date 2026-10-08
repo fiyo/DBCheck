@@ -1064,6 +1064,12 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None, chap
         if _db in ('', 'postgres'):
             db_info['database'] = 'uxdb'
 
+    _insp_name = db_info.get('name') or db_info.get('ip') or '?'
+    _insp_host = f"{db_info.get('ip')}:{db_info.get('port')}"
+    print(f"[巡检] ===== 巡检任务开始：目标 {_insp_name} ({_insp_host}) db_type={db_type} =====\n"
+          f"[巡检] 说明：[Monitor] 开头的日志为本系统后台监控独立任务（周期性遍历全部已保存实例），"
+          f"并非本次巡检建立连接，请勿误判为串库。", flush=True)
+
     task_configs = {
         'mysql': dict(
             module_name='main_mysql',
@@ -1377,6 +1383,7 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None, chap
                 task['error_msg'] = err_msg
             _emit('error', {'msg': err_msg})
             _emit('done', {'msg': err_msg, 'task_id': task_id})
+            print(f"[巡检] ===== 巡检任务结束（失败：不支持类型 {db_type}）=====", flush=True)
             return
 
     _emit('log', {'msg': _t(cfg['log_start_key']).format(ts=_ts())})
@@ -1676,6 +1683,7 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None, chap
         except Exception as e:
             _emit('log', {'msg': f"[警告] Pro 巡检记录保存失败: {e}"})
 
+        print(f"[巡检] ===== 巡检任务结束：{_insp_name} ({_insp_host}) db_type={db_type} =====", flush=True)
         _emit('done', {'msg': _t('webui.log_inspection_done').format(ver=ver), 'task_id': task_id,
                        'ai_advice': context.get('ai_advice', '')})
     except Exception as e:
@@ -1696,6 +1704,7 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None, chap
         if task:
             task['status'] = 'error'
             task['error_msg'] = str(e)
+        print(f"[巡检] ===== 巡检任务结束（异常）：{_insp_name} ({_insp_host}) db_type={db_type} =====", flush=True)
 # ── 配置基线检查任务 ────────────────────────────────────────
 def run_config_task(task_id, db_info, output_format='txt'):
     """配置基线检查 Web UI 任务"""
@@ -9539,50 +9548,119 @@ def parse_intent(user_message: str) -> dict:
 
 
 def list_instances_by_type(db_type: str):
-    """列出指定 db_type 的所有数据源（名称列表）"""
+    """列出指定 db_type 的所有数据源（名称列表）。
+
+    类型判定走 driver_registry.normalize_db_type：``_jdbc`` 等连接实现后缀不改变
+    数据库种类（oracle_jdbc/oracle 视为同种），避免「按类型筛选却漏掉 JDBC 实例」。
+    """
     try:
         from modules.pro import get_instance_manager
+        from modules.driver_registry import normalize_db_type
         im = get_instance_manager()
         instances = im.get_all_instances(mask_password=False)
-        return [inst.get('name', '') for inst in instances if inst.get('db_type') == db_type]
+        nt = normalize_db_type(db_type or '').lower()
+        return [inst.get('name', '') for inst in instances
+                if inst.get('db_type') and normalize_db_type(inst.get('db_type')).lower() == nt]
     except Exception:
         return []
 
 
-def match_datasource(db_name: str):
-    """从 Pro InstanceManager 按名称匹配数据源，返回解密后的连接信息"""
+def match_datasource(db_name: str, db_type: str = None):
+    """从 Pro InstanceManager 按名称匹配数据源，返回解密后的连接信息。
+
+    匹配策略（防多数据源串库，对应 issue #59）：
+      1. 大小写不敏感「精确匹配」实例名 → 优先采用；
+      2. 否则收集所有「名称包含查询串」的实例；若传入 db_type，先用归一化类型
+         过滤（oracle_jdbc/oracle 视为同种），再判定候选唯一性；
+      3. 唯一候选 → 采用；出现 0 个或多于 1 个（歧义）→ 返回 None，
+         交由上游反问用户，绝不静默选错已保存的数据源。
+    """
     try:
         from modules.pro import get_instance_manager
+        from modules.driver_registry import normalize_db_type
         im = get_instance_manager()
         instances = im.get_all_instances(mask_password=False)
 
         if not db_name:
             return None
 
-        # 模糊匹配（忽略大小写）
         db_name_lower = db_name.lower()
-        matched_inst = None
+
+        # 1) 精确匹配（大小写不敏感）优先
         for inst in instances:
             if inst.get('name', '').lower() == db_name_lower:
-                matched_inst = inst
-                break
-            if db_name_lower in inst.get('name', '').lower():
-                matched_inst = inst
-                break
+                inst_id = inst.get('id')
+                if inst_id:
+                    decrypted = im.get_instance_decrypted(inst_id)
+                    if decrypted:
+                        return decrypted
+                return inst
 
-        if not matched_inst:
-            return None
+        # 2) 模糊（子串）匹配：先收集全部候选，再按唯一性 / 类型判定
+        candidates = [inst for inst in instances
+                      if db_name_lower and db_name_lower in inst.get('name', '').lower()]
+        if db_type:
+            nt = normalize_db_type(db_type).lower()
+            candidates = [c for c in candidates
+                          if normalize_db_type(c.get('db_type', '')).lower() == nt]
 
-        # 通过 ID 获取解密后的完整信息（包含解密后的密码）
-        inst_id = matched_inst.get('id')
-        if inst_id:
-            decrypted = im.get_instance_decrypted(inst_id)
-            if decrypted:
-                return decrypted
+        if len(candidates) == 1:
+            inst_id = candidates[0].get('id')
+            if inst_id:
+                decrypted = im.get_instance_decrypted(inst_id)
+                if decrypted:
+                    return decrypted
+            return candidates[0]
 
-        return matched_inst
+        # 0 个或多于 1 个 → 歧义，返回 None 让上游反问，不静默选错
+        return None
     except Exception:
         return None
+
+
+def _resolve_inspection_candidates(db_name: str, db_type: str):
+    """根据 AI 解析出的意图收集巡检候选数据源（防多数据源串库，对应 issue #59）。
+
+    返回候选实例摘要列表 ``[{'id','name','db_type','host','port'}, ...]``：
+
+      * 给了 ``db_name``：按名称子串匹配得到「相似」候选；若同时给了 ``db_type``
+        （非 ``unknown``），再按归一化类型收窄（oracle_jdbc/oracle 视为同种）；
+      * 没给 ``db_name`` 但给了 ``db_type``：取该类型全部实例；
+      * 两者都没给（模糊「巡检」）：返回全部已配置实例，让用户从全量里挑。
+
+    调用方据此：唯一 → 直接巡检；多个 → 全部列出让用户确认（绝不静默选错）；
+    空 → 提示无匹配。
+    """
+    try:
+        from modules.pro import get_instance_manager
+        from modules.driver_registry import normalize_db_type
+        im = get_instance_manager()
+        instances = im.get_all_instances(mask_password=False)
+    except Exception:
+        return []
+
+    def _summary(inst):
+        return {
+            'id': inst.get('id'),
+            'name': inst.get('name', ''),
+            'db_type': inst.get('db_type', ''),
+            'host': inst.get('host', ''),
+            'port': inst.get('port', ''),
+        }
+
+    nt = normalize_db_type(db_type or '').lower() if db_type and db_type != 'unknown' else ''
+    db_name_lower = (db_name or '').strip().lower()
+
+    if db_name_lower:
+        cands = [i for i in instances if db_name_lower in (i.get('name', '') or '').lower()]
+        if nt:
+            cands = [i for i in cands if normalize_db_type(i.get('db_type', '')).lower() == nt]
+        return [_summary(i) for i in cands]
+    elif nt:
+        cands = [i for i in instances if normalize_db_type(i.get('db_type', '')).lower() == nt]
+        return [_summary(i) for i in cands]
+    else:
+        return [_summary(i) for i in instances]
 
 
 def execute_simple_query(db_info: dict, db_type: str, scope: str) -> str:
@@ -9982,19 +10060,24 @@ def _list_instance_names():
 
 
 def _match_chat_instance(message, chat_context=None):
-    """从聊天消息（或上下文）提取并匹配平台数据源，返回解密后的实例 dict（含 id）；无则返回 None。"""
-    name = (parse_intent(message).get('db_name') or '').strip()
+    """从聊天消息（或上下文）提取并匹配平台数据源，返回解密后的实例 dict（含 id）；无则返回 None。
+
+    多数据源场景防串库（issue #59）：名称解析出现歧义时返回 None，交由上游反问，
+    绝不静默连接错误的已保存数据源。
+    """
+    intent = parse_intent(message) if isinstance(message, str) else {}
+    db_type = intent.get('db_type')
+    name = (intent.get('db_name') or '').strip()
     if not name and chat_context:
         name = (chat_context.get('datasource_name') or '').strip()
     if not name:
         low = message.lower()
-        for cand in _list_instance_names():
-            if cand and cand.lower() in low:
-                name = cand
-                break
+        # 消息里同时命中多个实例名 → 歧义，不臆测，交由上游反问
+        hits = [cand for cand in _list_instance_names() if cand and cand.lower() in low]
+        name = hits[0] if len(hits) == 1 else ''
     if not name:
         return None
-    return match_datasource(name)
+    return match_datasource(name, db_type=db_type)
 
 
 def _match_chat_workflow(message):
@@ -10303,27 +10386,55 @@ def _stream_inspection_response(data, message, session_id, chat_context):
 
     print(f'[AI Stream] 巡检意图: db_type={db_type}, db_name={db_name}, scope={scope}', flush=True)
 
-    # 2. 匹配数据源
+    # 2. 解析候选数据源并确认（AI 助手巡检：先列出候选让用户确认，防多数据源串库）
     ds = None
     matched_name = None
 
-    if db_name:
-        ds = match_datasource(db_name)
-        matched_name = db_name
+    # 2.0 候选按钮点选回传：显式 instance_id 优先，直接取实例，跳过名称模糊解析
+    # （防止 LLM 对「巡检 <名称>」解析漂移导致再次列出全部候选）
+    explicit_id = str(data.get('instance_id') or '').strip()
+    if explicit_id:
+        try:
+            from modules.pro import get_instance_manager as _gim
+            inst = _gim().get_instance_decrypted(explicit_id)
+        except Exception:
+            inst = None
+        if inst:
+            ds = inst
+            matched_name = ds.get('name') or ''
+            db_type = ds.get('db_type') or db_type
 
-    # 名称匹配失败，尝试按 db_type 筛选
-    if not ds and db_type != 'unknown' and db_type:
-        candidates = list_instances_by_type(db_type)
+    if not ds:
+        # 2.1 意图解析兜底：候选按钮回传的 db_name 优先于 LLM 解析结果
+        if not db_name:
+            db_name = str(data.get('db_name') or '').strip()
+        candidates = _resolve_inspection_candidates(db_name, db_type)
+
         if len(candidates) == 1:
-            ds = match_datasource(candidates[0])
-            matched_name = candidates[0]
+            try:
+                from modules.pro import get_instance_manager
+                _im = get_instance_manager()
+                inst = _im.get_instance_decrypted(candidates[0]['id']) or candidates[0]
+            except Exception:
+                inst = candidates[0]
+            if inst:
+                ds = inst
+                matched_name = ds.get('name') or db_name
+                # 以匹配到的实例真实类型为准，避免 LLM 误判类型导致逻辑错配/串库
+                db_type = ds.get('db_type') or db_type
         elif len(candidates) > 1:
-            names_str = '、'.join(candidates)
-            yield f"data: {json.dumps({'type': 'inspect_ask', 'message': f'找到 {len(candidates)} 个{db_type.upper()}数据源：{names_str}，请选择要巡检的实例。', 'candidates': candidates, 'db_type': db_type}, ensure_ascii=False)}\n\n"
+            # 多个候选：全部列出让用户确认，绝不静默选错（candidates 带 id，点选回传直接命中）
+            detail = '；'.join('%s（%s %s:%s）' % (c['name'], c['db_type'], c['host'], c['port'])
+                               for c in candidates)
+            yield (u"data: " + json.dumps({
+                'type': 'inspect_ask',
+                'message': u'🔍 匹配到 %d 个候选数据源，请确认要巡检哪一个：%s' % (len(candidates), detail),
+                'candidates': candidates,
+            }, ensure_ascii=False) + u"\n\n")
             return
 
     if not ds:
-        # 尝试从请求体获取连接参数
+        # 无候选：尝试从请求体获取手动连接参数
         ds = {
             'host': data.get('host', ''),
             'port': data.get('port', 3306),
@@ -10335,15 +10446,18 @@ def _stream_inspection_response(data, message, session_id, chat_context):
         }
 
     if not ds or not ds.get('host'):
-        if db_name and db_type != 'unknown' and db_type:
-            candidates = list_instances_by_type(db_type)
-            if candidates:
-                names_str = '、'.join(candidates)
-                yield f"data: {json.dumps({'type': 'inspect_ask', 'message': f'未找到「{db_name}」，可用的{db_type.upper()}数据源有：{names_str}。', 'candidates': candidates, 'db_type': db_type}, ensure_ascii=False)}\n\n"
-                return
+        # 仍未确定：列出全部已配置数据源供用户选择
+        all_insts = _resolve_inspection_candidates('', 'unknown')
+        if all_insts:
+            yield (u"data: " + json.dumps({
+                'type': 'inspect_ask',
+                'message': u'⚠️ 未匹配到巡检目标。已配置的数据源有：' + '、'.join(i['name'] for i in all_insts) + '。请指定要巡检的数据源名称。',
+                'candidates': all_insts,
+            }, ensure_ascii=False) + u"\n\n")
+            return
         _warn = {
             'type': 'error',
-            'message': '[WARN] 无法确定巡检目标。请指定数据源名称（如"巡检 MySQL-01 的连接数"）或在上下文中选择数据源。',
+            'message': '[WARN] 无法确定巡检目标。请指定数据源名称（如"巡检 MySQL-01"）或在上下文中选择数据源。',
         }
         yield f"data: {json.dumps(_warn, ensure_ascii=False)}\n\n"
         return
@@ -10700,32 +10814,52 @@ def api_chat():
         scope = intent.get('scope', 'all')
         need_report = intent.get('need_report', scope == 'all')
 
-        # 2. 匹配数据源
+        # 2. 解析候选数据源并确认（AI 助手巡检：先列出候选让用户确认，防多数据源串库）
         ds = None
         matched_name = None  # 记录实际匹配到的数据源名称
 
-        if db_name:
-            ds = match_datasource(db_name)
-            matched_name = db_name
+        # 2.0 候选按钮点选回传：显式 instance_id 优先，直接取实例，跳过名称模糊解析
+        # （防止 LLM 对「巡检 <名称>」解析漂移导致再次列出全部候选）
+        explicit_id = str(data.get('instance_id') or '').strip()
+        if explicit_id:
+            try:
+                from modules.pro import get_instance_manager as _gim
+                inst = _gim().get_instance_decrypted(explicit_id)
+            except Exception:
+                inst = None
+            if inst:
+                ds = inst
+                matched_name = ds.get('name') or ''
+                db_type = ds.get('db_type') or db_type
 
-        # 如果名称匹配失败，尝试按 db_type 筛选
-        if not ds and db_type != 'unknown' and db_type:
-            candidates = list_instances_by_type(db_type)
+        if not ds:
+            # 2.1 意图解析兜底：候选按钮回传的 db_name 优先于 LLM 解析结果
+            if not db_name:
+                db_name = str(data.get('db_name') or '').strip()
+            candidates = _resolve_inspection_candidates(db_name, db_type)
+
             if len(candidates) == 1:
-                # 只有一个，直接选
-                ds = match_datasource(candidates[0])
-                matched_name = candidates[0]
+                try:
+                    from modules.pro import get_instance_manager
+                    _im = get_instance_manager()
+                    inst = _im.get_instance_decrypted(candidates[0]['id']) or candidates[0]
+                except Exception:
+                    inst = candidates[0]
+                if inst:
+                    ds = inst
+                    matched_name = ds.get('name') or db_name
+                    # 以匹配到的实例真实类型为准，避免 LLM 误判类型导致逻辑错配/串库
+                    db_type = ds.get('db_type') or db_type
             elif len(candidates) > 1:
-                # 多个候选，询问用户
-                names_str = '、'.join(candidates)
+                # 多个候选：全部列出让用户确认，绝不静默选错（candidates 带 id，点选回传直接命中）
+                detail = '；'.join('%s（%s %s:%s）' % (c['name'], c['db_type'], c['host'], c['port'])
+                                   for c in candidates)
                 return jsonify({
                     'ok': False,
                     'type': 'ask',
-                    'message': _t('webui.chat_ask_multiple').format(
-                        db_type=db_type.upper(), count=len(candidates), names=names_str),
+                    'message': u'🔍 匹配到 %d 个候选数据源，请确认要巡检哪一个：%s' % (len(candidates), detail),
                     'intent': intent,
                     'candidates': candidates,
-                    'db_type': db_type,
                 })
 
         if not ds:
@@ -10742,20 +10876,16 @@ def api_chat():
 
         # 如果既没有匹配到数据源，也没有提供连接信息，返回提示
         if not ds or not ds.get('host'):
-            # 如果 db_name 不为空但匹配失败，列出同类型数据源
-            if db_name and db_type != 'unknown' and db_type:
-                candidates = list_instances_by_type(db_type)
-                if candidates:
-                    names_str = '、'.join(candidates)
-                    return jsonify({
-                        'ok': False,
-                        'type': 'ask',
-                        'message': _t('webui.chat_ask_not_found').format(
-                            db_name=db_name, db_type=db_type.upper(), names=names_str),
-                        'intent': intent,
-                        'candidates': candidates,
-                        'db_type': db_type,
-                    })
+            # 仍未确定：列出全部已配置数据源供用户选择
+            all_insts = _resolve_inspection_candidates('', 'unknown')
+            if all_insts:
+                return jsonify({
+                    'ok': False,
+                    'type': 'ask',
+                    'message': u'⚠️ 未匹配到巡检目标。已配置的数据源有：' + '、'.join(i['name'] for i in all_insts) + '。请指定要巡检的数据源名称。',
+                    'intent': intent,
+                    'candidates': all_insts,
+                })
             return jsonify({
                 'ok': False,
                 'type': 'error',

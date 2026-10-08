@@ -1,5 +1,19 @@
 # Changelog
 
+## v26.10.8.0 (2026-10-08)
+- **修复：AI 助手巡检/诊断多数据源串库（issue #59 防护）**
+  - 根因：AI 助手聊天巡检经 `match_datasource` 模糊匹配已保存实例，多数据源时贪心取列表首个、可能连到其它实例；同时后台监控采集日志与巡检日志混流同一 stdout，造成「单源正常、多源串库」的错觉。
+  - 修复：AI 助手解析出要巡检的数据源后，先列出全部候选（名称+类型+地址+instance_id）让用户确认，唯一候选才直跑；候选按钮携带 instance_id 回传，后端显式按 id 直取实例、跳过名称模糊解析，杜绝二次反问与选错；`match_datasource` 改为精确优先 + 唯一子串才采用 + 歧义返回 None 交由上游反问。
+- **修复：Oracle 11g 监控 SQL 兼容（ORA-00933）**
+  - 根因：`monitor/queries.py` 对 12c+ 使用 `FETCH FIRST N ROWS ONLY`，Oracle 11g 不识别该语法。
+  - 修复：统一改写为 `SELECT * FROM (...) WHERE ROWNUM <= N`，Oracle 全版本兼容。
+- **改进：巡检/监控日志隔离**
+  - 巡检任务增加 `[巡检] ===== 开始/结束 =====` 包络行（含目标实例 host:port + db_type）；后台监控采集线程命名 `MonitorCollector` 并在开头打印独立任务标识与 `[Monitor]` 前缀，便于在共享 stdout 中区分两条任务。
+- **改进：AI 诊断失败不再向用户暴露内部错误**
+  - 新增 `_friendly_ai_failure` 把连接被拒绝/超时/鉴权/解析失败等底层异常翻译为面向用户的中文原因，过滤 `http://`、WinError、`<urlopen error>`、urllib 堆栈路径；原始异常仅 `logging.debug(exc_info=True)` 留存，不再写进巡检报告与前端面板的 AI 诊断结论。
+- **优化：AI 助手候选确认 UI**
+  - 候选数据源按钮重做为主题化胶囊芯片（accent 圆点 + 数据源名 + db_type 徽标，深浅主题自适应），替代原 Bootstrap outline 按钮。
+
 ## v26.10.3.0 (2026-10-03)
 - **修复：Oracle JDBC 监控大屏误报宕机 (issue #58)**
   - 根因：`instances` 表缺失 `jdbc_url` 列，测试连接虽能经表单直传完整 JDBC URL 通过，但监控采集在配置 rev 变化时从数据库重载会丢失该字段，回退用 host(IP)/service_name 重建连接串（如 `@//IP:1521/ORCLCDB`），对实际 SID/service 不符的 Oracle JDBC 数据源触发 `ORA-12514`，大屏误报实例宕机。

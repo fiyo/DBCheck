@@ -2,7 +2,7 @@
 # Copyright 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
 """发版时从 CHANGELOG.md 动态生成 GitHub Release 追加说明。
 
-用法: python3 gen_release_append.py <tag>   # 如 v26.10.3.0
+用法: python3 gen_release_append.py <tag>   # 如 v26.10.8.0
 
 输出（stdout）:
   --- + ✨ 主要更新（CHANGELOG 中该版本段落） + 🐳 Docker 镜像（tag 动态注入）

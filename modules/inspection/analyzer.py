@@ -1351,6 +1351,33 @@ def _no_proxy_opener():
     return urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 
+def _friendly_ai_failure(e, backend):
+    """将 AI 诊断底层异常翻译成面向用户的友好描述，避免暴露内部 URL / 堆栈 / WinError。
+
+    - 用户侧只看到中文原因，不含 http://... 地址、<urlopen error ...> 或 File ".../urllib/..." 堆栈；
+    - 原始异常与完整 traceback 仅记入 logging debug 级（默认不输出到控制台），保留排查线索。
+    """
+    import logging
+    logging.getLogger(__name__).debug("AI 诊断失败 [%s]: %s", backend, e, exc_info=True)
+
+    s = str(e)
+    low = s.lower()
+    if '10061' in s or 'connection refused' in low or '由于目标计算机积极拒绝' in s \
+            or 'connectionrefusederror' in low:
+        return 'AI 服务连接被拒绝（请确认 Ollama / 在线模型服务已启动且地址可达）'
+    if 'timed out' in low or 'timeout' in low or '超时' in s:
+        return 'AI 服务响应超时（请检查网络或增大超时时间）'
+    if '401' in s or '403' in s or 'unauthorized' in low or 'authentication' in low \
+            or 'api key' in low or 'api_key' in low or '鉴权' in s:
+        return 'AI 服务鉴权失败（请检查 API Key / Token 是否正确）'
+    if 'name or service not known' in low or 'getaddrinfo' in low or '无法解析' in s \
+            or 'no address associated' in low:
+        return 'AI 服务地址无法解析（请检查服务地址拼写）'
+    if 'ssl' in low or 'certificate' in low or 'cert' in low:
+        return 'AI 服务 SSL / 证书校验失败'
+    return 'AI 服务调用失败，请检查 AI 服务配置、网络与模型名称'
+
+
 class AIAdvisor:
     """
     AI 诊断适配器。
@@ -1813,11 +1840,12 @@ class AIAdvisor:
             else:
                 return ''
         except Exception as e:
-            print(f"⚠️  AI 诊断调用失败 [{self.backend}]: {e}")
-            import traceback; traceback.print_exc()
-            # 暴露真实失败原因：带 ⚠ 前缀的错误串会写入 ai_advice，
-            # 由 Web 错误卡（正则 ^⚠|timeout|失败|异常）与 Word 第8章展示，不再静默吞错。
-            return f"⚠ AI 诊断调用失败：{e}"
+            # 不把内部异常 / 完整 traceback 抛给用户：
+            #  - 后台仅记 debug 级日志（保留排查线索，不污染控制台）
+            #  - 用户侧给出友好原因，不再暴露内部 URL / WinError / 堆栈路径
+            reason = _friendly_ai_failure(e, self.backend)
+            print(f"⚠️  AI 诊断调用失败 [{self.backend}]：{reason}")
+            return f"⚠ AI 诊断调用失败：{reason}"
 
     def _call_llm(self, prompt: str, timeout: int = 60, response_format=None) -> str:
         """通用 LLM 调用入口，根据 backend 自动路由到对应后端方法。
@@ -2876,9 +2904,9 @@ def run_ai_diagnosis(db_type, label, context, issues=None, lang='zh', timeout=60
             print(f"[AI] 诊断完成，长度={len(advice)}")
         return advice or ''
     except Exception as e:
-        print(f"[ERROR] AI 诊断异常被暴露: {e}")
-        import traceback
-        traceback.print_exc()
+        # 外层兜底：不向用户暴露内部异常 / 完整堆栈，仅给出友好提示并跳过 AI 诊断
+        _friendly_ai_failure(e, 'unknown')
+        print("[ERROR] AI 诊断流程异常，已跳过 AI 诊断（详见 debug 日志）")
         return ''
 
 

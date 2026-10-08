@@ -129,7 +129,8 @@ LIMIT 50
 # Oracle
 # ═══════════════════════════════════════════════════════════════
 ORACLE_SLOW_QUERY_SQL = """
-SELECT
+SELECT * FROM (
+  SELECT
     SUBSTR(s.sql_text, 1, 200) AS sql_text,
     ROUND(s.elapsed_time / 1000000, 3) AS avg_time_s,
     ROUND(s.elapsed_time / 1000000, 3) AS max_time_s,
@@ -137,15 +138,16 @@ SELECT
     ROUND(s.elapsed_time / 1000000, 3) AS total_time_s,
     s.parsing_schema_name AS schema_name,
     s.sql_id AS digest
-FROM v$sql s
-WHERE s.parsing_schema_name NOT IN ('SYS', 'SYSTEM', 'OUTLN')
-  AND s.module != 'DBMS_SCHEDULER'
-ORDER BY s.elapsed_time DESC
-FETCH FIRST 30 ROWS ONLY
+  FROM v$sql s
+  WHERE s.parsing_schema_name NOT IN ('SYS', 'SYSTEM', 'OUTLN')
+    AND s.module != 'DBMS_SCHEDULER'
+  ORDER BY s.elapsed_time DESC
+) WHERE ROWNUM <= 30
 """
 
 ORACLE_CONNECTION_SQL = """
-SELECT
+SELECT * FROM (
+  SELECT
     s.username AS username,
     s.schemaname AS database_name,
     s.program AS command,
@@ -154,11 +156,11 @@ SELECT
     SUBSTR(q.sql_text, 1, 200) AS current_sql,
     (SELECT COUNT(*) FROM v$session WHERE username = s.username) AS user_conn_count,
     (SELECT COUNT(*) FROM v$session) AS total_connections
-FROM v$session s
-LEFT JOIN v$sql q ON s.sql_id = q.sql_id
-WHERE s.type != 'BACKGROUND'
-ORDER BY (SYSDATE - s.logon_time) DESC
-FETCH FIRST 50 ROWS ONLY
+  FROM v$session s
+  LEFT JOIN v$sql q ON s.sql_id = q.sql_id
+  WHERE s.type != 'BACKGROUND'
+  ORDER BY (SYSDATE - s.logon_time) DESC
+) WHERE ROWNUM <= 50
 """
 
 # ═══════════════════════════════════════════════════════════════

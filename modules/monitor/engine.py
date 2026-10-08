@@ -124,7 +124,7 @@ class MonitorEngine:
             if self._running:
                 return
             self._running = True
-            self._thread = threading.Thread(target=self._background_loop, daemon=True)
+            self._thread = threading.Thread(target=self._background_loop, daemon=True, name='MonitorCollector')
             self._thread.start()
 
     def stop(self):
@@ -208,6 +208,9 @@ class MonitorEngine:
             # 但此处统一取明文，避免后续维护者误以为 mask_password=False 就是明文密码。
             all_instances = im.get_all_instances_decrypted()
             instances = [i for i in all_instances if i.get('enabled', True)]
+            # 明确标识：后台监控采集是独立后台任务，遍历全部已保存实例，
+            # 与用户手动发起的巡检无关，避免日志混流被误判为「巡检串库」。
+            print(f"[Monitor] ===== 后台监控采集任务（独立后台线程，遍历 {len(instances)} 个实例，与手动巡检无关）=====", flush=True)
             if not instances:
                 return
 
