@@ -73,6 +73,7 @@ DB_TYPE_CATALOG: List[Dict] = [
     {'key': 'tidb',          'name_zh': 'TiDB',          'name_en': 'TiDB',           'driver_class_hint': 'com.mysql.cj.jdbc.Driver',          'is_jdbc': True,  'order': 28, 'xinchuang': True},
     {'key': 'halodb',        'name_zh': 'HaloDB',        'name_en': 'HaloDB (羲和)',   'driver_class_hint': 'org.postgresql.Driver',            'is_jdbc': True,  'order': 29, 'xinchuang': True},
     {'key': 'vastbase',      'name_zh': 'Vastbase',      'name_en': 'Vastbase G100 (海量)', 'driver_class_hint': 'org.opengauss.Driver',        'is_jdbc': True,  'order': 30, 'xinchuang': True},
+    {'key': 'tdsqlc_mysql',  'name_zh': 'TDSQL-C',       'name_en': 'TDSQL-C MySQL',  'driver_class_hint': 'com.mysql.cj.jdbc.Driver',           'is_jdbc': True,  'order': 31, 'xinchuang': True},
 ]
 DB_TYPE_KEYS = frozenset(d['key'] for d in DB_TYPE_CATALOG)
 
