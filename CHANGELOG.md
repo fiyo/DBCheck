@@ -1,5 +1,19 @@
 # Changelog
 
+## v26.10.10.0 (2026-10-09)
+- **新增：Vastbase G100（海量数据库）全链路接入**
+  - `vastbase_jdbc` 插件七件套（available+enabled 双份）：复用 openGauss JDBC 驱动（`org.opengauss.Driver`，内核同源协议兼容），8 章 20 查询模板（pg_catalog/pg_stat_* 实测适配：`pg_authid` permission denied → `pg_roles`、Vastbase 特有 GUC `password_encryption_type`、无 `pg_hba_file_rules`/`pg_stat_archiver` 视图已剔除）、8 条基线（`password_encryption_type == '0'` 判 md5 弱加密 HIGH）、官方 logo（vastdata.com.cn SVG 矢量渲染 128×128）。
+  - 驱动登记四处：`drivers/vastbase/6.0.5/opengauss-jdbc-6.0.5.jar` + `drivers_seed.json` + `driver_registry.py`（DB_TYPE_CATALOG `xinchuang: True` 国产 + JDBC_PLUGIN_TO_CATALOG）+ `jdbc_connector.py` profile；`templates/vastbase_wordtemplates_v1.0.docx` 官方 Word 报告模板。
+  - 前端接线：index.html 8 处（_JDBC_CATALOG/首页 logo 墙/dbLogos/模板编辑下拉/STATIC_DB_ICONS/PH_MAP/DB_GROUP_MAP/关于页芯片）+ monitor_screen 大屏图标 + i18n zh/en 各 2 处；规则引擎 `pro/rules/builtin/vastbase.yaml` 15 条（连接/内存/性能/备份/锁/维护/安全/系统资源，实测命中容器弱配置）。
+  - JVM 稳定性收口（与 HGDB/UXDB 同根因系列）：测试连接新增 `_ct_vastbase` 走 `run_jdbc_test_subprocess` 子进程隔离（vastbase 无 `_jdbc` 后缀，`_plugin_conn_fallback` 守卫拦不住）；`JVM_INSPECTION_DB_TYPES`（app.py + jdbc_inspection_cli.py，覆盖正式巡检/聊天巡检/定时巡检）与智能诊断 `INTEL_JVM_DB_TYPES`（inspection_runner.py + intel_inspection_cli.py）补 vastbase，根除「开始巡检卡死」（进程内 startJVM 钉死 gevent hub）。
+  - 慢查询分析：新增 `VastbaseSlowQueryAnalyzer`（openGauss 内核容器实测适配：无 `pg_stat_statements`、`dbe_perf.*` permission denied、`pg_stat_activity` 无 `wait_event`/`wait_event_type` 列 → `waiting`/`enqueue` 映射保持报告渲染同构）；索引健康注册 vastbase → `analyze_pg_indexes`（容器实测 `pg_stat_user_indexes` 等全通）；e2e 全链路验证（连接→20 查询→AI 诊断→报告生成，0 错误）。
+  - 官网兼容性芯片墙新增 Vastbase G100 芯片 + 数据库类型口径 22→23。
+- **修复：UXDB 慢查询分析静默跳过**
+  - `slow_query.py` 新增 `UxdbSlowQueryAnalyzer` 并注册 `uxdb`：UXDB 为 ux_catalog 改名系内核（插件实测 `ux_catalog.ux_stat_activity`/`ux_locks`，Oracle 风格 `sys.v$instance`，驱动 `com.uxsino.uxdb.Driver`），长查询快照 `ux_stat_activity` 主路 + 标准 `pg_stat_activity` 兜底，全链路单条容错；待有活跃实例后实测校准。
+- **增强：skill 慢查询副本工厂表 5→9 类型**
+  - `modules/skill/dbcheck/scripts/slow_query_analyzer.py` 补 `mariadb`/`hgdb`/`sqlserver_jdbc` 别名映射，移植 `VastbaseSlowQueryAnalyzer`/`UxdbSlowQueryAnalyzer`（docstring 同步）。
+- **里程碑：Docker 镜像下载量突破 300,000**
+
 ## v26.10.9.1 (2026-10-08)
 - **新增：HaloDB（羲和数据库）全链路接入**
   - 连接/巡检/监控/智能分析/基线/规则引擎全打通：复刻 PG 系（kingbase/ivorysql）套路，JDBC 复用 postgresql-42.7.13.jar（`jdbc:postgresql://`），psycopg2 直连回退；openHalo initdb 默认管理库为 `halo0root`，业务库默认 `halo`，库名自动修正（''/'postgres'→'halo'）。

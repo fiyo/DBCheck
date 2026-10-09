@@ -137,17 +137,17 @@ ENV PYTHONMEMORYLIMIT=2g
 #   唯一根治方案是让 OpenBLAS 不建线程池 = 单线程模式（=1 时完全不调 clone()）。
 #   本项目 numpy 只用于 openpyxl/报表等轻量数值场景，单线程几乎无性能损失；
 #   CPU 密集用户可用 -e OPENBLAS_NUM_THREADS=4 覆盖本默认值。
-#   于 2026-09-23 由国网云桌面用户的 v26.10.9.1 部署故障确认并引入。
+#   于 2026-09-23 由国网云桌面用户的 v26.10.10.0 部署故障确认并引入。
 ENV OPENBLAS_NUM_THREADS=1 \
     OMP_NUM_THREADS=1 \
     MKL_NUM_THREADS=1 \
     NUMEXPR_NUM_THREADS=1
 
 # Create VERSION.txt (without v prefix, matches Docker tag format)
-# DBCHECK_VERSION 可在构建时覆盖: --build-arg DBCHECK_VERSION=v26.10.9.1
-# 注意：CI / build-multiarch.sh 传入的值带 v 前缀（如 v26.10.9.1），
+# DBCHECK_VERSION 可在构建时覆盖: --build-arg DBCHECK_VERSION=v26.10.10.0
+# 注意：CI / build-multiarch.sh 传入的值带 v 前缀（如 v26.10.10.0），
 # 这里用 ${DBCHECK_VERSION#v} 去掉前缀，保证镜像内 VERSION.txt 与标签一致。
-ARG DBCHECK_VERSION=26.10.9.1
+ARG DBCHECK_VERSION=26.10.10.0
 RUN echo "${DBCHECK_VERSION#v}" > /app/VERSION.txt
 
 # Ensure data and pro_data directories exist for volume mounts
