@@ -1679,6 +1679,79 @@ class VastbaseSlowQueryAnalyzer(PGSlowQueryAnalyzer):
 
 
 # ═══════════════════════════════════════════════════════════
+#  4.x UXDB（优炫）慢查询分析器（ux_catalog 改名系内核适配）
+# ═══════════════════════════════════════════════════════════
+
+class UxdbSlowQueryAnalyzer(PGSlowQueryAnalyzer):
+    """UXDB（优炫）慢查询分析器。
+
+    UXDB 内核把 pg_catalog 改名为 ux_catalog（uxdb_jdbc 插件实测情报）：
+    活动会话视图为 ``ux_catalog.ux_stat_activity``（列 pid/usename/
+    application_name/client_addr/state/query），另有 sys.v$instance 等
+    Oracle 风格视图，驱动为 com.uxsino.uxdb.Driver。
+
+    防御式设计（暂无活跃 uxdb 实例做全量实测）：
+    - pg_stat_statements 探测沿用 pg_extension 检查，扩展缺失/改名均容错；
+    - 长查询快照优先走 ux_catalog.ux_stat_activity（query_start 列未逐一
+      实测，若缺失该路自动降级），失败再兜底标准 pg_stat_activity；
+    - 所有查询经 _exec_sql 单条容错，最坏情况空结果，绝不抛异常。
+    """
+
+    DB_TYPE = 'uxdb'
+
+    # UXDB 改名系活动会话长查询快照
+    UXDB_LONG_RUNNING = """
+        SELECT
+            pid,
+            now() - query_start AS duration,
+            state,
+            left(query, 200) AS query_text,
+            usename
+        FROM ux_catalog.ux_stat_activity
+        WHERE state != 'idle'
+          AND query_start IS NOT NULL
+          AND (now() - query_start) > interval '5 seconds'
+        ORDER BY duration DESC
+        LIMIT 15
+    """
+
+    def collect(self, conn) -> dict:
+        result = {}
+        pg_ss_enabled = self._check_extension(conn)
+        result['pg_statements_enabled'] = pg_ss_enabled
+
+        if pg_ss_enabled:
+            result['top_by_total_time'] = self._exec_sql(conn,
+                PG_SLOW_QUERIES['pg_top_by_total_time'])
+            result['top_by_avg_time'] = self._exec_sql(conn,
+                PG_SLOW_QUERIES['pg_top_by_avg_time'])
+            result['top_by_io'] = self._exec_sql(conn,
+                PG_SLOW_QUERIES['pg_top_by_io'])
+            result['top_by_temp'] = self._exec_sql(conn,
+                PG_SLOW_QUERIES['pg_top_by_temp'])
+        else:
+            result['top_by_total_time'] = []
+            result['top_by_avg_time'] = []
+            result['top_by_io'] = []
+            result['top_by_temp'] = []
+
+        # 长查询快照：ux_catalog 主路 → 标准 pg_stat_activity 兜底
+        result['long_running'] = self._exec_sql(conn, self.UXDB_LONG_RUNNING)
+        if not result['long_running']:
+            result['long_running'] = self._exec_sql(conn,
+                PG_SLOW_QUERIES['pg_long_running'])
+
+        return result
+
+    def normalize(self, raw: dict) -> SlowQueryResult:
+        # 行结构与 PG 分析器同构（pid/duration/state/query_text/usename），
+        # wait_event_type/wait_event 缺列时 .get 返回 ''，直接复用 PG 归一化
+        r = super().normalize(raw)
+        r.db_type = 'uxdb'
+        return r
+
+
+# ═══════════════════════════════════════════════════════════
 #  5. 工厂函数
 # ═══════════════════════════════════════════════════════════
 
@@ -1696,6 +1769,7 @@ def get_slow_query_analyzer(db_type: str) -> BaseSlowQueryAnalyzer:
         'pg':        PGSlowQueryAnalyzer,
         'hgdb':      PGSlowQueryAnalyzer,  # HGDB V9 为 PostgreSQL 14 内核，复用 PG 慢查询分析器
         'vastbase':  VastbaseSlowQueryAnalyzer,  # Vastbase G100 为 openGauss 内核（实测无 pg_stat_statements、pg_stat_activity 无 wait_event 列）
+        'uxdb':      UxdbSlowQueryAnalyzer,  # UXDB 为 ux_catalog 改名系内核（ux_stat_activity 主路 + pg_stat_activity 兜底）
         'oracle':    OracleSlowQueryAnalyzer,
         'sqlserver': SQLServerSlowQueryAnalyzer,
         'sqlserver_jdbc': SQLServerSlowQueryAnalyzer,  # SQL Server JDBC 复用 SQL Server 慢查询分析器（DMVs/查询统计同源）
