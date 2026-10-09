@@ -465,6 +465,9 @@ SLOW_QUERY_TEMPLATES = {
     'gbase': GBASE_SLOW_QUERY_SQL,
     'db2': DB2_SLOW_QUERY_SQL,
     'clickhouse': CLICKHOUSE_SLOW_QUERY_SQL,
+    # OceanBase MySQL 租户兼容 performance_schema.events_statements_summary_by_digest（4.x），
+    # 复用 MySQL 慢查询 SQL；老版本 OB 无该表时走 fallback（processlist 版）。
+    'oceanbase': MYSQL_SLOW_QUERY_SQL,
 }
 
 SLOW_QUERY_FALLBACK_TEMPLATES = {
@@ -475,6 +478,8 @@ SLOW_QUERY_FALLBACK_TEMPLATES = {
     'ivorysql': PG_SLOW_QUERY_FALLBACK_SQL,
     'tidb': TIDB_SLOW_QUERY_FALLBACK_SQL,
     'clickhouse': CLICKHOUSE_SLOW_QUERY_FALLBACK_SQL,
+    # OB processlist 版 fallback：performance_schema 不可用/老版本 OB 的兜底（100% 兼容）
+    'oceanbase': MYSQL_SLOW_QUERY_FALLBACK_SQL,
 }
 
 CONNECTION_TEMPLATES = {
@@ -490,6 +495,10 @@ CONNECTION_TEMPLATES = {
     'gbase': GBASE_CONNECTION_SQL,
     'db2': DB2_CONNECTION_SQL,
     'clickhouse': CLICKHOUSE_CONNECTION_SQL,
+    # OceanBase MySQL 租户兼容 information_schema.processlist（含派生表 JOIN），
+    # 直接复用 MySQL 连接 SQL——此前漏注册导致 engine 恒返「不支持的类型」，
+    # 大屏对 OB 从不探活、状态被 _derive_status 覆盖成假绿 ok（2026-10-09 实测）。
+    'oceanbase': MYSQL_CONNECTION_SQL,
 }
 
 # 各数据库最大连接数默认值（用于计算使用率）
@@ -506,6 +515,7 @@ MAX_CONNECTION_DEFAULTS = {
     'gbase': 100,       # Informix 血统无统一 max sessions 参数，用保守默认
     'db2': 500,         # MAX_CONNECTIONS 因版本而异，取中位默认（查询失败时兜底）
     'clickhouse': 4096, # 官方默认 max_connections
+    'oceanbase': 1000,  # OB 租户常见默认量级（实际以 @@global.max_connections 查询为准）
 }
 
 # 获取最大连接数的 SQL
@@ -519,6 +529,7 @@ MAX_CONN_QUERY_SQL = {
     'sqlserver': "SELECT 32767 AS max_conn",
     'dm': "SELECT VALUE AS max_conn FROM V$DM_INI WHERE PARA_NAME = 'MAX_SESSIONS'",
     'tidb': "SELECT @@global.max_connections AS max_conn",
+    'oceanbase': "SELECT @@global.max_connections AS max_conn",  # MySQL 租户兼容
     # db2：DBCFG 对监控账号通常不可见（实测空行集），直接用 MAX_CONNECTION_DEFAULTS 兜底
     'clickhouse': ("SELECT toUInt32(value) AS max_conn FROM system.server_settings "
                    "WHERE name = 'max_connections'"),

@@ -1126,7 +1126,9 @@ class ScreenCollector:
             print('[screen] extra 采集失败 %s: %s' % (snap['label'], e), flush=True)
 
         # 3) 状态判定（pending = 本轮未探活成功，不参与阈值派生，留给下一轮落定）
-        if snap['status'] not in ('down', 'pending'):
+        # unsupported（无采集模板的能力缺失）同样不得进入阈值派生——
+        # conn/tbs 全空会被 _derive_status 派生成 ok 假绿（OB 漏注册模板期间实测）。
+        if snap['status'] not in ('down', 'pending', 'unsupported'):
             snap['status'] = self._derive_status(snap)
         return snap
 
