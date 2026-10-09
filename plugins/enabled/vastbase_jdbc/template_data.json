@@ -1,0 +1,196 @@
+{
+  "template": {
+    "db_type": "vastbase",
+    "template_name_zh": "Vastbase G100 默认巡检模板",
+    "template_name_en": "Vastbase G100 Default Inspection Template",
+    "description": "海量数据库 Vastbase G100（openGauss/PostgreSQL 兼容系）巡检模板。Vastbase 以标准 pg_catalog/pg_stat_* 暴露 PG 系统视图，运行时参数通过 SHOW 获取，SQL 即标准 PG 写法",
+    "is_default": 1,
+    "is_preset": 1
+  },
+  "chapters": [
+    {
+      "chapter_number": 1,
+      "chapter_title_zh": "实例与版本",
+      "chapter_title_en": "Instance & Version",
+      "description": "版本 / 实例信息 / 启动时间",
+      "queries": [
+        {
+          "query_key": "vastbase_version",
+          "query_sql": "SELECT version()",
+          "query_description_zh": "Vastbase 版本号",
+          "query_description_en": "Vastbase server version"
+        },
+        {
+          "query_key": "vastbase_instance",
+          "query_sql": "SELECT current_database() AS database_name, current_user AS current_user, inet_server_addr() AS server_addr, inet_server_port() AS server_port, version() AS version",
+          "query_description_zh": "当前库 / 用户 / 服务地址与端口",
+          "query_description_en": "Current database / user / server address"
+        },
+        {
+          "query_key": "vastbase_uptime",
+          "query_sql": "SELECT pg_postmaster_start_time() AS startup_time, now() - pg_postmaster_start_time() AS uptime",
+          "query_description_zh": "实例启动时间与运行时长",
+          "query_description_en": "Instance startup time and uptime"
+        }
+      ]
+    },
+    {
+      "chapter_number": 2,
+      "chapter_title_zh": "连接与会话",
+      "chapter_title_en": "Connections & Sessions",
+      "description": "连接分布 / 活跃会话",
+      "queries": [
+        {
+          "query_key": "vastbase_conn_summary",
+          "query_sql": "SELECT state, count(*) AS conn_count FROM pg_catalog.pg_stat_activity GROUP BY state ORDER BY conn_count DESC",
+          "query_description_zh": "连接状态分布",
+          "query_description_en": "Connection state distribution"
+        },
+        {
+          "query_key": "vastbase_connections",
+          "query_sql": "SELECT pid, usename, application_name, client_addr, state, query FROM pg_catalog.pg_stat_activity",
+          "query_description_zh": "会话清单",
+          "query_description_en": "Session list"
+        }
+      ]
+    },
+    {
+      "chapter_number": 3,
+      "chapter_title_zh": "配置参数",
+      "chapter_title_en": "Configuration",
+      "description": "全部运行时参数 / 关键内存参数",
+      "queries": [
+        {
+          "query_key": "vastbase_settings",
+          "query_sql": "SHOW ALL",
+          "query_description_zh": "全部运行时参数（name/setting/description）",
+          "query_description_en": "All runtime parameters"
+        },
+        {
+          "query_key": "vastbase_shared_buffers",
+          "query_sql": "SHOW shared_buffers",
+          "query_description_zh": "共享缓冲区大小",
+          "query_description_en": "Shared buffers size"
+        }
+      ]
+    },
+    {
+      "chapter_number": 4,
+      "chapter_title_zh": "资源与性能",
+      "chapter_title_en": "Resource & Performance",
+      "description": "库大小 / 写入器统计 / 库级统计",
+      "queries": [
+        {
+          "query_key": "vastbase_database_size",
+          "query_sql": "SELECT datname AS db_name, pg_database_size(datname) AS total_bytes FROM pg_catalog.pg_database ORDER BY total_bytes DESC",
+          "query_description_zh": "各数据库实际大小（pg_database_size）",
+          "query_description_en": "Per-database actual size"
+        },
+        {
+          "query_key": "vastbase_bgwriter",
+          "query_sql": "SELECT * FROM pg_catalog.pg_stat_bgwriter",
+          "query_description_zh": "后台写进程统计",
+          "query_description_en": "Background writer statistics"
+        },
+        {
+          "query_key": "vastbase_stat_database",
+          "query_sql": "SELECT datname, numbackends, xact_commit, xact_rollback, blks_read, blks_hit, tup_returned, tup_fetched FROM pg_catalog.pg_stat_database",
+          "query_description_zh": "库级活动统计",
+          "query_description_en": "Database-level activity stats"
+        }
+      ]
+    },
+    {
+      "chapter_number": 5,
+      "chapter_title_zh": "空间与对象",
+      "chapter_title_en": "Space & Objects",
+      "description": "表体积 / 表统计 / 索引使用",
+      "queries": [
+        {
+          "query_key": "vastbase_tables_size",
+          "query_sql": "SELECT n.nspname AS schemaname, c.relname, c.relpages*8192 AS total_bytes FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON c.relnamespace=n.oid WHERE c.relkind='r' AND n.nspname NOT IN ('pg_catalog','information_schema','pg_toast','snapshot','cstore') ORDER BY total_bytes DESC LIMIT 50",
+          "query_description_zh": "用户表体积 TOP50（relpages*8192 估算，块大小假设 8KB）",
+          "query_description_en": "Top 50 user tables by estimated size"
+        },
+        {
+          "query_key": "vastbase_tables",
+          "query_sql": "SELECT schemaname, relname, n_live_tup, n_dead_tup, last_vacuum, last_autovacuum FROM pg_catalog.pg_stat_user_tables",
+          "query_description_zh": "表存活/死元组与清理时间",
+          "query_description_en": "Live/dead tuples and vacuum time"
+        },
+        {
+          "query_key": "vastbase_indexes",
+          "query_sql": "SELECT schemaname, relname, indexrelname, idx_scan, idx_tup_read, idx_tup_fetch FROM pg_catalog.pg_stat_user_indexes",
+          "query_description_zh": "索引扫描统计",
+          "query_description_en": "Index scan statistics"
+        }
+      ]
+    },
+    {
+      "chapter_number": 6,
+      "chapter_title_zh": "日志与锁",
+      "chapter_title_en": "Locks & Waits",
+      "description": "锁持有 / 锁等待",
+      "queries": [
+        {
+          "query_key": "vastbase_locks",
+          "query_sql": "SELECT locktype, database, relation, pid, mode, granted FROM pg_catalog.pg_locks",
+          "query_description_zh": "当前锁持有情况",
+          "query_description_en": "Current locks held"
+        },
+        {
+          "query_key": "vastbase_lock_waits",
+          "query_sql": "SELECT a.pid, a.usename, a.query, l.locktype, l.mode FROM pg_catalog.pg_locks l JOIN pg_catalog.pg_stat_activity a ON l.pid = a.pid WHERE NOT l.granted",
+          "query_description_zh": "未授予的锁等待",
+          "query_description_en": "Ungranted lock waits"
+        }
+      ]
+    },
+    {
+      "chapter_number": 7,
+      "chapter_title_zh": "安全与权限",
+      "chapter_title_en": "Security & Privileges",
+      "description": "角色 / 密码策略",
+      "queries": [
+        {
+          "query_key": "vastbase_roles",
+          "query_sql": "SELECT rolname, rolcanlogin, rolsuper, rolcreaterole, rolcreatedb FROM pg_catalog.pg_roles ORDER BY rolname",
+          "query_description_zh": "数据库角色清单（Vastbase 收紧 pg_authid 权限，改用 pg_roles）",
+          "query_description_en": "Database roles (via pg_roles)"
+        },
+        {
+          "query_key": "vastbase_auth_settings",
+          "query_sql": "SHOW password_encryption_type",
+          "query_description_zh": "密码加密方式（Vastbase 为 password_encryption_type，0=md5 弱加密）",
+          "query_description_en": "Password encryption method (Vastbase-specific GUC)"
+        }
+      ]
+    },
+    {
+      "chapter_number": 8,
+      "chapter_title_zh": "备份恢复",
+      "chapter_title_en": "Backup & Recovery",
+      "description": "WAL/复制",
+      "queries": [
+        {
+          "query_key": "vastbase_wal_level",
+          "query_sql": "SHOW wal_level",
+          "query_description_zh": "WAL 级别",
+          "query_description_en": "WAL level"
+        },
+        {
+          "query_key": "vastbase_archive_mode",
+          "query_sql": "SHOW archive_mode",
+          "query_description_zh": "归档模式",
+          "query_description_en": "Archive mode"
+        },
+        {
+          "query_key": "vastbase_replication",
+          "query_sql": "SELECT * FROM pg_catalog.pg_stat_replication",
+          "query_description_zh": "流复制状态",
+          "query_description_en": "Streaming replication status"
+        }
+      ]
+    }
+  ]
+}

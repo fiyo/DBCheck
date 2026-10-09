@@ -72,6 +72,7 @@ DB_TYPE_CATALOG: List[Dict] = [
     {'key': 'yashandb',      'name_zh': 'YashanDB',      'name_en': 'YashanDB (崖山)', 'driver_class_hint': 'com.yashandb.jdbc.Driver',        'is_jdbc': True,  'order': 27, 'xinchuang': True},
     {'key': 'tidb',          'name_zh': 'TiDB',          'name_en': 'TiDB',           'driver_class_hint': 'com.mysql.cj.jdbc.Driver',          'is_jdbc': True,  'order': 28, 'xinchuang': True},
     {'key': 'halodb',        'name_zh': 'HaloDB',        'name_en': 'HaloDB (羲和)',   'driver_class_hint': 'org.postgresql.Driver',            'is_jdbc': True,  'order': 29, 'xinchuang': True},
+    {'key': 'vastbase',      'name_zh': 'Vastbase',      'name_en': 'Vastbase G100 (海量)', 'driver_class_hint': 'org.opengauss.Driver',        'is_jdbc': True,  'order': 30, 'xinchuang': True},
 ]
 DB_TYPE_KEYS = frozenset(d['key'] for d in DB_TYPE_CATALOG)
 
@@ -530,6 +531,7 @@ JDBC_PLUGIN_TO_CATALOG = {
     'tidb': 'mysql',           # TiDB 兼容 MySQL 协议，复用 MySQL Connector/J
     'oceanbase': 'oceanbase',  # OceanBase 官方驱动（com.oceanbase.jdbc.Driver）
     'halodb': 'postgresql',    # HaloDB（羲和）兼容 PG 协议，复用 PostgreSQL JDBC 驱动
+    'vastbase': 'vastbase',    # Vastbase G100 基于 openGauss 内核，复用驱动管理中的 openGauss JDBC（org.opengauss.Driver）
 }
 
 

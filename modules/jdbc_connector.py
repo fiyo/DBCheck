@@ -85,6 +85,14 @@ JDBC_PROFILES: Dict[str, Dict[str, Any]] = {
         'port': 5432,
         'db_default': 'halo',
     },
+    'vastbase': {
+        # Vastbase G100（海量数据库）基于 openGauss 内核，兼容 openGauss JDBC。
+        # 驱动复用驱动管理中的 opengauss jar（org.opengauss.Driver + jdbc:opengauss://）。
+        'driver_class': 'org.opengauss.Driver',
+        'url': 'jdbc:opengauss://{host}:{port}/{db}',
+        'port': 5432,
+        'db_default': 'vastbase',
+    },
     'pg': {
         'driver_class': 'org.postgresql.Driver',
         'url': 'jdbc:postgresql://{host}:{port}/{db}',

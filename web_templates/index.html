@@ -6432,7 +6432,7 @@ function formatBytes(bytes) {
             listEl.innerHTML = list.map(ds => {
               const dbIcons = window.DB_ICONS;
               const icon = dbIcons[ds.db_type] || '🗄️';
-              const dbLogos = {oceanbase:'/oceanbase.png'};
+              const dbLogos = {oceanbase:'/oceanbase.png', halodb:'/halodb.png', vastbase:'/vastbase.png'};
               const logo = dbLogos[ds.db_type];
               const iconHtml = logo
                 ? '<img src="' + logo + '" alt="' + (ds.db_type||'') + '" style="width:14px;height:14px;object-fit:contain;vertical-align:middle" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'inline\'"><span style="display:none">' + icon + '</span>'
@@ -6795,7 +6795,8 @@ function formatBytes(bytes) {
         'mysql':           'mysql',       // MySQL Connector/J
         'mariadb':         'mariadb',     // MariaDB Connector/J
         'tidb':            'mysql',       // TiDB 兼容 MySQL 协议，复用 MySQL 驱动
-        'oceanbase':       'oceanbase'    // OceanBase 官方 JDBC
+        'oceanbase':       'oceanbase',   // OceanBase 官方 JDBC
+        'vastbase':        'vastbase'     // Vastbase G100 基于 openGauss 内核，复用 openGauss JDBC
       };
       var _JDBC_TYPES = Object.keys(_JDBC_CATALOG);     // 所有走 JDBC 的 plugin/核心 db_type
       function isJdbcType(dbType) {                     // 统一判定入口（取代 4 处硬编码 indexOf/||）
@@ -6862,7 +6863,7 @@ function formatBytes(bytes) {
         const user = document.getElementById('ds-user').value.trim();
         const svcName = document.getElementById('ds-service-name')?.value || '';
         let dbName = (document.getElementById('ds-database')?.value || '').trim();
-        if (!dbName && (dbType === 'pg' || dbType === 'ivorysql' || dbType === 'uxdb')) dbName = (dbType === 'uxdb' ? 'uxdb' : (dbType === 'ivorysql' ? 'ivorysql' : 'postgres'));
+        if (!dbName && (dbType === 'pg' || dbType === 'ivorysql' || dbType === 'uxdb' || dbType === 'vastbase')) dbName = (dbType === 'uxdb' ? 'uxdb' : (dbType === 'ivorysql' ? 'ivorysql' : (dbType === 'vastbase' ? 'vastbase' : 'postgres')));
         if (!dbName && dbType === 'kingbase') dbName = 'kingbase';
         if (!dbName && dbType === 'gbase') dbName = 'sysmaster';
         if (!dbName && dbType === 'oceanbase') dbName = 'oceanbase';
@@ -8082,6 +8083,14 @@ function wfCloseRunDrawer() {
               <div class="db-icon-item" title="ClickHouse" data-page-node-id="y4RehvNXIzMGNuC9qoHg3A">
                 <img src="/clickhouse.png" alt="ClickHouse" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" data-page-node-id="2Dm9xOxjoE8xlMBB7Tj9Vk"><span class="db-icon-fallback" style="display:none;" data-page-node-id="CuDLwZYTpQAJVG3A4HpP5E">⚡</span>
                 <span class="db-icon-label" data-page-node-id="E4Pqh4CtbUsBp9zCRdCBvF">ClickHouse</span>
+              </div>
+              <div class="db-icon-item" title="HaloDB" data-page-node-id="halodb-icon-item">
+                <img src="/halodb.png" alt="HaloDB" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" data-page-node-id="halodb-icon-img"><span class="db-icon-fallback" style="display:none;" data-page-node-id="halodb-icon-fb">🌀</span>
+                <span class="db-icon-label" data-page-node-id="halodb-icon-label">HaloDB</span>
+              </div>
+              <div class="db-icon-item" title="Vastbase" data-page-node-id="vastbase-icon-item">
+                <img src="/vastbase.png" alt="Vastbase" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" data-page-node-id="vastbase-icon-img"><span class="db-icon-fallback" style="display:none;" data-page-node-id="vastbase-icon-fb">🌊</span>
+                <span class="db-icon-label" data-page-node-id="vastbase-icon-label">Vastbase</span>
               </div>
               <!-- <div class="db-icon-item" title="IBM Db2">
                 <img src="/db2.png" alt="IBM Db2" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="db-icon-fallback" style="display:none;">📦</span>
@@ -10531,6 +10540,7 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
                     <option value="tidb" data-page-node-id="7imLtgpxFlLn9ZvCPWR4nG">TiDB</option>
                     <option value="ivorysql" data-page-node-id="DgWTiqOp2MS5DTRFCyPG61">IvorySQL</option>
                     <option value="halodb">HaloDB</option>
+                    <option value="vastbase">Vastbase</option>
                     <option value="kingbase" data-page-node-id="JGeJWQ0NPGlewXal2keXlB">KingbaseES</option>
                     <option value="gbase" data-page-node-id="fituSC0iKhZXrCVg9g86et">GBase 8s</option>
                   </select>
@@ -27659,13 +27669,13 @@ function mkdirRemote() {
   // —— 真插件化：前端数据库类型映射表（端口/用户/图标/库名/标签/是否显示库字段）——
   // 统一从 /api/db_types 派生，避免每接入一种新库就改这里。内置类型用静态兜底确保
   // 即使接口慢/失败也不影响既有行为；新插件类型在 window.dbTypes 加载后自动追加。
-const STATIC_DB_ICONS = {mysql:'🐬', tdsqlc_mysql:'🐬', mariadb:'🐬', oceanbase:'🐋', pg:'🐘', oracle:'🔴', oracle_jdbc:'🔴', dm:'🟡', sqlserver:'🟠', tidb:'🟢', ivorysql:'🐘', kingbase:'🐘', gbase:'🟢', clickhouse:'🧊'};
+const STATIC_DB_ICONS = {mysql:'🐬', tdsqlc_mysql:'🐬', mariadb:'🐬', oceanbase:'🐋', pg:'🐘', oracle:'🔴', oracle_jdbc:'🔴', dm:'🟡', sqlserver:'🟠', tidb:'🟢', ivorysql:'🐘', kingbase:'🐘', gbase:'🟢', clickhouse:'🧊', halodb:'🌀', vastbase:'🌊'};
 const STATIC_PORT_MAP = {mysql:3306, tdsqlc_mysql:3306, mariadb:3306, oceanbase:2881, pg:5432, dm:5236, oracle:1521, oracle_jdbc:1521, sqlserver:1433, tidb:4000, ivorysql:5432, yashandb:1688, kingbase:54321, gbase:9088, db2:50000, redis:6379, 'redis-cluster':6379, clickhouse:8123};
 const STATIC_USER_MAP = {mysql:'root', tdsqlc_mysql:'root', mariadb:'root', oceanbase:'root@test', pg:'postgres', dm:'SYSDBA', oracle:'system', oracle_jdbc:'system', sqlserver:'sa', tidb:'root', ivorysql:'ivorysql', yashandb:'sys', kingbase:'kingbase', gbase:'gbasedbt', db2:'db2inst1', redis:'', 'redis-cluster':'', clickhouse:'default'};
   const STATIC_SHOW_DB_FIELD = {'pg':true,'ivorysql':true,'kingbase':true,'gbase':true,'oceanbase':true,'db2':true,'mysql':true,'tdsqlc_mysql':true,'mariadb':true,'tidb':true,'clickhouse':true};
 const STATIC_DEFAULT_DB_MAP = { pg: 'postgres', ivorysql: 'ivorysql', kingbase: 'kingbase', gbase: 'sysmaster', mongodb: 'admin', mysql: 'mysql', tdsqlc_mysql: 'mysql', mariadb: 'mysql', tidb: 'mysql', clickhouse: 'default' };
 const STATIC_LABEL_MAP = { pg: 'PostgreSQL', ivorysql: 'PostgreSQL', kingbase: 'KingbaseES', gbase: 'GBase 8s', mysql: 'MySQL', tdsqlc_mysql: 'TDSQL-C MySQL', mariadb: 'MariaDB', tidb: 'TiDB', clickhouse: 'ClickHouse' };
-const STATIC_DB_PH_MAP = {'pg':'postgres','ivorysql':'ivorysql','kingbase':'kingbase','gbase':'sysmaster','oceanbase':'oceanbase','mongodb':'admin','db2':'testdb','mysql':'mysql','mariadb':'mysql','tidb':'mysql','clickhouse':'default','uxdb':'uxdb'};
+const STATIC_DB_PH_MAP = {'pg':'postgres','ivorysql':'ivorysql','kingbase':'kingbase','gbase':'sysmaster','oceanbase':'oceanbase','mongodb':'admin','db2':'testdb','mysql':'mysql','mariadb':'mysql','tidb':'mysql','clickhouse':'default','uxdb':'uxdb','vastbase':'vastbase'};
 
   window.DB_ICONS = Object.assign({}, STATIC_DB_ICONS);
   window.PORT_MAP = Object.assign({}, STATIC_PORT_MAP);
@@ -27715,7 +27725,7 @@ const STATIC_DB_PH_MAP = {'pg':'postgres','ivorysql':'ivorysql','kingbase':'king
   const DB_GROUP_ORDER = ['MySQL 系', 'PostgreSQL 系', 'Oracle 系', 'SQL Server 系', '其他关系型', 'NoSQL', 'KV/缓存', 'OLAP/分析'];
   const DB_GROUP_MAP = {
     mysql: 'MySQL 系', mariadb: 'MySQL 系', oceanbase: 'MySQL 系', tidb: 'MySQL 系', tdsqlc_mysql: 'MySQL 系',
-    pg: 'PostgreSQL 系', ivorysql: 'PostgreSQL 系', kingbase: 'PostgreSQL 系', hgdb: 'PostgreSQL 系', uxdb: 'PostgreSQL 系',
+    pg: 'PostgreSQL 系', ivorysql: 'PostgreSQL 系', kingbase: 'PostgreSQL 系', hgdb: 'PostgreSQL 系', uxdb: 'PostgreSQL 系', vastbase: 'PostgreSQL 系',
     oracle: 'Oracle 系', oracle_jdbc: 'Oracle 系', dm: 'Oracle 系',
     sqlserver: 'SQL Server 系', sqlserver_jdbc: 'SQL Server 系',
     db2: '其他关系型', yashandb: '其他关系型', gbase: '其他关系型',
@@ -27985,6 +27995,8 @@ const STATIC_DB_PH_MAP = {'pg':'postgres','ivorysql':'ivorysql','kingbase':'king
         <span class="about-db-chip" data-page-node-id="68o3dMGpQ5oRGHjexxWrK7"><img src="/dm.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'" style="width:16px;height:16px;object-fit:contain" data-page-node-id="SyMGYjNc67xleHroJxhiKG"><span class="db-emoji" style="display:none;" data-page-node-id="exuRI2hBGnTpDhLIkceUQ2">💎</span> DM 达梦</span>
         <span class="about-db-chip" data-page-node-id="tmjbAxZOWObSPasYfMVkUm"><img src="/tidb.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'" style="width:16px;height:16px;object-fit:contain" data-page-node-id="NYCRJYODYnKA8fbZA2VEHP"><span class="db-emoji" style="display:none;" data-page-node-id="P8KnwmOriLHAbmiCKPvmOB">🌊</span> TiDB</span>
         <span class="about-db-chip" data-page-node-id="3c8dqLe4DD1P9H41zFFlsG"><img src="/ivorysql.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'" style="width:16px;height:16px;object-fit:contain" data-page-node-id="E0GBLBwsxHUDCK5179CWQr"><span class="db-emoji" style="display:none;" data-page-node-id="Dc5Qoc75Z5WQ6Ti5qM5m27">🦣</span> IvorySQL</span>
+        <span class="about-db-chip" data-page-node-id="halodb-about-chip"><img src="/halodb.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'" style="width:16px;height:16px;object-fit:contain" data-page-node-id="halodb-about-img"><span class="db-emoji" style="display:none;" data-page-node-id="halodb-about-emoji">🌀</span> HaloDB</span>
+        <span class="about-db-chip" data-page-node-id="vastbase-about-chip"><img src="/vastbase.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'" style="width:16px;height:16px;object-fit:contain" data-page-node-id="vastbase-about-img"><span class="db-emoji" style="display:none;" data-page-node-id="vastbase-about-emoji">🌊</span> Vastbase</span>
         <span class="about-db-chip" data-page-node-id="1yAGODZXmQhdhEjAkpCk3T"><img src="/yashandb.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'" style="width:16px;height:16px;object-fit:contain" data-page-node-id="Mkt8HsucYcmfHosHktMsFd"><span class="db-emoji" style="display:none;" data-page-node-id="a4V0Y6XRYkvRCzcv6a2Lvd">🗻</span> YashanDB</span>
       </div>
 

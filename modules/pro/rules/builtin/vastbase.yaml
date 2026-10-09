@@ -1,0 +1,329 @@
+# -*- coding: utf-8 -*-
+# Vastbase G100（海量数据库）规则集 — 基于 openGauss 内核，PostgreSQL 兼容系
+#
+# 设计说明（与 uxdb.yaml 同思路，按 Vastbase 实际 context 字段改写）：
+# - 已连真库（docker 容器 vastbase, 127.0.0.1:25432/vastbase, VB_DBCOMPATIBILITY=PG）
+#   核对实际采集结构（见 plugins/enabled/vastbase_jdbc QUERIES + 探活实测）：
+#     vastbase_settings      : SHOW ALL 结果，list[dict]，每项为 {name, setting, description}
+#                              （已实测含 max_connections / max_wal_senders / work_mem /
+#                                autovacuum 等全部参数）
+#     vastbase_connections   : pg_catalog.pg_stat_activity 会话清单，
+#                              含 pid/usename/application_name/client_addr/state/query
+#     vastbase_lock_waits    : 未授予（NOT granted）的锁等待，含 pid/usename/query/locktype/mode
+#     vastbase_tables        : pg_catalog.pg_stat_user_tables，含 schemaname/relname/
+#                              n_live_tup/n_dead_tup/last_vacuum/last_autovacuum
+#     vastbase_roles         : pg_catalog.pg_roles（Vastbase 收紧 pg_authid/pg_user
+#                              读取权限，postgres 亦 permission denied，故用 pg_roles），
+#                              含 rolname/rolsuper/rolcanlogin/...
+#     vastbase_wal_level     : SHOW wal_level 结果，list[dict] = [{'wal_level': '<str>'}]
+#     vastbase_archive_mode  : SHOW archive_mode 结果，list[dict] = [{'archive_mode': '<str>'}]
+#     vastbase_shared_buffers: SHOW shared_buffers 结果，list[dict] = [{'shared_buffers': '<str>'}]
+#     vastbase_auth_settings : SHOW password_encryption_type 结果，
+#                              list[dict] = [{'password_encryption_type': '<str>'}]
+#                              ★ Vastbase/openGauss 特有 GUC：0=md5 弱加密，1/2=sha256
+#     vastbase_stat_database : 库级统计，含 datname/numbackends/xact_commit/xact_rollback/
+#                              blks_read/blks_hit
+#     system_info            : 巡检器统一补充的系统资源信息（含 memory.usage_percent）
+# - 标量 GUC 采用「专用单值 SHOW 查询」优先策略，避免「在 SHOW ALL 里找某参数但
+#   采集缺失/列名差异」导致的永不触发问题；max_connections / max_wal_senders 已实测
+#   确实存在于 SHOW ALL，故在 vastbase_settings 中按 name/setting 提取。
+# - condition 为规则引擎沙箱表达式（支持 any/len/sum/_int/str 及 .get()/.lower()/.strip()
+#   等白名单方法）；params 用 ${context.xxx} 注入，condition 中裸写该变量名即可。
+rules:
+  # ── 连接数 / 最大连接 ──
+  - id: vastbase_max_conn_low
+    name: 最大连接数偏小
+    name_zh: 最大连接数偏小
+    category: connection
+    db_types: [vastbase]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: max_connections 小于 100，会限制并发吞吐
+    description_zh: max_connections 小于 100，会限制并发吞吐
+    # 已连真库核实：SHOW ALL 含 max_connections（setting 为字符串，如 '200'），
+    # 在 vastbase_settings 中按 name/setting 提取，_int 解析后比较。
+    condition: "any(s.get('name') == 'max_connections' and _int(s.get('setting')) < 100 for s in vastbase_settings)"
+    params:
+      vastbase_settings: "${context.vastbase_settings}"
+    message: "Vastbase max_connections 小于 100，过小会限制并发吞吐，建议调大"
+    message_zh: "Vastbase max_connections 小于 100，过小会限制并发吞吐，建议调大"
+    fix_sql: "ALTER SYSTEM SET max_connections = 200;  -- 修改后需重启 Vastbase"
+
+  - id: vastbase_conn_high
+    name: 活跃会话数过高
+    name_zh: 活跃会话数过高
+    category: connection
+    db_types: [vastbase]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 当前会话数超过 150，可能存在连接风暴或连接泄漏
+    description_zh: 当前会话数超过 150，可能存在连接风暴或连接泄漏
+    condition: "conn_count > 150"
+    params:
+      conn_count: "${len(context.vastbase_connections)}"
+    message: "Vastbase 当前会话数达 {conn_count}，接近/超过上限，可能存在连接风暴或泄漏"
+    message_zh: "Vastbase 当前会话数达 {conn_count}，接近/超过上限，可能存在连接风暴或泄漏"
+    fix_sql: "排查应用连接池配置；必要时调大 max_connections 并引入连接池（如 PgBouncer）"
+
+  - id: vastbase_idle_in_transaction
+    name: 存在空闲事务
+    name_zh: 存在空闲事务（idle in transaction）
+    category: connection
+    db_types: [vastbase]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 存在 idle in transaction 状态的会话，长期持有会阻塞 VACUUM 与锁
+    description_zh: 存在 idle in transaction 状态的会话，长期持有会阻塞 VACUUM 与锁
+    condition: "any(str(c.get('state')).lower() == 'idle in transaction' for c in vastbase_connections)"
+    params:
+      vastbase_connections: "${context.vastbase_connections}"
+    message: "存在处于 idle in transaction 状态的会话，长期持有会阻塞 VACUUM 与锁等待"
+    message_zh: "存在处于 idle in transaction 状态的会话，长期持有会阻塞 VACUUM 与锁等待"
+    fix_sql: "定位并终止空闲事务：\nSELECT pid FROM pg_catalog.pg_stat_activity WHERE state = 'idle in transaction';\nSELECT pg_cancel_backend(pid);"
+
+  # ── 内存配置 ──
+  - id: vastbase_shared_buffers_zero
+    name: 共享缓冲区未配置或过小
+    name_zh: 共享缓冲区未配置或过小
+    category: memory
+    db_types: [vastbase]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: shared_buffers 未配置或过小（为空/0），缓存命中率低
+    description_zh: shared_buffers 未配置或过小（为空/0），缓存命中率低
+    # 专用查询 vastbase_shared_buffers（SHOW shared_buffers），
+    # 返回 [{'shared_buffers': '<str 如 128MB>'} ]；值均为字符串，判空/0 即视为未配置。
+    condition: "any(str(r.get('shared_buffers','')).strip().lower() in ('', '0', '0b', '0kb', '0mb', '0gb') for r in vastbase_shared_buffers)"
+    params:
+      vastbase_shared_buffers: "${context.vastbase_shared_buffers}"
+    message: "shared_buffers 未配置或过小（建议设为物理内存的 25% 左右），将显著降低缓存命中率"
+    message_zh: "shared_buffers 未配置或过小（建议设为物理内存的 25% 左右），将显著降低缓存命中率"
+    fix_sql: "ALTER SYSTEM SET shared_buffers = '4GB';  -- 修改后需重启 Vastbase"
+
+  # ── 性能：缓存命中率 ──
+  - id: vastbase_cache_hit_low
+    name: 缓冲区缓存命中率偏低
+    name_zh: 缓冲区缓存命中率偏低
+    category: performance
+    db_types: [vastbase]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: 库级缓存命中率低于 90%，可能存在内存不足或全表扫描过多
+    description_zh: 库级缓存命中率低于 90%，可能存在内存不足或全表扫描过多
+    # 对 vastbase_stat_database 全库聚合（排除 0 活动库噪声）：hit/(hit+read) < 0.9
+    condition: "total > 0 and (hits / total) < 0.9"
+    params:
+      hits: "${sum(_int(d.get('blks_hit', 0)) for d in context.vastbase_stat_database)}"
+      total: "${sum(_int(d.get('blks_hit', 0)) + _int(d.get('blks_read', 0)) for d in context.vastbase_stat_database)}"
+    message: "库级缓存命中率 {pct:.1f}% 低于 90%，建议检查 shared_buffers 配置与慢查询"
+    message_zh: "库级缓存命中率 {pct:.1f}% 低于 90%，建议检查 shared_buffers 配置与慢查询"
+    fix_sql: "-- 查看各库命中率：\nSELECT datname, round(blks_hit*100.0/NULLIF(blks_hit+blks_read,0), 2) AS hit_pct FROM pg_catalog.pg_stat_database;\n-- 必要时调大 shared_buffers 并优化全表扫描 SQL"
+    fix_params:
+      pct: "(hits / total * 100) if total > 0 else 0"
+
+  # ── 备份与恢复 ──
+  - id: vastbase_wal_level_minimal
+    name: WAL 级别为 minimal
+    name_zh: WAL 级别为 minimal
+    category: backup
+    db_types: [vastbase]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: wal_level 为 minimal，无法支持流复制与时间点恢复（PITR）
+    description_zh: wal_level 为 minimal，无法支持流复制与时间点恢复（PITR）
+    # 专用查询 vastbase_wal_level（SHOW wal_level），返回 [{'wal_level': '<str>'} ]。
+    condition: "any(str(r.get('wal_level','')).lower() == 'minimal' for r in vastbase_wal_level)"
+    params:
+      vastbase_wal_level: "${context.vastbase_wal_level}"
+    message: "wal_level 为 minimal，无法支持流复制与时间点恢复（PITR），存在数据安全风险"
+    message_zh: "wal_level 为 minimal，无法支持流复制与时间点恢复（PITR），存在数据安全风险"
+    fix_sql: "ALTER SYSTEM SET wal_level = replica;  -- 修改后需重启 Vastbase"
+
+  - id: vastbase_archive_off
+    name: WAL 归档未开启
+    name_zh: WAL 归档未开启
+    category: backup
+    db_types: [vastbase]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: archive_mode 为 off，未开启 WAL 归档，无法做基于时间点的恢复
+    description_zh: archive_mode 为 off，未开启 WAL 归档，无法做基于时间点的恢复
+    # 专用查询 vastbase_archive_mode（SHOW archive_mode），返回 [{'archive_mode': '<str>'} ]。
+    condition: "any(str(r.get('archive_mode','')).lower() == 'off' for r in vastbase_archive_mode)"
+    params:
+      vastbase_archive_mode: "${context.vastbase_archive_mode}"
+    message: "archive_mode 为 off，未开启 WAL 归档，无法实现基于时间点的恢复（PITR）"
+    message_zh: "archive_mode 为 off，未开启 WAL 归档，无法实现基于时间点的恢复（PITR）"
+    fix_sql: "ALTER SYSTEM SET archive_mode = on;\n-- 同时配置 archive_command，例如：\n-- archive_command = 'test ! -f /mnt/wal/%f && cp %p /mnt/wal/%f'\n-- 修改后需重启 Vastbase"
+
+  - id: vastbase_max_wal_senders_low
+    name: 流复制发送进程数偏少
+    name_zh: 流复制发送进程数偏少
+    category: backup
+    db_types: [vastbase]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: max_wal_senders 小于 3，难以支撑多备库 + 归档
+    description_zh: max_wal_senders 小于 3，难以支撑多备库 + 归档
+    # 已连真库核实：SHOW ALL 含 max_wal_senders（setting 为字符串，如 '4'），保留在 vastbase_settings。
+    condition: "any(s.get('name') == 'max_wal_senders' and _int(s.get('setting')) < 3 for s in vastbase_settings)"
+    params:
+      vastbase_settings: "${context.vastbase_settings}"
+    message: "max_wal_senders 小于 3，难以支撑多备库 + 归档，主备切换风险高"
+    message_zh: "max_wal_senders 小于 3，难以支撑多备库 + 归档，主备切换风险高"
+    fix_sql: "ALTER SYSTEM SET max_wal_senders = 10;  -- 修改后需重启 Vastbase"
+
+  # ── 锁等待 ──
+  - id: vastbase_lock_wait
+    name: 存在锁等待
+    name_zh: 存在锁等待
+    category: lock
+    db_types: [vastbase]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 存在未授予的锁等待，可能导致会话阻塞
+    description_zh: 存在未授予的锁等待，可能导致会话阻塞
+    condition: "wait_count > 0"
+    params:
+      wait_count: "${len(context.vastbase_lock_waits)}"
+    message: "发现 {wait_count} 个未授予的锁等待，可能导致会话阻塞与业务卡顿"
+    message_zh: "发现 {wait_count} 个未授予的锁等待，可能导致会话阻塞与业务卡顿"
+    fix_sql: "排查持锁会话并优化：\nSELECT * FROM pg_catalog.pg_locks WHERE NOT granted;\n必要时终止阻塞源头会话：SELECT pg_cancel_backend(pid);"
+
+  # ── 维护 / 性能 ──
+  - id: vastbase_dead_tuple_bloat
+    name: 表死元组膨胀
+    name_zh: 表死元组膨胀
+    category: maintenance
+    db_types: [vastbase]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: 部分表死元组比例偏高，建议 VACUUM/ANALYZE
+    description_zh: 部分表死元组比例偏高，建议 VACUUM/ANALYZE
+    condition: "any(_int(t.get('n_dead_tup')) > 1000 and _int(t.get('n_dead_tup')) > _int(t.get('n_live_tup')) * 0.2 for t in vastbase_tables)"
+    params:
+      vastbase_tables: "${context.vastbase_tables}"
+    message: "部分表死元组比例偏高（n_dead_tup 远超 n_live_tup），建议 VACUUM/ANALYZE"
+    message_zh: "部分表死元组比例偏高（n_dead_tup 远超 n_live_tup），建议 VACUUM/ANALYZE"
+    fix_sql: "VACUUM (ANALYZE) schemaname.relname;  -- 替换为实际库表名"
+
+  - id: vastbase_autovacuum_off
+    name: 自动清理未开启
+    name_zh: 自动清理未开启
+    category: maintenance
+    db_types: [vastbase]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: autovacuum 未开启，表膨胀可能无法及时回收
+    description_zh: autovacuum 未开启，表膨胀可能无法及时回收
+    # 已连真库核实：SHOW ALL 含 autovacuum（setting 为 'on'/'off'）。
+    condition: "any(s.get('name') == 'autovacuum' and str(s.get('setting','')).lower() == 'off' for s in vastbase_settings)"
+    params:
+      vastbase_settings: "${context.vastbase_settings}"
+    message: "autovacuum 已关闭，死元组无法自动回收，表膨胀会持续恶化"
+    message_zh: "autovacuum 已关闭，死元组无法自动回收，表膨胀会持续恶化"
+    fix_sql: "ALTER SYSTEM SET autovacuum = on;\nSELECT pg_reload_conf();"
+
+  # ── 安全与权限 ──
+  - id: vastbase_password_encryption_md5
+    name: 密码弱加密（md5）
+    name_zh: 密码弱加密方式（md5）
+    category: security
+    db_types: [vastbase]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: password_encryption_type 为 0（md5 弱加密），存在安全风险
+    description_zh: password_encryption_type 为 0（md5 弱加密），存在安全风险
+    # ★ Vastbase/openGauss 特有 GUC：password_encryption_type
+    #   0=md5（弱）、1=sha256+md5 兼容存储、2=sha256（推荐）。
+    # 专用查询 vastbase_auth_settings（SHOW password_encryption_type），
+    # 返回 [{'password_encryption_type': '<str>'} ]。
+    condition: "any(str(r.get('password_encryption_type','')).strip() == '0' for r in vastbase_auth_settings)"
+    params:
+      vastbase_auth_settings: "${context.vastbase_auth_settings}"
+    message: "password_encryption_type 为 0（md5 弱加密），建议改为 1 或 2（sha256），并重设用户密码"
+    message_zh: "password_encryption_type 为 0（md5 弱加密），建议改为 1 或 2（sha256），并重设用户密码"
+    fix_sql: "ALTER SYSTEM SET password_encryption_type = 2;  -- 修改后需重启，且存量用户需重新设置密码生效"
+
+  - id: vastbase_superuser_many
+    name: 超级用户过多
+    name_zh: 超级用户数量过多
+    category: security
+    db_types: [vastbase]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: 存在多个超级用户（rolsuper=true），权限过大，建议收敛
+    description_zh: 存在多个超级用户（rolsuper=true），权限过大，建议收敛
+    # Vastbase 收紧 pg_authid/pg_user 读取权限，角色清单来自 pg_roles（公开可读）。
+    condition: "sum(1 for r in vastbase_roles if r.get('rolsuper')) > 1"
+    params:
+      vastbase_roles: "${context.vastbase_roles}"
+    message: "存在多个超级用户（rolsuper=true），权限过大，建议收敛"
+    message_zh: "存在多个超级用户（rolsuper=true），权限过大，建议收敛"
+    fix_sql: "复核超级用户必要性；对非必要账号回收超级权限：\nALTER ROLE username NOSUPERUSER;"
+
+  # ── 系统资源（与 PG / UXDB 规则同思路，system_info 由巡检器统一补充）──
+  - id: vastbase_mem_usage_high
+    name: 系统内存使用率过高
+    name_zh: 系统内存使用率过高
+    category: system
+    db_types: [vastbase]
+    severity: high
+    priority: high
+    owner: 系统管理员
+    enabled: true
+    description: 系统内存使用率超过 90%
+    description_zh: 系统内存使用率超过 90%
+    condition: "mem_usage > 90"
+    params:
+      mem_usage: "${context.system_info.memory.usage_percent}"
+    message: "系统内存使用率 {mem_usage:.1f}%，超过 90% 可能触发 OOM 并影响 Vastbase"
+    message_zh: "系统内存使用率 {mem_usage:.1f}%，超过 90% 可能触发 OOM 并影响 Vastbase"
+    fix_sql: ""
+
+  - id: vastbase_disk_usage_high
+    name: 磁盘空间紧张
+    name_zh: 磁盘空间紧张
+    category: system
+    db_types: [vastbase]
+    severity: high
+    priority: high
+    owner: 系统管理员
+    enabled: true
+    description: 磁盘使用率超过 90%
+    description_zh: 磁盘使用率超过 90%
+    condition: "any(disk.get('usage_percent', 0) > 90 for disk in disk_list)"
+    params:
+      disk_list: "${context.system_info.disk_list}"
+    message: "磁盘 {mountpoint} 使用率 {usage:.1f}%，可能导致数据库写入失败"
+    message_zh: "磁盘 {mountpoint} 使用率 {usage:.1f}%，可能导致数据库写入失败"
+    fix_sql: "清理磁盘空间或扩容；关注 pg_catalog.pg_database / 表空间增长"
+    fix_params:
+      mountpoint: "next((d.get('mountpoint', '') for d in disk_list if d.get('usage_percent', 0) > 90), '')"
+      usage: "next((d.get('usage_percent', 0) for d in disk_list if d.get('usage_percent', 0) > 90), 0)"

@@ -384,6 +384,8 @@ ZI = {
     "webui.err_ivorysql_module": "IvorySQL 模块未安装",
     "webui.log_halodb_start": "[{ts}] [HaloDB] 开始巡检...",
     "webui.err_halodb_module": "HaloDB 模块未安装",
+    "webui.log_vastbase_start": "[{ts}] [Vastbase] 开始巡检...",
+    "webui.err_vastbase_module": "Vastbase 模块未安装",
     "webui.log_yashandb_start": "[{ts}] [YashanDB] 开始巡检...",
     "webui.err_yashandb_module": "YashanDB 模块未安装",
     "webui.err_db_connect": "数据库连接失败: {ver}",
@@ -1825,6 +1827,7 @@ ZI = {
     "webui.ivorysql_report_filename": "IvorySQL巡检报告_{ip}_{name}_{ts}",
     "webui.halodb_report_filename": "HaloDB巡检报告_{ip}_{name}_{ts}",
     "webui.yashandb_report_filename": "YashanDB巡检报告_{ip}_{name}_{ts}",
+    "webui.vastbase_report_filename": "Vastbase巡检报告_{ip}_{name}_{ts}",
     "webui.oracle_jdbc_report_filename": "Oracle_JDBC巡检报告_{ip}_{name}_{ts}",
 
     # SQL Server CLI i18n

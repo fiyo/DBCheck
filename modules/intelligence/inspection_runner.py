@@ -444,7 +444,7 @@ def _run_target_inspection_inline(
 #     + 协作式轮询读取 stdout 结果行；
 #   - 等待期间用 gevent.sleep 让出执行权 → 界面全程可用；
 #   - 超时直接杀子进程树，JVM 随之消失，主进程不受任何残留影响。
-INTEL_JVM_DB_TYPES = ('hgdb', 'db2', 'sqlserver_jdbc', 'oracle_jdbc', 'dm', 'gbase', 'clickhouse', 'uxdb')
+INTEL_JVM_DB_TYPES = ('hgdb', 'db2', 'sqlserver_jdbc', 'oracle_jdbc', 'dm', 'gbase', 'clickhouse', 'uxdb', 'vastbase')
 INTEL_INSPECTION_TIMEOUT = 1800  # 智能诊断深度巡检整体硬超时（秒）
 _INTEL_RESULT_PREFIX = "__DBCHECK_INTEL_INSP_RESULT__"
 

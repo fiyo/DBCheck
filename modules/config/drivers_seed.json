@@ -203,6 +203,16 @@
       "note": ""
     },
     {
+      "db_type": "vastbase",
+      "version": "6.0.5",
+      "driver_class": "org.opengauss.Driver",
+      "jar_filename": "opengauss-jdbc-6.0.5.jar",
+      "file_size": 972934,
+      "is_active": 1,
+      "uploaded_at": "2026-10-09 16:58:42",
+      "note": "Vastbase G100 复用 openGauss JDBC 驱动（内核同源，协议兼容）"
+    },
+    {
       "db_type": "oracle",
       "version": "8",
       "driver_class": "oracle.jdbc.OracleDriver",

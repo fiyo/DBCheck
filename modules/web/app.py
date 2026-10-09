@@ -2748,9 +2748,9 @@ JDBC_TEST_TIMEOUT = 50  # 秒；需覆盖 JVM 冷启动(3~10s) + JDBC 登录超�
 # 加上杀软对新版未签名 exe 每次子进程 spawn 的实时扫描，30s 在部分用户环境不够。
 
 # 需要整条巡检任务隔离到子进程的数据库类型（均依赖进程内 JVM/JPype）。
-# 与 driver_registry.JDBC_PLUGIN_TO_CATALOG 对齐：6 个 JDBC 插件 + 核心内置 dm/gbase/ivorysql，
+# 与 driver_registry.JDBC_PLUGIN_TO_CATALOG 对齐：JDBC 插件 + 核心内置 dm/gbase/ivorysql，
 # 任何新增 JDBC 类型必须同步加入，否则主进程内启 JVM 会钉死 gevent hub。
-JVM_INSPECTION_DB_TYPES = ('hgdb', 'db2', 'sqlserver_jdbc', 'oracle_jdbc', 'dm', 'gbase', 'clickhouse', 'uxdb', 'ivorysql', 'halodb', 'pg', 'kingbase', 'yashandb', 'mysql', 'mariadb', 'tidb', 'oceanbase')
+JVM_INSPECTION_DB_TYPES = ('hgdb', 'db2', 'sqlserver_jdbc', 'oracle_jdbc', 'dm', 'gbase', 'clickhouse', 'uxdb', 'ivorysql', 'halodb', 'pg', 'kingbase', 'yashandb', 'mysql', 'mariadb', 'tidb', 'oceanbase', 'vastbase')
 JDBC_INSPECTION_TIMEOUT = 3600  # 巡检任务整体硬超时（秒）
 
 
@@ -3167,6 +3167,21 @@ def _ct_uxdb(data, flavor):
     return _jdbc_conn_result(ok, msg, flavor, 'UXDB (JDBC)')
 
 
+def _ct_vastbase(data, flavor):
+    """Vastbase G100 (JDBC) 连接测试 —— 走子进程隔离（JPype 启 JVM 钉死 gevent hub）。
+
+    与 uxdb 同源：vastbase 是 JPype 插件型 db_type（无 _jdbc 后缀），若不注册
+    tester，_plugin_conn_fallback 的 *_jdbc 守卫拦不住它 → 在主进程（gevent
+    monkey-patch）内 startJVM，原生线程钉死 hub，前端表现为「测试连接中」永远
+    不返回。收口子进程隔离后即可正常返回。
+    """
+    _kwargs = dict(database=data.get('database', ''),
+                   jdbc_url=data.get('jdbc_url') or None,
+                   driver_version=data.get('driver_version') or None)
+    ok, msg = run_jdbc_test_subprocess('vastbase', data, _kwargs)
+    return _jdbc_conn_result(ok, msg, flavor, 'Vastbase (JDBC)')
+
+
 def _ct_db2(data, flavor):
     _kwargs = dict(database=data.get('database', ''),
                    jdbc_url=data.get('jdbc_url') or None,
@@ -3297,6 +3312,8 @@ register_connection_tester('oracle_jdbc', _ct_oracle_jdbc)
 # clickhouse / uxdb 同为 JPype 插件，此前未注册 tester → 主进程起 JVM 卡死，收口子进程
 register_connection_tester('clickhouse', _ct_clickhouse)
 register_connection_tester('uxdb', _ct_uxdb)
+# vastbase 同为 JPype 插件型（无 _jdbc 后缀，fallback 守卫拦不住），必须注册子进程 tester
+register_connection_tester('vastbase', _ct_vastbase)
 
 
 def test_ssh_connection(host, port=22, username='root', password=None, key_file=None, key_password=None):

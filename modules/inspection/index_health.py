@@ -1366,6 +1366,11 @@ def get_index_health(db_type, conn, days_threshold=90):
     elif db_type == 'db2':
         # DB2 LUW 索引健康分析（JDBC 连接，DB-API 兼容）
         return analyze_db2_indexes(conn, days_threshold)
+    elif db_type == 'vastbase':
+        # Vastbase G100 为 openGauss 内核（PG 9.2 兼容报文），复用 PG 索引健康分析。
+        # 2026-10-09 容器实测：pg_stat_user_indexes / pg_stat_all_indexes /
+        # pg_indexes / pg_database_size 均可用；pg_stat_statements 段自动跳过。
+        return analyze_pg_indexes(conn, days_threshold)
     else:
         return None
 

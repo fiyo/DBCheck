@@ -1,0 +1,37 @@
+{
+  "id": "vastbase_jdbc",
+  "type": "inspection",
+  "db_type": "vastbase",
+  "name": "Vastbase G100 (海量/JDBC)",
+  "version": "1.0.0",
+  "description": "适用于海量数据库 Vastbase G100（openGauss/PostgreSQL 兼容系），通过 JDBC (JPype + openGauss Driver) 连接，复用驱动管理中的 openGauss JDBC 驱动（org.opengauss.Driver）",
+  "author": "DBCheck Team",
+  "main_file": "main_plugin.py",
+  "main_class": "VastbaseJdbcInspector",
+  "dependencies": [
+    "jpype1",
+    "opengauss-jdbc-6.0.5.jar"
+  ],
+  "min_java_version": "1.8",
+  "min_python_version": "3.6",
+  "default_port": 5432,
+  "default_user": "vastbase",
+  "compat_tag": "Relational",
+  "emoji": "🌊",
+  "cleanup": {
+    "db_types": [
+      "vastbase"
+    ],
+    "data_types": [
+      "template",
+      "baseline"
+    ]
+  },
+  "default_database": "vastbase",
+  "protocol": "pg",
+  "sql_editor": true,
+  "show_database_field": true,
+  "baseline": {
+    "reuse": "pg"
+  }
+}

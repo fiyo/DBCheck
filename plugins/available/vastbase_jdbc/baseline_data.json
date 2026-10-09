@@ -1,0 +1,82 @@
+[
+  {
+    "db_type": "vastbase",
+    "param_name": "max_connections",
+    "query_sql": "SHOW max_connections",
+    "operator": ">=",
+    "expected_value": "100",
+    "risk_level": "LOW",
+    "description_zh": "最大连接数应 >= 100，过小会限制并发吞吐",
+    "description_en": "max_connections should be >= 100"
+  },
+  {
+    "db_type": "vastbase",
+    "param_name": "shared_buffers",
+    "query_sql": "SHOW shared_buffers",
+    "operator": ">",
+    "expected_value": "0",
+    "risk_level": "MEDIUM",
+    "description_zh": "shared_buffers 应大于 0（建议物理内存的 25% 左右），过小影响缓存命中率",
+    "description_en": "shared_buffers should be > 0 (~25% of RAM recommended)"
+  },
+  {
+    "db_type": "vastbase",
+    "param_name": "work_mem",
+    "query_sql": "SHOW work_mem",
+    "operator": ">=",
+    "expected_value": "4096",
+    "risk_level": "LOW",
+    "description_zh": "排序/哈希操作内存（KB）应 >= 4096，过小易触发磁盘临时文件",
+    "description_en": "work_mem (KB) should be >= 4096"
+  },
+  {
+    "db_type": "vastbase",
+    "param_name": "wal_level",
+    "query_sql": "SHOW wal_level",
+    "operator": "!=",
+    "expected_value": "minimal",
+    "risk_level": "HIGH",
+    "description_zh": "wal_level 不应为 minimal（minimal 下无法做 PITR / 流复制），建议 replica 或 logical",
+    "description_en": "wal_level must not be minimal for PITR / replication"
+  },
+  {
+    "db_type": "vastbase",
+    "param_name": "archive_mode",
+    "query_sql": "SHOW archive_mode",
+    "operator": "!=",
+    "expected_value": "off",
+    "risk_level": "MEDIUM",
+    "description_zh": "应开启归档（archive_mode != off），否则无法做基于时间点的恢复",
+    "description_en": "Archive mode should be enabled (archive_mode != off) for PITR"
+  },
+  {
+    "db_type": "vastbase",
+    "param_name": "max_wal_senders",
+    "query_sql": "SHOW max_wal_senders",
+    "operator": ">=",
+    "expected_value": "3",
+    "risk_level": "MEDIUM",
+    "description_zh": "流复制发送进程数应 >= 3，过小无法支撑多备库 + 归档",
+    "description_en": "max_wal_senders should be >= 3 for standby + archiving"
+  },
+  {
+    "db_type": "vastbase",
+    "param_name": "password_encryption_type",
+    "query_sql": "SHOW password_encryption_type",
+    "operator": "!=",
+    "expected_value": "0",
+    "risk_level": "HIGH",
+    "description_zh": "密码加密方式不应为 0（md5 弱加密，Vastbase/openGauss 语义），建议 1/2（sha256）",
+    "description_en": "password_encryption_type must not be 0 (weak md5); use 1/2 (sha256)"
+  },
+  {
+    "db_type": "vastbase",
+    "param_name": "log_min_duration_statement",
+    "query_sql": "SHOW log_min_duration_statement",
+    "operator": "!=",
+    "expected_value": "-1",
+    "risk_level": "LOW",
+    "description_zh": "建议开启慢 SQL 记录（log_min_duration_statement != -1），便于性能排查",
+    "description_en": "Slow SQL logging recommended (log_min_duration_statement != -1)"
+  }
+]

@@ -509,7 +509,7 @@ var DB_ICON = {
   postgresql:'🐘', pg:'🐘', ivorysql:'🐘', kingbase:'🐘', hgdb:'🐘',
   oracle:'🟠', sqlserver:'🪟', dm:'🐉',
   mongodb:'🍃', redis:'🔴', 'redis-cluster':'🔴',
-  gbase:'🗄️', db2:'🐝', clickhouse:'🐭'
+  gbase:'🗄️', db2:'🐝', clickhouse:'🐭', halodb:'🌀', vastbase:'🌊'
 };
 function dbIcon(t){ return DB_ICON[dbKey(t)] || '🗄️'; }
 /* 数据库真实 logo：assets/web 下按类型命名的 PNG，经 Flask static_url_path='/' 以根路径提供。
@@ -520,9 +520,9 @@ var DB_LOGO = {
   pg:'/pg.png', postgresql:'/pg.png', ivorysql:'/ivorysql.png', kingbase:'/kingbase.png',
   hgdb:'/hgdb.png', uxdb:'/uxdb.png', yashandb:'/yashandb.png',
   oracle:'/oracle.png', sqlserver:'/sqlserver.png', sqlserver_jdbc:'/sqlserver.png',
-  dm:'/dm.png', dm8:'/dm.png', vastbase:'/pg.png',
+  dm:'/dm.png', dm8:'/dm.png', vastbase:'/vastbase.png',
   gbase:'/gbase.png', gbase8s:'/gbase.png', oceanbase:'/oceanbase.png',
-  db2:'/db2.png', tidb:'/tidb.png', clickhouse:'/clickhouse.png',
+  db2:'/db2.png', tidb:'/tidb.png', clickhouse:'/clickhouse.png', halodb:'/halodb.png',
   mongodb:'/mongodb.png', redis:'/redis.png', 'redis-cluster':'/redis.png'
 };
 var LOGO_IMG = {};                      // path -> HTMLImageElement；加载失败记 true（不再重试）

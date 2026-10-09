@@ -46,7 +46,7 @@ import sys
 RESULT_PREFIX = "__DBCHECK_INTEL_INSP_RESULT__"
 
 # 本 CLI 需要隔离执行的 JVM 数据库类型（与 web/app.py 的 JVM_INSPECTION_DB_TYPES 对齐）
-INTEL_JVM_DB_TYPES = ('hgdb', 'db2', 'sqlserver_jdbc', 'oracle_jdbc', 'dm', 'gbase', 'clickhouse', 'uxdb')
+INTEL_JVM_DB_TYPES = ('hgdb', 'db2', 'sqlserver_jdbc', 'oracle_jdbc', 'dm', 'gbase', 'clickhouse', 'uxdb', 'vastbase')
 
 
 def _ensure_project_root_on_path():

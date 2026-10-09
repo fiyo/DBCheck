@@ -83,7 +83,7 @@ RESULT_PREFIX = "__DBCHECK_JDBC_TEST_RESULT__"
 # 与巡检子进程 JVM_INSPECTION_DB_TYPES / driver_registry.JDBC_PLUGIN_TO_CATALOG
 # 对齐为 8 类型（6 个 JDBC 插件 + 核心内置 dm/gbase）：
 #   hgdb / db2 / sqlserver_jdbc / oracle_jdbc / clickhouse / uxdb / dm / gbase
-SUPPORTED_DB_TYPES = ('hgdb', 'db2', 'sqlserver_jdbc', 'oracle_jdbc', 'clickhouse', 'uxdb', 'dm', 'gbase', 'ivorysql', 'halodb', 'pg', 'kingbase', 'yashandb', 'mysql', 'mariadb', 'tidb', 'oceanbase')
+SUPPORTED_DB_TYPES = ('hgdb', 'db2', 'sqlserver_jdbc', 'oracle_jdbc', 'clickhouse', 'uxdb', 'vastbase', 'dm', 'gbase', 'ivorysql', 'halodb', 'pg', 'kingbase', 'yashandb', 'mysql', 'mariadb', 'tidb', 'oceanbase')
 
 
 def _test_gbase_jdbc(payload):
