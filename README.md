@@ -18,8 +18,8 @@
 [![GitHub Stars](https://img.shields.io/github/stars/fiyo/DBCheck?style=flat-square\&label=Stars)](https://github.com/fiyo/DBCheck/stargazers)
 [![GitHub Forks](https://img.shields.io/github/forks/fiyo/DBCheck?style=flat-square\&label=Forks)](https://github.com/fiyo/DBCheck/network/members)
 
-> 🗄️ **30+ database types**
-> 🔍 **330+ inspection rules**
+> 🗄️ **20+ database types**
+> 🔍 **800+ inspection rules**
 > 🤖 **AI-assisted diagnostics**
 > 🔌 **Extensible plugin architecture**
 > 📜 **Apache License 2.0**
@@ -94,11 +94,11 @@ RaccoonX started as **DBCheck** and has evolved through continuous development a
 
 | Milestone          |         Status |
 | ------------------ | -------------: |
-| Docker image pulls |    **28,000+** |
-| GitHub Stars       |       **171+** |
-| GitHub Forks       |        **58+** |
-| Database types     |        **30+** |
-| Inspection rules   |       **330+** |
+| Docker image pulls |    **29,000+** |
+| GitHub Stars       |       **170+** |
+| GitHub Forks       |        **60+** |
+| Database types     |        **20+** |
+| Inspection rules   |       **800+** |
 | Languages          |          **9** |
 | License            | **Apache 2.0** |
 
@@ -111,7 +111,7 @@ If you have used RaccoonX, tested it, learned from it, or simply find the projec
 **Give it a Star.**
 
 ```text
-28,000+ Docker Pulls
+29,000+ Docker Pulls
         ↓
    Keep Building
         ↓
@@ -125,7 +125,7 @@ If you have used RaccoonX, tested it, learned from it, or simply find the projec
 | Feature                      | Description                                                                                  |
 | ---------------------------- | -------------------------------------------------------------------------------------------- |
 | 🗄️ Data Source Manager      | Unified management of database instances, grouping, batch inspection, CSV import/export      |
-| 📋 Database Inspection       | 30+ database types and 330+ inspection rules with automated Word reports                     |
+| 📋 Database Inspection       | 20+ database types and 800+ inspection rules with automated Word reports                     |
 | 🔌 Plugin System             | Independent plugin lifecycle, plugin data, templates, baselines and rules                    |
 | 🔍 Slow Query Analysis       | Execution plans, I/O patterns, lock waits and AI-assisted analysis                           |
 | 🔒 Lock Diagnostics          | Blocking chains, deadlocks, long transactions and remediation suggestions                    |
@@ -157,16 +157,15 @@ If you have used RaccoonX, tested it, learned from it, or simply find the projec
 
 # 🗄️ Supported Databases
 
-RaccoonX currently supports **30+ database and data systems**.
+RaccoonX currently supports **20+ database and data systems**.
 
 | Database      | Driver                  | Default Port | Notes                      |
 | ------------- | ----------------------- | -----------: | -------------------------- |
 | MySQL         | pymysql                 |         3306 | 5.6 / 5.7 / 8.0+           |
 | MariaDB       | pymysql                 |         3306 | 10.3+                      |
 | PostgreSQL    | psycopg2                |         5432 | 10+                        |
-| Oracle        | oracledb                |         1521 | 11g R2 / 12c / 19c / 21c+  |
-| Oracle (JDBC) | JPype1 + ojdbc          |         1521 | Oracle JDBC connection     |
-| SQL Server    | pyodbc + ODBC Driver 17 |         1433 | 2012+                      |
+| Oracle        | oracledb / JPype1 + ojdbc |       1521 | 11g R2 / 12c / 19c / 21c+, native or JDBC |
+| SQL Server    | pyodbc / JDBC           |         1433 | 2012+, native or JDBC     |
 | DM8           | dmpython                |         5236 | Dameng                     |
 | TiDB          | pymysql                 |         4000 | MySQL protocol             |
 | IvorySQL      | psycopg2                |         5333 | PostgreSQL compatible      |
@@ -174,27 +173,16 @@ RaccoonX currently supports **30+ database and data systems**.
 | KingbaseES    | psycopg2                |        54321 | PostgreSQL compatible      |
 | GBase 8s      | JDBC                    |         9088 | JDK + JDBC                 |
 | UXDB          | JDBC                    |        33060 | PostgreSQL compatible      |
-| openGauss     | JDBC                    |         5432 | Huawei open-source, PG family |
-| Greenplum     | psycopg2 / JDBC         |         5432 | MPP data warehouse         |
 | HGDB (HighGo) | JDBC                    |         5866 | PostgreSQL compatible      |
 | Vastbase G100 | JDBC                    |         5432 | Vastbase, openGauss kernel |
 | HaloDB        | JDBC                    |         5432 | Xihe Data, PG/Oracle dual-compatible |
-| Oscar         | JDBC                    |         2003 | Shentong, domestic DB      |
 | GBase 8a      | JDBC                    |         5258 | Column-store warehouse     |
 | MongoDB       | pymongo                 |        27017 | 4.0+                       |
 | DB2 LUW       | JDBC                    |        50000 | 11.5+ / 12.x               |
 | OceanBase     | pymysql                 |         2881 | MySQL tenant               |
 | TDSQL-C MySQL | pymysql                 |         3306 | MySQL compatible           |
-| Redis         | redis-py                |         6379 | 3.0+                       |
-| Redis Cluster | redis-py                |         6379 | Cluster topology and slots |
+| Redis         | redis-py                |         6379 | 3.0+, standalone and cluster |
 | ClickHouse    | JDBC                    |         8123 | 21.8+                      |
-| StarRocks     | pymysql                 |         9030 | MySQL protocol             |
-| Apache Doris  | pymysql                 |         9030 | MySQL protocol             |
-| Apache Hive   | JDBC                    |        10000 | HiveServer2                |
-| Elasticsearch | REST API                |         9200 | Cluster health and nodes   |
-| TDengine      | JDBC                    |         6041 | Time-series, REST connection |
-| Sybase ASE    | JDBC                    |         5000 | jConnect driver            |
-| SQLite        | JDBC / sqlite3          |           —  | File-based database        |
 
 > **Oracle JDBC**
 >
@@ -1402,7 +1390,7 @@ RaccoonX is not built by a large team.
 It grows through code, feedback, issues, ideas, testing, documentation, contributions and the people who choose to use it.
 
 ```text
-25,000+ Docker Pulls
+29,000+ Docker Pulls
 
 One Pull at a Time,
 We Keep Building.
