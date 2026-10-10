@@ -36,7 +36,8 @@ _REQ_TIMEOUT = 5  # 单次采集硬超时（s）
 def _dead(err):
     """失败快照模板（alive=False）。"""
     return {'alive': False, 'err': err, 'conn': None, 'counters': {},
-            'tbs': None, 'repl_lag_s': None, 'lock_waits': None, 'slowq': 0}
+            'tbs': None, 'repl_lag_s': None, 'lock_waits': None, 'slowq': 0,
+            'conn_rows': [], 'slow_rows': []}
 
 
 def collect_native(inst):
@@ -144,7 +145,8 @@ def _collect_mongo(inst):
             pass
 
         return {'alive': True, 'err': None, 'conn': conn, 'counters': counters,
-                'tbs': tbs, 'repl_lag_s': lag, 'lock_waits': None, 'slowq': slowq}
+                'tbs': tbs, 'repl_lag_s': lag, 'lock_waits': None, 'slowq': slowq,
+                'conn_rows': [], 'slow_rows': []}
     finally:
         try:
             client.close()
@@ -258,8 +260,58 @@ def _collect_redis(inst):
         except Exception:
             pass
 
+        # 连接会话明细：CLIENT LIST（单机 list[dict]；集群 {node: list} 扁平化），截顶 50。
+        # 仅采集汇总连接数时也能给大屏「连接会话」tab 提供逐客户端明细（非仅空状态）。
+        conn_rows = []
+        try:
+            cl = r.client_list()
+            if isinstance(cl, dict):
+                for _v in cl.values():
+                    if isinstance(_v, list):
+                        conn_rows.extend(_v)
+            elif isinstance(cl, list):
+                conn_rows = cl
+            conn_rows = conn_rows[:50]
+        except Exception:
+            conn_rows = []
+
+        # 慢查询明细：SLOWLOG GET（duration 单位微秒 → 毫秒；集群同 client_list 结构）。
+        # 失败/空时回落为空（大屏对该类型显示中性说明，而非「不支持」）。
+        slow_rows = []
+        try:
+            slg = r.slowlog_get(50)
+            raw = []
+            if isinstance(slg, dict):
+                for _v in slg.values():
+                    if isinstance(_v, list):
+                        raw.extend(_v)
+            elif isinstance(slg, list):
+                raw = slg
+            for _e in raw[:50]:
+                if isinstance(_e, dict):
+                    _dur = _e.get('duration') or 0
+                    try:
+                        _dur = round(int(_dur) / 1000.0, 3)
+                    except Exception:
+                        _dur = 0
+                    _cmd = _e.get('command')
+                    if isinstance(_cmd, (list, tuple)):
+                        try:
+                            _cmd = ' '.join(map(str, _cmd))
+                        except Exception:
+                            _cmd = str(_cmd)
+                    slow_rows.append({
+                        'id': _e.get('id'),
+                        'time': str(_e.get('time')) if _e.get('time') is not None else '',
+                        'duration_ms': _dur,
+                        'command': _cmd,
+                    })
+        except Exception:
+            slow_rows = []
+
         return {'alive': True, 'err': None, 'conn': conn, 'counters': counters,
-                'tbs': tbs, 'repl_lag_s': lag, 'lock_waits': None, 'slowq': slowq}
+                'tbs': tbs, 'repl_lag_s': lag, 'lock_waits': None, 'slowq': slowq,
+                'conn_rows': conn_rows, 'slow_rows': slow_rows}
     finally:
         try:
             r.close()

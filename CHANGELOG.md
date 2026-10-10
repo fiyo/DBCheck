@@ -1,5 +1,18 @@
 # Changelog
 
+## v26.10.11.0 (2026-10-10)
+- **新增：大屏 Redis/MongoDB 明细自适应（用户反馈：NoSQL 无表空间概念）**
+  - Redis 原生采集新增 `CLIENT LIST` 逐客户端明细（conn_rows）与 `SLOWLOG GET` 慢日志明细（耗时微秒→毫秒），`native_collect.py` 三处返回补键；MongoDB 及兜底空状态显示中性文案（连接数汇总 N / 慢查询需开启 profiler），不再误报「不支持连接采集」。
+  - 前端 `monitor_screen.html` 新增 `isNoSQL()` 类型判定：抽屉「表空间」tab、节点卡片第 4 行、矩阵卡、主 TopN 面板标题在列表含 NoSQL 实例时自动改称「容量」，SQL 库仍叫表空间不变。
+- **修复：大屏「连接数据采集中」误显示「不支持连接采集」（用户反馈：Oracle 重启后窗口期误报）**
+  - 根因：引擎本轮尚未覆盖到该实例时（刚重启/新接入/首轮采集竞态）`status=pending`，前端 conn 分支把「未采到」与「真无连接模板」用同一兜底文案混淆。修复：`renderTab` 先判 `detail.info.status`，pending → 新文案「连接数据采集中，请稍候或刷新重试」（`dt_conn_pending` × 9 语言），仅 `status==='unsupported'` 才显示「不支持」；slow/tbs tab 同步加 pending 分支。
+- **修复：i18n 非中文语言大面积中文回退（7 语言历史欠账）**
+  - 根因：ja/ko/es/fr/de/ru 均为 `XX = dict(ZI)`（拷贝全部中文）+ 局部覆盖块，未覆盖的 key 实际显示中文；zh_tw 另缺 168 键。实测 ja/ko/es/fr/de/ru 各 280–330 键、zh_tw 578 键、en 102 键为中文回退。
+  - 修复：以 en 真实英文值回填 7 语言所有中文回退 key（zh_tw 471、ja 222、ko/es/fr/de/ru 各 171），统一在文件末尾追加 `update` 块不改既有内容；en 自身也缺的 ~100 键保留（无法凭空生成）。近期新增的「容量/连接/慢查询」8 键单独终校，确保目标语言翻译压过回填。
+- **修复：侧边栏菜单分组与菜单项硬编码中文（用户截图反馈）**
+  - 根因：`.nav-section` 7 个分组中 6 个（智能巡检/巡检报告/AI 与知识/变更安全/监控运维/数据源与配置）及 6 个菜单项（系统字典表/SQL审核/安全自治/智能基线/拓扑巡检/信创合规）的 `<span>` 纯硬编码中文、无 `data-i18n` 属性。
+  - 修复：`index.html` 12 处补 `data-i18n`（新键 `webui.nav_group_*` / `webui.nav_*`，信创合规复用已有 `menu.xinchuang`）；i18n 11 新键 × 9 语言（zh/en 直编 + 7 语言末尾追加块）；`/api/i18n` 全量导出自动下发无需注册。
+
 ## v26.10.10.2 (2026-10-10)
 - **修复：监控大屏表空间剩余率误告警（Issue #61，Oracle/DM）**
   - 根因：大屏 `screen_metrics.py` 的 `ORACLE_TBS_SQL`/`DM_TBS_SQL` 用「当前已分配字节」当分母、忽略 datafile 的 `AUTOEXTEND` 上限 `MAXBYTES` → 表空间还能扩展时剩余率被低估、误触发告警；列名取值又按精确小写 `r.get('name')`，而 oracledb/dmPython 返回**大写**列名（`NAME`/`TOTAL_MB`）→ 全取空（前端显示 name 空、0/0）。

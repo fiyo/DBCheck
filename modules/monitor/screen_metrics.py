@@ -1087,6 +1087,11 @@ class ScreenCollector:
             snap['repl_lag_s'] = nd.get('repl_lag_s')
             snap['lock_waits'] = nd.get('lock_waits')
             snap['slowq'] = nd.get('slowq') or 0
+            # NoSQL 原生通道的逐行明细（Redis CLIENT LIST / SLOWLOG 等）：
+            # 经脱敏投影（剔除凭据列、截顶、值截断）后填入下钻 tab，与 SQL 通道同口径。
+            snap['conn_rows'] = _sanitize_rows(nd.get('conn_rows'))
+            snap['slow_rows'] = _sanitize_rows(nd.get('slow_rows'))
+            snap['conn_err'] = None
             snap['status'] = self._derive_status(snap)
             return snap
 

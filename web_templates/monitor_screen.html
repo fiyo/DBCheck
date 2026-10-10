@@ -580,15 +580,23 @@ function openDetailById(iid, tab){
       .catch(function(){ /* 拉取失败则保留概览 */ });
   }
 }
+function isNoSQL(t){
+  // 原生驱动通道的 NoSQL 类型：redis / redis-cluster / mongodb。
+  // 这些类型没有「表空间」概念（容量表达为内存/库大小），连接/会话、慢查询
+  // 的语义也与 SQL 不同，大屏需按类型调整标签与空状态文案。
+  return t === 'redis' || t === 'redis-cluster' || t === 'mongodb';
+}
 function renderDetail(node, detail){
   var h = '<h4>' + esc(node ? node.name : detailIid) + '</h4>';
   h += '<div class="dtabs">'
-     + dtabBtn('overview') + dtabBtn('conn') + dtabBtn('slow') + dtabBtn('tbs') + '</div>';
+     + dtabBtn('overview', node) + dtabBtn('conn', node) + dtabBtn('slow', node) + dtabBtn('tbs', node) + '</div>';
   h += '<div class="dtab-body" id="dtab-body">' + renderTab(detailTab, node, detail) + '</div>';
   document.getElementById('detail-body').innerHTML = h;
 }
-function dtabBtn(id){
+function dtabBtn(id, node){
   var label = { overview: S.dt_overview, conn: S.dt_conn, slow: S.dt_slow, tbs: S.dt_tbs }[id];
+  // NoSQL 类型没有「表空间」→ 该 tab 改叫「容量」（内存/库大小），避免误导。
+  if (id === 'tbs' && node && isNoSQL(node.db_type)) label = S.dt_capacity;
   return '<button class="dtab' + (id === detailTab ? ' on' : '') + '" onclick="switchTab(\'' + id + '\')">' + esc(label) + '</button>';
 }
 function switchTab(id){
@@ -598,6 +606,10 @@ function switchTab(id){
   renderDetail(node, detailCache[detailIid]);
 }
 function renderTab(tab, node, detail){
+  // 实例采集状态：pending = 引擎本轮尚未覆盖该实例（刚启动 / 新接入 / 首轮采集竞态），
+  // unsupported = 该类型确实无连接/慢查模板的能力缺失。两者必须区分，绝不能把
+  // pending 误报为「不支持连接采集」——Oracle 等受支持类型在启动窗口内会短暂 pending。
+  var st = detail && detail.info ? detail.info.status : null;
   if (tab === 'overview') return overviewHtml(node);
   if (tab === 'conn'){
     var rows = detail ? detail.conn_rows : null;
@@ -605,18 +617,33 @@ function renderTab(tab, node, detail){
     // 有真实采集错误（非能力缺失）则透出，避免一律误导为「不支持连接采集」
     var cerr = detail ? detail.conn_err : null;
     if (cerr) return '<div class="dempty err">' + esc(cerr) + '</div>';
+    if (st === 'pending') return '<div class="dempty">' + esc(S.dt_conn_pending) + '</div>';
     // 已连接但无其它活跃会话（如测试库仅监控自身一个连接）：正常空状态，
     // 显示中性文案而非「不支持连接采集」，避免误导用户以为该类型不支持。
     if (detail && detail.conn_no_sessions) return '<div class="dempty">' + esc(S.dt_conn_empty) + '</div>';
-    return '<div class="dempty">' + esc(S.dt_no_conn) + '</div>';
+    // NoSQL 类型（redis/mongodb）：连接数已在卡片汇总，但不提供逐会话明细，
+    // 不再回落为「可能不支持连接采集」这类误导性文案，改为中性说明 + 当前连接数。
+    if (node && isNoSQL(node.db_type)){
+      var _cnt = (node.conn && node.conn.total) || 0;
+      return '<div class="dempty">' + esc(S.dt_conn_nosql).replace('{n}', _cnt) + '</div>';
+    }
+    // 真正的能力缺失（该类型无连接模板）才显示「不支持」；Oracle 等受支持类型
+    // 即使当前无会话也不应落到此处（conn_no_sessions 已兜底），此处仅为防御性兜底。
+    if (st === 'unsupported') return '<div class="dempty">' + esc(S.dt_no_conn) + '</div>';
+    return '<div class="dempty">' + esc(S.dt_conn_empty) + '</div>';
   }
   if (tab === 'slow'){
     var srows = detail ? detail.slow_rows : null;
-    if (!srows || !srows.length) return '<div class="dempty">' + esc(S.dt_no_slow) + '</div>';
-    return '<div class="dcount">' + srows.length + ' ' + esc(S.dt_rows) + '</div>' + rowsTableHtml(srows);
+    if (srows && srows.length) return '<div class="dcount">' + srows.length + ' ' + esc(S.dt_rows) + '</div>' + rowsTableHtml(srows);
+    if (st === 'pending') return '<div class="dempty">' + esc(S.dt_conn_pending) + '</div>';
+    // NoSQL 类型：MongoDB 默认关闭 profiler（无慢查明细），Redis 已展示 SLOWLOG；
+    // 空状态时给中性说明而非「不支持连接采集」式误导。
+    if (node && isNoSQL(node.db_type)) return '<div class="dempty">' + esc(S.dt_slow_nosql) + '</div>';
+    return '<div class="dempty">' + esc(S.dt_no_slow) + '</div>';
   }
   if (tab === 'tbs'){
     var tbs = (node && node.tbs) ? node.tbs : (detail && detail.info ? detail.info.tbs : null);
+    if (st === 'pending' && (!tbs || !tbs.length)) return '<div class="dempty">' + esc(S.dt_conn_pending) + '</div>';
     if (!tbs || !tbs.length) return '<div class="dempty">–</div>';
     return rowsTableHtml(tbs.map(function(t){
       return { name: t.name, total_mb: t.total_mb, free_mb: t.free_mb, free_pct: t.free_pct };
@@ -1498,7 +1525,7 @@ function drawTopo(){
       // 连接/查询错误不再在此处输出长文案（卡片限宽会压到相邻节点造成错乱），
       // 统一由右上角 ⚠ 标志提示，点击节点后在右侧详情面板查看完整错误。
       var extra = null, exC = C.warn;
-      if (n.tbs_free_pct !== null && n.tbs_free_pct !== undefined) extra = S.node_tbs + ' ' + n.tbs_free_pct + '%';
+      if (n.tbs_free_pct !== null && n.tbs_free_pct !== undefined) extra = (isNoSQL(n.db_type) ? S.node_cap : S.node_tbs) + ' ' + n.tbs_free_pct + '%';
       else if (n.repl_lag_s !== null && n.repl_lag_s !== undefined) extra = S.node_repl + ' ' + n.repl_lag_s + 's';
       else if (n.stat_hint && !n.err) { extra = (n.stat_hint === 'view_server_state' ? S.hint_vss : S.hint_stat); exC = C.tx2; }
       ctx.font = '10px sans-serif';
@@ -1707,7 +1734,7 @@ function overviewHtml(n){
     [S.d_slowq, fmt(n.slowq)],
     [S.d_locks, fmt(n.lock_waits)],
     [S.d_repl, n.repl_lag_s !== null && n.repl_lag_s !== undefined ? n.repl_lag_s + 's' : '–'],
-    [S.d_tbs, n.tbs_free_pct !== null && n.tbs_free_pct !== undefined ? n.tbs_free_pct + '%' : '–'],
+    [(isNoSQL(n.db_type) ? S.d_cap : S.d_tbs), n.tbs_free_pct !== null && n.tbs_free_pct !== undefined ? n.tbs_free_pct + '%' : '–'],
     [S.d_cache, fmt(n.cache_hit_pct, '%')],
   ];
   var h = '';
@@ -1803,12 +1830,15 @@ function refresh(data){
       arr = T.tbs_used || [];
       kind = 'used';
     }
+    // 列表含 NoSQL 实例（redis/mongodb 容量为内存/库大小，非「表空间」）→ 标题用「容量」
+    var hasNosql = arr.some(function(d){ return isNoSQL(d.db_type); });
     if (!arr.length){
-      if (titleEl) titleEl.textContent = S.tbs_top;
+      if (titleEl) titleEl.textContent = hasNosql ? S.tbs_cap_top : S.tbs_top;
       el.innerHTML = '<div class="no-data">' + S.no_data + '</div>';
       return;
     }
-    if (titleEl) titleEl.textContent = (kind === 'free') ? S.tbs_top : S.tbs_used_top;
+    if (titleEl) titleEl.textContent = hasNosql ? S.tbs_cap_top
+                                            : ((kind === 'free') ? S.tbs_top : S.tbs_used_top);
     var maxV = (kind === 'free') ? 100
              : (Math.max.apply(null, arr.map(function(d){ return d.value; })) || 1);
     var fmt = function(v){
