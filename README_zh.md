@@ -8,7 +8,7 @@
 >
 > 项目**原名 DBCheck**。
 
-[![Version](https://img.shields.io/badge/Version-v26.9.17.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/Version-v26.10.11.0-blue.svg)]()
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)]()
 [![AI](https://img.shields.io/badge/AI-Ollama%20%7C%20OpenAI-orange.svg)]()
@@ -18,7 +18,7 @@
 [![GitHub Stars](https://img.shields.io/github/stars/fiyo/DBCheck?style=flat-square\&label=Stars)](https://github.com/fiyo/DBCheck/stargazers)
 [![GitHub Forks](https://img.shields.io/github/forks/fiyo/DBCheck?style=flat-square\&label=Forks)](https://github.com/fiyo/DBCheck/network/members)
 
-* 🗄️ **21+ 数据库类型**
+* 🗄️ **30+ 数据库类型**
 * 🔍 **330+ 巡检规则**
 * 🤖 **AI 辅助诊断**
 * 🔌 **可扩展插件架构**
@@ -97,7 +97,7 @@ RaccoonX 前身是 **DBCheck**，在持续开发与社区反馈中不断演进�
 | Docker 镜像拉取       |    **28,000+** |
 | GitHub Stars       |       **171+** |
 | GitHub Forks       |        **58+** |
-| 数据库类型             |        **21+** |
+| 数据库类型             |        **30+** |
 | 巡检规则               |       **330+** |
 | 界面语言               |          **9** |
 | 开源协议               | **Apache 2.0** |
@@ -125,7 +125,7 @@ Docker 拉取次数代表镜像拉取量，不应解读为独立用户数或安�
 | 功能                         | 说明                                                                 |
 | ---------------------------- | -------------------------------------------------------------------- |
 | 🗄️ 数据源管理                 | 统一管理数据库实例，支持分组、批量巡检、CSV 导入导出                     |
-| 📋 数据库巡检                 | 21+ 数据库类型、330+ 巡检规则，自动生成 Word 报告                     |
+| 📋 数据库巡检                 | 30+ 数据库类型、330+ 巡检规则，自动生成 Word 报告                     |
 | 🔌 插件系统                   | 独立的插件生命周期、插件数据、模板、基线与规则                        |
 | 🔍 慢查询分析                 | 执行计划、I/O 模式、锁等待与 AI 辅助分析                              |
 | 🔒 锁诊断                     | 阻塞链、死锁、长事务与处置建议                                        |
@@ -143,6 +143,13 @@ Docker 拉取次数代表镜像拉取量，不应解读为独立用户数或安�
 | 💿 DM8 离线存储检查           | 无需启动数据库即可分析 DM8 数据文件                                   |
 | 📝 SQL 编辑器                 | 交互式 SQL 编辑器，语法高亮与执行历史                                 |
 | 🖥️ 远程终端                  | 基于 SSH 的终端，多标签页与全屏模式                                   |
+| 📊 监控大屏                   | 实例状态矩阵与拓扑视图，连接/慢查询/容量按库型自适应下钻               |
+| 🧠 智能诊断中心               | 多专家协同诊断、迭代重规划与 Reviewer 结论把关                         |
+| 🧩 工作流编排                 | 可视化编排巡检动作（DAG），内置市场模板一键复用                         |
+| 🛡️ 信创合规评估               | 按库型信创属性评估合规率，输出待替换清单与替代映射                       |
+| 🌐 数字孪生                   | 实例拓扑快照、配置漂移检测、容量与健康分历史回放                         |
+| 📏 智能基线                   | 跨实例配置漂移检测与容量预测（Fleet 视角）                              |
+| ✍️ SQL 审核与写操作工单       | 写 SQL 审计状态机 + 审批放行（WriteGate），读自动/写审批/全审计           |
 | 💾 容灾备份                   | 数据库/文件的定时备份，含保留清理与健康跟踪                           |
 | 🌍 多语言界面                 | 简体中文、English、繁體中文、日本語、한국어、Español、Français、Deutsch、Русский |
 
@@ -150,7 +157,7 @@ Docker 拉取次数代表镜像拉取量，不应解读为独立用户数或安�
 
 # 🗄️ 支持的数据库
 
-RaccoonX 目前支持 **21+ 数据库与数据系统**。
+RaccoonX 目前支持 **30+ 数据库与数据系统**。
 
 | 数据库        | 驱动                    | 默认端口 | 说明                       |
 | ------------- | ----------------------- | -----------: | -------------------------- |
@@ -167,7 +174,13 @@ RaccoonX 目前支持 **21+ 数据库与数据系统**。
 | 人大金仓 KingbaseES | psycopg2          |        54321 | PostgreSQL 兼容            |
 | 南大通用 GBase 8s | JDBC                |         9088 | JDK + JDBC                 |
 | 优炫 UXDB     | JDBC                    |        33060 | PostgreSQL 兼容            |
+| openGauss     | JDBC                    |         5432 | 华为开源，PostgreSQL 系    |
+| Greenplum     | psycopg2 / JDBC         |         5432 | MPP 数据仓库               |
 | 瀚高 HGDB     | JDBC                    |         5866 | PostgreSQL 兼容            |
+| Vastbase G100 | JDBC                    |         5432 | 海量数据库，openGauss 内核 |
+| HaloDB        | JDBC                    |         5432 | 羲和数据，PG/Oracle 双兼容 |
+| 神舟通用 Oscar | JDBC                   |         2003 | 国产数据库                 |
+| 南大通用 GBase 8a | JDBC                |         5258 | 列存数据仓库               |
 | MongoDB       | pymongo                 |        27017 | 4.0+                       |
 | DB2 LUW       | JDBC                    |        50000 | 11.5+ / 12.x               |
 | OceanBase     | pymysql                 |         2881 | MySQL 租户                 |
@@ -175,6 +188,13 @@ RaccoonX 目前支持 **21+ 数据库与数据系统**。
 | Redis         | redis-py                |         6379 | 3.0+                       |
 | Redis 集群    | redis-py                |         6379 | 集群拓扑与槽位             |
 | ClickHouse    | JDBC                    |         8123 | 21.8+                      |
+| StarRocks     | pymysql                 |         9030 | MySQL 协议                 |
+| Apache Doris  | pymysql                 |         9030 | MySQL 协议                 |
+| Apache Hive   | JDBC                    |        10000 | HiveServer2                |
+| Elasticsearch | REST API                |         9200 | 集群健康与节点状态         |
+| TDengine      | JDBC                    |         6041 | 时序数据库，REST 连接      |
+| Sybase ASE    | JDBC                    |         5000 | jConnect 驱动              |
+| SQLite        | JDBC / sqlite3          |           —  | 文件型数据库               |
 
 > **Oracle JDBC**
 >
@@ -188,29 +208,25 @@ RaccoonX 目前支持 **21+ 数据库与数据系统**。
 
 Docker 是启动 RaccoonX 最简单的方式。
 
-### Docker Hub
-
+### Docker  Images
 ```bash
 docker pull jackge12345/dbcheck:latest
 
-docker run -d \
-  -p 5003:5003 \
+docker run -d -p 5003:5003 \
   -v dbcheck_data:/app/data \
-  -v dbcheck_reports:/app/reports \
-  --name dbcheck \
+  -v dbcheck_reports:/app/data/reports \
+  -e LD_LIBRARY_PATH=/opt/venv/lib/python3.12/site-packages/dmssl \
   jackge12345/dbcheck:latest
 ```
 
 ### GitHub Container Registry
-
 ```bash
 docker pull ghcr.io/fiyo/dbcheck:latest
 
-docker run -d \
-  -p 5003:5003 \
+docker run -d -p 5003:5003 \
   -v dbcheck_data:/app/data \
-  -v dbcheck_reports:/app/reports \
-  --name dbcheck \
+  -v dbcheck_reports:/app/data/reports \
+  -e LD_LIBRARY_PATH=/opt/venv/lib/python3.12/site-packages/dmssl \
   ghcr.io/fiyo/dbcheck:latest
 ```
 

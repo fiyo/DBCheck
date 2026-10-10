@@ -8,7 +8,7 @@
 >
 > Formerly known as **DBCheck**.
 
-[![Version](https://img.shields.io/badge/Version-v26.9.17.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/Version-v26.10.11.0-blue.svg)]()
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)]()
 [![AI](https://img.shields.io/badge/AI-Ollama%20%7C%20OpenAI-orange.svg)]()
@@ -18,7 +18,7 @@
 [![GitHub Stars](https://img.shields.io/github/stars/fiyo/DBCheck?style=flat-square\&label=Stars)](https://github.com/fiyo/DBCheck/stargazers)
 [![GitHub Forks](https://img.shields.io/github/forks/fiyo/DBCheck?style=flat-square\&label=Forks)](https://github.com/fiyo/DBCheck/network/members)
 
-> 🗄️ **21+ database types**
+> 🗄️ **30+ database types**
 > 🔍 **330+ inspection rules**
 > 🤖 **AI-assisted diagnostics**
 > 🔌 **Extensible plugin architecture**
@@ -97,7 +97,7 @@ RaccoonX started as **DBCheck** and has evolved through continuous development a
 | Docker image pulls |    **28,000+** |
 | GitHub Stars       |       **171+** |
 | GitHub Forks       |        **58+** |
-| Database types     |        **21+** |
+| Database types     |        **30+** |
 | Inspection rules   |       **330+** |
 | Languages          |          **9** |
 | License            | **Apache 2.0** |
@@ -125,7 +125,7 @@ If you have used RaccoonX, tested it, learned from it, or simply find the projec
 | Feature                      | Description                                                                                  |
 | ---------------------------- | -------------------------------------------------------------------------------------------- |
 | 🗄️ Data Source Manager      | Unified management of database instances, grouping, batch inspection, CSV import/export      |
-| 📋 Database Inspection       | 21+ database types and 330+ inspection rules with automated Word reports                     |
+| 📋 Database Inspection       | 30+ database types and 330+ inspection rules with automated Word reports                     |
 | 🔌 Plugin System             | Independent plugin lifecycle, plugin data, templates, baselines and rules                    |
 | 🔍 Slow Query Analysis       | Execution plans, I/O patterns, lock waits and AI-assisted analysis                           |
 | 🔒 Lock Diagnostics          | Blocking chains, deadlocks, long transactions and remediation suggestions                    |
@@ -143,6 +143,13 @@ If you have used RaccoonX, tested it, learned from it, or simply find the projec
 | 💿 DM8 Offline Storage Check | Analyze DM8 data files without a running database                                            |
 | 📝 SQL Editor                | Interactive SQL editor with syntax highlighting and execution history                        |
 | 🖥️ Remote Terminal          | SSH terminal with multi-tab and fullscreen support                                           |
+| 📊 Monitoring Dashboard      | Instance status matrix and topology views; connection/slow-query/capacity drill-down adapts per DB type |
+| 🧠 Intelligence Center       | Multi-expert collaborative diagnosis with iterative replanning and reviewer verification      |
+| 🧩 Workflow Orchestration    | Visually orchestrate inspection actions (DAG) with one-click built-in marketplace templates   |
+| 🛡️ Xinchuang Compliance      | Compliance scoring by DB type with replacement checklist and mapping                          |
+| 🌐 Digital Twin              | Topology snapshots, configuration drift detection, capacity and health replay                 |
+| 📏 Smart Baseline            | Cross-instance configuration drift detection and capacity forecasting (Fleet view)            |
+| ✍️ SQL Audit & Write Tickets | Write-SQL audit state machine with approval gate (WriteGate): auto-read, approved-write, full audit |
 | 💾 Disaster Recovery Backup  | Scheduled database/file backups with retention and health tracking                           |
 | 🌍 Multi-language UI         | Chinese, English, Traditional Chinese, Japanese, Korean, Spanish, French, German and Russian |
 
@@ -150,7 +157,7 @@ If you have used RaccoonX, tested it, learned from it, or simply find the projec
 
 # 🗄️ Supported Databases
 
-RaccoonX currently supports **21+ database and data systems**.
+RaccoonX currently supports **30+ database and data systems**.
 
 | Database      | Driver                  | Default Port | Notes                      |
 | ------------- | ----------------------- | -----------: | -------------------------- |
@@ -167,7 +174,13 @@ RaccoonX currently supports **21+ database and data systems**.
 | KingbaseES    | psycopg2                |        54321 | PostgreSQL compatible      |
 | GBase 8s      | JDBC                    |         9088 | JDK + JDBC                 |
 | UXDB          | JDBC                    |        33060 | PostgreSQL compatible      |
-| HGDB          | JDBC                    |         5866 | PostgreSQL compatible      |
+| openGauss     | JDBC                    |         5432 | Huawei open-source, PG family |
+| Greenplum     | psycopg2 / JDBC         |         5432 | MPP data warehouse         |
+| HGDB (HighGo) | JDBC                    |         5866 | PostgreSQL compatible      |
+| Vastbase G100 | JDBC                    |         5432 | Vastbase, openGauss kernel |
+| HaloDB        | JDBC                    |         5432 | Xihe Data, PG/Oracle dual-compatible |
+| Oscar         | JDBC                    |         2003 | Shentong, domestic DB      |
+| GBase 8a      | JDBC                    |         5258 | Column-store warehouse     |
 | MongoDB       | pymongo                 |        27017 | 4.0+                       |
 | DB2 LUW       | JDBC                    |        50000 | 11.5+ / 12.x               |
 | OceanBase     | pymysql                 |         2881 | MySQL tenant               |
@@ -175,6 +188,13 @@ RaccoonX currently supports **21+ database and data systems**.
 | Redis         | redis-py                |         6379 | 3.0+                       |
 | Redis Cluster | redis-py                |         6379 | Cluster topology and slots |
 | ClickHouse    | JDBC                    |         8123 | 21.8+                      |
+| StarRocks     | pymysql                 |         9030 | MySQL protocol             |
+| Apache Doris  | pymysql                 |         9030 | MySQL protocol             |
+| Apache Hive   | JDBC                    |        10000 | HiveServer2                |
+| Elasticsearch | REST API                |         9200 | Cluster health and nodes   |
+| TDengine      | JDBC                    |         6041 | Time-series, REST connection |
+| Sybase ASE    | JDBC                    |         5000 | jConnect driver            |
+| SQLite        | JDBC / sqlite3          |           —  | File-based database        |
 
 > **Oracle JDBC**
 >
@@ -188,29 +208,25 @@ RaccoonX currently supports **21+ database and data systems**.
 
 Docker is the easiest way to start RaccoonX.
 
-### Docker Hub
-
+### Docker  Images
 ```bash
 docker pull jackge12345/dbcheck:latest
 
-docker run -d \
-  -p 5003:5003 \
+docker run -d -p 5003:5003 \
   -v dbcheck_data:/app/data \
-  -v dbcheck_reports:/app/reports \
-  --name dbcheck \
+  -v dbcheck_reports:/app/data/reports \
+  -e LD_LIBRARY_PATH=/opt/venv/lib/python3.12/site-packages/dmssl \
   jackge12345/dbcheck:latest
 ```
 
 ### GitHub Container Registry
-
 ```bash
 docker pull ghcr.io/fiyo/dbcheck:latest
 
-docker run -d \
-  -p 5003:5003 \
+docker run -d -p 5003:5003 \
   -v dbcheck_data:/app/data \
-  -v dbcheck_reports:/app/reports \
-  --name dbcheck \
+  -v dbcheck_reports:/app/data/reports \
+  -e LD_LIBRARY_PATH=/opt/venv/lib/python3.12/site-packages/dmssl \
   ghcr.io/fiyo/dbcheck:latest
 ```
 
