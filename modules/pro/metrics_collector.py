@@ -61,6 +61,8 @@ COUNTER_KEYS = {
            'deadlocks', 'conflicts'},
     'ivorysql': {'xact_commit', 'xact_rollback', 'blks_read', 'blks_hit', 'deadlocks'},
     'kingbase': {'xact_commit', 'xact_rollback', 'blks_read', 'blks_hit', 'deadlocks'},
+    # Vastbase G100（海量，openGauss/PG 内核）：pg_stat_database 系视图实测全通
+    'vastbase': {'xact_commit', 'xact_rollback', 'blks_read', 'blks_hit', 'deadlocks'},
     # HaloDB（羲和）为 PG14 内核血统，统计视图同 PG
     'halodb': {'xact_commit', 'xact_rollback', 'blks_read', 'blks_hit', 'deadlocks'},
     'uxdb': {'xact_commit', 'xact_rollback', 'blks_read', 'blks_hit',
@@ -330,7 +332,7 @@ class MetricsCollector:
                                    password=password, database=db_name,
                                    connect_timeout=CONNECT_TIMEOUT,
                                    read_timeout=t, write_timeout=t)
-        if db_type in ('postgresql', 'pg', 'ivorysql', 'kingbase', 'halodb'):
+        if db_type in ('postgresql', 'pg', 'ivorysql', 'kingbase', 'halodb', 'vastbase'):
             import psycopg2
             dbname = inst.get('database') or (
                 'kingbase' if db_type == 'kingbase'
@@ -674,7 +676,7 @@ class MetricsCollector:
                 return self._collect_mysql(conn)
             if db_type == 'oceanbase':
                 return self._collect_oceanbase(conn)
-            if db_type in ('postgresql', 'pg', 'ivorysql', 'kingbase', 'halodb'):
+            if db_type in ('postgresql', 'pg', 'ivorysql', 'kingbase', 'halodb', 'vastbase'):
                 return self._collect_postgres(conn)
             if db_type in ('uxdb', 'uxdb_jdbc'):
                 return self._collect_uxdb(conn)

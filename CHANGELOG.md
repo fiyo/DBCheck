@@ -1,5 +1,8 @@
 # Changelog
 
+## v26.10.10.1 (2026-10-10)
+- **新增：Vastbase G100 实时监控深采接入**——`metrics_collector` 三处补登记 vastbase（psycopg2 直连分支 / `_collect_postgres` 深采 / 计数器集），首页实时监控对海量实例由「端口可用性 + 连通性诊断」降级图自动切换为「吞吐（QPS/TPS）+ 连接数」深采图表，前端零改动（深采键自动识别）。实测：`pg_stat_database` 全通，`rate_xact_commit` 等差值速率与 `numbackends` 连接数正常产出；复制延迟因 9.2 内核无 `replay_lag` 列容错降级（与金仓等同内核一致）。
+
 ## v26.10.10.0 (2026-10-09)
 - **新增：Vastbase G100（海量数据库）全链路接入**
   - `vastbase_jdbc` 插件七件套（available+enabled 双份）：复用 openGauss JDBC 驱动（`org.opengauss.Driver`，内核同源协议兼容），8 章 20 查询模板（pg_catalog/pg_stat_* 实测适配：`pg_authid` permission denied → `pg_roles`、Vastbase 特有 GUC `password_encryption_type`、无 `pg_hba_file_rules`/`pg_stat_archiver` 视图已剔除）、8 条基线（`password_encryption_type == '0'` 判 md5 弱加密 HIGH）、官方 logo（vastdata.com.cn SVG 矢量渲染 128×128）。
