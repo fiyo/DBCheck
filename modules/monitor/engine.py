@@ -632,7 +632,7 @@ class MonitorEngine:
         port = int(inst['port'])
         user = inst['user']
 
-        if db_type in ('mysql', 'mariadb', 'oceanbase'):
+        if db_type in ('mysql', 'mariadb', 'oceanbase', 'starrocks', 'doris'):
             # MariaDB / OceanBase MySQL 租户与 MySQL 协议/参数高度兼容，复用同款 pymysql 连接逻辑。
             # OceanBase MySQL 租户的 database 即租户名，默认 sys。
             import pymysql
@@ -647,17 +647,24 @@ class MonitorEngine:
                 charset='utf8mb4', connect_timeout=timeout, read_timeout=timeout,
             )
 
-        elif db_type in ('postgresql', 'pg', 'hgdb', 'kingbase', 'uxdb', 'vastbase'):
-            # 国产 PG 系（瀚高/人大金仓/优炫/Vastbase）走 PG 线协议，psycopg2 直连。
-            # ⚠️ 本分支收到的是归一后 db_type（hgdb/kingbase 等已归一为 pg），
+        elif db_type in ('postgresql', 'pg', 'hgdb', 'kingbase', 'uxdb', 'vastbase',
+                         'highgo', 'halodb', 'opengauss', 'greenplum'):
+            # 国产 PG 线协议系：瀚高/人大金仓/优炫/羲和直连 PG；Vastbase（海量 G100）
+            # 基于 openGauss 内核（openGauss 源自 PG 9.2 分支），仍保留 PG 兼容层，
+            # 故同一 psycopg2 + pg 系统视图路径即可覆盖，无需分叉。
+            # ⚠️ 本分支收到的是归一后 db_type（hgdb/kingbase/vastbase 等已归一为 pg），
             # default_db 映射必须用实例的原始 db_type 查，否则键全部落空、
             # 库名空缺时一律回落 postgres（瀚高无 postgres 库 → FATAL 报错）。
             # 兜底回落「用户名同名库」（PG 惯例：默认库与用户同名，与 JDBC
             # 数据源测试不指定库名时同口径）。
             raw_type = (inst.get('db_type') or '').lower()
             default_db = {'hgdb': 'highgo', 'kingbase': 'kingbase',
-                          'uxdb': 'uxdb', 'vastbase': 'vastbase',
-                          'halodb': 'halo'}.get(raw_type)
+                          'uxdb': 'uxdb',
+                          # Vastbase 基于 openGauss 内核，openGauss/Vastbase 均保留 PG
+                          # 兼容层且默认库为 postgres，故与 opengauss/greenplum 同取 postgres。
+                          'vastbase': 'postgres', 'highgo': 'highgo',
+                          'halodb': 'halo',
+                          'opengauss': 'postgres', 'greenplum': 'postgres'}.get(raw_type)
             import psycopg2
             return psycopg2.connect(
                 host=host, port=port, user=user, password=password,

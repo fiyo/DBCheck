@@ -114,10 +114,14 @@ def _collect(payload):
                     cur.execute(sql)
                     cols = None
                     try:
-                        # 列名强制 str：jaydebeapi/JPype 的 description 列名可能
-                        # 是 java.lang.String 包装对象，直接当 JSON dict 键会
-                        # TypeError（keys must be str ... not java.lang.String）。
-                        cols = [str(d[0]) for d in (cur.description or [])]
+                        # 列名强制 str 并统一小写：jaydebeapi/JPype 的 description
+                        # 列名可能是 java.lang.String 包装对象（直接当 JSON dict
+                        # 键会 TypeError），且 Oracle/JDBC 驱动返回大写列名
+                        # （USERNAME/STATE...），而原生驱动路径（engine.py:612）
+                        # 已统一转小写、下游 screen_metrics/前端均按小写键取值/
+                        # 动态渲染。此处不转小写会导致 JDBC 类型明细列名大写、
+                        # 与下游约定不一致，故强制 .lower()。
+                        cols = [str(d[0]).lower() for d in (cur.description or [])]
                     except Exception:
                         cols = None
                     raw = cur.fetchall()

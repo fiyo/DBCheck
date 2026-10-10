@@ -144,6 +144,10 @@ ORACLE_STAT_SQL = (
 ORACLE_TBS_SQL = (
     "SELECT df.tablespace_name AS name, "
     "ROUND(SUM(df.bytes) / 1048576, 1) AS total_mb, "
+    # 最大可用容量：AUTOEXTEND 数据文件取 MAXBYTES 上限（无上限/未开启取当前 bytes），
+    # 剩余率按「最大可用」口径计算，避免可扩展表空间误告警（#61）
+    "ROUND(SUM(CASE WHEN df.autoextensible = 'YES' "
+    "            THEN GREATEST(df.maxbytes, df.bytes) ELSE df.bytes END) / 1048576, 1) AS max_mb, "
     "ROUND(NVL(SUM(fr.free_bytes), 0) / 1048576, 1) AS free_mb "
     "FROM dba_data_files df "
     "LEFT JOIN (SELECT tablespace_name, SUM(bytes) AS free_bytes "
@@ -210,6 +214,9 @@ DM_STAT_SQL = (
 DM_TBS_SQL = (
     "SELECT df.tablespace_name AS name, "
     "ROUND(SUM(df.bytes) / 1048576, 1) AS total_mb, "
+    # 同 ORACLE_TBS_SQL：按 AUTOEXTEND 上限计算最大可用容量，剩余率防误告警（#61）
+    "ROUND(SUM(CASE WHEN df.autoextensible = 'YES' "
+    "            THEN GREATEST(df.maxbytes, df.bytes) ELSE df.bytes END) / 1048576, 1) AS max_mb, "
     "ROUND(NVL(SUM(fr.free_bytes), 0) / 1048576, 1) AS free_mb "
     "FROM dba_data_files df "
     "LEFT JOIN (SELECT tablespace_name, SUM(bytes) AS free_bytes "
@@ -347,6 +354,22 @@ def _sum_or_none(*vals):
     if any(v is None for v in vals):
         return None
     return sum(_num(v) for v in vals)
+
+
+def _tbs_free_pct(total_mb, max_mb, free_mb):
+    """表空间剩余率：优先按「最大可用容量」(含 datafile AUTOEXTEND 上限 MAXBYTES) 计算，
+    避免 autoextend 表空间因未计入可扩展空间而误告警（#61）；
+    无 autoextend / 取不到上限时退化为「当前分配容量」口径，行为不变。"""
+    total_mb = _num(total_mb)
+    max_mb = _num(max_mb)
+    free_mb = _num(free_mb)
+    if max_mb and max_mb > 0:
+        used = (total_mb or 0) - free_mb
+        free_max = max_mb - used
+        return round(free_max / max_mb * 100, 1)
+    if total_mb and total_mb > 0:
+        return round(free_mb / total_mb * 100, 1)
+    return None
 
 
 def _find_key(row, *keywords):
@@ -523,7 +546,7 @@ def collect_extra(engine, instance_id, db_type):
         tbs = q('tbs')
         if tbs:
             extras['tbs'] = [
-                {'name': r.get('name'), 'total_mb': _num(r.get('total_mb')),
+                {'name': _find_key(r, 'name'), 'total_mb': _num(_find_key(r, 'total_mb')),
                  'free_mb': None, 'free_pct': None} for r in tbs]
         repl = q('repl8') or q('repl')
         if repl:
@@ -543,7 +566,7 @@ def collect_extra(engine, instance_id, db_type):
         tbs = q('tbs')
         if tbs:
             extras['tbs'] = [
-                {'name': r.get('name'), 'total_mb': _num(r.get('total_mb')),
+                {'name': _find_key(r, 'name'), 'total_mb': _num(_find_key(r, 'total_mb')),
                  'free_mb': None, 'free_pct': None} for r in tbs]
         repl = q('repl')
         if repl:
@@ -570,10 +593,10 @@ def collect_extra(engine, instance_id, db_type):
         tbs = q('tbs')
         if tbs:
             extras['tbs'] = [
-                {'name': r.get('name'), 'total_mb': _num(r.get('total_mb')),
-                 'free_mb': _num(r.get('free_mb')),
-                 'free_pct': (round(_num(r.get('free_mb')) / _num(r.get('total_mb')) * 100, 1)
-                              if _num(r.get('total_mb')) > 0 else None)}
+                {'name': _find_key(r, 'name'), 'total_mb': _num(_find_key(r, 'total_mb')),
+                 'max_mb': _num(_find_key(r, 'max_mb')),
+                 'free_mb': _num(_find_key(r, 'free_mb')),
+                 'free_pct': _tbs_free_pct(_find_key(r, 'total_mb'), _find_key(r, 'max_mb'), _find_key(r, 'free_mb'))}
                 for r in tbs]
         repl = q('repl')
         if repl:
@@ -637,10 +660,10 @@ def collect_extra(engine, instance_id, db_type):
         tbs = q('tbs')
         if tbs:
             extras['tbs'] = [
-                {'name': r.get('name'), 'total_mb': _num(r.get('total_mb')),
-                 'free_mb': _num(r.get('free_mb')),
-                 'free_pct': (round(_num(r.get('free_mb')) / _num(r.get('total_mb')) * 100, 1)
-                              if _num(r.get('total_mb')) > 0 else None)}
+                {'name': _find_key(r, 'name'), 'total_mb': _num(_find_key(r, 'total_mb')),
+                 'max_mb': _num(_find_key(r, 'max_mb')),
+                 'free_mb': _num(_find_key(r, 'free_mb')),
+                 'free_pct': _tbs_free_pct(_find_key(r, 'total_mb'), _find_key(r, 'max_mb'), _find_key(r, 'free_mb'))}
                 for r in tbs]
         repl = q('repl')
         if repl:
@@ -672,7 +695,7 @@ def collect_extra(engine, instance_id, db_type):
         tbs = q('tbs')
         if tbs:
             extras['tbs'] = [
-                {'name': r.get('name'), 'total_mb': _num(r.get('total_mb')),
+                {'name': _find_key(r, 'name'), 'total_mb': _num(_find_key(r, 'total_mb')),
                  'free_mb': None, 'free_pct': None} for r in tbs]
         locks = q('locks')
         if locks:
@@ -695,7 +718,7 @@ def collect_extra(engine, instance_id, db_type):
         tbs = q('tbs')
         if tbs:
             extras['tbs'] = [
-                {'name': r.get('name'), 'total_mb': _num(r.get('total_mb')),
+                {'name': _find_key(r, 'name'), 'total_mb': _num(_find_key(r, 'total_mb')),
                  'free_mb': None, 'free_pct': None} for r in tbs]
         repl = q('repl')
         if repl:
@@ -726,10 +749,10 @@ def collect_extra(engine, instance_id, db_type):
         tbs = q('tbs')
         if tbs:
             extras['tbs'] = [
-                {'name': r.get('name'), 'total_mb': _num(r.get('total_mb')),
-                 'free_mb': _num(r.get('free_mb')),
-                 'free_pct': (round(_num(r.get('free_mb')) / _num(r.get('total_mb')) * 100, 1)
-                              if _num(r.get('total_mb')) > 0 else None)}
+                {'name': _find_key(r, 'name'), 'total_mb': _num(_find_key(r, 'total_mb')),
+                 'free_mb': _num(_find_key(r, 'free_mb')),
+                 'free_pct': (round(_num(_find_key(r, 'free_mb')) / _num(_find_key(r, 'total_mb')) * 100, 1)
+                              if _num(_find_key(r, 'total_mb')) > 0 else None)}
                 for r in tbs]
         repl = q('repl')
         if repl:
@@ -757,7 +780,7 @@ def collect_extra(engine, instance_id, db_type):
         tbs = q('tbs')
         if tbs:
             extras['tbs'] = [
-                {'name': r.get('name'), 'total_mb': _num(r.get('total_mb')),
+                {'name': _find_key(r, 'name'), 'total_mb': _num(_find_key(r, 'total_mb')),
                  'free_mb': None, 'free_pct': None} for r in tbs]
         repl = q('repl')
         if repl:
@@ -1097,6 +1120,18 @@ class ScreenCollector:
         # 下钻明细：连接/会话 与 慢查询 逐行（复用 engine 本轮采集结果，不引入新 SQL）
         snap['conn_rows'] = _sanitize_rows(cd.get('data') if (cd and not cd.get('error')) else None)
         snap['slow_rows'] = _sanitize_rows(sd.get('data') if (sd and not sd.get('error')) else None)
+        # 连接采集真实失败（排除「不支持的类型」这种能力缺失）→ 透传前端，
+        # 避免连接会话 tab 一律显示误导性的「可能不支持连接采集」，让用户看到
+        # 真实 ORA 错误（如 ORA-00942 权限、JDBC 连接失败、service_name 落空等）。
+        if cd and cd.get('error') and '不支持的类型' not in str(cd['error']):
+            snap['conn_err'] = str(cd['error'])
+        else:
+            snap['conn_err'] = None
+        # 「已连接但无其它活跃会话」：连接/SQL 均成功，仅因实例上当前只有监控
+        # 自身一个连接（连接 SQL 排除自身后 0 行）。属正常空状态，绝不能回落为
+        # 「不支持连接采集」，否则会误导用户以为该类型不支持。前端据此显示中性文案。
+        if cd and not cd.get('error') and not cd.get('data'):
+            snap['conn_no_sessions'] = True
         if sd and sd.get('error') and not snap['err']:
             # 慢查询模板缺失同属能力缺失，不得作为 err 标红；
             # 但真实 SQL 失败仍要判 down（即便连接采集不支持、慢查失败是实打实的探活失败）。

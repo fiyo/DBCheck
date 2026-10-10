@@ -2944,6 +2944,7 @@ EN = {
     "webui.screen_dt_tbs": "Tablespaces",
     "webui.screen_dt_loading": "Loading…",
     "webui.screen_dt_no_conn": "No connection/session detail (type may not support connection sampling)",
+    "webui.screen_dt_conn_empty": "Connected, but no other active sessions (only the monitoring connection itself)",
     "webui.screen_dt_no_slow": "No slow queries",
     "webui.screen_dt_rows": "rows",
     "webui.screen_d_active": "Active/Blocked",

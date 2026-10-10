@@ -2974,6 +2974,7 @@ ZI = {
     "webui.screen_dt_tbs": "表空间",
     "webui.screen_dt_loading": "加载中…",
     "webui.screen_dt_no_conn": "暂无连接/会话明细（该类型可能不支持连接采集）",
+    "webui.screen_dt_conn_empty": "已连接成功，当前无其它活跃会话（仅监控自身连接）",
     "webui.screen_dt_no_slow": "暂无慢查询",
     "webui.screen_dt_rows": "行",
     "webui.screen_d_active": "活跃/等待",

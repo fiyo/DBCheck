@@ -1,5 +1,21 @@
 # Changelog
 
+## v26.10.10.2 (2026-10-10)
+- **修复：监控大屏表空间剩余率误告警（Issue #61，Oracle/DM）**
+  - 根因：大屏 `screen_metrics.py` 的 `ORACLE_TBS_SQL`/`DM_TBS_SQL` 用「当前已分配字节」当分母、忽略 datafile 的 `AUTOEXTEND` 上限 `MAXBYTES` → 表空间还能扩展时剩余率被低估、误触发告警；列名取值又按精确小写 `r.get('name')`，而 oracledb/dmPython 返回**大写**列名（`NAME`/`TOTAL_MB`）→ 全取空（前端显示 name 空、0/0）。
+  - 修复：两 SQL 增加 `max_mb = SUM(CASE WHEN autoextensible='YES' THEN GREATEST(maxbytes,bytes) ELSE bytes END)`（最大可用容量）；新增 `_tbs_free_pct(total,max,free)` 优先按「最大可用容量」算剩余率（`MAXBYTES=0` 未知上限时安全退化回旧口径）；8 处表空间块（`r.get(...)`）全部换 `_find_key`（大小写无关），对 PG/MySQL 小写驱动行为不变。DB2 本就用最大容量口径无需改。
+  - 验证：`_tbs_free_pct` 5 用例（autoextend 大余量 100/1000/10→91.0%、无 autoextend 不变、MAXBYTES=0 回落、真满 1.0%、零 total 返回 None）全过；模拟 Oracle 大写行取列 name/剩余率正确。
+- **修复：Oracle/Oracle_jdbc 大屏「连接会话」明细为空（用户反馈）**
+  - 原 `ORACLE_CONNECTION_SQL` 除 `v$session` 外 `LEFT JOIN v$sql` 取 sql_text + 两条关联子查询；监控账号通常无 `V_$SQL` 的 SELECT 权限 → `ORA-00942` 整条查询失败 → `conn_rows` 空 → 大屏显示「可能不支持连接采集」。收敛为**纯 `v$session`** 查询（与已验证可用的 `lock_health` 同源），保留 username/state/duration_h/current_sql(降级 sql_id)/schemaname/machine/program；下游 `_collect_conn` 不依赖被删列。
+- **修复：多类型大屏「连接会话 / 慢查询」一律「不支持连接采集」（用户批量反馈）**
+  - 根因：`CONNECTION_TEMPLATES`/`SLOW_QUERY_TEMPLATES` 仅覆盖少数类型，所有 PG 线协议国产/衍生库（kingbase/highgo/opengauss/greenplum/halodb/vastbase）与 MySQL 线协议库（starrocks/doris）漏注册 → `_collect_conn` 恒返「不支持的类型」→ 前端误导文案；`_create_connection` 的 PG 分支也未含 highgo/halodb/opengauss/greenplum（hgdb 归一 highgo 后原 'hgdb' 分支成死代码），原生连接也建不起来。
+  - 修复：`CONNECTION_TEMPLATES`/`SLOW_QUERY_FALLBACK_TEMPLATES` 补 10 键（8 PG 系→`PG_*_SQL`、2 MySQL 系→`MYSQL_*_SQL`），`MAX_CONN_QUERY_SQL`/`MAX_CONNECTION_DEFAULTS` 同步；`engine.py` 原生分派补 starrocks/doris（mysql 分支）、highgo/halodb/opengauss/greenplum（PG 分支）、default_db 补 highgo/opengauss/greenplum。YashanDB 用自有驱动非 PG 视图，刻意不纳入（避免必失败查询）。
+- **修复：连接采集可见性 + 空状态 UX 误导**
+  - `jdbc_collect_cli.py` 返回的列名强制 `.lower()`，与 `engine.py` 原生路径一致，消除 JDBC 类型明细列名大写隐患。
+  - 大屏连接会话 tab 区分三态：① 类型真不支持（如 redis）→「可能不支持连接采集」；② 采集失败 → 透传**真实错误红字**（如 `ORA-00942`/JDBC 连接失败），不再一律误导为「不支持」；③ 已连接但无其它活跃会话（如仅监控自身连接，OB/PG processlist 排除自身后 0 行）→ 中性文案「已连接成功，当前无其它活跃会话」。改动：`screen_metrics.py`（记 `conn_err`/`conn_no_sessions`）、`app.py`（透传）、`monitor_screen.html`（分支渲染）、`i18n` zh/en 新增 `screen_dt_conn_empty`。
+- **修复：Vastbase 默认库映射（用户纠正血缘）**
+  - `engine.py` `_create_connection` 的 `default_db` 对 vastbase 原映射 `'vastbase'`，但 Vastbase（海量 G100）基于 openGauss 内核（openGauss 源自 PG 9.2 分支），两者均保留 PG 兼容层、默认库为 `postgres`；统一改为 `'postgres'`（与同分支 opengauss/greenplum 一致），消除用户未填 database 且实例无 vastbase 库时连失败隐患。
+
 ## v26.10.10.1 (2026-10-10)
 - **新增：Vastbase G100 实时监控深采接入**——`metrics_collector` 三处补登记 vastbase（psycopg2 直连分支 / `_collect_postgres` 深采 / 计数器集），首页实时监控对海量实例由「端口可用性 + 连通性诊断」降级图自动切换为「吞吐（QPS/TPS）+ 连接数」深采图表，前端零改动（深采键自动识别）。实测：`pg_stat_database` 全通，`rate_xact_commit` 等差值速率与 `numbackends` 连接数正常产出；复制延迟因 9.2 内核无 `replay_lag` 列容错降级（与金仓等同内核一致）。
 

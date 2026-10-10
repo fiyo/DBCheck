@@ -2,16 +2,16 @@ name: Rebuild Linux Binary
 
 # 仅用于「其它平台包已在 Release 中，单独补一个 Linux 包」的场景。
 # 触发：GitHub Actions 页面 → Rebuild Linux Binary → Run workflow
-#   - version：要挂载到的已有 Release 标签（默认 v26.10.10.1）
+#   - version：要挂载到的已有 Release 标签（默认 v26.10.10.2）
 # 该 workflow 不重建 Windows / macOS，也不会重复追加安装说明，
 # 仅把新构建的 Linux 包用 gh release upload 追加（--clobber 覆盖同名）到指定 Release。
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Target Release tag to attach the Linux binary to, e.g. v26.10.10.1"
+        description: "Target Release tag to attach the Linux binary to, e.g. v26.10.10.2"
         required: true
-        default: "v26.10.10.1"
+        default: "v26.10.10.2"
 
 permissions:
   contents: write

@@ -6023,6 +6023,8 @@ def api_dashboard_instance(iid):
             'info': node,
             'conn_rows': snap[iid].get('conn_rows') or [],
             'slow_rows': snap[iid].get('slow_rows') or [],
+            'conn_err': snap[iid].get('conn_err') or '',
+            'conn_no_sessions': bool(snap[iid].get('conn_no_sessions')),
         })
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)[:300], 'iid': iid})

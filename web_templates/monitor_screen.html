@@ -601,8 +601,14 @@ function renderTab(tab, node, detail){
   if (tab === 'overview') return overviewHtml(node);
   if (tab === 'conn'){
     var rows = detail ? detail.conn_rows : null;
-    if (!rows || !rows.length) return '<div class="dempty">' + esc(S.dt_no_conn) + '</div>';
-    return '<div class="dcount">' + rows.length + ' ' + esc(S.dt_rows) + '</div>' + rowsTableHtml(rows);
+    if (rows && rows.length) return '<div class="dcount">' + rows.length + ' ' + esc(S.dt_rows) + '</div>' + rowsTableHtml(rows);
+    // 有真实采集错误（非能力缺失）则透出，避免一律误导为「不支持连接采集」
+    var cerr = detail ? detail.conn_err : null;
+    if (cerr) return '<div class="dempty err">' + esc(cerr) + '</div>';
+    // 已连接但无其它活跃会话（如测试库仅监控自身一个连接）：正常空状态，
+    // 显示中性文案而非「不支持连接采集」，避免误导用户以为该类型不支持。
+    if (detail && detail.conn_no_sessions) return '<div class="dempty">' + esc(S.dt_conn_empty) + '</div>';
+    return '<div class="dempty">' + esc(S.dt_no_conn) + '</div>';
   }
   if (tab === 'slow'){
     var srows = detail ? detail.slow_rows : null;

@@ -150,14 +150,12 @@ SELECT * FROM (
   SELECT
     s.username AS username,
     s.schemaname AS database_name,
+    s.machine AS host,
     s.program AS command,
     ROUND((SYSDATE - s.logon_time) * 24, 1) AS duration_h,
     s.status AS state,
-    SUBSTR(q.sql_text, 1, 200) AS current_sql,
-    (SELECT COUNT(*) FROM v$session WHERE username = s.username) AS user_conn_count,
-    (SELECT COUNT(*) FROM v$session) AS total_connections
+    SUBSTR(s.sql_id, 1, 200) AS current_sql
   FROM v$session s
-  LEFT JOIN v$sql q ON s.sql_id = q.sql_id
   WHERE s.type != 'BACKGROUND'
   ORDER BY (SYSDATE - s.logon_time) DESC
 ) WHERE ROWNUM <= 50
@@ -468,6 +466,20 @@ SLOW_QUERY_TEMPLATES = {
     # OceanBase MySQL 租户兼容 performance_schema.events_statements_summary_by_digest（4.x），
     # 复用 MySQL 慢查询 SQL；老版本 OB 无该表时走 fallback（processlist 版）。
     'oceanbase': MYSQL_SLOW_QUERY_SQL,
+    # ── PG 线协议国产/衍生库：pg_stat_statements + pg_stat_activity fallback，统一复用 PG 慢查询 SQL ──
+    # 此前 kingbase/highgo/opengauss/greenplum/halodb/vastbase（及 hgdb/uxdb 别名映射）全部漏注册 →
+    # 慢查询明细恒为「不支持的类型」，大屏慢查询 tab 一律显示「可能不支持慢查询采集」。
+    'hgdb': PG_SLOW_QUERY_SQL,        # 瀚高 HGDB（PG 兼容，同 highgo 内核）
+    'kingbase': PG_SLOW_QUERY_SQL,    # 人大金仓 KingbaseES（PG 兼容）
+    'uxdb': PG_SLOW_QUERY_SQL,        # 优炫 UXDB（PG 兼容）
+    'vastbase': PG_SLOW_QUERY_SQL,    # Vastbase G100（openGauss 内核，PG 兼容）
+    'halodb': PG_SLOW_QUERY_SQL,      # HaloDB 羲和（PG14 内核）
+    'highgo': PG_SLOW_QUERY_SQL,      # 瀚高 highgo（与 hgdb 同源，独立品牌键）
+    'opengauss': PG_SLOW_QUERY_SQL,   # openGauss（PG 兼容）
+    'greenplum': PG_SLOW_QUERY_SQL,   # Greenplum（PG 兼容）
+    # ── MySQL 线协议衍生库：performance_schema + processlist fallback，统一复用 MySQL 慢查询 SQL ──
+    'starrocks': MYSQL_SLOW_QUERY_SQL,  # StarRocks（MySQL 协议）
+    'doris': MYSQL_SLOW_QUERY_SQL,      # Apache Doris（MySQL 协议）
 }
 
 SLOW_QUERY_FALLBACK_TEMPLATES = {
@@ -480,6 +492,18 @@ SLOW_QUERY_FALLBACK_TEMPLATES = {
     'clickhouse': CLICKHOUSE_SLOW_QUERY_FALLBACK_SQL,
     # OB processlist 版 fallback：performance_schema 不可用/老版本 OB 的兜底（100% 兼容）
     'oceanbase': MYSQL_SLOW_QUERY_FALLBACK_SQL,
+    # PG 线协议衍生库：pg_stat_statements 未安装时统一用 pg_stat_activity fallback
+    'hgdb': PG_SLOW_QUERY_FALLBACK_SQL,
+    'kingbase': PG_SLOW_QUERY_FALLBACK_SQL,
+    'uxdb': PG_SLOW_QUERY_FALLBACK_SQL,
+    'vastbase': PG_SLOW_QUERY_FALLBACK_SQL,
+    'halodb': PG_SLOW_QUERY_FALLBACK_SQL,
+    'highgo': PG_SLOW_QUERY_FALLBACK_SQL,
+    'opengauss': PG_SLOW_QUERY_FALLBACK_SQL,
+    'greenplum': PG_SLOW_QUERY_FALLBACK_SQL,
+    # MySQL 线协议衍生库：performance_schema 不可用时用 processlist fallback
+    'starrocks': MYSQL_SLOW_QUERY_FALLBACK_SQL,
+    'doris': MYSQL_SLOW_QUERY_FALLBACK_SQL,
 }
 
 CONNECTION_TEMPLATES = {
@@ -499,6 +523,20 @@ CONNECTION_TEMPLATES = {
     # 直接复用 MySQL 连接 SQL——此前漏注册导致 engine 恒返「不支持的类型」，
     # 大屏对 OB 从不探活、状态被 _derive_status 覆盖成假绿 ok（2026-10-09 实测）。
     'oceanbase': MYSQL_CONNECTION_SQL,
+    # ── PG 线协议国产/衍生库：pg_stat_activity 通用，统一复用 PG 连接 SQL ──
+    # 此前 kingbase/highgo/opengauss/greenplum/halodb/vastbase 全部漏注册 →
+    # engine 恒返「不支持的类型」→ 大屏连接会话 tab 一律显示「可能不支持连接采集」。
+    'hgdb': PG_CONNECTION_SQL,       # 瀚高 HGDB（PG 兼容，aliases 已映射 pg，显式补以覆盖 *_jdbc 变体）
+    'kingbase': PG_CONNECTION_SQL,   # 人大金仓 KingbaseES（PG 兼容）
+    'uxdb': PG_CONNECTION_SQL,       # 优炫 UXDB（PG 兼容）
+    'highgo': PG_CONNECTION_SQL,     # 瀚高 highgo（与 hgdb 同源，独立品牌键）
+    'opengauss': PG_CONNECTION_SQL,  # openGauss（PG 兼容）
+    'greenplum': PG_CONNECTION_SQL,  # Greenplum（PG 兼容）
+    'halodb': PG_CONNECTION_SQL,     # HaloDB 羲和（PG 兼容）
+    'vastbase': PG_CONNECTION_SQL,   # Vastbase G100（openGauss 内核，PG 兼容）
+    # ── MySQL 线协议衍生库：information_schema.processlist 通用 ──
+    'starrocks': MYSQL_CONNECTION_SQL,  # StarRocks（MySQL 协议）
+    'doris': MYSQL_CONNECTION_SQL,      # Apache Doris（MySQL 协议）
 }
 
 # 各数据库最大连接数默认值（用于计算使用率）
@@ -516,6 +554,11 @@ MAX_CONNECTION_DEFAULTS = {
     'db2': 500,         # MAX_CONNECTIONS 因版本而异，取中位默认（查询失败时兜底）
     'clickhouse': 4096, # 官方默认 max_connections
     'oceanbase': 1000,  # OB 租户常见默认量级（实际以 @@global.max_connections 查询为准）
+    # PG 线协议衍生库（pg_settings 查询失败时兜底）
+    'hgdb': 100, 'kingbase': 100, 'uxdb': 100, 'highgo': 100, 'opengauss': 100,
+    'greenplum': 100, 'halodb': 100, 'vastbase': 100,
+    # MySQL 线协议衍生库
+    'starrocks': 1024, 'doris': 1024,
 }
 
 # 获取最大连接数的 SQL
@@ -533,4 +576,16 @@ MAX_CONN_QUERY_SQL = {
     # db2：DBCFG 对监控账号通常不可见（实测空行集），直接用 MAX_CONNECTION_DEFAULTS 兜底
     'clickhouse': ("SELECT toUInt32(value) AS max_conn FROM system.server_settings "
                    "WHERE name = 'max_connections'"),
+    # PG 线协议衍生库：pg_settings.max_connections 通用
+    'hgdb': "SELECT setting::int AS max_conn FROM pg_settings WHERE name = 'max_connections'",
+    'kingbase': "SELECT setting::int AS max_conn FROM pg_settings WHERE name = 'max_connections'",
+    'uxdb': "SELECT setting::int AS max_conn FROM pg_settings WHERE name = 'max_connections'",
+    'highgo': "SELECT setting::int AS max_conn FROM pg_settings WHERE name = 'max_connections'",
+    'opengauss': "SELECT setting::int AS max_conn FROM pg_settings WHERE name = 'max_connections'",
+    'greenplum': "SELECT setting::int AS max_conn FROM pg_settings WHERE name = 'max_connections'",
+    'halodb': "SELECT setting::int AS max_conn FROM pg_settings WHERE name = 'max_connections'",
+    'vastbase': "SELECT setting::int AS max_conn FROM pg_settings WHERE name = 'max_connections'",
+    # MySQL 线协议衍生库：@@global.max_connections 通用
+    'starrocks': "SELECT @@global.max_connections AS max_conn",
+    'doris': "SELECT @@global.max_connections AS max_conn",
 }
