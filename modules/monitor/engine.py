@@ -291,9 +291,13 @@ class MonitorEngine:
                 rows = self._connect_and_query(instance_id, sql)
             except Exception as e:
                 low = str(e).lower()
-                # 依赖对象缺失（如 pg_stat_statements / performance_schema 未安装）→
-                # 记忆化：首行错误摘要打印一次，后续轮直接 fallback，不再重复刷日志
-                if fallback_sql and ('does not exist' in low or "doesn't exist" in low):
+                # 依赖对象缺失（pg_stat_statements / performance_schema 未安装）
+                # 或列不存在（Oracle 11gR1 无 max_elapsed_time → ORA-00904
+                # invalid identifier，#63）→ 记忆化：首行错误摘要打印一次，
+                # 后续轮直接 fallback，不再重复刷日志
+                dep_missing = ('does not exist' in low or "doesn't exist" in low
+                               or 'ora-00904' in low or 'invalid identifier' in low)
+                if fallback_sql and dep_missing:
                     self._slow_prim_skip.add(instance_id)
                     _log.info("%s 慢查询主 SQL 依赖缺失（%s），后续轮次直接使用 fallback",
                               label, str(e).splitlines()[0][:100])

@@ -128,19 +128,51 @@ LIMIT 50
 # ═══════════════════════════════════════════════════════════════
 # Oracle
 # ═══════════════════════════════════════════════════════════════
+# Oracle
+#   口径说明（#63）：v$sql.elapsed_time 是该 SQL 至今的**累计总耗时**（微秒），
+#   既不是平均值也不是单次最大值。此前 avg/max/total 三列同取 elapsed_time，
+#   导致「平均耗时 = 最大耗时 = 总耗时」恒成立。现按标准口径拆分：
+#     avg   = 累计 ÷ 执行次数（NULLIF 防除零）
+#     max   = max_elapsed_time（单次最慢，11gR1 无该列 → 走 fallback 降级）
+#     total = 累计（原样）
+#   另修：executions > 0 过滤未执行 SQL；NVL(module) 防 NULL 行被静默丢弃；
+#   child_number = 0 只取父游程，避免同一 SQL 重复出现。
 ORACLE_SLOW_QUERY_SQL = """
 SELECT * FROM (
   SELECT
     SUBSTR(s.sql_text, 1, 200) AS sql_text,
-    ROUND(s.elapsed_time / 1000000, 3) AS avg_time_s,
-    ROUND(s.elapsed_time / 1000000, 3) AS max_time_s,
+    ROUND(s.elapsed_time / 1000000 / NULLIF(s.executions, 0), 3) AS avg_time_s,
+    ROUND(s.max_elapsed_time / 1000000, 3) AS max_time_s,
     s.executions AS exec_count,
     ROUND(s.elapsed_time / 1000000, 3) AS total_time_s,
     s.parsing_schema_name AS schema_name,
     s.sql_id AS digest
   FROM v$sql s
   WHERE s.parsing_schema_name NOT IN ('SYS', 'SYSTEM', 'OUTLN')
-    AND s.module != 'DBMS_SCHEDULER'
+    AND NVL(s.module, 'x') != 'DBMS_SCHEDULER'
+    AND s.executions > 0
+    AND s.child_number = 0
+  ORDER BY s.elapsed_time DESC
+) WHERE ROWNUM <= 30
+"""
+
+# 降级版：11gR1 的 v$sql 无 max_elapsed_time 列（ORA-00904 invalid identifier），
+# 此时 max 列退化为 avg。
+ORACLE_SLOW_QUERY_FALLBACK_SQL = """
+SELECT * FROM (
+  SELECT
+    SUBSTR(s.sql_text, 1, 200) AS sql_text,
+    ROUND(s.elapsed_time / 1000000 / NULLIF(s.executions, 0), 3) AS avg_time_s,
+    ROUND(s.elapsed_time / 1000000 / NULLIF(s.executions, 0), 3) AS max_time_s,
+    s.executions AS exec_count,
+    ROUND(s.elapsed_time / 1000000, 3) AS total_time_s,
+    s.parsing_schema_name AS schema_name,
+    s.sql_id AS digest
+  FROM v$sql s
+  WHERE s.parsing_schema_name NOT IN ('SYS', 'SYSTEM', 'OUTLN')
+    AND NVL(s.module, 'x') != 'DBMS_SCHEDULER'
+    AND s.executions > 0
+    AND s.child_number = 0
   ORDER BY s.elapsed_time DESC
 ) WHERE ROWNUM <= 30
 """
@@ -490,6 +522,8 @@ SLOW_QUERY_FALLBACK_TEMPLATES = {
     'ivorysql': PG_SLOW_QUERY_FALLBACK_SQL,
     'tidb': TIDB_SLOW_QUERY_FALLBACK_SQL,
     'clickhouse': CLICKHOUSE_SLOW_QUERY_FALLBACK_SQL,
+    # Oracle 11gR1 的 v$sql 无 max_elapsed_time 列（ORA-00904），降级版以 avg 充当 max
+    'oracle': ORACLE_SLOW_QUERY_FALLBACK_SQL,
     # OB processlist 版 fallback：performance_schema 不可用/老版本 OB 的兜底（100% 兼容）
     'oceanbase': MYSQL_SLOW_QUERY_FALLBACK_SQL,
     # PG 线协议衍生库：pg_stat_statements 未安装时统一用 pg_stat_activity fallback

@@ -806,6 +806,9 @@ class ScreenCollector:
     HISTORY = 60           # 每实例保留采样点数（15s × 60 ≈ 15 分钟）
     TREND_POINTS = 60      # 全库 QPS 趋势点数
     MAX_WORKERS = 8        # 单轮并发采集线程数
+    # 速率防噪（#63）：计数器类指标做差求速率时，异常样本不得污染大屏
+    DT_MIN_RATIO = 0.3     # 实际时间差低于「采样间隔 × 此系数」视为抖动样本，丢弃
+    QPS_SPIKE_MAX = 100000 # 单实例 QPS 物理不可能阈值，超出记为采样异常、不进 KPI
 
     # 阈值（与设计文档一致）
     WARN_CONN_UTIL, CRIT_CONN_UTIL = 80.0, 95.0
@@ -1030,6 +1033,10 @@ class ScreenCollector:
         （如 MySQL TPS = Com_commit + Com_rollback）。
         pg 家族无语句级计数（除非装 pg_stat_statements），以事务率
         （xact_commit + xact_rollback）作为 QPS 近似与 TPS。
+
+        增量为负说明计数器被重置（实例重启 / PMU 归零 / 跨实例切换），
+        此时速率无意义，返回 None 由调用方标记 reset——不再用 0 兜底
+        造成"突然掉零"的假谷（#63）。
         """
         if kind == 'qps':
             combos = (('questions',), ('exec_count',), ('batch_req',),
@@ -1040,7 +1047,9 @@ class ScreenCollector:
         for combo in combos:
             if all(prev_c.get(k) is not None for k in combo):
                 dv = sum((cur_c.get(k) or 0) - (prev_c.get(k) or 0) for k in combo)
-                return max(dv / dt, 0.0)
+                if dv < 0:
+                    return None
+                return dv / dt
         return None
 
     def _collect_one(self, engine, inst, conn_data, slow_data):
@@ -1223,7 +1232,17 @@ class ScreenCollector:
 
     def _commit_snap(self, snap):
         """单实例快照增量提交：计算速率（有 prev 时）+ 写入 _snap/_prev/_spark。
-        由 _round 的 as_completed 循环逐条调用，做到「谁先采完谁先显示」。"""
+        由 _round 的 as_completed 循环逐条调用，做到「谁先采完谁先显示」。
+
+        速率防噪三层（#63 Oracle QPS 偶发冲高）：
+        ① 采样身份一致性——计数器是实例级口径，RAC / 负载均衡下两次采样
+           若落在不同实例（instance_number / db_unique_name 变化），做差
+           得到的值毫无意义，本轮直接作废；
+        ② 时间差有效性——实际间隔远小于采样周期说明调度抖动，放大会把
+           正常增量算成尖峰，抖动样本丢弃；
+        ③ 尖峰封顶——超出物理阈值记为采样异常（保留原值供排查），
+           但不进 KPI 与迷你趋势，避免误导。
+        """
         if not snap or 'id' not in snap:
             return
         iid = snap['id']
@@ -1231,16 +1250,35 @@ class ScreenCollector:
         with self._lock:
             prev = self._prev.get(iid)
             if prev and snap.get('counters'):
-                dt = max(ts - prev['ts'], 0.001)
-                qps = self._rate(prev['counters'], snap['counters'], dt, 'qps')
-                tps = self._rate(prev['counters'], snap['counters'], dt, 'tps')
-                snap['qps'] = round(qps, 1) if qps is not None else None
-                snap['tps'] = round(tps, 1) if tps is not None else None
-                if snap.get('counters', {}).get('hit_base'):
-                    h = snap['counters'].get('hit') or 0
-                    b = snap['counters']['hit_base']
-                    snap['cache_hit_pct'] = round(h / b * 100, 1) if b else None
-            self._prev[iid] = {'ts': ts, 'counters': dict(snap.get('counters') or {})}
+                cur_id = (snap.get('instance_number'), snap.get('db_unique_name'))
+                prev_id = (prev.get('inum'), prev.get('dbname'))
+                id_mismatch = (cur_id[0] is not None and prev_id[0] is not None
+                               and cur_id[0] != prev_id[0])
+                dt = ts - prev['ts']
+                dt_valid = dt >= self.INTERVAL * self.DT_MIN_RATIO
+                if id_mismatch:
+                    snap['rate_note'] = 'instance_changed'
+                elif not dt_valid:
+                    snap['rate_note'] = 'dt_too_small'
+                else:
+                    dt = max(dt, 0.001)
+                    qps = self._rate(prev['counters'], snap['counters'], dt, 'qps')
+                    tps = self._rate(prev['counters'], snap['counters'], dt, 'tps')
+                    if qps is not None and qps > self.QPS_SPIKE_MAX:
+                        snap['qps_raw'] = round(qps, 1)
+                        snap['rate_note'] = 'spike'
+                        qps = None
+                    snap['qps'] = round(qps, 1) if qps is not None else None
+                    snap['tps'] = round(tps, 1) if tps is not None else None
+                    if qps is None:
+                        snap['rate_note'] = snap.get('rate_note') or 'counter_reset'
+                    if snap.get('counters', {}).get('hit_base'):
+                        h = snap['counters'].get('hit') or 0
+                        b = snap['counters']['hit_base']
+                        snap['cache_hit_pct'] = round(h / b * 100, 1) if b else None
+            self._prev[iid] = {'ts': ts, 'counters': dict(snap.get('counters') or {}),
+                               'inum': snap.get('instance_number'),
+                               'dbname': snap.get('db_unique_name')}
             self._snap[iid] = {k: v for k, v in snap.items() if k != 'counters'}
             if snap.get('qps') is not None:
                 sp = self._spark.setdefault(iid, deque(maxlen=self.HISTORY))
