@@ -1,5 +1,21 @@
 # Changelog
 
+## v26.10.22.0 (2026-10-22)
+- **修复：Oracle 监控大屏 QPS 偶发冲高（Issue #63）**
+  - 取值口径（未变，仅补充说明）：Oracle 取 `v$sysstat` 的 `execute count`（**实例级**累计计数，含递归 SQL 与 `DBMS_SCHEDULER` 定时任务），相邻两次采样做差除以时间差，采样间隔 15 秒；大屏顶部 QPS 为**所有已纳管实例求和**。同一库若同时配置「原生 oracledb」与「JDBC」两条数据源，同一计数器会被采两遍，KPI 翻倍。
+  - 根因与防护缺口：① RAC / 负载均衡下 `v$sysstat` 是实例级视图，两次采样落到不同实例时做差可得到任意大值，而快照里已采到的 `instance_number` / `db_unique_name` 从未参与一致性校验；② 速率计算只做 `max(差值÷时间差, 0)`，只挡负数不封顶，异常大值原样上屏；③ 实例重启导致计数器归零时被兜底显示 0，形成「突然掉零」假谷。
+  - 修复（`modules/monitor/screen_metrics.py`）：新增三层防噪 —— **采样身份一致性**（`instance_number` + `db_unique_name` 变化则该样本作废，标记 `instance_changed`）、**时间差有效性**（实际间隔 < 采样间隔 30% 判为调度抖动丢弃，标记 `dt_too_small`）、**尖峰封顶**（超物理阈值记为采样异常、原值留档于 `qps_raw`，不进入 KPI 汇总与迷你趋势，标记 `spike`）；计数器回退标记 `counter_reset` 不再兜底显示假 0。
+- **修复：Oracle 慢查询「平均耗时 = 最大耗时 = 总耗时」恒成立（Issue #63）**
+  - 根因：`v$sql.elapsed_time` 是该 SQL 至今的**累计总耗时**（微秒），既不是平均值也不是单次最大值；实时监控慢查询 SQL 把同一字段同时填进三列，任何执行次数下三列都恒等（只执行 1 次时「碰巧」看起来正常）。同一项目的巡检链路口径本就是正确的，属实时监控这条漏改。
+  - 修复（`modules/monitor/queries.py`）：`avg_time_s` = `elapsed_time / NULLIF(executions, 0)`；`max_time_s` = `v$sql.max_elapsed_time`（单次最慢）；`total_time_s` 保持累计值。附带修三处：补 `executions > 0`（不再混入从未执行的 SQL）、`module != 'DBMS_SCHEDULER'` 改 `NVL(module,'x')`（原写法在 module 为 NULL 时静默丢行）、补 `child_number = 0`（只取父游程，避免同一 SQL 重复出现）。
+  - 兼容性：11gR1 的 `v$sql` 无 `max_elapsed_time` 列（ORA-00904），新增降级 SQL 以 avg 充当 max；`modules/monitor/engine.py` 把 ORA-00904 / invalid identifier 纳入 fallback 触发条件（此前该类错误不触发降级，直接导致慢查询页签整体失败）。
+  - 验证：新增 `scripts/verify_issue63_oracle_metrics.py`，27 项断言全部 PASS（口径拆分 / 两字典不互相覆盖 / 速率语义 / 三层防噪 / 首轮无 prev）。
+- **文档：README 统计数据口径实测修正**
+  - 里程碑表与头部标语原为历史宣传数：Docker 拉取 28,000+ → **29,000+**（Docker Hub API 实测 29,933）、Stars 171+ → **170+**（实测 175）、Forks 58+ → **60+**（实测 60）。
+  - 数据库类型「30+」→「**20+**」：`DB_TYPE_CATALOG` 31 个 key 是驱动目录注册数（含未落地巡检的 openGauss / Greenplum / StarRocks / Doris / Hive / ES / TDengine / Oscar / Sybase / SQLite），实际支持 22 种且已按「_jdbc 与不带后缀同库」去重（Oracle 原生 + JDBC 合并、Redis + 集群合并）。
+  - 巡检规则「330+」→「**800+**」：实测 `data/inspection.db` 预设巡检查询 836 条（23 个库型模板全为 is_preset），330+ 系 v26.9.8 时期沿用的旧宣传数。
+  - 官网（dbcheck.top / raccoonx.cn）同步：巡检规则数更新为 836+。
+
 ## v26.10.11.0 (2026-10-10)
 - **新增：大屏 Redis/MongoDB 明细自适应（用户反馈：NoSQL 无表空间概念）**
   - Redis 原生采集新增 `CLIENT LIST` 逐客户端明细（conn_rows）与 `SLOWLOG GET` 慢日志明细（耗时微秒→毫秒），`native_collect.py` 三处返回补键；MongoDB 及兜底空状态显示中性文案（连接数汇总 N / 慢查询需开启 profiler），不再误报「不支持连接采集」。

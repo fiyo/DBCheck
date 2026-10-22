@@ -8,7 +8,7 @@
 >
 > 项目**原名 DBCheck**。
 
-[![Version](https://img.shields.io/badge/Version-v26.10.11.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/Version-v26.10.22.0-blue.svg)]()
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)]()
 [![AI](https://img.shields.io/badge/AI-Ollama%20%7C%20OpenAI-orange.svg)]()
