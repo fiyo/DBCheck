@@ -89,7 +89,67 @@ ok2, msg2 = sm.cancel_job('job-run')
 check('执行中的任务返回 True', ok2 is True, msg2)
 check('执行中已置取消信号', h4.cancel_event.is_set())
 check('原生驱动给出等待说明', '数据库' in msg2 or '子进程' in msg2, msg2)
+check('中止后提示已禁用该任务', '禁用' in msg2, msg2)
 sch._unregister_run('job-run')
+
+print('[4b] 中止即禁用（到点不再自动启动）')
+# 用临时配置文件做隔离测试，不动真实任务配置
+import json
+import tempfile
+
+_orig_load = sch._load_jobs
+_orig_save = sch._save_jobs
+_tmp_path = None
+try:
+    _fd, _tmp_path = tempfile.mkstemp(suffix='.json')
+    os.close(_fd)
+    with open(_tmp_path, 'w', encoding='utf-8') as f:
+        json.dump([{'id': 'job-d', 'name': 'D', 'enabled': True,
+                    'db_info': {'db_type': 'mysql', 'host': 'h', 'port': 3306},
+                    'cron': {'minute': '0'}}], f, ensure_ascii=False)
+
+    def _load_stub():
+        with open(_tmp_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+
+    def _save_stub(jobs):
+        with open(_tmp_path, 'w', encoding='utf-8') as f:
+            json.dump(jobs, f, ensure_ascii=False)
+
+    sch._load_jobs = _load_stub
+    sch._save_jobs = _save_stub
+
+    class _FakeAPS2:
+        def __init__(self):
+            self.removed = []
+
+        def get_jobs(self):
+            return []
+
+        def get_job(self, jid):
+            return object()  # 假装调度器里有这个 job
+
+        def remove_job(self, jid):
+            self.removed.append(jid)
+
+    sm_b = sch.SchedulerManager.__new__(sch.SchedulerManager)
+    sm_b.scheduler = _FakeAPS2()
+    h5 = sch._register_run('job-d')
+    ok3, msg3 = sm_b.cancel_job('job-d')
+    check('中止返回 True', ok3 is True, msg3)
+    saved = _load_stub()
+    check('中止后 enabled 被持久化为 False', saved[0].get('enabled') is False)
+    check('任务已从调度器摘除（到点不再触发）', 'job-d' in sm_b.scheduler.removed)
+    check('列表中 enabled 呈禁用', sm_b.list_jobs()[0].get('enabled') is False)
+    sch._unregister_run('job-d')
+finally:
+    sch._load_jobs = _orig_load
+    sch._save_jobs = _orig_save
+    try:
+        if _tmp_path and os.path.exists(_tmp_path):
+            os.remove(_tmp_path)
+    except Exception:
+        pass
 
 print('[5] 排队阶段可中断（不占用执行名额）')
 sem_before = sch._inspection_semaphore._value
@@ -118,10 +178,25 @@ else:
     item = next((j for j in listed if j['id'] == jid), None)
     check('list_jobs 含 executing 字段', item is not None and 'executing' in item)
     check('执行中时 executing=True', bool(item and item.get('executing')))
+    check('执行中 enabled 仍为真实值（不伪造禁用）',
+          item is not None and item.get('enabled') == jobs[0].get('enabled', True))
+    check('不再输出 enabled_saved 字段', item is not None and 'enabled_saved' not in item)
     sch._unregister_run(jid)
     listed2 = sm2.list_jobs()
     item2 = next((j for j in listed2 if j['id'] == jid), None)
     check('结束后 executing=False', not item2.get('executing'))
+    check('结束后 enabled 仍为真实值', item2.get('enabled') == jobs[0].get('enabled', True))
+
+print('[6b] 执行中不再重复触发')
+h6 = sch._register_run('job-dup')
+sm3 = sch.SchedulerManager.__new__(sch.SchedulerManager)
+started = []
+sm3._job_func = lambda *a, **k: started.append(a)
+# 直接调用原型方法验证跳过逻辑
+orig = sch.SchedulerManager._job_func
+orig(sm3, 'job-dup', {'db_type': 'mysql'}, 'tester', False)
+check('已在执行时直接跳过（不启动线程）', not started)
+sch._unregister_run('job-dup')
 
 print('[7] API 路由存在')
 try:

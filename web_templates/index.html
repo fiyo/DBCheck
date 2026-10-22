@@ -18381,6 +18381,7 @@ function renderJobList(jobs) {
     const statusColor = job.running ? '#00C8A0' : '#94A3B8';
     const statusText = job.running ? '运行中' : '已暂停';
     const isExecuting = !!job.executing;
+    const isEnabled = job.enabled !== false;
     const cronText = formatCronText(job.cron);
     const enabledChecked = job.enabled ? 'checked' : '';
     const dbInfo = job.db_info || {};
@@ -18389,29 +18390,39 @@ function renderJobList(jobs) {
     const hostDisplay = dsId ? ('📁 ' + escHtml(dbInfo.host || dsId)) : (escHtml(dbInfo.host || '未知') + ':' + (dbInfo.port || ''));
     const dbTypeDisplay = dsId ? (escHtml((dbInfo.db_type || '').toUpperCase())) : escHtml((job.db_type || 'MYSQL').toUpperCase());
     const userDisplay = dsId ? '' : (' · ' + escHtml(dbInfo.user || ''));
-    // 执行中：显示「执行中」徽标 + 中止按钮（#64）
-    const execBadge = isExecuting
-      ? '<span style="display:inline-flex;align-items:center;gap:4px;margin-left:8px;padding:2px 8px;border-radius:10px;font-size:11px;background:rgba(255,171,64,0.16);color:#FFAB40;border:1px solid rgba(255,171,64,0.35);">⏳ 执行中</span>'
-      : '';
+    // 当前任务状态文字（执行中 > 已启用 > 已禁用）
+    const stateText = isExecuting ? '执行中' : (isEnabled ? '已启用' : '已禁用');
+    const stateColor = isExecuting ? '#FFAB40' : (isEnabled ? '#00C8A0' : '#94A3B8');
+    const stateBadge = '<span style="display:inline-flex;align-items:center;gap:4px;margin-left:8px;padding:2px 8px;border-radius:10px;font-size:11px;background:' +
+      (isExecuting ? 'rgba(255,171,64,0.16);color:#FFAB40;border:1px solid rgba(255,171,64,0.35)'
+                    : (isEnabled ? 'rgba(0,200,160,0.12);color:#00C8A0;border:1px solid rgba(0,200,160,0.3)'
+                                 : 'rgba(148,163,184,0.12);color:#94A3B8;border:1px solid rgba(148,163,184,0.3)')) +
+      ';">' + stateText + '</span>';
+    // 启用/禁用 切换按钮（替代原复选框）
+    const toggleBtn = isEnabled
+      ? '<button class="btn btn-ghost" style="padding:4px 12px;font-size:12px;color:var(--text);" onclick="toggleJob(\'' + job.id + '\', false)">⏸ 禁用</button>'
+      : '<button class="btn btn-ghost" style="padding:4px 12px;font-size:12px;color:var(--text);" onclick="toggleJob(\'' + job.id + '\', true)">▶ 启用</button>';
+    // 中止：结束当前执行，同时把任务置为禁用（按钮随后变为「启用」）
     const cancelBtn = isExecuting
       ? '<button class="btn btn-ghost" style="padding:4px 12px;font-size:12px;color:#FFAB40;border:1px solid rgba(255,171,64,0.4);" onclick="cancelJob(\'' + job.id + '\')">⏹ 中止</button>'
       : '';
+    // 执行中隐藏「立即执行」，避免重复触发
+    const runNowBtn = isExecuting
+      ? ''
+      : '<button class="btn btn-ghost" style="padding:4px 12px;font-size:12px;color:var(--text);" onclick="runJobNow(\'' + job.id + '\')">▶ 立即执行</button>';
 
     return `
       <div style="background:var(--surface2);border-radius:10px;padding:16px;margin-bottom:12px;display:flex;align-items:center;gap:16px;color:var(--text);">
         <div style="flex:1">
-          <div style="font-weight:600;margin-bottom:4px;color:var(--text);">${escHtml(job.name)}${execBadge}</div>
+          <div style="font-weight:600;margin-bottom:4px;color:var(--text);">${escHtml(job.name)}${stateBadge}</div>
           <div style="font-size:12px;color:var(--text-muted);">
             ${dbTypeDisplay} · ${hostDisplay}${userDisplay} · ${cronText}
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
-          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;color:var(--text);">
-            <input type="checkbox" ${enabledChecked} onchange="toggleJob('${job.id}', this.checked)" />
-            启用
-          </label>
+          ${toggleBtn}
           <button class="btn btn-ghost" style="padding:4px 12px;font-size:12px;color:var(--text);" onclick="editJob('${job.id}')">✏️ 编辑</button>
-          <button class="btn btn-ghost" style="padding:4px 12px;font-size:12px;color:var(--text);" onclick="runJobNow('${job.id}')">▶ 立即执行</button>
+          ${runNowBtn}
           ${cancelBtn}
           <button class="btn btn-ghost" style="padding:4px 12px;font-size:12px;color:var(--danger);" onclick="deleteJob('${job.id}')">🗑 删除</button>
         </div>
@@ -19108,7 +19119,8 @@ async function cancelJob(jobId) {
       '⏹ 中止巡检',
       '确定要中止该任务当前正在执行的巡检吗？\n\n' +
       '· JVM 类数据库（Oracle/DB2/HGDB 等）：子进程将被立即终止\n' +
-      '· 原生驱动类：将在当前数据库查询返回后停止'
+      '· 原生驱动类：将在当前数据库查询返回后停止\n\n' +
+      '中止后该任务会被置为「禁用」，到点不再自动启动；需要时可再点「启用」恢复。'
     );
     if (!ok) return;
     const res = await fetch(`/api/scheduler/jobs/${jobId}/cancel`, { method: 'POST' });

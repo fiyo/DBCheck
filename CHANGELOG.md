@@ -1,5 +1,26 @@
 # Changelog
 
+## v26.10.22.2 (2026-10-22)
+- **新增：定时巡检「中止当前正在执行的那次」+ 启停交互重做（Issue #64）**
+  - 背景：此前只能「禁用任务」（阻止下次触发），已经开跑的那次巡检无法中止——线程无法强杀，JVM 子进程只会等到 25 分钟硬超时才被终止，表现为「停不下来」且期间持续占用数据库连接与串行执行名额。
+  - 中止机制（`modules/web/scheduler.py`）：新增 `InspectionCancelled` 异常与 `_RunHandle`（取消信号 `cancel_event` / 子进程句柄 `proc` / 阶段 `stage` / 开始时间），并维护运行中巡检登记表 `_running_jobs`。
+    - **排队阶段可中断**：等待串行执行名额由一次性 `acquire(timeout=1800)` 改为 0.5 秒分段获取，收到取消信号立即退出且不占用名额。
+    - **JVM 类秒级终止**：子进程创建后即登记 `handle.proc`，取消时由取消方直接 `_kill_tree` 终止整个进程树（含 JVM 孙进程）；执行线程通过管道关闭感知中止并抛 `InspectionCancelled`，与真实失败区分（不触发失败告警）。
+    - **原生驱动类协作式中止**：在「准备采集 / 数据库采集前 / 插件采集 / 发送通知前」四个阶段边界检查取消信号；Python 线程无法强杀，正在执行的数据库查询会跑完，但该次巡检不再继续后续阶段。
+    - `list_jobs` 新增 `executing` / `executing_started_at` / `executing_stage`；`SchedulerManager.shutdown()` 关闭前先取消所有运行中巡检。
+  - 启停交互重做（Web UI 定时巡检任务卡片）：
+    - 原「启用」复选框改为**「⏸ 禁用 / ▶ 启用」切换按钮**；禁用即持久化 `enabled=false` 并从调度器摘除，**到点不再自动启动**，按钮文案随之切换。
+    - 卡片新增**状态徽标**：执行中（橙）/ 已启用（青）/ 已禁用（灰）。
+    - **「⏹ 中止」= 结束当前执行 + 同时把该任务置为禁用**（中止后按钮变为「启用」，到点也不再自动启动）。
+    - 执行中隐藏「▶ 立即执行」；后端 `_job_func` 增加防重复触发——任务已在执行时，本次触发（到点或手动）直接跳过，不会并发跑第二份。
+  - 接口：新增 `POST /api/scheduler/jobs/<job_id>/cancel`。
+- **修复：退出时定时巡检的 JVM 子进程残留成孤儿（Issue #64）**
+  - 根因：退出走 `os._exit(0)` 强杀，只清理 `modules.web.app` 自己登记的活跃子进程；定时巡检在 `modules/web/scheduler.py` 里 spawn 的 JVM 子进程不在清理范围内，Ctrl+C 后残留占用内存与端口。
+  - 修复：新增公共子进程登记表 `modules/core/proc_registry.py`（`register_proc` / `unregister_proc` / `kill_all` / `kill_process_tree`），`app.py` 与 `scheduler.py` 共用；退出钩子 `_request_shutdown` 改为「停采集器与调度器 → 杀全部登记子进程 → 强退」。
+  - 退出前显式停止实时监控 / 大屏采样器 / 宿主指标采集器与调度器——这些线程本就是 daemon=True 会在退出时结束，显式停止是为了让「关闭前取消运行中巡检」真正生效。
+  - 红线：退出清理只操作**已存在**的实例，绝不走懒加载 getter（调度器的懒加载会 new 实例并 start APScheduler + 恢复持久化任务，等于退出时反而把调度器启动起来）。
+- **验证**：新增 `scripts/verify_issue64_scheduler_cancel.py`（30 项断言）与 `scripts/verify_issue64_shutdown_cleanup.py`（18 项断言），全部 PASS。
+
 ## v26.10.22.1 (2026-10-22)
 - **新增：定时巡检「中止当前正在执行的那次」能力（Issue #64）**
   - 背景：此前只能「禁用任务」（阻止下次触发），已经开跑的那次巡检无法中止——线程无法强杀，JVM 子进程只会等到 25 分钟硬超时才被终止，表现为「停不下来」且期间持续占用数据库连接与串行执行名额。

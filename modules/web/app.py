@@ -288,6 +288,8 @@ _CTRL_HANDLER_KEEPALIVE = None  # 模块级保活 Win32 回调，防止被 GC �
 
 # 活跃子进程表（巡检/测试连接子进程）：主进程 Ctrl+C / os._exit 前必须整树杀掉，
 # 否则 JVM 子进程变孤儿继续占用资源/端口（表现为「进程结束不掉/重启端口被占」）。
+# 登记表抽到 modules.core.proc_registry：定时巡检调度器（modules.web.scheduler）
+# 也会 spawn JVM 巡检子进程，两边共用一张表才能在退出时清干净（#64）。
 _ACTIVE_PROCS: set = set()
 _ACTIVE_PROCS_LOCK = _shutdown_threading.Lock()
 
@@ -300,12 +302,69 @@ def _hard_exit():
     os._exit(0)
 
 
+def _stop_background_collectors():
+    """退出前停掉所有后台采集器与调度器（#64）。
+
+    这些线程都是 daemon=True，进程退出时本就会随之结束；这里显式停止是为了
+    ① 让「关闭前取消运行中巡检」的逻辑真正生效（否则巡检 JVM 子进程会残留）；
+    ② 让采集状态在退出瞬间是干净的，便于排查。
+
+    重要：只操作**已存在**的实例，绝不走懒加载 getter——
+    调度器的懒加载 getter 会 new 出一个 SchedulerManager 并 start APScheduler +
+    恢复持久化任务，等于「退出时反而把调度器启动起来」。
+
+    任何异常都不允许阻断退出。
+    """
+    # 1) 调度器：先取消正在执行的巡检（会 kill 其 JVM 子进程）
+    try:
+        from modules.web import scheduler as _sch_mod
+        _inst = getattr(_sch_mod, '_scheduler', None)
+        if _inst is not None:
+            _inst.shutdown()
+    except Exception:
+        pass
+    # 2) 实时监控采集循环
+    try:
+        from modules.monitor import engine as _eng_mod
+        _eng = getattr(_eng_mod, '_monitor_engine', None)
+        if _eng is not None:
+            _eng.stop()
+    except Exception:
+        pass
+    # 3) 大屏采样器
+    try:
+        from modules.monitor import screen_metrics as _scr_mod
+        _scr = getattr(_scr_mod, '_screen_collector', None)
+        if _scr is not None:
+            _scr.stop()
+    except Exception:
+        pass
+    # 4) 宿主指标采集器（APScheduler + 采集器标志位）
+    try:
+        sched = globals().get('_monitor_sched')
+        if sched is not None and sched.running:
+            sched.shutdown(wait=False)
+    except Exception:
+        pass
+    try:
+        from modules.pro import metrics_collector as _mc_mod
+        _collector = getattr(_mc_mod, '_collector', None)
+        if _collector is not None:
+            _collector.running = False
+    except Exception:
+        pass
+
+
 def _request_shutdown(sig=None, frame=None):
-    """请求关闭：先清理活跃子进程（防孤儿 JVM），再立即强制退出。
+    """请求关闭：先停采集器与调度器、再清理活跃子进程（防孤儿 JVM），最后立即强制退出。
 
     清理环节异常绝不允许阻断退出——Ctrl+C 场景下 os._exit(0) 是唯一
     必达目标（子进程残留最坏由系统回收，而进程不退是用户最痛的点）。
     """
+    try:
+        _stop_background_collectors()
+    except Exception:  # noqa: BLE001
+        pass
     try:
         _kill_active_subprocesses()
     except Exception:  # noqa: BLE001
@@ -319,7 +378,16 @@ def _kill_active_subprocesses():
     主进程走 os._exit(0) 强杀时不会触发任何清理钩子，若巡检子进程
     （jdbc_inspection_cli，含 JVM）还在跑会变孤儿残留。这里在退出前
     显式 kill，避免「Ctrl+C 后进程看似没退干净 / 重启端口被占」。
+
+    走公共登记表（modules.core.proc_registry），因此定时巡检调度器
+    spawn 的子进程同样在清理范围内（#64）。
     """
+    try:
+        from modules.core.proc_registry import kill_all
+        kill_all()
+    except Exception:  # noqa: BLE001
+        pass
+    # 兼容旧表（若有其它模块仍直接往 _ACTIVE_PROCS 塞）
     if not _ACTIVE_PROCS:
         return
     with _ACTIVE_PROCS_LOCK:
@@ -2855,6 +2923,11 @@ def run_jdbc_test_subprocess(db_type, data, extra_kwargs=None, timeout=JDBC_TEST
             # 注册到活跃子进程表：主进程退出时整树清理（同步等待中遇 Ctrl+C 同样要杀）
             with _ACTIVE_PROCS_LOCK:
                 _ACTIVE_PROCS.add(proc)
+            try:
+                from modules.core.proc_registry import register_proc
+                register_proc(proc)
+            except Exception:
+                pass
 
             deadline = time.monotonic() + timeout
             while proc.poll() is None:
@@ -2901,6 +2974,11 @@ def run_jdbc_test_subprocess(db_type, data, extra_kwargs=None, timeout=JDBC_TEST
         with _ACTIVE_PROCS_LOCK:
             if proc is not None:
                 _ACTIVE_PROCS.discard(proc)
+        try:
+            from modules.core.proc_registry import unregister_proc
+            unregister_proc(proc)
+        except Exception:
+            pass
         for _p in (_in_path, _out_path):
             try:
                 os.remove(_p)
@@ -2993,6 +3071,11 @@ def _run_inspection_subprocess(task_id, db_type, db_info, inspector_name,
             # 注册到活跃子进程表：主进程 Ctrl+C 退出时整树清理，防 JVM 孤儿残留
             with _ACTIVE_PROCS_LOCK:
                 _ACTIVE_PROCS.add(proc)
+            try:
+                from modules.core.proc_registry import register_proc
+                register_proc(proc)
+            except Exception:
+                pass
 
         # ── 流式转发：轮询期间增量读取临时文件，实时把日志推给前端 ──
         # 之前是「等子进程退出后整文件读取」，导致前端日志全部堆积到巡检结束才弹出。
@@ -3094,6 +3177,11 @@ def _run_inspection_subprocess(task_id, db_type, db_info, inspector_name,
         with _ACTIVE_PROCS_LOCK:
             if proc is not None:
                 _ACTIVE_PROCS.discard(proc)
+        try:
+            from modules.core.proc_registry import unregister_proc
+            unregister_proc(proc)
+        except Exception:
+            pass
         for _p in (_in_path, _out_path):
             try:
                 os.remove(_p)

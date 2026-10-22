@@ -335,6 +335,13 @@ def _run_plugin_inspection_subprocess(db_info, inspector_name, handle=None):
         # 登记子进程句柄：用户点「中止」时由取消方 _kill_tree 秒级终止进程树
         if handle is not None:
             handle.proc = proc
+        # 登记到全局子进程表：主进程 Ctrl+C / os._exit 退出前统一整树清理，
+        # 否则定时巡检的 JVM 子进程会残留成孤儿（占用内存/端口）——#64
+        try:
+            from modules.core.proc_registry import register_proc
+            register_proc(proc)
+        except Exception:
+            pass
         try:
             proc.stdin.write(raw.encode('utf-8'))
             proc.stdin.close()
@@ -371,6 +378,11 @@ def _run_plugin_inspection_subprocess(db_info, inspector_name, handle=None):
     finally:
         if handle is not None:
             handle.proc = None
+        try:
+            from modules.core.proc_registry import unregister_proc
+            unregister_proc(proc)
+        except Exception:
+            pass
         if proc is not None and proc.poll() is None:
             _kill_tree(proc)
 
@@ -855,7 +867,14 @@ class SchedulerManager:
         """任务执行函数（包装器）
 
         每次执行登记 _RunHandle，供「中止当前执行」使用（#64）。
+        防重复触发：同一任务已在执行中时，本次触发（到点触发或「立即执行」）
+        直接跳过，不启动第二次巡检——执行中的任务不参与调度。
         """
+        # 防重复触发：已有执行句柄说明该任务正在跑，本次直接跳过
+        existing = get_run_handle(job_id)
+        if existing is not None:
+            logger.info('[%s] 任务正在执行中，跳过本次触发（不重复启动巡检）', job_id)
+            return
         # 登记执行句柄：取消信号 + JVM 子进程句柄回填
         handle = _register_run(job_id)
         # 在独立线程中运行，避免阻塞调度器
@@ -1100,13 +1119,34 @@ class SchedulerManager:
                 return True
         return False
 
+    def _disable_job(self, job_id):
+        """把任务置为禁用并从调度器摘除（持久化 enabled=false）。
+
+        禁用后到点不再自动启动；重新「启用」即可恢复调度。
+        """
+        jobs = _load_jobs()
+        changed = False
+        for job_cfg in jobs:
+            if job_cfg.get('id') == job_id:
+                job_cfg['enabled'] = False
+                changed = True
+                break
+        if changed:
+            _save_jobs(jobs)
+        try:
+            if self.scheduler.get_job(job_id):
+                self.scheduler.remove_job(job_id)
+        except Exception:
+            pass
+        return changed
+
     def cancel_job(self, job_id):
         """
-        中止该任务当前正在执行的巡检（#64）
+        中止该任务当前正在执行的巡检，并同时把该任务置为禁用（#64）
 
         与 toggle_job(enabled=False) 的区别：
           - 禁用：只阻止「下次触发」，已经开跑的那次照常跑完；
-          - 中止：直接打断当前这次。
+          - 中止：打断当前这次，并连带禁用该任务（到点不再自动启动）。
 
         返回:
             (ok, msg):
@@ -1118,11 +1158,14 @@ class SchedulerManager:
         if handle is None:
             return False, '该任务当前未在执行'
         killed = handle.cancel()
+        # 中止即禁用：到点不再自动启动，按钮随后变为「启用」
+        self._disable_job(job_id)
         if killed:
-            logger.info('[%s] 已中止巡检（JVM 子进程已终止）', job_id)
-            return True, '已中止：巡检子进程已终止'
-        logger.info('[%s] 已发送中止信号（原生驱动类型将在当前数据库调用返回后停止）', job_id)
-        return True, '已发送中止信号：将在当前数据库调用返回后停止'
+            logger.info('[%s] 已中止巡检（JVM 子进程已终止），并已禁用该任务', job_id)
+            return True, '已中止：巡检子进程已终止，该任务已禁用'
+        logger.info('[%s] 已发送中止信号（原生驱动类型将在当前数据库调用返回后停止），'
+                    '并已禁用该任务', job_id)
+        return True, '已发送中止信号：将在当前数据库调用返回后停止，该任务已禁用'
 
     def shutdown(self):
         """关闭调度器"""
