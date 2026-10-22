@@ -5809,6 +5809,20 @@ def api_scheduler_run_now(job_id):
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
+@app.route('/api/scheduler/jobs/<job_id>/cancel', methods=['POST'])
+def api_scheduler_cancel(job_id):
+    """中止该任务当前正在执行的巡检（#64）
+
+    与 toggle(禁用) 的区别：禁用只阻止下次触发，这里直接打断当前这次。
+    """
+    try:
+        sm = _get_scheduler()
+        ok, msg = sm.cancel_job(job_id)
+        return jsonify({'ok': ok, 'msg': msg})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
 # ══════════════════════════════════════════════════════════════
 # 通知配置 API
 # ══════════════════════════════════════════════════════════════

@@ -18297,6 +18297,7 @@ async function loadSchedulerJobs() {
     const data = await res.json();
     if (data.ok) {
       renderJobList(data.jobs);
+      scheduleSchedulerExecPoll();
     }
   } catch(e) { console.error(e); }
 }
@@ -18379,6 +18380,7 @@ function renderJobList(jobs) {
   const html = jobs.map(job => {
     const statusColor = job.running ? '#00C8A0' : '#94A3B8';
     const statusText = job.running ? '运行中' : '已暂停';
+    const isExecuting = !!job.executing;
     const cronText = formatCronText(job.cron);
     const enabledChecked = job.enabled ? 'checked' : '';
     const dbInfo = job.db_info || {};
@@ -18387,11 +18389,18 @@ function renderJobList(jobs) {
     const hostDisplay = dsId ? ('📁 ' + escHtml(dbInfo.host || dsId)) : (escHtml(dbInfo.host || '未知') + ':' + (dbInfo.port || ''));
     const dbTypeDisplay = dsId ? (escHtml((dbInfo.db_type || '').toUpperCase())) : escHtml((job.db_type || 'MYSQL').toUpperCase());
     const userDisplay = dsId ? '' : (' · ' + escHtml(dbInfo.user || ''));
+    // 执行中：显示「执行中」徽标 + 中止按钮（#64）
+    const execBadge = isExecuting
+      ? '<span style="display:inline-flex;align-items:center;gap:4px;margin-left:8px;padding:2px 8px;border-radius:10px;font-size:11px;background:rgba(255,171,64,0.16);color:#FFAB40;border:1px solid rgba(255,171,64,0.35);">⏳ 执行中</span>'
+      : '';
+    const cancelBtn = isExecuting
+      ? '<button class="btn btn-ghost" style="padding:4px 12px;font-size:12px;color:#FFAB40;border:1px solid rgba(255,171,64,0.4);" onclick="cancelJob(\'' + job.id + '\')">⏹ 中止</button>'
+      : '';
 
     return `
       <div style="background:var(--surface2);border-radius:10px;padding:16px;margin-bottom:12px;display:flex;align-items:center;gap:16px;color:var(--text);">
         <div style="flex:1">
-          <div style="font-weight:600;margin-bottom:4px;color:var(--text);">${escHtml(job.name)}</div>
+          <div style="font-weight:600;margin-bottom:4px;color:var(--text);">${escHtml(job.name)}${execBadge}</div>
           <div style="font-size:12px;color:var(--text-muted);">
             ${dbTypeDisplay} · ${hostDisplay}${userDisplay} · ${cronText}
           </div>
@@ -18403,6 +18412,7 @@ function renderJobList(jobs) {
           </label>
           <button class="btn btn-ghost" style="padding:4px 12px;font-size:12px;color:var(--text);" onclick="editJob('${job.id}')">✏️ 编辑</button>
           <button class="btn btn-ghost" style="padding:4px 12px;font-size:12px;color:var(--text);" onclick="runJobNow('${job.id}')">▶ 立即执行</button>
+          ${cancelBtn}
           <button class="btn btn-ghost" style="padding:4px 12px;font-size:12px;color:var(--danger);" onclick="deleteJob('${job.id}')">🗑 删除</button>
         </div>
       </div>
@@ -19089,6 +19099,41 @@ async function toggleJob(jobId, enabled) {
     });
     loadSchedulerJobs();
   } catch(e) { console.error(e); }
+}
+
+// ─── 中止当前正在执行的巡检（#64）──────────────────────────
+async function cancelJob(jobId) {
+  try {
+    const ok = await showConfirmDialog(
+      '⏹ 中止巡检',
+      '确定要中止该任务当前正在执行的巡检吗？\n\n' +
+      '· JVM 类数据库（Oracle/DB2/HGDB 等）：子进程将被立即终止\n' +
+      '· 原生驱动类：将在当前数据库查询返回后停止'
+    );
+    if (!ok) return;
+    const res = await fetch(`/api/scheduler/jobs/${jobId}/cancel`, { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) {
+      toastSuccess(data.msg || '已发送中止信号');
+    } else {
+      toastError(data.msg || data.error || '中止失败');
+    }
+    setTimeout(loadSchedulerJobs, 800);
+  } catch(e) { toastError('中止失败: ' + e.message); }
+}
+
+// 轮询执行中状态（让「⏹ 中止」按钮随巡检开始/结束实时出现与消失）
+let _schedulerExecTimer = null;
+function scheduleSchedulerExecPoll() {
+  if (_schedulerExecTimer) clearTimeout(_schedulerExecTimer);
+  _schedulerExecTimer = setTimeout(async function() {
+    try {
+      const el = document.getElementById('scheduler-job-list');
+      if (!el || !document.body.contains(el)) return; // 页面不在前台则不轮询
+      await loadSchedulerJobs();
+    } catch(e) { /* 忽略 */ }
+    scheduleSchedulerExecPoll();
+  }, 5000);
 }
 
 // ─── 一键修复建议功能 ───────────────────────────────────────

@@ -1,5 +1,16 @@
 # Changelog
 
+## v26.10.22.1 (2026-10-22)
+- **新增：定时巡检「中止当前正在执行的那次」能力（Issue #64）**
+  - 背景：此前只能「禁用任务」（阻止下次触发），已经开跑的那次巡检无法中止——线程无法强杀，JVM 子进程只会等到 25 分钟硬超时才被终止，表现为「停不下来」且期间持续占用数据库连接与串行执行名额。
+  - 机制（`modules/web/scheduler.py`）：新增 `InspectionCancelled` 异常与 `_RunHandle`（取消信号 `cancel_event` / 子进程句柄 `proc` / 阶段 `stage` / 开始时间），并维护运行中巡检登记表 `_running_jobs`（`_register_run` / `_unregister_run` / `get_run_handle` / `running_snapshot`）。
+    - **排队阶段可中断**：等待串行执行名额由一次性 `acquire(timeout=1800)` 改为 0.5 秒分段获取，收到取消信号立即退出且不占用名额。
+    - **JVM 类秒级终止**：子进程创建后即登记 `handle.proc`，取消时由取消方直接 `_kill_tree` 终止整个进程树（含 JVM 孙进程）；执行线程通过管道关闭感知中止并抛 `InspectionCancelled`，与真实失败区分（不触发失败告警）。
+    - **原生驱动类协作式中止**：在「准备采集 / 数据库采集前 / 插件采集 / 发送通知前」四个阶段边界检查取消信号；Python 线程无法强杀，正在执行的数据库查询会跑完，但该次巡检不再继续后续阶段。
+    - `list_jobs` 新增 `executing` / `executing_started_at` / `executing_stage` 字段；`SchedulerManager.shutdown()` 关闭前先取消所有运行中巡检，顺带消除「服务被杀 → JVM 子进程残留成孤儿」的隐患。
+  - 接口与界面：新增 `POST /api/scheduler/jobs/<job_id>/cancel`；Web UI 定时巡检任务卡片在执行时显示「⏳ 执行中」徽标与「⏹ 中止」按钮（带确认弹窗，说明两类数据库的不同中止方式），并以 5 秒轮询刷新执行状态（页面不在前台不轮询）。
+  - 验证：新增 `scripts/verify_issue64_scheduler_cancel.py`，6 组 18 项断言全部 PASS（登记与注销、取消信号、子进程终止判定、阶段检查点、`cancel_job` 返回值、排队可中断且不占名额、`list_jobs` 执行中状态、路由注册）。
+
 ## v26.10.22.0 (2026-10-22)
 - **修复：Oracle 监控大屏 QPS 偶发冲高（Issue #63）**
   - 取值口径（未变，仅补充说明）：Oracle 取 `v$sysstat` 的 `execute count`（**实例级**累计计数，含递归 SQL 与 `DBMS_SCHEDULER` 定时任务），相邻两次采样做差除以时间差，采样间隔 15 秒；大屏顶部 QPS 为**所有已纳管实例求和**。同一库若同时配置「原生 oracledb」与「JDBC」两条数据源，同一计数器会被采两遍，KPI 翻倍。

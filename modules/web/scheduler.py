@@ -75,6 +75,84 @@ _inspection_semaphore = threading.Semaphore(_INSPECTION_MAX_CONCURRENT)
 _scheduler = None  # 全局调度器实例（延迟初始化）
 
 
+# ══════════════════════════════════════════════════════════════
+#  运行中巡检的登记与中止（#64）
+# ══════════════════════════════════════════════════════════════
+#  问题：此前只能「禁用任务」（阻止下次触发），已经开跑的那次巡检无法中止——
+#  线程无法强杀，JVM 子进程只会等到 25 分钟硬超时才被 kill_tree，表现为
+#  「停不下来」且期间持续占用数据库连接与执行名额。
+#
+#  现在每次执行都会登记一个 _RunHandle：
+#  - cancel_event：协作式取消信号，巡检在阶段边界检查它；
+#  - proc：JVM 类型巡检的子进程句柄，取消时可直接 _kill_tree 秒级终止；
+#  - stage：当前阶段（queued/running/finishing），供 UI 展示。
+#  取消语义：能立刻终止的（子进程）立刻终止；无法强杀的（原生驱动线程正在
+#  执行数据库调用）发出信号后在该调用返回的最早边界退出，并记录日志说明。
+
+class InspectionCancelled(Exception):
+    """巡检被用户主动中止（非失败）"""
+
+
+class _RunHandle:
+    """一次正在执行的定时巡检的句柄"""
+
+    def __init__(self, job_id):
+        self.job_id = job_id
+        self.cancel_event = threading.Event()
+        self.started_at = time.time()
+        self.proc = None          # JVM 子进程句柄（创建后回填）
+        self.thread = None        # 执行线程
+        self.stage = 'queued'     # queued → running → finishing
+
+    def cancel(self):
+        """请求中止：置位信号；若持有子进程则立即终止进程树"""
+        self.cancel_event.set()
+        proc = self.proc
+        if proc is not None:
+            try:
+                if proc.poll() is None:
+                    _kill_tree(proc)
+                    return True   # 子进程已终止
+            except Exception:
+                pass
+        return False
+
+
+# 运行中的巡检登记表（job_id → _RunHandle）
+_running_jobs = {}
+_running_lock = threading.Lock()
+
+
+def _register_run(job_id):
+    """登记一次正在执行的巡检，返回句柄"""
+    handle = _RunHandle(job_id)
+    with _running_lock:
+        _running_jobs[job_id] = handle
+    return handle
+
+
+def _unregister_run(job_id):
+    """注销一次巡检执行"""
+    with _running_lock:
+        _running_jobs.pop(job_id, None)
+
+
+def get_run_handle(job_id):
+    """取指定任务当前执行句柄（无则 None）"""
+    with _running_lock:
+        return _running_jobs.get(job_id)
+
+
+def running_snapshot():
+    """运行中巡检概览：{job_id: {'started_at':.., 'stage':..}}"""
+    with _running_lock:
+        return {
+            jid: {'started_at': h.started_at, 'stage': h.stage}
+            for jid, h in _running_jobs.items()
+        }
+
+
+
 def _load_jobs():
     """从 JSON 文件加载任务配置"""
     if os.path.exists(CONFIG_FILE):
@@ -181,7 +259,7 @@ def _kill_tree(proc):
             pass
 
 
-def _run_plugin_inspection_subprocess(db_info, inspector_name):
+def _run_plugin_inspection_subprocess(db_info, inspector_name, handle=None):
     """在干净子进程中执行 JVM 插件类型（hgdb / db2 / sqlserver_jdbc / oracle_jdbc）
     的定时巡检，规避「进程内 JVM 与 gevent hub 死锁导致整个界面卡死」。
 
@@ -190,6 +268,10 @@ def _run_plugin_inspection_subprocess(db_info, inspector_name):
     读取 stdout 结束行（__DBCHECK_INSP_DONE__）并取回 ``report_path`` 供通知使用。
 
     本函数假定 ``db_info['db_type']`` 已在调用方确认属于 JVM 类型。
+
+    中止支持（#64）：子进程句柄登记到 handle.proc，用户取消时由取消方调用
+    _kill_tree 直接终止进程树；本函数读 stdout 时会因管道关闭而结束，感知到
+    cancel_event 后抛出 InspectionCancelled（区别于真实失败）。
     """
     import subprocess as _sp
     from modules.jdbc_inspection_cli import (
@@ -250,6 +332,9 @@ def _run_plugin_inspection_subprocess(db_info, inspector_name):
     try:
         proc = _sp.Popen(cmd, stdin=_sp.PIPE, stdout=_sp.PIPE, stderr=_sp.STDOUT,
                          env=env, cwd=str(PROJECT_ROOT), **_kw)
+        # 登记子进程句柄：用户点「中止」时由取消方 _kill_tree 秒级终止进程树
+        if handle is not None:
+            handle.proc = proc
         try:
             proc.stdin.write(raw.encode('utf-8'))
             proc.stdin.close()
@@ -270,6 +355,10 @@ def _run_plugin_inspection_subprocess(db_info, inspector_name):
         except Exception:
             pass
 
+        # 子进程被中止（管道关闭 / 进程被杀）→ 明确区分于失败
+        if handle is not None and handle.cancel_event.is_set():
+            raise InspectionCancelled('巡检已被用户中止')
+
         _deadline = time.monotonic() + _timeout
         _rc = None
         try:
@@ -280,6 +369,8 @@ def _run_plugin_inspection_subprocess(db_info, inspector_name):
             _kill_tree(proc)
             raise RuntimeError('插件巡检子进程超时（>%ds），已终止' % _timeout)
     finally:
+        if handle is not None:
+            handle.proc = None
         if proc is not None and proc.poll() is None:
             _kill_tree(proc)
 
@@ -316,7 +407,7 @@ def _on_watchdog_timeout(job_id, db_info, state, guard):
                  job_id, _INSPECTION_WATCHDOG_TIMEOUT, db_type)
 
 
-def _run_inspection(job_id, db_info, inspector_name, notify_on_done):
+def _run_inspection(job_id, db_info, inspector_name, notify_on_done, handle=None):
     """
     并发巡检排除机制入口（在独立线程中运行）。
 
@@ -327,8 +418,22 @@ def _run_inspection(job_id, db_info, inspector_name, notify_on_done):
     若等待执行名额超过 _INSPECTION_ACQUIRE_TIMEOUT，则跳过本次巡检（不堆积）；
     若单次巡检执行超过 _INSPECTION_WATCHDOG_TIMEOUT，看门狗会强制释放名额并
     记录超时失败，保证任何情况下都有明确的结果日志，而不是静默挂起。
+
+    中止支持（#64）：排队等待名额期间改为分段获取，收到取消信号立即退出；
+    执行阶段由 _run_inspection_core 在阶段边界检查信号并抛出 InspectionCancelled。
     """
-    acquired = _inspection_semaphore.acquire(timeout=_INSPECTION_ACQUIRE_TIMEOUT)
+    # 排队等待：分段获取信号量，期间可被取消
+    acquired = False
+    _deadline = time.monotonic() + _INSPECTION_ACQUIRE_TIMEOUT
+    while True:
+        if handle is not None and handle.cancel_event.is_set():
+            logger.info('[%s] 巡检已中止（排队等待执行名额期间取消）', job_id)
+            return
+        if _inspection_semaphore.acquire(timeout=0.5):
+            acquired = True
+            break
+        if time.monotonic() >= _deadline:
+            break
     if not acquired:
         logger.warning(
             '[%s] 巡检被跳过：并发排除机制，等待执行名额超时（%ds）',
@@ -352,13 +457,25 @@ def _run_inspection(job_id, db_info, inspector_name, notify_on_done):
     )
     timer.start()
     try:
-        _run_inspection_core(job_id, db_info, inspector_name, notify_on_done)
+        if handle is not None:
+            handle.stage = 'running'
+        _run_inspection_core(job_id, db_info, inspector_name, notify_on_done, handle)
+    except InspectionCancelled as ce:
+        logger.info('[%s] 巡检已中止: %s', job_id, ce)
     finally:
         timer.cancel()
         _release()
+        if handle is not None:
+            handle.stage = 'finishing'
 
 
-def _run_inspection_core(job_id, db_info, inspector_name, notify_on_done):
+def _check_cancelled(job_id, handle, stage):
+    """阶段边界检查取消信号，命中则抛出 InspectionCancelled"""
+    if handle is not None and handle.cancel_event.is_set():
+        raise InspectionCancelled('在「%s」阶段被中止' % stage)
+
+
+def _run_inspection_core(job_id, db_info, inspector_name, notify_on_done, handle=None):
     """
     执行巡检并发送通知（在独立线程中运行）
 
@@ -367,6 +484,7 @@ def _run_inspection_core(job_id, db_info, inspector_name, notify_on_done):
         db_info:     数据库连接信息字典
         inspector_name: 巡检人员
         notify_on_done: 是否在完成后发送通知
+        handle:      _RunHandle（中止信号 + 子进程登记，#64）
     """
     from modules.inspection.run import (
         run_mysql, run_mariadb, run_oceanbase, run_pg,
@@ -406,6 +524,9 @@ def _run_inspection_core(job_id, db_info, inspector_name, notify_on_done):
     notification_issues = None
 
     try:
+        # 中止检查点：采集开始前（#64）
+        _check_cancelled(job_id, handle, '准备采集')
+
         # SSH 信息（如果有）
         ssh_info = None
         if db_info.get('ssh_host'):
@@ -443,7 +564,7 @@ def _run_inspection_core(job_id, db_info, inspector_name, notify_on_done):
         # jdbc_inspection_cli 干净子进程，主进程只 spawn + 读 report_path。
         from modules.jdbc_inspection_cli import JVM_INSPECTION_DB_TYPES
         if db_type in JVM_INSPECTION_DB_TYPES:
-            _sub_ret = _run_plugin_inspection_subprocess(db_info, inspector_name)
+            _sub_ret = _run_plugin_inspection_subprocess(db_info, inspector_name, handle=handle)
             if isinstance(_sub_ret, (tuple, list)):
                 report_file = _sub_ret[0] if _sub_ret else None
                 if len(_sub_ret) > 1:
@@ -464,6 +585,8 @@ def _run_inspection_core(job_id, db_info, inspector_name, notify_on_done):
                     notification_issues = [it for it in _aa if isinstance(it, dict)]
         elif db_type in runner_map:
             # 非 JVM 内置类型（oracle=oracledb / sqlserver=pyodbc 原生驱动）主进程安全
+            # 中止检查点：原生驱动线程无法强杀，此处为调用前最后一道闸
+            _check_cancelled(job_id, handle, '数据库采集')
             _runner_ret = runner_map[db_type](db_info, inspector_name, ssh_info)
             if isinstance(_runner_ret, (tuple, list)):
                 report_file = _runner_ret[0] if _runner_ret else None
@@ -473,6 +596,7 @@ def _run_inspection_core(job_id, db_info, inspector_name, notify_on_done):
                 report_file = _runner_ret
         else:
             # 其余插件类型：JVM 依赖型已在上面拦截，此处仅原生驱动插件
+            _check_cancelled(job_id, handle, '插件采集')
             report_file = _run_plugin_inspection(db_info, inspector_name, ssh_info)
 
         if not report_file:
@@ -480,11 +604,17 @@ def _run_inspection_core(job_id, db_info, inspector_name, notify_on_done):
 
         logger.info('[%s] 巡检完成: %s', job_id, report_file)
 
+        # 中止检查点：已出报告但被中止时不再发通知（避免半截结果误导）
+        _check_cancelled(job_id, handle, '发送通知')
+
         # 发送通知
         if notify_on_done:
             _send_notifications(job_id, db_info, report_file, error=None,
                                 context=inspection_ctx, issues=notification_issues)
 
+    except InspectionCancelled:
+        # 用户主动中止：不是失败，不发失败告警
+        raise
     except Exception as e:
         error_msg = str(e)
         logger.error('[%s] 巡检失败: %s', job_id, error_msg)
@@ -722,14 +852,28 @@ class SchedulerManager:
                 self.add_job(job_cfg, restore=True)
     
     def _job_func(self, job_id, db_info, inspector_name, notify_on_done):
-        """任务执行函数（包装器）"""
+        """任务执行函数（包装器）
+
+        每次执行登记 _RunHandle，供「中止当前执行」使用（#64）。
+        """
+        # 登记执行句柄：取消信号 + JVM 子进程句柄回填
+        handle = _register_run(job_id)
         # 在独立线程中运行，避免阻塞调度器
         t = threading.Thread(
-            target=_run_inspection,
-            args=(job_id, db_info, inspector_name, notify_on_done),
+            target=self._run_inspection_tracked,
+            args=(job_id, db_info, inspector_name, notify_on_done, handle),
             daemon=True
         )
+        handle.thread = t
         t.start()
+
+    @staticmethod
+    def _run_inspection_tracked(job_id, db_info, inspector_name, notify_on_done, handle):
+        """带登记的巡检执行包装：无论成功/失败/中止都从登记表摘除"""
+        try:
+            _run_inspection(job_id, db_info, inspector_name, notify_on_done, handle=handle)
+        finally:
+            _unregister_run(job_id)
     
     def add_job(self, config, restore=False):
         """
@@ -882,11 +1026,18 @@ class SchedulerManager:
         """
         jobs = _load_jobs()
         scheduled_ids = {job.id for job in self.scheduler.get_jobs()}
+        executing = running_snapshot()   # 正在执行的巡检（#64）
 
         result = []
         for job_cfg in jobs:
             job_cfg = dict(job_cfg)  # 拷贝
             job_cfg['running'] = job_cfg['id'] in scheduled_ids
+            # 执行中状态（区别于「已启用/运行中调度」）：本次巡检是否真的在跑
+            _ex = executing.get(job_cfg['id'])
+            job_cfg['executing'] = bool(_ex)
+            if _ex:
+                job_cfg['executing_started_at'] = _ex.get('started_at')
+                job_cfg['executing_stage'] = _ex.get('stage')
             # 隐藏敏感信息
             if 'password' in job_cfg.get('db_info', {}):
                 job_cfg['db_info'] = dict(job_cfg['db_info'])
@@ -933,7 +1084,7 @@ class SchedulerManager:
     def run_job_now(self, job_id):
         """
         立即执行一次任务（手动触发）
-        
+
         返回:
             bool: 是否触发成功
         """
@@ -948,9 +1099,41 @@ class SchedulerManager:
                 )
                 return True
         return False
-    
+
+    def cancel_job(self, job_id):
+        """
+        中止该任务当前正在执行的巡检（#64）
+
+        与 toggle_job(enabled=False) 的区别：
+          - 禁用：只阻止「下次触发」，已经开跑的那次照常跑完；
+          - 中止：直接打断当前这次。
+
+        返回:
+            (ok, msg):
+              ok=True  → 已发出中止信号；
+              ok=False → 该任务当前没有在执行。
+            msg 说明中止方式：JVM 子进程已秒级终止 / 原生驱动需等待当前查询返回。
+        """
+        handle = get_run_handle(job_id)
+        if handle is None:
+            return False, '该任务当前未在执行'
+        killed = handle.cancel()
+        if killed:
+            logger.info('[%s] 已中止巡检（JVM 子进程已终止）', job_id)
+            return True, '已中止：巡检子进程已终止'
+        logger.info('[%s] 已发送中止信号（原生驱动类型将在当前数据库调用返回后停止）', job_id)
+        return True, '已发送中止信号：将在当前数据库调用返回后停止'
+
     def shutdown(self):
         """关闭调度器"""
+        # 先中止所有正在执行的巡检，避免子进程残留（#64）
+        with _running_lock:
+            handles = list(_running_jobs.values())
+        for h in handles:
+            try:
+                h.cancel()
+            except Exception:
+                pass
         if self.scheduler.running:
             self.scheduler.shutdown(wait=False)
             logger.info('调度器已关闭')
