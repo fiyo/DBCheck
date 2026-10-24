@@ -208,6 +208,70 @@ try:
 except Exception as e:
     check('读取 app.py 失败', False, str(e))
 
+print('[8] 禁用与中止语义区分（前端提示 + 后端不打断当前执行）')
+html = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                         'web_templates', 'index.html'), encoding='utf-8').read()
+check('禁用按钮带悬浮说明', '禁用后到点不再自动启动' in html)
+check('执行中禁用有明确提示文案', '当前这次巡检仍会执行完' in html)
+check('提示引导使用「中止」', '想立即停止请点「中止」' in html)
+check('状态徽标含「执行中 · 已禁用」组合态', '执行中 · 已禁用' in html)
+check('中止按钮带说明', '立即结束当前这次巡检' in html)
+
+# 后端：禁用只摘调度器，不触碰运行句柄（当前执行继续）
+class _FakeAPS3:
+    def __init__(self):
+        self.removed = []
+
+    def get_jobs(self):
+        return []
+
+    def get_job(self, jid):
+        return object()
+
+    def remove_job(self, jid):
+        self.removed.append(jid)
+
+_orig_load3 = sch._load_jobs
+_orig_save3 = sch._save_jobs
+_tmp3 = None
+try:
+    import tempfile
+    _fd, _tmp3 = tempfile.mkstemp(suffix='.json')
+    os.close(_fd)
+    with open(_tmp3, 'w', encoding='utf-8') as f:
+        json.dump([{'id': 'job-t', 'name': 'T', 'enabled': True,
+                    'db_info': {'db_type': 'mysql', 'host': 'h', 'port': 3306},
+                    'cron': {'minute': '0'}}], f, ensure_ascii=False)
+
+    def _load3():
+        with open(_tmp3, 'r', encoding='utf-8') as f:
+            return json.load(f)
+
+    def _save3(jobs):
+        with open(_tmp3, 'w', encoding='utf-8') as f:
+            json.dump(jobs, f, ensure_ascii=False)
+
+    sch._load_jobs = _load3
+    sch._save_jobs = _save3
+
+    sm_c = sch.SchedulerManager.__new__(sch.SchedulerManager)
+    sm_c.scheduler = _FakeAPS3()
+    h6 = sch._register_run('job-t')
+    sm_c.toggle_job('job-t', False)
+    check('禁用后 enabled=False（持久化）', _load3()[0].get('enabled') is False)
+    check('禁用后任务从调度器摘除（到点不再触发）', 'job-t' in sm_c.scheduler.removed)
+    check('禁用不打断当前执行（取消信号未置位）', not h6.cancel_event.is_set())
+    check('禁用不终止运行句柄（执行仍在跑）', sch.get_run_handle('job-t') is h6)
+    sch._unregister_run('job-t')
+finally:
+    sch._load_jobs = _orig_load3
+    sch._save_jobs = _orig_save3
+    try:
+        if _tmp3 and os.path.exists(_tmp3):
+            os.remove(_tmp3)
+    except Exception:
+        pass
+
 print('')
 if FAILS:
     print('FAILED %d: %s' % (len(FAILS), '; '.join(FAILS)))

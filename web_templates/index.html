@@ -18390,8 +18390,8 @@ function renderJobList(jobs) {
     const hostDisplay = dsId ? ('📁 ' + escHtml(dbInfo.host || dsId)) : (escHtml(dbInfo.host || '未知') + ':' + (dbInfo.port || ''));
     const dbTypeDisplay = dsId ? (escHtml((dbInfo.db_type || '').toUpperCase())) : escHtml((job.db_type || 'MYSQL').toUpperCase());
     const userDisplay = dsId ? '' : (' · ' + escHtml(dbInfo.user || ''));
-    // 当前任务状态文字（执行中 > 已启用 > 已禁用）
-    const stateText = isExecuting ? '执行中' : (isEnabled ? '已启用' : '已禁用');
+    // 当前任务状态文字：执行中（> 期间又被禁用时并显「已禁用」）> 已启用 > 已禁用
+    const stateText = isExecuting ? (isEnabled ? '执行中' : '执行中 · 已禁用') : (isEnabled ? '已启用' : '已禁用');
     const stateColor = isExecuting ? '#FFAB40' : (isEnabled ? '#00C8A0' : '#94A3B8');
     const stateBadge = '<span style="display:inline-flex;align-items:center;gap:4px;margin-left:8px;padding:2px 8px;border-radius:10px;font-size:11px;background:' +
       (isExecuting ? 'rgba(255,171,64,0.16);color:#FFAB40;border:1px solid rgba(255,171,64,0.35)'
@@ -18400,11 +18400,11 @@ function renderJobList(jobs) {
       ';">' + stateText + '</span>';
     // 启用/禁用 切换按钮（替代原复选框）
     const toggleBtn = isEnabled
-      ? '<button class="btn btn-ghost" style="padding:4px 12px;font-size:12px;color:var(--text);" onclick="toggleJob(\'' + job.id + '\', false)">⏸ 禁用</button>'
-      : '<button class="btn btn-ghost" style="padding:4px 12px;font-size:12px;color:var(--text);" onclick="toggleJob(\'' + job.id + '\', true)">▶ 启用</button>';
+      ? '<button class="btn btn-ghost" style="padding:4px 12px;font-size:12px;color:var(--text);" title="禁用后到点不再自动启动（当前正在执行的这次仍会跑完）" onclick="toggleJob(\'' + job.id + '\', false)">⏸ 禁用</button>'
+      : '<button class="btn btn-ghost" style="padding:4px 12px;font-size:12px;color:var(--text);" title="启用后到点将按计划自动执行" onclick="toggleJob(\'' + job.id + '\', true)">▶ 启用</button>';
     // 中止：结束当前执行，同时把任务置为禁用（按钮随后变为「启用」）
     const cancelBtn = isExecuting
-      ? '<button class="btn btn-ghost" style="padding:4px 12px;font-size:12px;color:#FFAB40;border:1px solid rgba(255,171,64,0.4);" onclick="cancelJob(\'' + job.id + '\')">⏹ 中止</button>'
+      ? '<button class="btn btn-ghost" style="padding:4px 12px;font-size:12px;color:#FFAB40;border:1px solid rgba(255,171,64,0.4);" title="立即结束当前这次巡检，并把任务置为禁用" onclick="cancelJob(\'' + job.id + '\')">⏹ 中止</button>'
       : '';
     // 执行中隐藏「立即执行」，避免重复触发
     const runNowBtn = isExecuting
@@ -19102,14 +19102,28 @@ async function executeFixSql(taskId, sql) {
 // ══════════════════════════════════════════════════════════════
 
 async function toggleJob(jobId, enabled) {
+  // 执行中点「禁用」：只挡下次触发，当前这次仍会跑完（#64）
+  // 这里给出明确提示，避免「禁用没生效」的误解；想立即停止请点「中止」。
+  const _job = (window._schedulerJobs || []).find(function(j) { return j.id === jobId; });
+  const _wasExecuting = !!(jobId && _job && _job.executing);
   try {
-    await fetch(`/api/scheduler/jobs/${jobId}/toggle`, {
+    const res = await fetch(`/api/scheduler/jobs/${jobId}/toggle`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({enabled: enabled})
     });
+    const data = await res.json();
+    if (data && data.ok === false) {
+      toastError((data && data.error) || '操作失败');
+    } else if (!enabled && _wasExecuting) {
+      toast('已禁用：当前这次巡检仍会执行完，到点不再自动启动；想立即停止请点「中止」', 'info', 6000);
+    } else if (enabled) {
+      toastSuccess('已启用：到点将按计划自动执行');
+    } else {
+      toastSuccess('已禁用：到点不再自动启动');
+    }
     loadSchedulerJobs();
-  } catch(e) { console.error(e); }
+  } catch(e) { toastError('操作失败: ' + e.message); }
 }
 
 // ─── 中止当前正在执行的巡检（#64）──────────────────────────
