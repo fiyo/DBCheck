@@ -248,6 +248,51 @@ docker compose -f deploy/docker-compose.yml up -d
 >
 > The Docker image includes the required JDK and JDBC driver. GBase 8s can be used without additional driver installation when running through the provided image.
 
+### 🐧 Kylin / ARM64 domestic server deployment
+
+The official image is a **multi-architecture image** (`linux/amd64` + `linux/arm64`). `docker pull`
+picks the right one automatically, so Kylin servers reporting `aarch64` from `uname -m`
+(Kunpeng 920 / Phytium S2500, S5000C) work out of the box.
+
+The image ships its own user-space runtime (Debian 12 / glibc 2.36), isolated from the host's glibc,
+so the host only needs **kernel ≥ 4.x** — Galaxy Kylin V10 SP3 ships kernel 4.19.90 and fully qualifies.
+
+```bash
+uname -m                                      # expect aarch64
+# Version list: https://github.com/fiyo/DBCheck/releases
+VERSION=26.10.22.2
+docker pull jackge12345/dbcheck:$VERSION     # pin an explicit version
+docker run -d -p 5003:5003 \
+  --memory=2g --memory-swap=2g \
+  -v dbcheck_data:/app/data \
+  -v dbcheck_reports:/app/reports \
+  --name raccoonx \
+  jackge12345/dbcheck:$VERSION
+```
+
+> **Pin an explicit version tag**
+>
+> `latest` may still point at an older single-architecture image. If the pull fails with
+> `no matching manifest for linux/arm64`, retry with a pinned version.
+
+**Driver differences on arm64**
+
+| Database | arm64 | Notes |
+| -------- | :---: | ----- |
+| MySQL / MariaDB / TiDB / OceanBase / TDSQL-C | ✅ | Pure-Python drivers, architecture independent |
+| PostgreSQL family (IvorySQL, Kingbase, UXDB, HGDB, Vastbase, HaloDB) | ✅ | psycopg2 is architecture independent |
+| DM8 (Dameng) | ✅ | Uses the pure-Java JDBC driver in the image, no native client needed |
+| YashanDB | ✅ | Driver is a pure-Python wheel (`py3-none-any`) |
+| MongoDB / Redis / ClickHouse | ✅ | Architecture independent |
+| SQL Server | ⚠️ | Install msodbcsql18 yourself (the image ships only the unixodbc driver manager) |
+| Oracle | ⚠️ | Thick mode needs the x86_64 Instant Client and is unavailable on arm64; thin mode and the oracle_jdbc path work |
+| GBase 8s | ⚠️ | The native Python driver needs the GBase SDK — use the JDBC path on arm64 |
+
+> **Do not run the binary package directly on Kylin**
+>
+> Only Windows / macOS clients are published; on Linux use the container or build from source.
+> Debian-built binaries fail with `GLIBC_2.34 not found` on Kylin's glibc 2.28.
+
 ---
 
 # 💻 Source Installation

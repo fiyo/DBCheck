@@ -239,6 +239,49 @@ docker compose -f deploy/docker-compose.yml up -d
 >
 > Docker 镜像已内置所需的 JDK 与 JDBC 驱动，通过镜像运行 GBase 8s 无需额外安装驱动。
 
+### 🐧 麒麟 / ARM64 信创服务器部署
+
+官方镜像为**多架构镜像**（`linux/amd64` + `linux/arm64`），`docker pull` 会自动按服务器架构选择对应版本，
+`uname -m` 返回 `aarch64` 的麒麟服务器（鲲鹏 920 / 飞腾 S2500、S5000C）**开箱即用**。
+
+镜像自带用户态运行库（Debian 12 / glibc 2.36），与宿主机的 glibc 版本相互隔离，
+宿主只需满足**内核 ≥ 4.x**（银河麒麟 V10 SP3 为 4.19.90，完全满足）。
+
+```bash
+uname -m                                      # 期望 aarch64
+# 版本号见 Releases 页：https://github.com/fiyo/DBCheck/releases
+VERSION=26.10.22.2
+docker pull jackge12345/dbcheck:$VERSION     # 建议固定版本号
+docker run -d -p 5003:5003 \
+  --memory=2g --memory-swap=2g \
+  -v dbcheck_data:/app/data \
+  -v dbcheck_reports:/app/reports \
+  --name raccoonx \
+  jackge12345/dbcheck:$VERSION
+```
+
+> **请使用固定版本号 tag**
+>
+> `latest` 可能仍指向旧的单架构镜像；若拉取报 `no matching manifest for linux/arm64`，换固定版本号重试即可。
+
+**arm64 环境下的驱动差异**
+
+| 数据库 | arm64 | 说明 |
+| ------ | :---: | ---- |
+| MySQL / MariaDB / TiDB / OceanBase / TDSQL-C | ✅ | 纯 Python 驱动，架构无关 |
+| PostgreSQL 系（IvorySQL、Kingbase、UXDB、瀚高 HGDB、Vastbase、HaloDB） | ✅ | psycopg2 架构无关 |
+| DM8 达梦 | ✅ | 容器内走纯 Java JDBC 驱动，无需原生客户端 |
+| 崖山 YashanDB | ✅ | 驱动为纯 Python wheel（`py3-none-any`） |
+| MongoDB / Redis / ClickHouse | ✅ | 架构无关 |
+| SQL Server | ⚠️ | 需自行安装 msodbcsql18（镜像内仅有 unixodbc 驱动管理器） |
+| Oracle | ⚠️ | thick 模式依赖 x86_64 Instant Client，arm64 不可用；thin 模式与 oracle_jdbc 路径可用 |
+| GBase 8s | ⚠️ | 原生 Python 驱动需 GBase SDK，arm64 建议走 JDBC 方式 |
+
+> **不要在麒麟上裸机运行二进制包**
+>
+> 官方仅发布 Windows / macOS 客户端；Linux 侧请使用容器或源码方式。
+> Debian 构建的二进制在 glibc 2.28 的麒麟系统上会报 `GLIBC_2.34 not found`。
+
 ---
 
 # 💻 源码安装
