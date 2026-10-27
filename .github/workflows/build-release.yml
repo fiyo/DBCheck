@@ -113,6 +113,18 @@ jobs:
               Write-Host "::error::missing: $line"
             }
           }
+          # 无条件把日志关键行 + 末尾 40 行逐行以 annotation 输出，确保无登录权限也能读到真实报错
+          if (Test-Path build-windows.log) {
+            $kw = (Select-String -Path build-windows.log -Pattern 'error|fail|traceback|exception|No matching|Could not|denied|refused|Missing' |
+              Select-Object -First 20 | ForEach-Object { $_.Line.Trim() })
+            $tail = (Get-Content build-windows.log -Tail 20 | Where-Object { $_.Trim() -ne '' })
+            $all = ($kw + $tail) | Select-Object -Unique | Select-Object -First 40
+            foreach ($l in $all) {
+              $s = ($l -replace '[^a-zA-Z0-9 |._\-/:()=<>]', ' ')
+              if ($s.Length -gt 200) { $s = $s.Substring(0, 200) }
+              if ($s.Trim() -ne '') { Write-Host "::error::LOG: $s" }
+            }
+          }
           {
             echo "## 构建失败摘要"
             echo ""
@@ -304,6 +316,20 @@ jobs:
             while IFS= read -r line; do
               echo "::error::missing: $line"
             done < build/core-missing.txt
+          fi
+          # 无条件把日志关键行 + 末尾 40 行逐行以 annotation 输出，确保无登录权限也能读到真实报错
+          LOG="build-macos-${{ matrix.arch }}.log"
+          if [ -f "$LOG" ]; then
+            grep -aiE "error|fail|traceback|exception|No matching|Could not|denied|refused|Missing" "$LOG" 2>/dev/null | tail -20 | cut -c1-200 | while IFS= read -r line; do
+              s=$(printf '%s' "$line" | tr -c 'a-zA-Z0-9 |._\-/:()=<>' ' ')
+              echo "::error::LOG: $s"
+            done
+            echo "::error::LOG_TAIL_BEGIN"
+            tail -n 20 "$LOG" 2>/dev/null | cut -c1-200 | while IFS= read -r line; do
+              s=$(printf '%s' "$line" | tr -c 'a-zA-Z0-9 |._\-/:()=<>' ' ')
+              echo "::error::LOG: $s"
+            done
+            echo "::error::LOG_TAIL_END"
           fi
           {
             echo "## 构建失败摘要"
