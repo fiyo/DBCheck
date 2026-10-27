@@ -104,6 +104,15 @@ jobs:
           if ($snip.Length -gt 160) { $snip = $snip.Substring(0, 160) }
           "ERR_SNIPPET=$snip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           Write-Host "snippet: $snip"
+          # 输出为 annotation，便于无登录权限时也能从 annotations API 读到真实报错
+          if ($snip -ne '') {
+            Write-Host "::error::Windows build failed: $snip"
+          }
+          if (Test-Path build/core-missing.txt) {
+            foreach ($line in (Get-Content build/core-missing.txt)) {
+              Write-Host "::error::missing: $line"
+            }
+          }
           {
             echo "## 构建失败摘要"
             echo ""
@@ -287,6 +296,15 @@ jobs:
             | tail -3 | tr -d '\r' | tr '\n' '|' | tr -c 'a-zA-Z0-9 |._-' ' ' | cut -c1-160)
           echo "ERR_SNIPPET=$SNIP" >> "$GITHUB_ENV"
           echo "snippet: $SNIP"
+          # 输出为 annotation，便于无登录权限时也能从 annotations API 读到真实报错
+          if [ -n "$SNIP" ]; then
+            echo "::error::macOS(${{ matrix.arch }}) build failed: $SNIP"
+          fi
+          if [ -f build/core-missing.txt ]; then
+            while IFS= read -r line; do
+              echo "::error::missing: $line"
+            done < build/core-missing.txt
+          fi
           {
             echo "## 构建失败摘要"
             echo ""
