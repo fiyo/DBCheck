@@ -40,6 +40,8 @@ STATIC_PATTERNS = [
     ('og description', re.compile(r'(<meta content="开源跨平台数据库智能巡检与实时监控平台 )v?\d+\.\d+\.\d+\.\d+(，)')),
     ('verBadge 兜底', re.compile(r'(<span id="verBadge">)v?\d+\.\d+\.\d+\.\d+(</span>)')),
     ('动态占位初始值', re.compile(r'(data-ver-(tag|badge)>)v?\d+\.\d+\.\d+\.\d+')),
+    # 下载链接 href 里的版本段（URL 路径 + 文件名两处都要替换）
+    ('下载链接 href', re.compile(r'(data-ver-url href=")([^"]+)(")')),
 ]
 
 
@@ -93,6 +95,11 @@ def check(site_dir, fix=False):
             if label == '动态占位初始值':
                 # data-ver-tag 是 Docker tag（不带 v），data-ver-badge 是文案（带 v）
                 new = m.group(1) + (bare if m.group(2) == 'tag' else ver)
+            elif label == '下载链接 href':
+                # href 内含两处版本号（URL 路径段 + 文件名），全部替换
+                new = (m.group(1)
+                       + re.sub(r'v?\d+\.\d+\.\d+\.\d+', ver, m.group(2))
+                       + m.group(3))
             else:
                 new = m.group(1) + ver + m.group(2)
             if old != new:

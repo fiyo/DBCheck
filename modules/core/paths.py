@@ -46,7 +46,26 @@ def _project_root() -> Path:
 
 PROJECT_ROOT = _project_root()
 ASSETS_DIR = PROJECT_ROOT / "assets"
-DATA_DIR = PROJECT_ROOT / "data"
+
+# ── 数据根与资源根分离（#66）────────────────────────────────
+# 背景（打包版踩坑）：PyInstaller one-folder 会把 web_templates / db / modules
+# 收进 <exe>/_internal/，而 _project_root() 在 frozen 下选中的正是 _internal，
+# 于是 DATA_DIR = <exe>/_internal/data —— **用户数据落在分发包内部**。
+# 用户每次下载新版本 zip 解压到同一目录，_internal 被整体覆盖 →
+# um_rbac.db（用户与密码）、instances.db（数据源）、.db_key（加密密钥）、
+# inspection.db（巡检历史）、scheduler_jobs.json（定时任务）、reports/ 全部归零，
+# 启动时 init_default_user 重建 admin → 表现为「重启后密码被重置为初始密码」。
+#
+# 现在明确区分：
+#   PROJECT_ROOT —— 只读资源根（模板/建表脚本/前端资源），frozen 下 = _internal；
+#   DATA_ROOT    —— 可写数据根，frozen 下 = **exe 同级**（与分发包分离，升级不覆盖）。
+# 旧数据在首次启动时由 ensure_data_dir_migrated() 一次性迁到新位置（幂等）。
+if getattr(sys, "frozen", False):
+    DATA_ROOT = Path(sys.executable).resolve().parent
+else:
+    DATA_ROOT = PROJECT_ROOT
+
+DATA_DIR = DATA_ROOT / "data"
 PRO_DATA_DIR = DATA_DIR / "pro_data"
 REPORTS_DIR = DATA_DIR / "reports"
 BACKUPS_DIR = DATA_DIR / "backups"
@@ -99,11 +118,48 @@ ANNOUNCEMENT_CACHE_JSON = DATA_DIR / "announcement_cache.json"
 BATCH_TEMPLATE_DIR = CONFIG_DIR / "batch_templates"
 
 
+def ensure_data_dir_migrated():
+    """frozen 环境：把运行时数据从分发包内部迁到 exe 同级（#66）。
+
+    旧位置：``<exe>/_internal/data``（随 zip 分发包被覆盖，升级即丢）
+    新位置：``<exe>/data``（与分发包分离，升级保留）
+
+    幂等：目标已存在且非空时不做任何事（不覆盖用户新数据）。
+    仅打包版生效；开发版数据本来就在项目根，无需迁移。
+    """
+    if not getattr(sys, "frozen", False):
+        return False
+    try:
+        old_dir = (PROJECT_ROOT / "data").resolve()
+        new_dir = DATA_DIR.resolve()
+        if old_dir == new_dir:
+            return False
+        # 目标已存在且有内容 → 视为已迁移/用户已有数据，不动它
+        try:
+            if new_dir.exists() and any(new_dir.iterdir()):
+                return False
+        except OSError:
+            pass
+        if not old_dir.exists() or not any(old_dir.iterdir()):
+            return False
+        import shutil
+        new_dir.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(old_dir), str(new_dir))
+        print("[paths] 运行时数据已从 %s 迁移到 %s（升级不再丢失用户数据）"
+              % (old_dir, new_dir))
+        return True
+    except Exception as e:
+        print(f"[paths][WARN] 运行时数据目录迁移失败（不阻断启动）: {e}")
+        return False
+
+
 def ensure_migrated():
     """幂等地执行一次旧路径迁移（若检测到遗留旧路径）。
 
     降级策略：迁移过程出现异常时仅打印告警并继续执行，不阻断应用启动。
     """
+    # 打包版：先把运行时数据从分发包内部挪到 exe 同级（#66），再走旧路径迁移
+    ensure_data_dir_migrated()
     try:
         legacy_exists = any(
             p.exists()

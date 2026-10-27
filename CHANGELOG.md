@@ -16,6 +16,12 @@
   - 三条生效路径：① 后台守护线程每 30 秒比对配置文件 mtime，变化即整体重载；② 任务触发前自检 mtime，保证「下次触发」使用文件里的最新配置（连接信息、巡检人员、通知开关）；③ 显式重载接口 `POST /api/scheduler/reload` 与界面「⟳ 重载配置」按钮。
   - 重载对齐三件事：文件内任务按最新配置重新注册、文件中 `enabled: false` 的从调度器摘除、文件中已删除的从调度器摘除；整体幂等。
 - **验证**：新增 `scripts/verify_issue65_scheduler_job_id.py`（24 项断言）、`scripts/verify_issue65_hot_reload.py`（22 项断言）、`scripts/verify_issue65_api_e2e.py`（14 项断言，走真实 API 的进程内 test_client），全部 PASS。
+- **修复：打包版升级后用户数据整体丢失（表现为「重启后密码被重置为初始密码」，Issue #66）**
+  - 根因链：PyInstaller one-folder 把 `web_templates` / `db` / `modules` 收进 `<exe>/_internal/`，而 `paths._project_root()` 在 frozen 下选中的正是 `_internal`（它含有 web_templates 或 db 目录），于是 `DATA_DIR` 落在**分发包内部** `<exe>/_internal/data`。用户下载新版 zip 解压到同一目录时 `_internal` 被整体覆盖 → `um_rbac.db`（用户与密码）、`instances.db`（数据源）、`.db_key`（加密密钥）、`inspection.db`（巡检历史）、`scheduler_jobs.json`（定时任务）、`reports/` 全部归零；启动时 `init_default_user` 重建 admin → 表现为「重启后密码重置为初始密码」，实则是**每次升级都丢一遍全部本地数据**。
+  - 修复（`modules/core/paths.py`）：拆分**资源根与数据根**——`PROJECT_ROOT` 继续指向 `_internal`（只读资源），新增 `DATA_ROOT`，打包版取 **exe 同级**（与分发包分离，升级不再覆盖），开发版仍为项目根；`DATA_DIR` 及其全部派生路径（用户库 / 数据源 / 密钥 / 巡检历史 / 报告 / 日志 / 定时任务 / 知识库）随之落到 exe 同级。
+  - 一次性迁移：新增 `ensure_data_dir_migrated()`，打包版首次启动时把 `_internal/data` 整体搬到 `exe 同级/data`（目标非空则跳过，绝不覆盖用户新数据；幂等），在启动最早期随 `ensure_migrated()` 一并执行。新版分发包不含 `data/`（仅空目录 `data/pro_data`），故解压覆盖不会删除旧数据，迁移后数据存活。
+  - 验证：新增 `scripts/verify_issue66_frozen_data_dir.py`，在子进程中模拟 frozen 环境（`sys.frozen` + `sys.executable` 指向临时目录）断言路径选择、一次性迁移、幂等不覆盖新数据、开发版行为不变、关键路径全部落在 `DATA_DIR` 之下，20 项全部 PASS。
+  - 说明：Docker 版不受影响（容器内非 frozen，`/app/data`）；容器需挂载 volume 方可跨重建保留数据。
 
 ## v26.10.22.2 (2026-10-22)
 - **新增：定时巡检「中止当前正在执行的那次」+ 启停交互重做（Issue #64）**
