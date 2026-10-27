@@ -182,3 +182,5 @@ docs/release/*.png
 /startDBCheck.sh
 /.venv/
 /.idea
+# CI 构建期产物：核心模块缺失清单（仅失败时生成）
+build/core-missing.txt

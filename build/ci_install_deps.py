@@ -94,6 +94,16 @@ def _pip_install(spec: str) -> bool:
     #   Pillow/JPype1 等大包不够），放宽超时与重试，避免非确定性构建失败。
     cmd = [sys.executable, "-m", "pip", "install", "--prefer-binary",
            "--timeout", "120", "--retries", "10", spec]
+    ok = _run_pip(cmd, spec)
+    if not ok:
+        # 回退重试：禁用 pip 缓存。缓存里的半包/坏包是「重试 10 次仍失败」的常见原因
+        # （runner 镜像自带缓存 + 上次中断留下的损坏 wheel），清缓存后往往一次就成。
+        print(f"[ci_deps] RETRY with --no-cache-dir: {spec}", flush=True)
+        ok = _run_pip(cmd + ["--no-cache-dir"], spec)
+    return ok
+
+
+def _run_pip(cmd, spec: str) -> bool:
     proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     ok = proc.returncode == 0
     print(f"[ci_deps] {'OK  ' if ok else 'FAIL'} pip install {spec}", flush=True)
@@ -137,7 +147,30 @@ def main() -> int:
         print("[ci_deps] ERROR: core modules missing:")
         for m in missing:
             print(f"[ci_deps]   - {m}")
+        # 落一份清单文件并由 CI 收进 artifact / job summary：
+        # 构建日志本身可能因 artifact 命名问题上传失败，缺哪个模块必须另有出口，
+        # 否则线上排障只能靠猜。
+        try:
+            out = os.path.join(HERE, "core-missing.txt")
+            with open(out, "w", encoding="utf-8") as fh:
+                fh.write("core modules missing:\n")
+                for m in missing:
+                    fh.write(f"- {m}\n")
+                fh.write(f"\nskipped optional installs:\n")
+                for spec in failed:
+                    fh.write(f"- {spec}\n")
+            print(f"[ci_deps] missing list written to {out}")
+        except Exception as exc:  # noqa: BLE001
+            print(f"[ci_deps] failed to write missing list: {exc}")
         return 1
+
+    # 成功时清理旧清单，避免上传到上一轮遗留的过期文件
+    try:
+        stale = os.path.join(HERE, "core-missing.txt")
+        if os.path.exists(stale):
+            os.remove(stale)
+    except Exception:
+        pass
 
     print(f"[ci_deps] core modules OK ({len(CORE_MODULES)} checked)")
     return 0

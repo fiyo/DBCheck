@@ -59,13 +59,34 @@ jobs:
           if ($snip.Length -gt 160) { $snip = $snip.Substring(0, 160) }
           "ERR_SNIPPET=$snip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           Write-Host "snippet: $snip"
+          {
+            echo "## 构建失败摘要"
+            echo ""
+            echo '```'
+            echo "$snip"
+            echo '```'
+            if (Test-Path build/core-missing.txt) {
+              echo ""
+              echo "### 缺失的核心模块"
+              echo ""
+              echo '```'
+              Get-Content build/core-missing.txt
+              echo '```'
+            }
+          } | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
 
+      # 产物名必须固定：GitHub artifact 名不允许 | : < > * 等字符，
+      # 之前把错误摘要拼进名字（build-log-windows-<snippet>）会直接让本步骤
+      # 报 "The extract name is not valid" → 构建日志传不上来，出包失败时
+      # 线上没有任何可查的日志。摘要改放正文与文件名里。
       - name: Upload build log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: build-log-windows-${{ env.ERR_SNIPPET }}
-          path: build-windows.log
+          name: build-log-windows
+          path: |
+            build-windows.log
+            build/core-missing.txt
           if-no-files-found: warn
         timeout-minutes: 10
         continue-on-error: true
@@ -139,13 +160,30 @@ jobs:
             | tail -3 | tr -d '\r' | tr '\n' '|' | tr -c 'a-zA-Z0-9 |._-' ' ' | cut -c1-160)
           echo "ERR_SNIPPET=$SNIP" >> "$GITHUB_ENV"
           echo "snippet: $SNIP"
+          {
+            echo "## 构建失败摘要"
+            echo ""
+            echo '```'
+            echo "$SNIP"
+            echo '```'
+            if [ -f build/core-missing.txt ]; then
+              echo ""
+              echo "### 缺失的核心模块"
+              echo ""
+              echo '```'
+              cat build/core-missing.txt
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload build log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: build-log-linux-${{ env.ERR_SNIPPET }}
-          path: build-linux.log
+          name: build-log-linux
+          path: |
+            build-linux.log
+            build/core-missing.txt
           if-no-files-found: warn
         timeout-minutes: 10
         continue-on-error: true
@@ -193,13 +231,30 @@ jobs:
             | tail -3 | tr -d '\r' | tr '\n' '|' | tr -c 'a-zA-Z0-9 |._-' ' ' | cut -c1-160)
           echo "ERR_SNIPPET=$SNIP" >> "$GITHUB_ENV"
           echo "snippet: $SNIP"
+          {
+            echo "## 构建失败摘要"
+            echo ""
+            echo '```'
+            echo "$SNIP"
+            echo '```'
+            if [ -f build/core-missing.txt ]; then
+              echo ""
+              echo "### 缺失的核心模块"
+              echo ""
+              echo '```'
+              cat build/core-missing.txt
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload build log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: build-log-macos-${{ matrix.arch }}-${{ env.ERR_SNIPPET }}
-          path: build-macos-${{ matrix.arch }}.log
+          name: build-log-macos-${{ matrix.arch }}
+          path: |
+            build-macos-${{ matrix.arch }}.log
+            build/core-missing.txt
           if-no-files-found: warn
         timeout-minutes: 10
         continue-on-error: true
