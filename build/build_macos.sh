@@ -75,6 +75,12 @@ if ! command -v pyinstaller &> /dev/null; then
 fi
 
 echo "[3/5] Installing project dependencies..."
+# 兜底：若 env 未传入 DBCHECK_WHEEL_DIR，但仓库根 wheels/ 下已有预下载的 wheel，
+# 则自动启用离线安装（避免 GITHUB_ENV 未及时传递导致回退到被封的在线源）。
+if [ -z "${DBCHECK_WHEEL_DIR:-}" ] && [ -d wheels ] && ls wheels/*.whl >/dev/null 2>&1; then
+    export DBCHECK_WHEEL_DIR=wheels
+    echo "  auto-detected offline wheel dir: wheels"
+fi
 # CI 宽松模式（DBCHECK_CI_LENIENT=1）：逐个依赖安装，装不上的可选驱动跳过
 # （macOS 上 dmpython 无 wheel、gbase8sdb 只有 sdist 且需厂商 SDK），
 # 最后统一 import 校验构建期必需模块。未设该变量时行为与原先完全一致。

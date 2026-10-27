@@ -42,6 +42,14 @@ echo.
 echo [2/5] Installing dependencies (this may take a few minutes)...
 echo [    ] You will see pip progress output below.
 echo.
+:: 兜底：若 env 未传入 DBCHECK_WHEEL_DIR，但仓库根 wheels\ 下已有预下载的 wheel，
+:: 则自动启用离线安装（避免 GITHUB_ENV 未及时传递导致回退到被封的在线源）。
+if not defined DBCHECK_WHEEL_DIR (
+    if exist "wheels\*.whl" (
+        echo [    ] auto-detected offline wheel dir: wheels
+        set "DBCHECK_WHEEL_DIR=wheels"
+    )
+)
 :: CI 宽松模式：逐个依赖安装，装不上的可选驱动（依赖厂商 SDK 的厂商驱动等）跳过，
 :: 最后统一 import 校验构建期必需模块。未设该变量时行为与原先完全一致。
 if defined DBCHECK_CI_LENIENT (
