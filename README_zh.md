@@ -8,7 +8,7 @@
 >
 > 项目**原名 DBCheck**。
 
-[![Version](https://img.shields.io/badge/Version-v26.10.27.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/Version-v26.10.27.1-blue.svg)]()
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)]()
 [![AI](https://img.shields.io/badge/AI-Ollama%20%7C%20OpenAI-orange.svg)]()
@@ -250,7 +250,7 @@ docker compose -f deploy/docker-compose.yml up -d
 ```bash
 uname -m                                      # 期望 aarch64
 # 版本号见 Releases 页：https://github.com/fiyo/DBCheck/releases
-VERSION=26.10.27.0
+VERSION=26.10.27.1
 docker pull jackge12345/dbcheck:$VERSION     # 建议固定版本号
 docker run -d -p 5003:5003 \
   --memory=2g --memory-swap=2g \

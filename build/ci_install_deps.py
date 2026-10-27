@@ -38,6 +38,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 REQUIREMENTS = os.path.join(ROOT, "deploy", "requirements.txt")
 
+# PyPI 备用镜像（仅在官方源失败时回退使用）：
+# GitHub Actions runner 出口 IP 共享，PyPI 对这些 IP 有速率限制，表现为
+# 403/429 或连接长时间无数据——同源重试无效，必须换源。
+MIRROR_FALLBACKS = [
+    "https://pypi.tuna.tsinghua.edu.cn/simple",
+    "https://mirrors.aliyun.com/pypi/simple",
+]
+
 # 构建期必需模块：import 名 ->  pip 包名（仅用于提示）
 CORE_MODULES = [
     "flask",
@@ -96,10 +104,23 @@ def _pip_install(spec: str) -> bool:
            "--timeout", "120", "--retries", "10", spec]
     ok = _run_pip(cmd, spec)
     if not ok:
-        # 回退重试：禁用 pip 缓存。缓存里的半包/坏包是「重试 10 次仍失败」的常见原因
+        # 回退 1：禁用 pip 缓存。缓存里的半包/坏包是「重试 10 次仍失败」的常见原因
         # （runner 镜像自带缓存 + 上次中断留下的损坏 wheel），清缓存后往往一次就成。
+        # 注意：选项必须放在包名之前，否则 pip 可能不识别。
         print(f"[ci_deps] RETRY with --no-cache-dir: {spec}", flush=True)
-        ok = _run_pip(cmd + ["--no-cache-dir"], spec)
+        ok = _run_pip([sys.executable, "-m", "pip", "install", "--prefer-binary",
+                       "--timeout", "120", "--retries", "10", "--no-cache-dir", spec], spec)
+    if not ok:
+        # 回退 2：换镜像源。GitHub runner 出口 IP 共享，PyPI 对这些 IP 有速率限制，
+        # 表现为 403/429 或长时间 0 字节——重试同源无效，必须换源。
+        # 顺序：清华 → 阿里云（国内镜像，作为最后救命通道）。
+        for mirror in MIRROR_FALLBACKS:
+            print(f"[ci_deps] RETRY with mirror {mirror}: {spec}", flush=True)
+            mcmd = [sys.executable, "-m", "pip", "install", "--prefer-binary",
+                    "--no-cache-dir", "--index-url", mirror,
+                    "--timeout", "180", "--retries", "5", spec]
+            if _run_pip(mcmd, spec):
+                return True
     return ok
 
 
