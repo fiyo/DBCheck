@@ -8647,7 +8647,10 @@ function wfCloseRunDrawer() {
             <span class="badge" id="scheduler-job-count" data-page-node-id="kidn4s8kXkUVvrsDGHcjqD"></span>
           </div>
           <div id="scheduler-job-list" style="margin-bottom:20px;" data-page-node-id="n4svC2eguDdyllfyrGBvza"></div>
-          <button class="btn btn-primary" onclick="showAddJobForm()" data-page-node-id="KqB6mhhXtQkvCDCLweLmFc"><span data-i18n="webui.scheduler_new_job" data-page-node-id="meGnjw9FNuPsEMxY0J0JG7">+ 新建定时任务</span></button>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <button class="btn btn-primary" onclick="showAddJobForm()" data-page-node-id="KqB6mhhXtQkvCDCLweLmFc"><span data-i18n="webui.scheduler_new_job" data-page-node-id="meGnjw9FNuPsEMxY0J0JG7">+ 新建定时任务</span></button>
+            <button class="btn btn-ghost" onclick="reloadSchedulerConfig()" title="手工编辑过 scheduler_jobs.json 后，点击此处立即从文件重载任务配置" data-page-node-id="job-reload-btn">⟳ 重载配置</button>
+          </div>
         </div>
 
         <!-- 添加/编辑任务表单 -->
@@ -8675,6 +8678,11 @@ function wfCloseRunDrawer() {
               <select id="job-template" class="form-input" data-page-node-id="41rw4tT5GHKzIBe6MWmpn9">
                 <option value="" data-page-node-id="DpbMPVRi3tQhIo5lY0SrWe">使用默认模板（自动选择）</option>
               </select>
+            </div>
+            <div class="field full" data-page-node-id="job-inspector-wrap">
+              <label data-i18n="webui.inspector_name_label" data-page-node-id="job-inspector-label">巡检人员姓名</label>
+              <input type="text" id="job-inspector" class="form-input" data-i18n-ph="webui.placeholder_inspector" placeholder="Jack" />
+              <div style="font-size:12px;color:var(--text-muted);margin-top:4px;" data-i18n="webui.inspector_name_hint" data-page-node-id="job-inspector-hint">将显示在报告封面</div>
             </div>
             <div class="field" data-page-node-id="ml5ztZH81Llcx9ftiTY6xp">
               <label data-i18n="webui.label_host" data-page-node-id="vcuPmOpDMvxGGHaci2Gaey">主机地址 <span class="req" data-page-node-id="k7YGNEhuRZmtkVkFILaubD">*</span></label>
@@ -18860,6 +18868,12 @@ function showAddJobForm() {
   pwdElNew.placeholder = i18n('webui.placeholder_password') || '数据库密码';
   document.getElementById('job-database').value = '';
   document.getElementById('job-notify').checked = true;
+  // 巡检人员默认取当前登录用户（显示在报告封面）；未登录时留空由后端兜底
+  const inspElNew = document.getElementById('job-inspector');
+  if (inspElNew) {
+    const cu = window._currentUser || {};
+    inspElNew.value = (cu.nickname || cu.username || '');
+  }
   document.getElementById('job-schedule-type').value = 'daily';
   renderScheduleParams();
   onJobDbTypeChange();
@@ -18923,6 +18937,10 @@ async function editJob(jobId) {
   }
   document.getElementById('job-notify').checked = job.notify_on_done !== false;
 
+  // 巡检人员（显示在报告封面）
+  const inspEl = document.getElementById('job-inspector');
+  if (inspEl) inspEl.value = job.inspector_name || '';
+
   // Oracle 的「使用 SID 连接」控件显隐（onJobDbTypeChange 未覆盖）
   const isOracle = (dbType === 'oracle' || dbType === 'oracle_jdbc');
   const useSidWrap = document.getElementById('job-use-sid-wrap');
@@ -18974,7 +18992,7 @@ async function saveJob() {
       name: name,
       datasource_id: dsId,
       label: name,
-      inspector_name: 'Jack',
+      inspector_name: (document.getElementById('job-inspector')?.value || '').trim(),
       notify_on_done: document.getElementById('job-notify').checked,
       cron: buildCronFromForm()
     };
@@ -19002,7 +19020,7 @@ async function saveJob() {
     name: name,
     db_type: document.getElementById('job-db-type').value,
     label: host,
-    inspector_name: 'Jack',
+    inspector_name: (document.getElementById('job-inspector')?.value || '').trim(),
     host: host,
     port: parseInt(document.getElementById('job-port').value) || 3306,
     user: document.getElementById('job-user').value || '',
@@ -19124,6 +19142,20 @@ async function toggleJob(jobId, enabled) {
     }
     loadSchedulerJobs();
   } catch(e) { toastError('操作失败: ' + e.message); }
+}
+
+// ─── 从配置文件重载任务（用户手工编辑 scheduler_jobs.json 后立即生效）──
+async function reloadSchedulerConfig() {
+  try {
+    const res = await fetch('/api/scheduler/reload', { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) {
+      toastSuccess('已从配置文件重载任务配置');
+      loadSchedulerJobs();
+    } else {
+      toastError(data.error || '重载失败');
+    }
+  } catch(e) { toastError('重载失败: ' + e.message); }
 }
 
 // ─── 中止当前正在执行的巡检（#64）──────────────────────────

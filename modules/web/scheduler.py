@@ -25,6 +25,17 @@ paths.ensure_migrated()
 CONFIG_FILE = str(paths.SCHEDULER_JOBS)
 LOG_FILE = str(paths.SCHEDULER_LOG)
 
+# 配置文件热加载：监听间隔（秒）与 mtime 读取
+_CONFIG_WATCH_INTERVAL = 30
+
+
+def _config_mtime():
+    """调度配置文件的修改时间（不存在返回 None）"""
+    try:
+        return os.path.getmtime(CONFIG_FILE)
+    except OSError:
+        return None
+
 # ── 日志配置 ────────────────────────────────────────────────
 logger = logging.getLogger('scheduler')
 logger.setLevel(logging.INFO)
@@ -852,16 +863,90 @@ class SchedulerManager:
         )
         self.scheduler.start()
         logger.info('调度器启动成功')
-        
+
         # 恢复持久化的任务
         self._restore_jobs()
-    
+
+        # 记录配置文件 mtime 并启动热加载守护（用户手工编辑 JSON 后自动生效）
+        self._config_mtime = _config_mtime()
+        self._start_config_watcher()
+
     def _restore_jobs(self):
         """从配置文件恢复任务"""
         jobs = _load_jobs()
         for job_cfg in jobs:
             if job_cfg.get('enabled', True):
                 self.add_job(job_cfg, restore=True)
+
+    # ── 配置文件热加载（用户手工编辑 scheduler_jobs.json 后自动生效）─────
+    # 背景：调度器内存里的 job（trigger + args）是注册时的快照，用户手工改了
+    # 配置文件后并不会自动生效——而 list_jobs() 每次都实时读文件，UI 显示的却是
+    # 新配置，于是出现「界面显示已改、实际仍按老时间跑」的不一致。
+    # 现在提供三条生效路径：
+    #   ① 后台守护线程：每 30 秒比对配置文件 mtime，变了就整体重载；
+    #   ② 触发前自检：任务被触发时再比一次 mtime，保证「下次触发」用的是新配置；
+    #   ③ 显式重载接口：POST /api/scheduler/reload 立即生效。
+
+    def _start_config_watcher(self):
+        """启动配置文件监听线程（daemon，进程退出即止）"""
+        t = threading.Thread(target=self._config_watcher_loop, daemon=True,
+                             name='scheduler-config-watcher')
+        t.start()
+
+    def _config_watcher_loop(self):
+        """守护循环：检测到配置文件变化即整体重载"""
+        while True:
+            try:
+                time.sleep(_CONFIG_WATCH_INTERVAL)
+                if self._config_changed():
+                    logger.info('检测到调度配置文件变化，自动重载')
+                    self.reload_from_disk()
+            except Exception as e:
+                logger.warning('调度配置监听异常: %s', e)
+
+    def _config_changed(self):
+        """配置文件是否被改动（mtime 比较）"""
+        try:
+            return _config_mtime() != self._config_mtime
+        except Exception:
+            return False
+
+    def reload_from_disk(self):
+        """从配置文件整体重载任务配置。
+
+        对齐三件事：
+          1. 文件里有的任务 → 按最新配置重新注册（trigger/参数随之更新）；
+          2. 文件里标记为禁用的任务 → 从调度器摘除；
+          3. 文件里已删除的任务 → 从调度器摘除。
+
+        幂等：重复调用无副作用。返回受影响的任务数。
+        """
+        jobs = _load_jobs()
+        valid_ids = set()
+        affected = 0
+        for job_cfg in jobs:
+            jid = job_cfg.get('id')
+            if not jid:
+                continue
+            valid_ids.add(jid)
+            if job_cfg.get('enabled', True):
+                if self.add_job(job_cfg, restore=True):
+                    affected += 1
+            else:
+                if self.scheduler.get_job(jid):
+                    self.scheduler.remove_job(jid)
+                    affected += 1
+        # 文件里已删除的任务：从调度器摘除
+        for job in list(self.scheduler.get_jobs()):
+            if job.id not in valid_ids:
+                try:
+                    self.scheduler.remove_job(job.id)
+                    affected += 1
+                except Exception:
+                    pass
+        self._config_mtime = _config_mtime()
+        logger.info('调度配置已重载，受影响任务 %d 个', affected)
+        return affected
     
     def _job_func(self, job_id, db_info, inspector_name, notify_on_done):
         """任务执行函数（包装器）
@@ -869,7 +954,24 @@ class SchedulerManager:
         每次执行登记 _RunHandle，供「中止当前执行」使用（#64）。
         防重复触发：同一任务已在执行中时，本次触发（到点触发或「立即执行」）
         直接跳过，不启动第二次巡检——执行中的任务不参与调度。
+
+        热加载自检：执行前比对配置文件 mtime，若用户手工改过配置则先整体重载，
+        保证「本次触发」用的是文件里的最新配置（连接信息、巡检人员等）。
         """
+        # 触发前自检配置文件是否变化（用户手工编辑 JSON 的场景）
+        try:
+            if self._config_changed():
+                logger.info('[%s] 检测到调度配置文件变化，执行前重载', job_id)
+                self.reload_from_disk()
+                # 重载后按最新配置取参数（db_info / 巡检人员 / 通知开关）
+                for _cfg in _load_jobs():
+                    if _cfg.get('id') == job_id:
+                        db_info = _cfg.get('db_info', db_info)
+                        inspector_name = _cfg.get('inspector_name', inspector_name)
+                        notify_on_done = _cfg.get('notify_on_done', notify_on_done)
+                        break
+        except Exception as e:
+            logger.warning('[%s] 配置热加载自检失败，按原配置继续: %s', job_id, e)
         # 防重复触发：已有执行句柄说明该任务正在跑，本次直接跳过
         existing = get_run_handle(job_id)
         if existing is not None:
@@ -894,6 +996,41 @@ class SchedulerManager:
         finally:
             _unregister_run(job_id)
     
+    def _prune_orphan_jobs(self, extra_keep=None):
+        """清理调度器中不属于已配置任务的孤儿 job。
+
+        历史 bug（#65）：APScheduler 的 job 主键参数写成了 ``job_id=``（正确是
+        ``id=``），参数被并入 ``**trigger_args`` 静默丢弃，于是每个定时任务的
+        真实 id 是一个随机 UUID。后果是 ``get_job(业务 id)`` 永远返回 None，
+        ``remove_job`` 从不执行——改配置不生效、禁用后仍按旧时间触发，且
+        调度器里同时存在多份同一任务。
+
+        修正参数名后，这些随机 id 的旧 job 仍留在**已运行进程的内存**里
+        （不重启服务就升级，旧任务会继续按老时间跑），因此需要主动清理：
+        调度器中 id 不在配置文件 job_id 集合内的 job 一律移除。
+
+        extra_keep：额外保留的 job_id（当前正在注册的任务），避免刚注册、
+        尚未落盘的任务被误判为孤儿。
+        """
+        try:
+            valid = {j.get('id') for j in _load_jobs() if j.get('id')}
+            if extra_keep:
+                valid.add(extra_keep)
+            removed = []
+            for job in self.scheduler.get_jobs():
+                if job.id in valid:
+                    continue
+                try:
+                    self.scheduler.remove_job(job.id)
+                    removed.append(job.id)
+                except Exception:
+                    pass
+            if removed:
+                logger.warning('清理孤儿定时任务 %d 个: %s',
+                               len(removed), ', '.join(str(x) for x in removed[:5]))
+        except Exception as e:
+            logger.warning('清理孤儿定时任务失败: %s', e)
+
     def add_job(self, config, restore=False):
         """
         添加定时任务
@@ -947,15 +1084,28 @@ class SchedulerManager:
                 self.scheduler.remove_job(job_id)
 
             if enabled:
+                # ⚠️ APScheduler 3.x 的 job 主键参数是 id=，不是 job_id=。
+                # 传 job_id= 会被并入 **trigger_args 而静默丢弃（trigger 已是对象，
+                # _create_trigger 直接返回，trigger_args 根本不参与构造），
+                # 结果每个任务都拿到一个随机 UUID 作为真实 id：
+                #   · get_job(job_id) 永远 None → remove_job 从不执行 → 旧任务残留、
+                #     改配置不生效、禁用后仍按旧时间触发；
+                #   · replace_existing=True 因 id 每次都不同而变成"新增"；
+                #   · list_jobs 的 running 状态永远匹配不上。
+                # 历史 bug（#65）：定时任务「改了配置不生效」「禁用了还在跑」由此而来。
                 self.scheduler.add_job(
                     func=self._job_func,
                     trigger=trigger,
-                    job_id=job_id,
+                    id=job_id,
                     args=[job_id, config['db_info'], config.get('inspector_name', 'DBCheck'),
                           config.get('notify_on_done', True)],
                     name=config.get('name', job_id),
                     replace_existing=True
                 )
+                # 防御：确认任务确实以 job_id 注册成功（防止将来再次出现参数名写错而静默失效）
+                if not self.scheduler.get_job(job_id):
+                    logger.error('定时任务 %s 注册失败：调度器中未找到该 job_id', job_id)
+                    return False
                 logger.info('添加定时任务: %s (%s)', job_id, config.get('name', ''))
             else:
                 logger.info('定时任务 %s 已禁用，仅保存配置', job_id)
@@ -970,7 +1120,11 @@ class SchedulerManager:
                 else:
                     jobs.append(config)
                 _save_jobs(jobs)
-            
+
+            # 清理历史遗留的孤儿 job（见 _prune_orphan_jobs 说明）。
+            # 必须在持久化之后执行：否则新任务尚未写入配置，会被当成孤儿误删。
+            self._prune_orphan_jobs(extra_keep=job_id)
+
             return True
         except Exception as e:
             logger.error('添加任务失败 %s: %s', job_id, e)

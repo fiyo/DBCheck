@@ -5747,6 +5747,21 @@ def api_scheduler_list():
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
+def _default_inspector_name():
+    """巡检人员默认值：优先当前登录用户，其次 DBCheck。
+
+    此前硬编码为 'Jack'，导致所有定时巡检报告的封面都写着同一个名字。
+    """
+    try:
+        from flask import session
+        name = (session.get('display_name') or session.get('username') or '').strip()
+        if name:
+            return name
+    except Exception:
+        pass
+    return 'DBCheck'
+
+
 def _build_scheduler_job_cfg(data, job_id):
     """根据请求数据构建定时任务配置（不含 enabled，由调用方决定启用状态）"""
     datasource_id = data.get('datasource_id')
@@ -5754,7 +5769,7 @@ def _build_scheduler_job_cfg(data, job_id):
         return {
             'id': job_id,
             'name': data.get('name', '定时巡检'),
-            'inspector_name': data.get('inspector_name', 'Jack'),
+            'inspector_name': (data.get('inspector_name') or '').strip() or _default_inspector_name(),
             'notify_on_done': bool(data.get('notify_on_done', True)),
             'cron': data.get('cron', {}),
             'template_id': data.get('template_id') or None,
@@ -5767,7 +5782,7 @@ def _build_scheduler_job_cfg(data, job_id):
         'id': job_id,
         'name': data.get('name', '定时巡检'),
         'db_type': data.get('db_type', 'mysql'),
-        'inspector_name': data.get('inspector_name', 'Jack'),
+        'inspector_name': (data.get('inspector_name') or '').strip() or _default_inspector_name(),
         'notify_on_done': bool(data.get('notify_on_done', True)),
         'cron': data.get('cron', {}),
         'template_id': data.get('template_id') or None,
@@ -5893,6 +5908,18 @@ def api_scheduler_run_now(job_id):
         sm = _get_scheduler()
         success = sm.run_job_now(job_id)
         return jsonify({'ok': success, 'msg': 'Task triggered' if success else 'Task not found'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/scheduler/reload', methods=['POST'])
+def api_scheduler_reload():
+    """从配置文件重载定时任务（用户手工编辑 scheduler_jobs.json 后可立即生效）"""
+    try:
+        sm = _get_scheduler()
+        affected = sm.reload_from_disk()
+        return jsonify({'ok': True, 'affected': affected,
+                        'msg': '已重载 %d 个任务' % affected})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 

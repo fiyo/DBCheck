@@ -1,5 +1,22 @@
 # Changelog
 
+## v26.10.27.0 (2026-10-27)
+- **修复：定时巡检「改配置不生效 / 禁用了还在跑」（Issue #65）**
+  - 根因：APScheduler 3.x 的 job 主键参数是 `id=`，项目里写成了 `job_id=`。该参数被并入 `**trigger_args` 静默丢弃（trigger 已是对象时 `_create_trigger` 直接返回，trigger_args 根本不参与构造），于是**每个定时任务的真实 id 是一个随机 UUID**，连锁后果：
+    - `get_job(业务 id)` 永远返回 None → `remove_job` 从不执行 → 旧任务残留、**改配置不生效、禁用后仍按旧时间触发、删除也删不掉调度器里的任务**；
+    - `replace_existing=True` 因 id 每次都不同而退化成「新增」→ 调度器里同时存在多份同一任务（每天 9:00 与每周一 9:00 同时跑）；
+    - `list_jobs` 的 `running` 状态永远为 False → 界面上所有定时任务都显示「已暂停」。
+  - 修复（`modules/web/scheduler.py`）：`add_job` 改用 `id=job_id`，并加防御断言（注册后 `get_job(job_id)` 查不到即判定失败并记 error，不再静默失效）；新增 `_prune_orphan_jobs()` 清理历史遗留的随机 id 孤儿 job（不重启服务就升级时，旧 job 仍在内存里按老时间跑），执行时机在配置持久化之后（否则刚注册尚未落盘的任务会被误判为孤儿误删）。
+  - 连带修复：v26.10.22.2 引入的「禁用=从调度器摘除」「中止即禁用」此前同样因 `remove_job` 失效而**从未真正生效**，本次一并恢复。
+- **修复：定时巡检无「巡检人员」输入框，报告巡检人员恒为 Jack（Issue #65）**
+  - 前端任务表单新增「巡检人员姓名」输入框（复用手动巡检已有的 i18n 键 `webui.inspector_name_label` / `placeholder_inspector` / `inspector_name_hint`，不新增键，繁体版缺失的 3 个键已补齐）；新建时预填当前登录用户，编辑时回填原值，提交时取表单值——移除 `saveJob` 两处分支里硬编码的 `inspector_name: 'Jack'`。
+  - 后端默认值由硬编码 'Jack' 改为取当前登录会话用户（`display_name` / `username`），无登录态时回落 'DBCheck'。
+- **新增：定时任务配置热加载（Issue #65）**
+  - 背景：调度器内存里的 job（trigger + args）是注册时的快照，用户手工编辑 `data/scheduler_jobs.json` 后并不生效；而任务列表每次都实时读文件，界面显示的是新配置——出现「界面显示已改、实际仍按老时间跑」的不一致。
+  - 三条生效路径：① 后台守护线程每 30 秒比对配置文件 mtime，变化即整体重载；② 任务触发前自检 mtime，保证「下次触发」使用文件里的最新配置（连接信息、巡检人员、通知开关）；③ 显式重载接口 `POST /api/scheduler/reload` 与界面「⟳ 重载配置」按钮。
+  - 重载对齐三件事：文件内任务按最新配置重新注册、文件中 `enabled: false` 的从调度器摘除、文件中已删除的从调度器摘除；整体幂等。
+- **验证**：新增 `scripts/verify_issue65_scheduler_job_id.py`（24 项断言）、`scripts/verify_issue65_hot_reload.py`（22 项断言）、`scripts/verify_issue65_api_e2e.py`（14 项断言，走真实 API 的进程内 test_client），全部 PASS。
+
 ## v26.10.22.2 (2026-10-22)
 - **新增：定时巡检「中止当前正在执行的那次」+ 启停交互重做（Issue #64）**
   - 背景：此前只能「禁用任务」（阻止下次触发），已经开跑的那次巡检无法中止——线程无法强杀，JVM 子进程只会等到 25 分钟硬超时才被终止，表现为「停不下来」且期间持续占用数据库连接与串行执行名额。

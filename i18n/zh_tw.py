@@ -3720,3 +3720,12 @@ ZH_TW.update({
     "webui.nav_fleet": "智慧基線",
     "webui.nav_twin": "拓撲巡檢"
 })
+
+# ── 定时巡检「巡检人员姓名」输入框（v26.10.22.x）──
+# 复用手动巡检已有的三个 key（webui.inspector_name_label / placeholder_inspector /
+# inspector_name_hint），繁体版此前缺失会导致界面显示原始 key。
+ZH_TW.update({
+    "webui.inspector_name_label": "巡檢人員姓名",
+    "webui.placeholder_inspector": "Jack",
+    "webui.inspector_name_hint": "將顯示於報告封面"
+})
