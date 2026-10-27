@@ -24,9 +24,20 @@ env:
   DBCHECK_CI_LENIENT: "1"
 
 jobs:
-  build-windows:
-    name: Build Windows (x64)
-    runs-on: windows-latest
+  # ── 离线 wheel 预下载（根治 Windows/macOS runner 无法访问 PyPI 的问题）─────────
+  # GitHub 托管的 Windows/macOS runner 共享出口 IP 被 PyPI（及国内镜像）限流/封锁，
+  # 在线 `pip install` 在那里会确定性快速失败。而 ubuntu-latest 池能通 PyPI。
+  # 故在此用 ubuntu 把三平台 wheel 全部下载成 artifact，供下游构建作业离线安装。
+  download-wheels:
+    name: Download wheels (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: win,        artifact: wheels-win }
+          - { target: mac-x86_64, artifact: wheels-mac-x86_64 }
+          - { target: mac-arm64,  artifact: wheels-mac-arm64 }
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
@@ -35,6 +46,40 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PY_VERSION }}
+
+      - name: Download platform wheels (offline source)
+        run: python build/download_wheels.py "${{ matrix.target }}" "wheels-${{ matrix.target }}"
+
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: wheels-${{ matrix.target }}
+          if-no-files-found: error
+          timeout-minutes: 20
+
+  build-windows:
+    name: Build Windows (x64)
+    runs-on: windows-latest
+    needs: [download-wheels]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PY_VERSION }}
+
+      # 拉取 ubuntu 作业预下载的 Windows wheel，改为离线安装（不再访问 PyPI）
+      - name: Download prebuilt wheels
+        uses: actions/download-artifact@v4
+        with:
+          name: wheels-win
+          path: wheels
+
+      - name: Set offline wheel dir
+        run: echo "DBCHECK_WHEEL_DIR=wheels" >> "$GITHUB_ENV"
 
       # 干净 checkout 缺失的输入物：data/pro_data（空目录，git 不跟踪）与
       # dbc_config.json（含凭据、不入库）——由 ci_prepare.py 现场补齐（幂等）
@@ -199,6 +244,7 @@ jobs:
   build-macos:
     name: Build macOS (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
+    needs: [download-wheels]
     strategy:
       fail-fast: false  # 两个架构互相独立，一个失败不影响另一个跑完（便于一次看全结果）
       matrix:
@@ -213,6 +259,16 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PY_VERSION }}
+
+      # 拉取 ubuntu 作业预下载的对应架构 wheel，改为离线安装
+      - name: Download prebuilt wheels
+        uses: actions/download-artifact@v4
+        with:
+          name: wheels-mac-${{ matrix.arch }}
+          path: wheels
+
+      - name: Set offline wheel dir
+        run: echo "DBCHECK_WHEEL_DIR=wheels" >> "$GITHUB_ENV"
 
       # 同 Windows：补齐干净 checkout 缺失的输入物
       - name: Prepare build inputs

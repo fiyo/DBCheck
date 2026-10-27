@@ -38,6 +38,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 REQUIREMENTS = os.path.join(ROOT, "deploy", "requirements.txt")
 
+# 离线安装模式：当 CI 把跨平台 wheel 预下载成 artifact 并传入此目录时，
+# 改用 `pip install --no-index --find-links <DIR>` 离线装，彻底摆脱被封的
+# Windows/macOS runner 出口。装不上的可选驱动（该平台无 wheel 的，如 macOS
+# 上的 dmpython）按既有 lenient 逻辑跳过。未设置则走在线安装（本地开发用）。
+WHEEL_DIR = os.environ.get("DBCHECK_WHEEL_DIR") or ""
+
 # PyPI 备用镜像（仅在官方源失败时回退使用）：
 # GitHub Actions runner 出口 IP 共享，PyPI 对这些 IP 有速率限制，表现为
 # 403/429 或连接长时间无数据——同源重试无效，必须换源。
@@ -96,6 +102,13 @@ def _iter_requirement_lines(path: str):
 
 
 def _pip_install(spec: str) -> bool:
+    # 离线模式：所有依赖已预下载成 wheel（含完整依赖树），仅需从本地目录装。
+    # --no-index 强制不再访问任何网络源，--find-links 指向预下载目录。
+    if WHEEL_DIR:
+        cmd = [sys.executable, "-m", "pip", "install", "--no-index",
+               "--find-links", WHEEL_DIR, spec]
+        return _run_pip(cmd, spec)
+
     # --prefer-binary: 优先用预编译 wheel，避免从 sdist 源码编译（Pillow 源码编译需
     #   jpeg 等系统库，且 CI 网络偶发抖动时大 wheel 易超时 fallback 到源码编译而失败）。
     # --timeout 120 --retries 10: CI 到 pypi 网络偶发超时（默认 15s 对 numpy/pandas/

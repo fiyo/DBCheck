@@ -67,7 +67,11 @@ source "$VENV_DIR/bin/activate"
 # Check pyinstaller
 if ! command -v pyinstaller &> /dev/null; then
     echo "  Installing pyinstaller..."
-    pip install pyinstaller --quiet
+    if [ -n "${DBCHECK_WHEEL_DIR:-}" ]; then
+        pip install --no-index --find-links "$DBCHECK_WHEEL_DIR" pyinstaller --quiet
+    else
+        pip install pyinstaller --quiet
+    fi
 fi
 
 echo "[3/5] Installing project dependencies..."

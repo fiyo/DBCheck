@@ -58,7 +58,11 @@ if errorlevel 1 (
 echo.
 
 echo [    ] Installing PyInstaller...
-pip install pyinstaller
+if defined DBCHECK_WHEEL_DIR (
+    pip install --no-index --find-links "%DBCHECK_WHEEL_DIR%" pyinstaller
+) else (
+    pip install pyinstaller
+)
 if errorlevel 1 (
     echo [ERROR] Failed to install PyInstaller.
     if not defined GITHUB_ACTIONS pause
