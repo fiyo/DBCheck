@@ -51,6 +51,17 @@ EXCLUDE = {
     "mac": {"dmpython"},
 }
 
+# pyinstaller 的平台专属依赖。``pip download --platform <X>`` 在跨平台（于 ubuntu
+# 下载 win/mac 目标）时，会用「宿主平台(linux)」评估 ``sys_platform`` 环境标记，
+# 导致这些 darwin/win32 专属依赖被漏下载（离线构建时 pyinstaller 装不上而失败）。
+# 它们本身都是 universal wheel，可安全跨平台预下载，故在此按目标平台显式补上。
+# 若 pyinstaller 升级增减平台依赖，下面的校验会及时告警。
+PLATFORM_EXTRA = {
+    "win": ["pefile", "pywin32-ctypes"],
+    "mac-x86_64": ["macholib", "altgraph"],
+    "mac-arm64": ["macholib", "altgraph"],
+}
+
 MIRROR_FALLBACKS = [
     "https://pypi.tuna.tsinghua.edu.cn/simple",
     "https://mirrors.aliyun.com/pypi/simple",
@@ -90,6 +101,8 @@ def filtered_requirements(target: str) -> list[str]:
         kept.append(line)
     # Build tooling not declared in requirements.txt:
     kept.append("pyinstaller")
+    # pyinstaller 的平台专属依赖（见 PLATFORM_EXTRA 注释），按目标平台显式补上
+    kept.extend(PLATFORM_EXTRA.get(target, []))
     return kept
 
 
@@ -145,6 +158,16 @@ def main() -> int:
 
     n = len([p for p in os.listdir(out_dir) if p.endswith((".whl", ".tar.gz"))])
     print(f"[dl] OK: {n} archives downloaded into {out_dir}", flush=True)
+
+    # 校验：目标平台的 pyinstaller 专属依赖是否确实落地（universal wheel 也应被下载）。
+    # 缺失说明 pip 跨平台下载又漏了什么，必须显式暴露而不是让下游离线构建神秘失败。
+    # 包名中的连字符/下划线等价归一化，避免 pywin32_ctypes 之类被误判为缺失。
+    _norm = lambda s: s.lower().replace("-", "_")
+    present = {_norm(p) for p in os.listdir(out_dir)}
+    for dep in PLATFORM_EXTRA.get(target, []):
+        nd = _norm(dep)
+        if not any(p.startswith(nd + "-") or p.startswith(nd + "_") for p in present):
+            print(f"[dl] WARNING: platform-extra dep not found in output: {dep}", flush=True)
     return 0
 
 
