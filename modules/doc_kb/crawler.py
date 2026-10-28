@@ -18,6 +18,8 @@
 import re
 import os
 
+from modules.core.paths import DBC_CONFIG_PATH
+
 try:
     from modules.inspection.analyzer import PROJECT_ROOT
 except Exception:
@@ -58,7 +60,7 @@ def _resolve_ai_backend(backend: str = None) -> str:
         return env_b.strip().lower()
     try:
         import json as _json
-        _cfg_path = os.path.join(str(PROJECT_ROOT), "dbc_config.json")
+        _cfg_path = DBC_CONFIG_PATH
         if os.path.exists(_cfg_path):
             with open(_cfg_path, "r", encoding="utf-8") as _f:
                 _cfg = _json.load(_f)

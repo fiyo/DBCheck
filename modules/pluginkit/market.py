@@ -70,7 +70,7 @@ class PluginMarket:
     def _load_custom_urls(self):
         """从 dbc_config.json 读取用户自定义的 registry URLs"""
         try:
-            cfg_path = os.path.join(str(PROJECT_ROOT), 'dbc_config.json')
+            cfg_path = paths.DBC_CONFIG_PATH
             if os.path.exists(cfg_path):
                 with open(cfg_path, 'r', encoding='utf-8') as f:
                     cfg = json.load(f)
@@ -84,7 +84,7 @@ class PluginMarket:
     def _save_custom_urls(self, urls: list):
         """保存用户自定义的 registry URLs 到 dbc_config.json"""
         try:
-            cfg_path = os.path.join(str(PROJECT_ROOT), 'dbc_config.json')
+            cfg_path = paths.DBC_CONFIG_PATH
             if os.path.exists(cfg_path):
                 with open(cfg_path, 'r', encoding='utf-8') as f:
                     cfg = json.load(f)

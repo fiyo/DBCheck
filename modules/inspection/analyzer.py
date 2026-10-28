@@ -16,7 +16,7 @@ DBCheck 增强智能分析模块
 - 所有数据在本地处理，不会发送到第三方服务器
 """
 
-from modules.core.paths import PROJECT_ROOT
+from modules.core.paths import PROJECT_ROOT, DBC_CONFIG_PATH
 import os
 import json
 import time
@@ -1464,7 +1464,7 @@ class AIAdvisor:
         _cfg = {}  # ai 配置段；文件缺失/解析失败时保持空 dict，避免后续引用 NameError
         try:
             import os as _os
-            _cfg_path = _os.path.join(str(PROJECT_ROOT), 'dbc_config.json')
+            _cfg_path = DBC_CONFIG_PATH
             if _os.path.exists(_cfg_path):
                 import json as _json
                 with open(_cfg_path, 'r', encoding='utf-8') as _f:
@@ -2883,7 +2883,7 @@ def run_ai_diagnosis(db_type, label, context, issues=None, lang='zh', timeout=60
         _backend = 'openai'
         try:
             import os as _os, json as _json
-            _p = _os.path.join(str(PROJECT_ROOT), 'dbc_config.json')
+            _p = DBC_CONFIG_PATH
             if _os.path.exists(_p):
                 with open(_p, 'r', encoding='utf-8') as _f:
                     _ai = _json.load(_f).get('ai', {})

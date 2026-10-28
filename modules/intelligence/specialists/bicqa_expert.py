@@ -21,6 +21,8 @@ import json
 import os
 from typing import List
 
+from modules.core.paths import DBC_CONFIG_PATH
+
 from ..context import SharedContext, Finding
 from ..specialist import Specialist
 
@@ -44,10 +46,7 @@ _SNIPPET = 160
 def _user_config() -> dict:
     """读取 dbc_config.json 的 bicqa 字段（与 views.py / bicqa_bridge 同一存储）。"""
     try:
-        here = os.path.dirname(os.path.abspath(__file__))
-        # specialists -> intelligence -> modules -> DBCheck 根目录
-        root = os.path.dirname(os.path.dirname(os.path.dirname(here)))
-        cfg_path = os.path.join(root, "dbc_config.json")
+        cfg_path = DBC_CONFIG_PATH
         if os.path.exists(cfg_path):
             with open(cfg_path, "r", encoding="utf-8") as f:
                 return json.load(f).get("bicqa", {}) or {}

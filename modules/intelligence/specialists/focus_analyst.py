@@ -26,6 +26,8 @@ import re
 import json
 from typing import Any, Dict, List, Optional
 
+from modules.core.paths import DBC_CONFIG_PATH
+
 from ..context import SharedContext, Finding
 from ..specialist import Specialist
 from ..ai_helper import build_advisor
@@ -45,9 +47,7 @@ def _read_latest_snapshot(instance_id: str) -> Dict[str, Any]:
 def _bicqa_user_config() -> dict:
     """读取 dbc_config.json 的 bicqa 字段（与 bicqa_expert 同一存储）。"""
     try:
-        here = os.path.dirname(os.path.abspath(__file__))
-        root = os.path.dirname(os.path.dirname(os.path.dirname(here)))
-        cfg_path = os.path.join(root, "dbc_config.json")
+        cfg_path = DBC_CONFIG_PATH
         if os.path.exists(cfg_path):
             with open(cfg_path, "r", encoding="utf-8") as f:
                 return json.load(f).get("bicqa", {}) or {}

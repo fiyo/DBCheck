@@ -3777,7 +3777,7 @@ def api_trend():
 
 @app.route('/api/ai_config', methods=['GET'])
 def api_ai_config():
-    cfg_path = os.path.join(BASE_DIR, 'dbc_config.json')
+    cfg_path = paths.DBC_CONFIG_PATH
     if os.path.exists(cfg_path):
         with open(cfg_path, 'r', encoding='utf-8') as f:
             cfg = json.load(f)
@@ -3800,7 +3800,7 @@ def api_ai_config():
 @app.route('/api/ai_config', methods=['POST'])
 def api_save_ai_config():
     data = request.json or {}
-    cfg_path = os.path.join(BASE_DIR, 'dbc_config.json')
+    cfg_path = paths.DBC_CONFIG_PATH
 
     # 加载现有配置作为基础
     existing = {}
@@ -3934,7 +3934,7 @@ def api_announcement():
 
 @app.route('/api/config', methods=['GET'])
 def api_get_config():
-    cfg_path = os.path.join(BASE_DIR, 'dbc_config.json')
+    cfg_path = paths.DBC_CONFIG_PATH
     if not os.path.exists(cfg_path):
         return jsonify({})
     with open(cfg_path, 'r', encoding='utf-8') as f:
@@ -3950,7 +3950,7 @@ def api_get_config():
 @app.route('/api/config', methods=['POST'])
 def api_save_config():
     data = request.json or {}
-    cfg_path = os.path.join(BASE_DIR, 'dbc_config.json')
+    cfg_path = paths.DBC_CONFIG_PATH
     existing = {}
     if os.path.exists(cfg_path):
         with open(cfg_path, 'r', encoding='utf-8') as f:
@@ -6641,7 +6641,7 @@ def api_rag_ollama_status():
         return jsonify({'ok': False, 'error': 'RAG 模块未加载'})
     try:
         # 读取当前 backend 配置
-        cfg_path = os.path.join(BASE_DIR, 'dbc_config.json')
+        cfg_path = paths.DBC_CONFIG_PATH
         backend = 'ollama'
         try:
             with open(cfg_path, 'r', encoding='utf-8') as f:
@@ -7507,7 +7507,7 @@ def _connect_oracle_thick_fallback(user, password, dsn, sysdba=False):
         if not _thick_ok:
             try:
                 import json
-                with open('dbc_config.json') as f:
+                with open(paths.DBC_CONFIG_PATH) as f:
                     _cfg = json.load(f)
                 _lib_dir = _cfg.get('oracle_client_lib_dir', '')
                 if _lib_dir and os.path.isdir(_lib_dir):
@@ -9310,7 +9310,7 @@ def api_loghub():
 
 def _load_ai_config():
     """加载 AI 配置"""
-    cfg_path = os.path.join(BASE_DIR, 'dbc_config.json')
+    cfg_path = paths.DBC_CONFIG_PATH
     if os.path.exists(cfg_path):
         with open(cfg_path, 'r', encoding='utf-8') as f:
             return json.load(f).get('ai', {})

@@ -19,6 +19,8 @@ RaccoonX i18n 模块
 import os
 import json
 
+from modules.core.paths import DBC_CONFIG_PATH
+
 from .zh import ZI
 from .en import EN
 from .zh_tw import ZH_TW
@@ -70,7 +72,7 @@ _LANG_ALIASES = {
 
 # ── 配置路径 ───────────────────────────────────────────────────────────────
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-_CONFIG_FILE = os.path.join(os.path.dirname(_SCRIPT_DIR), 'dbc_config.json')
+_CONFIG_FILE = str(DBC_CONFIG_PATH)
 
 # 全局语言覆盖（CLI --lang 参数临时设置，不写文件）
 _override_lang = None

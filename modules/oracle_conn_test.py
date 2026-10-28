@@ -23,7 +23,7 @@ import sys
 import json
 import threading
 
-from modules.core.paths import PROJECT_ROOT
+from modules.core.paths import PROJECT_ROOT, DBC_CONFIG_PATH
 
 # ── 连接尝试线程上限（秒）────────────────────────────────────────────────────
 # 背景：oracledb thin 的 tcp_connect_timeout 只覆盖 TCP connect，协议握手/认证
@@ -302,7 +302,7 @@ def _ct_oracle_pro(data):
                     pass
             if not _thick_ok:
                 try:
-                    with open(os.path.join(BASE_DIR, 'dbc_config.json')) as f:
+                    with open(DBC_CONFIG_PATH) as f:
                         _cfg = json.load(f)
                     _lib_dir = _cfg.get('oracle_client_lib_dir', '')
                     if _lib_dir and os.path.isdir(_lib_dir):

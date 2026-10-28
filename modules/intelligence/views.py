@@ -971,8 +971,9 @@ def workflow_task_runs_ep(task_id: int):
 # 配置存于 dbc_config.json 的 bicqa 字段（该文件已被 .gitignore 忽略，不进版本库）。
 import os as _os
 
-_PROJECT_ROOT = _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
-_DBCONFIG_PATH = _os.path.join(_PROJECT_ROOT, "dbc_config.json")
+from modules.core.paths import DBC_CONFIG_PATH
+
+_DBCONFIG_PATH = DBC_CONFIG_PATH
 
 # API Key 占位符：前端回填时若仍是此值表示「不修改」；绝不回传明文
 _API_KEY_SENTINEL = "***SET***"

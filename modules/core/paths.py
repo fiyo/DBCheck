@@ -10,6 +10,7 @@
 """
 
 import sys
+import shutil
 from pathlib import Path
 
 
@@ -86,6 +87,17 @@ INSPECTION_DB = DATA_DIR / "inspection.db"
 DOC_KB_DB = DATA_DIR / "doc_kb.db"
 LOGO_PATH = ASSETS_DIR / "brand" / "dbcheck_logo.png"
 AWR_UPLOADS_DIR = DATA_DIR / "awr_uploads"
+# ── 主配置文件 dbc_config.json（#67：移入持久化数据目录）──────────────────
+# 背景：dbc_config.json 存放通知邮件/SMTP、AI、BIC-QA、插件市场等用户配置与
+# 加密密钥，历史上位于 PROJECT_ROOT（程序根/镜像根），在以下场景被重置：
+#   - Docker：PROJECT_ROOT=/app 不在挂载卷 /app/data 内，容器重建即丢
+#     （用户反馈「重启后通知邮件没了」）；
+#   - 打包版（与 #66 同类）：frozen 下 PROJECT_ROOT=_internal，升级被覆盖；
+#   - 开发版：散落在仓库根，易随 git 操作/清理丢失。
+# 现统一锚定到 DATA_DIR（与 instances.db / um_rbac.db 同域，Docker 下即卷内）；
+# 旧位置见 DBC_CONFIG_PATH_LEGACY，首次启动由 ensure_migrated() 自动迁移。
+DBC_CONFIG_PATH = DATA_DIR / "dbc_config.json"
+DBC_CONFIG_PATH_LEGACY = PROJECT_ROOT / "dbc_config.json"
 
 # 旧路径（兼容解析用，供阶段3 迁移与兼容）
 PRO_DATA_DIR_LEGACY = PROJECT_ROOT / "pro_data"
@@ -153,6 +165,28 @@ def ensure_data_dir_migrated():
         return False
 
 
+def _migrate_dbc_config():
+    """把旧位置（程序根）的 dbc_config.json 迁到 DATA_DIR（#67）。
+
+    仅当旧文件存在、新位置不存在时执行；幂等。目的：
+    - Docker 下 PROJECT_ROOT=/app 不在挂载卷内，重建即丢通知/AI 等配置；
+    - 开发版避免散落在仓库根；打包版（#66 同因）避免升级被覆盖。
+    """
+    legacy = DBC_CONFIG_PATH_LEGACY
+    new = DBC_CONFIG_PATH
+    if not legacy.exists() or new.exists():
+        return False
+    try:
+        new.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(legacy), str(new))
+        print("[paths] dbc_config.json 已从 %s 迁移到 %s（配置不再随容器/升级丢失）"
+              % (legacy, new))
+        return True
+    except Exception as e:
+        print(f"[paths][WARN] dbc_config.json 迁移失败（不阻断启动）: {e}")
+        return False
+
+
 def ensure_migrated():
     """幂等地执行一次旧路径迁移（若检测到遗留旧路径）。
 
@@ -160,6 +194,8 @@ def ensure_migrated():
     """
     # 打包版：先把运行时数据从分发包内部挪到 exe 同级（#66），再走旧路径迁移
     ensure_data_dir_migrated()
+    # dbc_config.json：从程序根迁移到持久化数据目录（#67）
+    _migrate_dbc_config()
     try:
         legacy_exists = any(
             p.exists()

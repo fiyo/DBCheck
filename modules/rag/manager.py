@@ -18,6 +18,8 @@ import json
 import threading
 import uuid
 
+from modules.core.paths import DBC_CONFIG_PATH
+
 from .vector_store import VectorStore
 from .document_processor import DocumentProcessor
 from .embeddings import OllamaEmbedding, OpenAIEmbedding
@@ -41,7 +43,7 @@ class RAGManager:
     def __init__(self, db_path: str = "data/history.db",
                  api_url: str = "http://localhost:11434",
                  embedding_model: str = "nomic-embed-text",
-                 config_path: str = "dbc_config.json"):
+                 config_path: str = str(DBC_CONFIG_PATH)):
         self.db_path = db_path
         self.vector_store = VectorStore(db_path)
         self.processor = DocumentProcessor()

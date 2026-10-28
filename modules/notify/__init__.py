@@ -34,7 +34,7 @@ Webhook 代理与 SSL 配置说明：
     WEBHOOK_CA_CERT=/etc/ssl/certs/corp-ca.pem
     WEBHOOK_VERIFY_SSL=false
 """
-from modules.core.paths import PROJECT_ROOT
+from modules.core.paths import PROJECT_ROOT, DBC_CONFIG_PATH
 import os, ssl, smtplib, json, datetime, mimetypes, time, threading
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -51,7 +51,7 @@ except ImportError:
     HAS_CRYPTOGRAPHY = False
 
 SCRIPT_DIR = str(PROJECT_ROOT)
-CONFIG_FILE = os.path.join(SCRIPT_DIR, 'dbc_config.json')
+CONFIG_FILE = str(DBC_CONFIG_PATH)
 ENCRYPTION_KEY_NAME = 'notification_encryption_key'
 
 

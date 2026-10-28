@@ -633,7 +633,7 @@ class BaseInspectionEngine:
         try:
             from modules.inspection.analyzer import AIAdvisor
             import json as _json
-            cfg_path = os.path.join(str(paths.PROJECT_ROOT), 'dbc_config.json')
+            cfg_path = paths.DBC_CONFIG_PATH
             ai_cfg = {}
             if os.path.exists(cfg_path):
                 with open(cfg_path, 'r', encoding='utf-8') as f:
@@ -676,7 +676,7 @@ class BaseInspectionEngine:
                 try:
                     from modules.inspection.analyzer import AIAdvisor
                     import json as _json
-                    cfg_path = os.path.join(str(paths.PROJECT_ROOT), 'dbc_config.json')
+                    cfg_path = paths.DBC_CONFIG_PATH
                     ai_cfg = {}
                     if os.path.exists(cfg_path):
                         with open(cfg_path, 'r', encoding='utf-8') as f:

@@ -15,6 +15,8 @@ import os
 import re
 from typing import Any, Optional
 
+from modules.core.paths import DBC_CONFIG_PATH
+
 from .context import SharedContext, Finding
 
 
@@ -28,9 +30,7 @@ def build_advisor():
     try:
         from modules.inspection.analyzer import AIAdvisor
 
-        # ai_helper.py -> modules/intelligence -> modules -> DBCheck
-        root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        cfg_path = os.path.join(root, "dbc_config.json")
+        cfg_path = DBC_CONFIG_PATH
         backend = os.environ.get("DBCHECK_AI_BACKEND", "")
         api_url = os.environ.get("DBCHECK_AI_URL", "")
         model = os.environ.get("DBCHECK_AI_MODEL", "")

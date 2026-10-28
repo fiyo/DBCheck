@@ -20,10 +20,12 @@ PROJECT_ROOT 基于本模块文件位置推算，不依赖进程 CWD —— MCP 
 import json
 import os
 
+from modules.core.paths import DBC_CONFIG_PATH
+
 # modules/mcp_server/config.py → 往上三级即仓库根（config.py → mcp_server → modules → 根）
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DEDICATED_CFG = os.path.join(PROJECT_ROOT, "mcp_server_config.json")
-DBCONFIG_PATH = os.path.join(PROJECT_ROOT, "dbc_config.json")
+DBCONFIG_PATH = str(DBC_CONFIG_PATH)
 
 # 默认值（pool 默认关闭，行为与历史完全一致；生产环境按需开启）
 _DEFAULTS = {
