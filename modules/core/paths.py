@@ -99,6 +99,14 @@ AWR_UPLOADS_DIR = DATA_DIR / "awr_uploads"
 DBC_CONFIG_PATH = DATA_DIR / "dbc_config.json"
 DBC_CONFIG_PATH_LEGACY = PROJECT_ROOT / "dbc_config.json"
 
+# ── MCP Server 专用配置 mcp_server_config.json（#67 同类持久化，但策略不同）──
+# 与 dbc_config.json 的区别：本文件是**非敏感、随仓库分发的出厂默认**（git 跟踪），
+# 不含任何密钥；用户可在其基础上自定义。因此**不做物理移动**（移动会破坏 dev 仓库的
+# 跟踪文件、使新克隆丢失出厂默认），而是：规范读取路径锚定 DATA_DIR（Docker 下即挂载
+# 卷 /app/data，用户自定义重建不丢），读取时优先 DATA_DIR 副本，缺失则回落仓库根出厂默认。
+MCP_SERVER_CONFIG_PATH = DATA_DIR / "mcp_server_config.json"
+MCP_SERVER_CONFIG_PATH_LEGACY = PROJECT_ROOT / "mcp_server_config.json"
+
 # 旧路径（兼容解析用，供阶段3 迁移与兼容）
 PRO_DATA_DIR_LEGACY = PROJECT_ROOT / "pro_data"
 REPORTS_DIR_LEGACY = PROJECT_ROOT / "reports"

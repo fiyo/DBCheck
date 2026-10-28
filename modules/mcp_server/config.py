@@ -11,8 +11,10 @@
 
 优先级（高 → 低）：
     1. 环境变量 ``DBCHECK_MCP_*``（临时覆盖，无需改文件）
-    2. 项目根 ``mcp_server_config.json``（推荐，可随仓库分发）
-    3. ``dbc_config.json`` 的 ``mcp_server`` 节点（兜底，密钥同源文件）
+    2. 持久化目录 ``data/mcp_server_config.json``（用户自定义，Docker 下在挂载卷
+       ``/app/data`` 内，容器重建不丢）
+    3. 项目根 ``mcp_server_config.json``（出厂默认，可随仓库分发，作为回落）
+    4. ``dbc_config.json`` 的 ``mcp_server`` 节点（兜底，密钥同源文件）
 
 PROJECT_ROOT 基于本模块文件位置推算，不依赖进程 CWD —— MCP Server 常作为
 子进程由 Claude Desktop / Codex 拉起，CWD 未必是仓库根。
@@ -20,11 +22,18 @@ PROJECT_ROOT 基于本模块文件位置推算，不依赖进程 CWD —— MCP 
 import json
 import os
 
-from modules.core.paths import DBC_CONFIG_PATH
+from modules.core.paths import (
+    DBC_CONFIG_PATH,
+    MCP_SERVER_CONFIG_PATH,
+    MCP_SERVER_CONFIG_PATH_LEGACY,
+)
 
 # modules/mcp_server/config.py → 往上三级即仓库根（config.py → mcp_server → modules → 根）
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-DEDICATED_CFG = os.path.join(PROJECT_ROOT, "mcp_server_config.json")
+# 规范路径：DATA_DIR（Docker 下即挂载卷内，用户自定义重建不丢）；
+# 同模块保留仓库根出厂默认作为回落（见 load_mcp_config 的路径选择）。
+DEDICATED_CFG = str(MCP_SERVER_CONFIG_PATH)
+DEDICATED_CFG_LEGACY = str(MCP_SERVER_CONFIG_PATH_LEGACY)
 DBCONFIG_PATH = str(DBC_CONFIG_PATH)
 
 # 默认值（pool 默认关闭，行为与历史完全一致；生产环境按需开启）
@@ -58,8 +67,10 @@ def load_mcp_config():
             if k in dc and dc[k] is not None:
                 cfg[k] = dc[k]
 
-    # 2) 专用 mcp_server_config.json（推荐，可入库）
-    fcfg = _read_json(DEDICATED_CFG)
+    # 2) 专用 mcp_server_config.json：优先 DATA_DIR 用户自定义副本（持久化），
+    #    缺失则回落仓库根出厂默认（可随仓库分发）。二者同属"专用配置"层级。
+    fcfg_path = DEDICATED_CFG if os.path.isfile(DEDICATED_CFG) else DEDICATED_CFG_LEGACY
+    fcfg = _read_json(fcfg_path)
     if isinstance(fcfg, dict):
         for k in _DEFAULTS:
             if k in fcfg and fcfg[k] is not None:
