@@ -68,36 +68,45 @@ menus_data = [
 ]
 
 def init_seed_data():
-    """初始化种子数据（幂等：先清空再插入）"""
+    """初始化种子数据（幂等：重复运行结果一致，绝不破坏既有用户与授权）
+
+    关键约束：本函数在 Docker 容器每次启动（deploy/docker-entrypoint.sh）
+    都会执行。因此必须幂等——绝对不能 DELETE 既有数据，否则每次容器重启都会
+    清空用户表、覆盖用户已修改的管理员密码、删除自建账户。
+
+    幂等实现依赖各表的 UNIQUE 约束，全部改用 INSERT OR IGNORE：
+      - um_user.username                -> admin / 演示用户存在则保留，不覆盖密码
+      - um_role.role_code               -> 角色存在则跳过
+      - um_permission.perm_code         -> 权限存在则跳过
+      - um_menu.menu_code               -> 菜单存在则跳过
+      - um_user_role(user_id, role_id)  -> 绑定已存在则跳过
+      - um_role_menu_perm(role_id, menu_id) -> 授权已存在则跳过
+    """
     db = DBManager()
-    print("开始初始化 RBAC 种子数据...")
+    print("开始初始化 RBAC 种子数据（幂等模式，保留既有用户与授权）...")
 
-    # 0. 清空旧数据，确保幂等
-    print("  [0] 清空旧数据...")
-    for table in [
-        'um_role_menu_perm', 'um_user_role', 'um_user_asset',
-        'um_user_module', 'um_menu', 'um_role',
-        'um_permission', 'um_user',
-    ]:
-        try:
-            db.execute(f"DELETE FROM {table}")
-        except Exception:
-            pass
-    print("  [OK] 旧数据已清空")
+    # 0. 不再清空旧数据！幂等核心：保留用户已修改的密码与自定义账户。
+    #    历史版本此处 DELETE 全表 -> 容器重启即重置 admin 密码、删除自建用户。
 
-    # 1. 初始化权限定义（只有一种：有权限）
+    # 1. 初始化权限定义（perm_code 唯一，INSERT OR IGNORE 幂等）
     db.execute(
-        "INSERT INTO um_permission(perm_code, perm_name, perm_level) "
+        "INSERT OR IGNORE INTO um_permission(perm_code, perm_name, perm_level) "
         "VALUES('access', '有权限', 1)"
     )
     access_perm = db.query_one("SELECT id FROM um_permission WHERE perm_level=1")
-    print("  ✅ 权限定义已初始化: 有权限(1)")
+    print("  ✅ 权限定义已就绪: 有权限(1)")
 
     # 2. 初始化菜单数据（menus_data 为模块级单一数据源，定义见文件顶部）
-    menu_model = MenuModel()
+    #    直接用 INSERT OR IGNORE 写，避免 menu_model.create 的裸 INSERT 在二次运行时
+    #    因 menu_code 唯一约束抛 IntegrityError。menu_name 由 app.py 启动时的
+    #    sync_menus() 幂等覆盖为 i18n key，此处不重复处理。
     for code, name, pid, order in menus_data:
-        menu_model.create(code, name, parent_id=pid, sort_order=order)
-    print(f"  ✅ 菜单数据已初始化: {len(menus_data)} 个菜单")
+        db.execute(
+            "INSERT OR IGNORE INTO um_menu(menu_code, menu_name, parent_id, sort_order, menu_type) "
+            "VALUES(?,?,?,?,1)",
+            (code, name, pid, order)
+        )
+    print(f"  ✅ 菜单数据已就绪: {len(menus_data)} 个菜单")
 
     # 3. 创建默认角色
     roles_data = [
@@ -112,13 +121,13 @@ def init_seed_data():
         )
     print("  ✅ 默认角色已创建: admin, viewer, operator")
 
-    # 4. 给 admin 角色分配所有菜单权限
+    # 4. 给 admin 角色分配所有菜单权限（UNIQUE(role_id,menu_id) 幂等）
     menus = db.query_all("SELECT id, menu_code FROM um_menu")
     admin_role = db.query_one("SELECT id FROM um_role WHERE role_code='admin'")
     if admin_role and access_perm:
         for menu in menus:
             db.execute(
-                "INSERT INTO um_role_menu_perm(role_id, menu_id, perm_id) VALUES(?,?,?)",
+                "INSERT OR IGNORE INTO um_role_menu_perm(role_id, menu_id, perm_id) VALUES(?,?,?)",
                 (admin_role['id'], menu['id'], access_perm['id'])
             )
     print(f"  ✅ admin 角色已分配 {len(menus)} 个菜单权限")
@@ -131,7 +140,7 @@ def init_seed_data():
         for menu in menus:
             if menu['menu_code'] in viewer_menus:
                 db.execute(
-                    "INSERT INTO um_role_menu_perm(role_id, menu_id, perm_id) VALUES(?,?,?)",
+                    "INSERT OR IGNORE INTO um_role_menu_perm(role_id, menu_id, perm_id) VALUES(?,?,?)",
                     (viewer_role['id'], menu['id'], access_perm['id'])
                 )
                 cnt += 1
@@ -145,30 +154,31 @@ def init_seed_data():
         for menu in menus:
             if menu['menu_code'] in operator_menus:
                 db.execute(
-                    "INSERT INTO um_role_menu_perm(role_id, menu_id, perm_id) VALUES(?,?,?)",
+                    "INSERT OR IGNORE INTO um_role_menu_perm(role_id, menu_id, perm_id) VALUES(?,?,?)",
                     (operator_role['id'], menu['id'], access_perm['id'])
                 )
                 cnt += 1
         print(f"  ✅ operator 角色已分配 {cnt} 个菜单权限: {operator_menus}")
 
-    # 7. 创建默认管理员账户 admin / admin123
+    # 7. 默认管理员账户 admin / admin123（username 唯一，INSERT OR IGNORE 幂等：
+    #    已存在则不覆盖 -> 用户改过的密码在容器重启后保留，不再被重置）
     pw_hash = hash_password('admin123')
     db.execute(
-        "INSERT INTO um_user(username, password, nickname) VALUES('admin', ?, '系统管理员')",
+        "INSERT OR IGNORE INTO um_user(username, password, nickname) VALUES('admin', ?, '系统管理员')",
         (pw_hash,)
     )
-    print("  ✅ 默认管理员账户: admin / admin123")
+    print("  ✅ 默认管理员账户已就绪: admin / admin123（若已存在则保留既有密码）")
 
-    # 8. 绑定 admin 用户 → admin 角色
+    # 8. 绑定 admin 用户 → admin 角色（UNIQUE(user_id,role_id) 幂等）
     admin_user = db.query_one("SELECT id FROM um_user WHERE username='admin'")
     if admin_user and admin_role:
         db.execute(
-            "INSERT INTO um_user_role(user_id, role_id) VALUES(?,?)",
+            "INSERT OR IGNORE INTO um_user_role(user_id, role_id) VALUES(?,?)",
             (admin_user['id'], admin_role['id'])
         )
     print("  ✅ admin 用户已绑定 admin 角色")
 
-    # 9. 创建演示用户
+    # 9. 演示用户（username 唯一，INSERT OR IGNORE 幂等；已存在则保留其密码）
     demo_users = [
         ('viewer',   'viewer123',   '只读用户', 'viewer'),
         ('operator', 'operator123', '运维人员', 'operator'),
@@ -176,21 +186,21 @@ def init_seed_data():
     for uname, upass, nick, role_code in demo_users:
         pw_hash = hash_password(upass)
         db.execute(
-            "INSERT INTO um_user(username, password, nickname) VALUES(?,?,?)",
+            "INSERT OR IGNORE INTO um_user(username, password, nickname) VALUES(?,?,?)",
             (uname, pw_hash, nick)
         )
-        user = db.query_one(f"SELECT id FROM um_user WHERE username='{uname}'")
-        role = db.query_one(f"SELECT id FROM um_role WHERE role_code='{role_code}'")
+        user = db.query_one("SELECT id FROM um_user WHERE username=?", (uname,))
+        role = db.query_one("SELECT id FROM um_role WHERE role_code=?", (role_code,))
         if user and role:
             db.execute(
-                "INSERT INTO um_user_role(user_id, role_id) VALUES(?,?)",
+                "INSERT OR IGNORE INTO um_user_role(user_id, role_id) VALUES(?,?)",
                 (user['id'], role['id'])
             )
-    print("  ✅ 演示用户已创建:")
+    print("  ✅ 演示用户已就绪:")
     print("     - viewer / viewer123 (只读用户)")
     print("     - operator / operator123 (运维人员)")
 
-    print("\n🎉 RBAC 种子数据初始化完成!")
+    print("\n🎉 RBAC 种子数据初始化完成（幂等：未清除既有用户与授权，admin 密码在重启后保留）!")
 
 
 def sync_menus():

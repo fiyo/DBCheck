@@ -64,6 +64,10 @@ fi
 echo "==> Initializing RBAC user management..."
 # NOTE: user_management 不是顶层包，而是 modules.user_management（命名空间包），
 #       必须用 modules.user_management.seed，否则模块找不到、RBAC 静默不播种。
+# NOTE: init_seed_data() 现已设为幂等（INSERT OR IGNORE，绝不 DELETE 既有数据），
+#       因此每次容器重启都安全重跑——它只确保种子数据"存在"，不会重置用户密码
+#       或删除自建账户。切勿在此处加 --reset / DELETE 类逻辑，否则会复现
+#       "Docker 重启后 admin 密码被重置" 的 bug（#68）。
 python -m modules.user_management.seed 2>&1 || echo "WARNING: RBAC seed init failed"
 
 # Auto-enable bundled plugins: plugins/available -> plugins/enabled

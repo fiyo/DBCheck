@@ -1,5 +1,20 @@
 # Changelog
 
+## v26.10.29.0 (2026-10-29)
+- **修复：Docker 容器重启后 admin 密码被重置、自建账户被清空（Issue #68）**
+  - 根因：`deploy/docker-entrypoint.sh` 每次容器 start 都执行 `python -m modules.user_management.seed`，而 `init_seed_data()` 开头的 `DELETE FROM um_user` 等 8 张表是**破坏性**的——每次重启都会清空用户表、用硬编码 `admin123` 覆盖 admin 密码、删除用户自建账户。与此前 #66/#67 不同，`um_rbac.db` 本就落在持久化卷 `/app/data/user_db/` 内（文件没丢），纯属 seed 逻辑把数据"自己抹掉"，不是卷未挂载。
+  - 修复（`modules/user_management/seed.py`）：`init_seed_data()` 改为**幂等**——移除破坏性 `DELETE`，全部 `INSERT` 改为 `INSERT OR IGNORE`，依赖各表 UNIQUE 约束（`um_user.username` / `um_role.role_code` / `um_permission.perm_code` / `um_menu.menu_code` / `um_user_role(user_id,role_id)` / `um_role_menu_perm(role_id,menu_id)`）；菜单播种改用裸 `INSERT OR IGNORE`，避开 `menu_model.create` 的裸 INSERT 在二次运行时触发 UNIQUE 冲突。
+  - 同步：`deploy/docker-entrypoint.sh` 注释固化幂等约定（警示勿加 reset/DELETE，避免复现 #68）；`deploy/docker-compose.yml` 修正误导性注释（`um_rbac.db` 在 `user_db` 而非 `pro_data`）。
+  - 验证：独立脚本模拟「首次播种 → 改 admin 密码 + 建自建账户 + 删演示账户 → 再播种 ×2」，确认 admin 密码保留、自建账户保留、`role_menu_perm`/菜单/角色计数三次运行零增长、无重复授权。仅演示账户 `viewer` 删除后会被重新补种（旧版既有设计，admin/自定义账户不受影响）。
+  - 说明：本次只改幂等性，**未改动默认口令**；首次安装仍会以 `admin / admin123` 创建默认管理员，建议部署后立即修改。
+
+## v26.10.28.0 (2026-10-28)
+- **修复：Docker 重建后用户自定义配置（通知/SMTP、AI、插件市场等）丢失（Issue #67）**
+  - 根因：`dbc_config.json`（含通知邮件、AI、BIC-QA、插件市场等用户配置与 `.db_key` 引用）历史上位于 `PROJECT_ROOT`（程序根/镜像根）。Docker 下 `PROJECT_ROOT=/app` 不在挂载卷 `/app/data` 内 → 容器重建即丢，表现为"重启后通知邮件没了"。与打包版 #66 同类（frozen 下 `PROJECT_ROOT=_internal` 升级被覆盖）。
+  - 修复（`modules/core/paths.py`）：新增 `DBC_CONFIG_PATH = DATA_DIR/"dbc_config.json"`（Docker 下落在卷内 `/app/data`，dev 下 `D:/DBCheck/data`）与 `DBC_CONFIG_PATH_LEGACY`，并在 `ensure_migrated()` 增加一次性迁移（旧存在且新不存在时移动，幂等）；统一替换 notify / i18n / web/app.py / inspection / intelligence / mcp_server / pluginkit / doc_kb / rag / oracle 等约 15 处读写点改用 `paths.DBC_CONFIG_PATH`。
+  - **同类延伸：`mcp_server_config.json` 持久化（非敏感出厂默认）**：该文件是 git 跟踪的**非敏感出厂默认**（随仓库分发、不含密钥），与 `dbc_config.json`（运行期生成含密钥）策略不同——不做物理移动（会破坏 dev 仓库跟踪、使新克隆丢失出厂默认），改为读取时优先 `DATA_DIR` 用户自定义副本（持久化、卷内），缺失则回落仓库根出厂默认。
+  - 验证：三步验证（compileall=0 / `import web_ui` OK / `discover_plugins` 计数=12，此前笔记记录的 11 已过时）通过；paths 模拟迁移幂等。
+
 ## v26.10.27.0 (2026-10-27)
 - **修复：定时巡检「改配置不生效 / 禁用了还在跑」（Issue #65）**
   - 根因：APScheduler 3.x 的 job 主键参数是 `id=`，项目里写成了 `job_id=`。该参数被并入 `**trigger_args` 静默丢弃（trigger 已是对象时 `_create_trigger` 直接返回，trigger_args 根本不参与构造），于是**每个定时任务的真实 id 是一个随机 UUID**，连锁后果：
