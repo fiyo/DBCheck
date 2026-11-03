@@ -241,6 +241,9 @@ class MonitorSentinel(Specialist):
                     detail += " 宿主指标由 Shell(/proc) 零依赖采集（无 eBPF，磁盘时延为聚合近似值）。"
                 else:
                     detail += " 宿主指标由 psutil 用户态采集（无 eBPF，磁盘时延为聚合近似值）。"
+            elif src == "local":
+                detail += (" 宿主指标采集自 DBCheck 所在机器（本机采集）；若该数据库实例实际"
+                           "不在本机，这组数据不代表其资源水位，需配置实例所在机器的 SSH。")
             elif src == "unavailable":
                 detail += " 宿主指标暂不可用（目标机未安装 psutil 或 SSH 不可达）。"
             out.append(

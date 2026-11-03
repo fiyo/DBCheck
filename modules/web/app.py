@@ -6136,7 +6136,11 @@ def monitor_screen_page():
              'dt_overview', 'dt_conn', 'dt_slow', 'dt_tbs', 'dt_loading', 'dt_no_conn', 'dt_no_slow', 'dt_rows',
              'dt_conn_pending', 'dt_capacity', 'dt_conn_nosql', 'dt_slow_nosql',
              'hist_ns', 'view_matrix', 'view_topo', 'f_all', 'crit_first', 'matrix_title',
-             'role_primary', 'role_standby', 'adg_link']
+             'role_primary', 'role_standby', 'adg_link',
+             'host_title', 'host_no_data', 'host_col_inst', 'host_col_cpu', 'host_col_mem',
+             'host_col_swap', 'host_col_load', 'host_col_src',
+             'host_src_ebpf', 'host_src_psutil', 'host_src_shell', 'host_src_local',
+             'host_src_unavailable', 'host_src_none', 'host_spark_wait']
     S = {k: _t('webui.screen_' + k) for k in _keys}
     return render_template('monitor_screen.html', version=__version__, S=S)
 
@@ -6148,6 +6152,47 @@ def api_dashboard_overview():
         return jsonify(build_overview(get_screen_collector()))
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)})
+
+
+@app.route('/api/dashboard/host-series', methods=['GET'])
+def api_dashboard_host_series():
+    """大屏「宿主资源」折线图的历史序列（按需拉取，不参与 15s 常规轮询）。
+
+    数据源为常驻 MetricsCollector 的快照存储（每 30s 一点、每实例环形保留
+    2000 点）。前端仅在首次进入大屏与退出历史回放时拉一次回填，之后用
+    overview 当前帧增量追加——避免每轮轮询都解析大量历史 payload。
+
+    query:
+      limit  每实例返回点数，默认 60（≈30 分钟），上限 240
+      ids    逗号分隔的实例 id；缺省为当前快照中的全部实例
+    """
+    try:
+        from modules.monitor.screen_metrics import (
+            get_screen_collector, _read_host_series,
+        )
+        try:
+            limit = int(request.args.get('limit', '60'))
+        except (TypeError, ValueError):
+            limit = 60
+        limit = max(1, min(240, limit))
+
+        ids_arg = (request.args.get('ids') or '').strip()
+        if ids_arg:
+            iids = [x.strip() for x in ids_arg.split(',') if x.strip()]
+            names = {}
+        else:
+            snap = (get_screen_collector().get_snapshot() or {})
+            iids = list(snap.keys())
+            names = {iid: (snap[iid].get('name') or iid) for iid in iids}
+
+        series = {}
+        for iid in iids:
+            pts = _read_host_series(iid, limit)
+            if pts:
+                series[iid] = {'name': names.get(iid, iid), 'points': pts}
+        return jsonify({'ok': True, 'limit': limit, 'series': series})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)[:300]})
 
 
 @app.route('/api/dashboard/instance/<iid>', methods=['GET'])

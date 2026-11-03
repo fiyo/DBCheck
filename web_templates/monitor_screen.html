@@ -55,6 +55,12 @@
     border-radius: 10px; display: flex; flex-direction: column; min-height: 0; overflow: hidden;
     position: relative;
   }
+  /* 宿主面板需更高：aside 内现为 5 个面板（已移除「实例健康分布」饼图——顶部状态筛选
+     芯片已带各状态计数，信息不丢失），4 个常规图表面板各 flex:1、宿主面板 flex:3.2：
+     总份数 7.2 与移除前的 6 面板 1*5+2.2 相同，故常规图表高度维持原样，
+     宿主面板由 ~2.2 份升到 3.2 份（1080p 下约 275px → 400px，可同时看 5 行小倍数，
+     其余滚动）。宿主行内含迷你折线，按 1 份高度只能露出约 1 行。 */
+  .panel-host { flex: 3.2; }
   .panel h3 {
     font-size: 12.5px; font-weight: 500; color: var(--tx2);
     padding: 9px 12px 0; letter-spacing: .5px;
@@ -75,6 +81,27 @@
               display: flex; flex-direction: column; gap: 7px; }
   .tbs-list::-webkit-scrollbar { width: 4px; }
   .tbs-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  /* ── 宿主资源「小倍数」：每实例一「块」= 数值行（实例名|CPU%|内存%|Swap%|Load1|来源徽标）
+        + 下方 46px 迷你折线。左轴 0-100 承载 CPU/内存/Swap，右轴独立自适应承载 Load1
+        （Load1 是绝对值、与百分比量纲不同，必须分轴否则会被压成一条贴底的直线）。 ── */
+  .host-list { flex: 1; min-height: 0; overflow-y: auto; padding: 9px 12px 10px;
+               display: flex; flex-direction: column; gap: 6px; }
+  .host-list::-webkit-scrollbar { width: 4px; }
+  .host-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .hhead, .hline { display: grid; grid-template-columns: minmax(0,1fr) 44px 44px 42px 40px auto;
+                   align-items: center; gap: 6px; padding: 2px 4px; }
+  .hhead { font-size: 9px; color: var(--tx2); padding-bottom: 2px; }
+  .hhead div + div { text-align: right; }
+  .hrow { border-radius: 6px; cursor: pointer; padding: 2px 0 3px; }
+  .hrow:hover { background: rgba(255,255,255,.045); }
+  .hrow .hname { font-size: 10.5px; color: var(--tx); overflow: hidden;
+                 text-overflow: ellipsis; white-space: nowrap; }
+  .hrow .hval { font-size: 10.5px; text-align: right; font-variant-numeric: tabular-nums; }
+  .hspark { height: 46px; width: 100%; }
+  .hbadge { font-size: 9px; padding: 1px 6px; border-radius: 8px; border: 1px solid var(--border);
+            color: var(--tx2); background: rgba(139,148,158,.12); white-space: nowrap;
+            overflow: hidden; text-overflow: ellipsis; }
+  .host-empty { font-size: 11px; color: var(--tx2); padding: 6px 4px; }
   .trow { display: grid; grid-template-columns: 16px minmax(0,1fr) 108px 42px;
           align-items: center; gap: 8px; padding: 1px 4px; border-radius: 6px; cursor: pointer; }
   .trow:hover { background: rgba(255,255,255,.045); }
@@ -430,7 +457,8 @@
     <div class="panel"><h3>{{ S.repl_top }}</h3><div class="chart" id="c-repl"></div></div>
     <div class="panel"><h3>{{ S.lock_top }}</h3><div class="chart" id="c-lock"></div></div>
     <div class="panel"><h3>{{ S.slowq_top }}</h3><div class="chart" id="c-slow"></div></div>
-    <div class="panel"><h3>{{ S.health }}</h3><div class="chart" id="c-health"></div></div>
+    <div class="panel panel-host"><h3>{{ S.host_title }}</h3>
+      <div class="host-list" id="host-list"></div></div>
   </aside>
 </main>
 
@@ -764,9 +792,10 @@ function panelHasData(id, data){
     case 'c-repl':   return (T.repl_lag || []).length > 0;
     case 'c-lock':   return (T.lock_wait || []).length > 0;
     case 'c-slow':   return (T.slowq || []).length > 0;
-    case 'c-health': return (data.nodes || []).length > 0;
     case 'tbs-list': return (T.tbs_worst || []).length > 0 || (T.tbs_used || []).length > 0;
     case 'topo':     return (data.nodes || []).length > 0;
+    // 宿主资源：任一实例带 host_res 即视为有数据（采集器未运行/实例异地未配 SSH 时为无）
+    case 'host-list': return (data.nodes || []).some(function(n){ return n && n.host_res; });
   }
   return false;
 }
@@ -776,7 +805,7 @@ function updateLoaders(data){
   var real = nodes.filter(function(n){ return n.status && n.status !== 'pending'; });
   if (real.length) endWarming();
   if (!warmingUp) hideGlobalLoading();
-  ['c-qps','c-conn','c-conns','c-trend','c-repl','c-lock','c-slow','c-health','tbs-list','topo']
+  ['c-qps','c-conn','c-conns','c-trend','c-repl','c-lock','c-slow','tbs-list','topo','host-list']
     .forEach(function(id){
       if (panelHasData(id, data) || !warmingUp) hideLoader(id);
       else showLoader(id);
@@ -786,7 +815,7 @@ function updateLoaders(data){
 /* 页面加载即初始化所有 ECharts 面板为「加载中…」占位 + 加载动画覆盖层，
    保证打开大屏时基础图表面板（标题 + 占位结构 + 努力读取动画）立即可见。 */
 function initCharts(){
-  ['c-qps','c-conn','c-conns','c-trend','c-repl','c-lock','c-slow','c-health'].forEach(function(id){
+  ['c-qps','c-conn','c-conns','c-trend','c-repl','c-lock','c-slow'].forEach(function(id){
     try {
       var c = chart(id);
       c.setOption({
@@ -799,6 +828,7 @@ function initCharts(){
   });
   ensureLoader('tbs-list');
   ensureLoader('topo');
+  ensureLoader('host-list');
   showGlobalLoading();
 }
 var TIP_STYLE = {
@@ -1760,6 +1790,196 @@ function closeDetail(){
 /* ══════════════ 数据轮询与图表刷新 ══════════════ */
 function setKpi(id, v){ document.getElementById(id).textContent = v; }
 
+/* ── 宿主资源面板 ── */
+function hostSrcMeta(src){
+  if (src === 'ebpf')        return { txt: S.host_src_ebpf,        fg: '#00C8A0' };
+  if (src === 'psutil')      return { txt: S.host_src_psutil,      fg: '#38BDF8' };
+  if (src === 'shell')       return { txt: S.host_src_shell,       fg: '#38BDF8' };
+  if (src === 'local')       return { txt: S.host_src_local,       fg: '#F59E0B' };
+  if (src === 'unavailable') return { txt: S.host_src_unavailable, fg: '#94A3B8' };
+  return { txt: S.host_src_none, fg: '#94A3B8' };
+}
+function hostPctColor(v){
+  if (v === null || v === undefined) return C.tx2;
+  if (v >= 90) return C.crit;
+  if (v >= 75) return C.warn;
+  return C.tx;
+}
+/* ── 宿主资源「小倍数」折线 ──
+   每实例一块：上行 = 实例名 + CPU%/内存%/Swap%/Load1 当前值 + 采集来源徽标，
+   下行 = 一条 46px 迷你折线（30 分钟窗口）。
+
+   数据分两路合流进 hostSeries 缓冲：
+     1) 历史：首次进入大屏 / 退出历史回放时拉一次 /api/dashboard/host-series 回填。
+        后端只读 MetricsCollector 的快照存储，不触发采集、无额外 SSH 开销。
+     2) 实时：每轮 overview 用当前帧 host_res 增量追加一点，按 ts 去重后裁到 60 点。
+   刻意不在每轮 15s 轮询里重复拉历史——那会反复解析大量历史 payload。
+
+   量纲：CPU%/内存%/Swap% 共用左轴（固定 0-100）；Load1 是绝对值、与百分比
+   量纲不同，走独立右轴自适应，否则会被压成贴底直线。 */
+var HOST_SERIES_POINTS = 60;      // 30s 采样 × 60 点 ≈ 30 分钟（与 QPS 趋势 TREND_POINTS 同口径）
+var hostSeries = {};              // { iid: [{ts,cpu,mem,swap,load1}] } 时间升序
+var hostRowEls = {};              // { iid: {row,nameEl,valEls,badgeEl,sparkEl,chart} } DOM 复用
+var lastNodes  = [];              // 供历史回填后即时重绘
+
+function hostSparkId(iid){ return 'host-spark-' + iid; }
+
+/** 用 overview 当前帧增量追加采样点（同一采样周期内的重复帧只更新末点）。 */
+function mergeHostPoint(node, ts){
+  if (!node || !node.host_res) return;
+  var h = node.host_res;
+  var buf = hostSeries[node.id];
+  if (!buf) buf = hostSeries[node.id] = [];
+  var pt = { ts: ts, cpu: h.host_cpu, mem: h.host_mem,
+             swap: h.host_swap_pct, load1: h.host_load1 };
+  var last = buf[buf.length - 1];
+  // 采集 30s 一点而轮询 15s 一次：25s 内视为同一采样周期的重复帧，更新而非新增
+  if (last && Math.abs(last.ts - ts) < 25) buf[buf.length - 1] = pt;
+  else {
+    buf.push(pt);
+    while (buf.length > HOST_SERIES_POINTS) buf.shift();
+  }
+}
+
+/** 回填历史序列（仅首次进入与退出历史回放时调用，非每轮轮询）。 */
+async function fetchHostSeries(){
+  try {
+    var r = await fetch('/api/dashboard/host-series?limit=' + HOST_SERIES_POINTS);
+    if (!r.ok) return;
+    var d = await r.json();
+    if (!d || d.ok !== true) return;
+    var s = d.series || {};
+    Object.keys(s).forEach(function(iid){
+      var pts = (s[iid] || {}).points || [];
+      if (pts.length) hostSeries[iid] = pts.slice(-HOST_SERIES_POINTS);
+    });
+    renderHostList(lastNodes);     // 回填后立即重绘，不必等下一轮轮询
+  } catch (e) { /* 回填失败不阻塞实时渲染 */ }
+}
+
+/** 迷你折线：左轴 %（CPU/内存/Swap），右轴 Load1（独立自适应，轴线隐藏省空间）。 */
+function renderSpark(iid){
+  var slot = hostRowEls[iid];
+  if (!slot || !slot.sparkEl || typeof echarts === 'undefined') return;
+  if (!slot.chart) slot.chart = echarts.init(slot.sparkEl);
+  var pts = hostSeries[iid] || [];
+  if (pts.length < 2){
+    slot.chart.setOption({ graphic: [{ type: 'text', left: 'center', top: 'middle',
+      style: { text: S.host_spark_wait, fill: C.tx2, fontSize: 10 } }] }, true);
+    return;
+  }
+  var xs = pts.map(function(p){
+    var d = new Date(p.ts * 1000);
+    return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+  });
+  function mk(key, color, axis){
+    return { name: key, type: 'line', yAxisIndex: axis, smooth: true, symbol: 'none',
+             connectNulls: false, lineStyle: { color: color, width: 1.2 },
+             itemStyle: { color: color },
+             data: pts.map(function(p){ return p[key]; }) };
+  }
+  slot.chart.setOption({
+    animation: false,
+    grid: { left: 1, right: 1, top: 5, bottom: 3, containLabel: false },
+    tooltip: Object.assign({ trigger: 'axis', formatter: function(ps){
+      if (!ps || !ps.length) return '';
+      var names = { cpu: S.host_col_cpu, mem: S.host_col_mem,
+                    swap: S.host_col_swap, load1: S.host_col_load };
+      return (ps[0].axisValue || '') + '<br/>' + ps.map(function(p){
+        return p.marker + (names[p.seriesName] || p.seriesName) + ' ' +
+               (p.data === null || p.data === undefined ? '–' : fmt(p.data));
+      }).join('<br/>');
+    } }, TIP_STYLE),
+    xAxis: { type: 'category', data: xs, show: false, boundaryGap: false },
+    yAxis: [ { type: 'value', min: 0, max: 100, show: false },
+             { type: 'value', show: false, scale: true } ],
+    series: [mk('cpu', C.accent, 0), mk('mem', C.blue, 0),
+             mk('swap', C.warn, 0), mk('load1', C.pending, 1)]
+  }, true);
+}
+
+function renderHostList(nodes){
+  var el = document.getElementById('host-list');
+  if (!el) return;
+  lastNodes = nodes || [];
+  var rows = lastNodes.filter(function(n){ return n && n.host_res; });
+  if (!rows.length){
+    Object.keys(hostRowEls).forEach(function(iid){
+      var c = hostRowEls[iid] && hostRowEls[iid].chart;
+      if (c) { try { c.dispose(); } catch (e) {} }
+    });
+    hostRowEls = {};
+    el.innerHTML = '<div class="host-empty">' + esc(S.host_no_data) + '</div>';
+    return;
+  }
+  if (!el.querySelector('.hhead')){
+    var head = document.createElement('div');
+    head.className = 'hhead';
+    head.innerHTML = '<div>' + esc(S.host_col_inst) + '</div><div>' + esc(S.host_col_cpu) +
+                     '</div><div>' + esc(S.host_col_mem) + '</div><div>' + esc(S.host_col_swap) +
+                     '</div><div>' + esc(S.host_col_load) + '</div><div>' + esc(S.host_col_src) + '</div>';
+    el.appendChild(head);
+  }
+  var seen = {};
+  rows.forEach(function(n){
+    seen[n.id] = true;
+    var slot = hostRowEls[n.id];
+    if (!slot){
+      var row = document.createElement('div');
+      row.className = 'hrow';
+      row.setAttribute('data-iid', n.id);
+      row.onclick = (function(iid){ return function(){ openDetailById(iid); }; })(n.id);
+      row.innerHTML = '<div class="hline">' +
+          '<div class="hname"></div>' +
+          '<div class="hval hv-cpu"></div><div class="hval hv-mem"></div>' +
+          '<div class="hval hv-swap"></div><div class="hval hv-load"></div>' +
+          '<div class="hbadge"></div></div>' +
+        '<div class="hspark" id="' + hostSparkId(n.id) + '"></div>';
+      el.appendChild(row);
+      slot = hostRowEls[n.id] = {
+        row: row,
+        nameEl: row.querySelector('.hname'),
+        valEls: { cpu: row.querySelector('.hv-cpu'), mem: row.querySelector('.hv-mem'),
+                  swap: row.querySelector('.hv-swap'), load1: row.querySelector('.hv-load') },
+        badgeEl: row.querySelector('.hbadge'),
+        sparkEl: row.querySelector('.hspark'),
+        chart: null
+      };
+    }
+    // 行 DOM 复用：只更新文本/配色，不重建节点——否则每行每次都新建 echarts 实例会泄漏
+    var h = n.host_res || {};
+    var m = hostSrcMeta(h.host_collector_source);
+    if (slot.nameEl) slot.nameEl.textContent = n.name || n.id;
+    [['cpu', h.host_cpu], ['mem', h.host_mem],
+     ['swap', h.host_swap_pct], ['load1', h.host_load1]].forEach(function(p){
+      var e = slot.valEls[p[0]];
+      if (!e) return;
+      e.textContent = fmt(p[1]);
+      e.style.color = hostPctColor(p[1]);
+    });
+    // unavailable 时把具体原因放进悬浮提示（如「未配置 SSH：实例主机 X 非本机…」）
+    var title = (h.host_collector_source === 'unavailable' && h.host_error)
+      ? (S.host_src_unavailable + '：' + h.host_error) : m.txt;
+    if (slot.badgeEl){
+      slot.badgeEl.textContent = m.txt;
+      slot.badgeEl.style.color = m.fg;
+      slot.badgeEl.style.borderColor = m.fg;
+    }
+    if (slot.row) slot.row.title = title;
+    el.appendChild(slot.row);     // 按当前 rows 顺序重排
+    renderSpark(n.id);
+  });
+  // 清理已消失的实例行（含其 echarts 实例），避免残留旧实例与内存泄漏
+  Object.keys(hostRowEls).forEach(function(iid){
+    if (seen[iid]) return;
+    var slot = hostRowEls[iid];
+    if (slot && slot.chart) { try { slot.chart.dispose(); } catch (e) {} }
+    if (slot && slot.row && slot.row.parentNode) slot.row.parentNode.removeChild(slot.row);
+    delete hostSeries[iid];
+    delete hostRowEls[iid];
+  });
+}
+
 function refresh(data){
   var k = data.kpis || {};
   setKpi('k-online', (k.online || 0) + ' / ' + (k.total || 0));
@@ -1868,44 +2088,23 @@ function refresh(data){
 
   drawTrend();   // 趋势图（全局合计 / 实例下钻），数据来自 lastOverview
 
-  var cnt = { ok: 0, warn: 0, crit: 0, down: 0, pending: 0, unsupported: 0 };
-  (data.nodes || []).forEach(function(n){ cnt[n.status] = (cnt[n.status] || 0) + 1; });
-  var healthData = [
-    { name: S.st_ok,   value: cnt.ok,   itemStyle: { color: C.ok,   shadowBlur: 8, shadowColor: C.ok + '55' } },
-    { name: S.st_warn, value: cnt.warn, itemStyle: { color: C.warn, shadowBlur: 8, shadowColor: C.warn + '55' } },
-    { name: S.st_crit, value: cnt.crit, itemStyle: { color: C.crit, shadowBlur: 8, shadowColor: C.crit + '55' } },
-    { name: S.st_pending, value: cnt.pending, itemStyle: { color: C.pending, shadowBlur: 8, shadowColor: C.pending + '55' } },
-    { name: S.st_unsupported, value: cnt.unsupported, itemStyle: { color: C.tx2, shadowBlur: 8, shadowColor: C.tx2 + '55' } },
-    { name: S.st_down, value: cnt.down, itemStyle: { color: C.down, shadowBlur: 8, shadowColor: C.down + '55' } }
-  ].filter(function(d){ return d.value > 0; });
-  var hTotal = cnt.ok + cnt.warn + cnt.crit + cnt.pending + cnt.unsupported + cnt.down;
-  var healthOpt = {
-    animation: false,
-    tooltip: Object.assign({ trigger: 'item',
-      formatter: function(p){ return p.name + '：<b>' + p.value + '</b>（' + p.percent + '%）'; } }, TIP_STYLE),
-    legend: { orient: 'vertical', right: 8, top: 'middle', icon: 'circle',
-      itemWidth: 8, itemHeight: 8, itemGap: 12,
-      textStyle: { color: C.tx2, fontSize: 11.5 },
-      formatter: function(name){
-        var m = {};
-        healthData.forEach(function(d){ m[d.name] = d.value; });
-        return name + '  ' + (m[name] || 0);
-      } },
-    series: [{ type: 'pie', radius: ['62%', '82%'], center: ['32%', '50%'],
-      avoidLabelOverlap: false, startAngle: 90,
-      itemStyle: { borderColor: C.panel, borderWidth: 3, borderRadius: 6 },
-      emphasis: { scale: true, scaleSize: 5 },
-      label: { show: true, position: 'center',
-        formatter: hTotal + '\n' + S.instances,
-        fontSize: 21, fontWeight: 600, color: C.tx, lineHeight: 26 },
-      labelLine: { show: false },
-      data: healthData }]
-  };
-  if (!healthData.length){
-    healthOpt.graphic = [{ type: 'text', left: 'center', top: 'middle',
-      style: { text: S.no_data, fill: C.tx2, fontSize: 12 } }];
+  /* 「实例健康分布」饼图已移除：顶部状态筛选芯片（mf-ok / mf-warn / mf-crit …）已实时
+     带各状态实例数，饼图信息重复；腾出的高度全部给下方「宿主资源」面板（见 .panel-host）。 */
+
+
+/* 宿主资源：小倍数折线（每实例 = 数值行 + 迷你折线）
+     当前值来自常驻 MetricsCollector 的宿主采集结果（服务端 _build_nodes 透出 host_res），
+     大屏不自行发起 SSH——既零额外连接开销，也与首页监控卡片、AI 巡检口径完全一致。
+     趋势由 hostSeries 缓冲提供：历史序列在进入大屏 / 退出回放时回填一次，之后每轮
+     用当前帧增量追加。历史回放模式下不累积——回放帧的 ts 是历史时刻，混入会污染
+     实时窗口的时间轴。
+     来源语义：ebpf 内核级 / psutil 用户态 / shell /proc 零依赖 / local 中心机本机 /
+     unavailable 不可用（悬浮显示具体原因，如异地实例未配置 SSH）。 */
+  if (!historyMode){
+    var _hts = data.ts || Math.floor(Date.now() / 1000);
+    (data.nodes || []).forEach(function(n){ mergeHostPoint(n, _hts); });
   }
-  chart('c-health').setOption(healthOpt, true);
+  renderHostList(data.nodes);
 
   // 告警滚动条
   var ticker = document.getElementById('ticker');
@@ -1956,6 +2155,11 @@ function startTicker(){
 
 function layoutCharts(){
   Object.keys(charts).forEach(function(k){ charts[k].resize(); });
+  // 宿主迷你折线按行持有（不在全局 charts 内），窗口变化时需单独 resize
+  Object.keys(hostRowEls || {}).forEach(function(iid){
+    var c = hostRowEls[iid] && hostRowEls[iid].chart;
+    if (c) { try { c.resize(); } catch (e) {} }
+  });
 }
 
 async function poll(){
@@ -2064,6 +2268,7 @@ function exitHistory(){
   document.getElementById('hist-bar').classList.remove('show');
   document.getElementById('btn-hist').classList.remove('on');
   document.getElementById('hist-badge').classList.remove('show');
+  fetchHostSeries();                                 // 回填实时宿主时序（回放期间未累积）
   poll().then(scheduleNextPoll, scheduleNextPoll);   // 恢复实时轮询
 }
 
@@ -2138,6 +2343,7 @@ function updateFreshness(){
 updateFreshness();
 setInterval(updateFreshness, 1000);
 frame();
+fetchHostSeries();                 // 宿主折线：回填 30 分钟历史序列（仅此一次）
 poll().then(scheduleNextPoll, scheduleNextPoll);
 </script>
 </body>

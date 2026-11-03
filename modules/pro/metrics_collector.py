@@ -277,23 +277,87 @@ def _get_ssh_host_lock(host: str) -> threading.Lock:
             _ssh_host_locks[host] = lk
         return lk
 
-def _is_self_host(host: str) -> bool:
-    """判断 ssh_host 是否指向中心机自身（允许本地实例误配 SSH 时回退本机采集）。"""
-    h = (host or '').strip().lower()
-    if h in ('localhost', '127.0.0.1', '::1', '0.0.0.0', '::'):
-        return True
+# 本机身份集合缓存（hostname / FQDN / 所有网卡 IP / 出口 IP），带 TTL。
+# 网卡会因 DHCP、VPN、容器网络变动，故不做永久缓存，TTL 到期后重算。
+_LOCAL_ID_CACHE = {'ts': 0.0, 'addrs': frozenset()}
+_LOCAL_ID_TTL = 300.0
+
+
+def _local_identities() -> frozenset:
+    """返回「本机身份集合」（均为小写），用于判定某个地址是否指向中心机自身。
+
+    覆盖：主机名、FQDN（及其首段）、hostname 解析出的所有 IP、所有网卡 IP、
+    默认路由出口 IP。多网卡场景下，用户填写的往往是本机另一块网卡的地址，
+    仅靠 hostname 解析会漏判，故必须枚举网卡。
+    """
+    import time as _t
+    now = _t.time()
+    cached_addrs = _LOCAL_ID_CACHE['addrs']
+    if cached_addrs and (now - _LOCAL_ID_CACHE['ts']) < _LOCAL_ID_TTL:
+        return cached_addrs
+
+    ids = set()
     try:
-        local = socket.gethostname().lower()
-        if h == local:
-            return True
-        addrs = set()
+        hn = (socket.gethostname() or '').lower()
+        if hn:
+            ids.add(hn)
+        try:
+            fqdn = (socket.getfqdn() or '').lower()
+            if fqdn:
+                ids.add(fqdn)
+                ids.add(fqdn.split('.')[0])
+        except Exception:
+            pass
         for info in socket.getaddrinfo(socket.gethostname(), None):
-            addrs.add(info[4][0])
-        if h in addrs:
-            return True
+            ids.add(str(info[4][0]).lower())
     except Exception:
         pass
-    return False
+
+    # 所有网卡 IP（hostname 解析不全 / 多网卡 / 仅配 hosts 的场景靠这步兜住）
+    try:
+        import psutil
+        for addrs in psutil.net_if_addrs().values():
+            for a in addrs:
+                ids.add(str(a.address).lower())
+    except Exception:
+        pass
+
+    # 默认路由出口 IP（UDP connect 不实际发包，仅用于选出出口网卡地址）
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect(('8.8.8.8', 80))
+            ids.add(str(s.getsockname()[0]).lower())
+        finally:
+            s.close()
+    except Exception:
+        pass
+
+    result = frozenset(ids)
+    _LOCAL_ID_CACHE['ts'] = now
+    _LOCAL_ID_CACHE['addrs'] = result
+    return result
+
+
+def _is_self_host(host: str) -> bool:
+    """判断给定主机地址是否指向中心机自身（DBCheck 所在机器）。
+
+    用于两处：① SSH 远端采集失败时，仅当 ssh_host 指向本机才合法回退本机采集；
+    ② 未配置 SSH 时，判定数据库实例是否真与 DBCheck 同机（决定能否采本机顶替）。
+
+    地址缺失（本地文件库 / 未填主机）视为本机。
+    """
+    h = (host or '').strip().lower()
+    # IPv6 字面量可能带方括号，如 [::1]
+    if h.startswith('[') and h.endswith(']'):
+        h = h[1:-1]
+    if not h:
+        return True
+    if h in ('localhost', '127.0.0.1', '::1', '0.0.0.0', '::'):
+        return True
+    if h.startswith('127.'):          # 127.0.0.0/8 整段都是环回
+        return True
+    return h in _local_identities()
 
 def _host_unavailable(reason: str) -> dict:
     """构造“宿主资源不可用”的结果 dict，携带原因，便于前端直接展示。"""
@@ -1135,7 +1199,10 @@ class MetricsCollector:
         - 配置了 SSH → 走远端采集；若远端失败/无数据，返回 {}（该目标显示
           “宿主资源不可用”），**绝不回退到中心机本机数据**（否则会把中心机指标
           误标成目标机的，造成“错机器”误导）。
-        - 未配置 SSH（监控中心机自身）→ 本机 psutil 采集。
+        - 未配置 SSH → **先判定数据库实例是否真与 DBCheck 同机**：
+            同机 → 本机 psutil 采集（来源标注 'local'，口径可见）；
+            非同机 → 返回“未配置 SSH，无法采集该实例宿主资源”，
+            不再拿中心机本机数据顶替（异地部署时旧逻辑会静默“错机器”误导）。
 
         并发保护（修复“目标机 sshd 被监控的连接打满 / Connection closed /
         Error reading SSH protocol banner / EOFError”）：
@@ -1173,7 +1240,18 @@ class MetricsCollector:
                 return _host_unavailable(reason)
             finally:
                 _SSH_GLOBAL_SEM.release()
-        return self._collect_host_local()
+
+        # ── 未配置 SSH：必须先判定实例地址是否就是中心机自身 ──
+        # 旧逻辑无条件 self._collect_host_local()，异地部署时会把 DBCheck 所在机器的
+        # CPU/内存/磁盘静默当成数据库服务器的指标展示（与“C 盘警告误取自本地主机”同类坑）。
+        db_host = str(inst.get('host') or '').strip()
+        if _is_self_host(db_host):
+            return self._collect_host_local()
+        reason = ('未配置 SSH：实例主机 %s 非本机，无法采集其宿主资源；'
+                  '请在数据源配置该机的 SSH 后重试' % (db_host or '(地址缺失)'))
+        print(f"[metrics] 实例 {inst.get('id') or inst.get('name') or ''} "
+              f"宿主采集不可用: {reason}", flush=True)
+        return _host_unavailable(reason)
 
     def _resolve_ssh(self, inst: dict):
         """解析实例的 SSH 配置；未启用或缺失主机则返回 None。"""
@@ -1375,13 +1453,22 @@ class MetricsCollector:
         return _host_unavailable('SSH 采集重试后仍未成功')
 
     def _collect_host_local(self) -> dict:
-        """中心机本机采集（同机场景或无 SSH 时降级）。默认仅 psutil，不自动加载 eBPF。"""
+        """中心机本机采集（同机场景或无 SSH 且实例同机时降级）。默认仅 psutil，不自动加载 eBPF。
+
+        结果的 host_collector_source 统一标注为 'local'，与 SSH 远端采集
+        （'ebpf'/'psutil'/'shell'）区分开——本机口径与数据库服务器口径本就不同，
+        必须让使用者一眼看出这组指标来自 DBCheck 所在机器。
+        采集失败（'unavailable'）不覆盖，以免掩盖真实错误原因。
+        """
         try:
             from modules.pro import remote_host_collector as rh
-            return rh.collect_host(use_ebpf=False, window=0.5)
+            m = rh.collect_host(use_ebpf=False, window=0.5)
         except Exception:
             # 极端：连 remote_host_collector 都 import 失败，用内置 psutil 兜底
-            return self._collect_host_psutil_fallback()
+            m = self._collect_host_psutil_fallback()
+        if isinstance(m, dict) and m.get('host_collector_source') != 'unavailable':
+            m['host_collector_source'] = 'local'
+        return m
 
     def _collect_host_psutil_fallback(self) -> dict:
         """remote_host_collector 不可用时的内置 psutil 兜底。"""

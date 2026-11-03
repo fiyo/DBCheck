@@ -3301,6 +3301,7 @@ ZI = {
     "monitor.host_src_ebpf": "内核级 eBPF",
     "monitor.host_src_psutil": "psutil 用户态",
     "monitor.host_src_shell": "Shell /proc 零依赖",
+    "monitor.host_src_local": "中心机本机采集",
     "monitor.host_src_unavailable": "宿主资源不可用",
     "monitor.host_src_none": "暂无宿主数据",
     "monitor.host_ebpf_title": "⚡ eBPF 内核级指标",
@@ -3614,6 +3615,23 @@ ZI.update({
     "webui.um_perm_name": "名称",
     "webui.um_perm_level": "级别",    "webui.chapter_select_label": "选择巡检章节",
     "webui.chapter_empty_tip": "请至少选择一个章节",
+
+    # ── 监控大屏：宿主资源面板 ──
+    "webui.screen_host_title": "🖥️ 宿主资源",
+    "webui.screen_host_no_data": "暂无宿主数据（采集器未运行，或该实例未产出宿主指标）",
+    "webui.screen_host_col_inst": "实例",
+    "webui.screen_host_col_cpu": "CPU%",
+    "webui.screen_host_col_mem": "内存%",
+    "webui.screen_host_col_swap": "Swap%",
+    "webui.screen_host_col_load": "Load1",
+    "webui.screen_host_col_src": "采集来源",
+    "webui.screen_host_src_ebpf": "eBPF 内核级",
+    "webui.screen_host_src_psutil": "psutil 用户态",
+    "webui.screen_host_src_shell": "Shell /proc",
+    "webui.screen_host_src_local": "中心机本机",
+    "webui.screen_host_src_unavailable": "宿主资源不可用",
+    "webui.screen_host_src_none": "暂无宿主数据",
+    "webui.screen_host_spark_wait": "趋势序列积累中…（每 30 秒一个采样点）",
 
     # 通知设置：报告访问基址（通知邮件 / Webhook 中的报告链接）
     "webui.report_base_title": "报告访问基址",

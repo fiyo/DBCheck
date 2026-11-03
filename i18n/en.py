@@ -3271,6 +3271,7 @@ EN = {
     "monitor.host_src_ebpf": "eBPF Kernel-level",
     "monitor.host_src_psutil": "psutil User-space",
     "monitor.host_src_shell": "Shell /proc (zero-dep)",
+    "monitor.host_src_local": "Local machine (DBCheck host)",
     "monitor.host_src_unavailable": "Host metrics unavailable",
     "monitor.host_src_none": "No host data",
     "monitor.host_ebpf_title": "eBPF Kernel-level Metrics",
@@ -3613,6 +3614,23 @@ EN.update({
     "webui.um_perm_name": "Name",
     "webui.um_perm_level": "Level",    "webui.chapter_select_label": "Select Inspection Chapters",
     "webui.chapter_empty_tip": "Please select at least one chapter",
+
+    # ── Monitor screen: host resource panel ──
+    "webui.screen_host_title": "\U0001F5A5️ Host resources",
+    "webui.screen_host_no_data": "No host data (collector not running or no output yet)",
+    "webui.screen_host_col_inst": "Instance",
+    "webui.screen_host_col_cpu": "CPU%",
+    "webui.screen_host_col_mem": "Mem%",
+    "webui.screen_host_col_swap": "Swap%",
+    "webui.screen_host_col_load": "Load1",
+    "webui.screen_host_col_src": "Source",
+    "webui.screen_host_src_ebpf": "eBPF kernel-level",
+    "webui.screen_host_src_psutil": "psutil user-space",
+    "webui.screen_host_src_shell": "Shell /proc",
+    "webui.screen_host_src_local": "Local machine",
+    "webui.screen_host_src_unavailable": "Host unavailable",
+    "webui.screen_host_src_none": "No host data",
+    "webui.screen_host_spark_wait": "Building trend… (one sample per 30s)",
 
     # Notifier: base URL for report links in notification emails / webhooks
     "webui.report_base_title": "Report Base URL",

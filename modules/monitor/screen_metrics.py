@@ -1246,6 +1246,11 @@ class ScreenCollector:
         if not snap or 'id' not in snap:
             return
         iid = snap['id']
+        # 宿主资源：只读常驻采集器已产出的结果（不在此处发起 SSH，避免拖慢大屏采样轮）
+        try:
+            snap['host_res'] = _read_host_metrics(iid)
+        except Exception:
+            snap['host_res'] = None
         ts = snap.get('ts') or time.time()
         with self._lock:
             prev = self._prev.get(iid)
@@ -1308,6 +1313,99 @@ def _topn(items, key, n=10):
                   key=lambda x: x[key], reverse=True)[:n]
 
 
+# ── 宿主资源：复用常驻 MetricsCollector 的采集结果 ───────────────
+# 大屏不自行发起 SSH 采集。MetricsCollector 在 web 启动时即常驻运行
+# （APScheduler 每 30s tick，见 modules/web/app.py），其宿主采集已包含
+# 「实例是否与 DBCheck 同机」的判定（未配 SSH 且异地 -> unavailable，不再拿
+# 中心机指标冒充）与来源标注（ebpf / psutil / shell / local / unavailable）。
+# 大屏只读它的存储结果：既零额外 SSH 开销（不叠加连接压垮 sshd、不拖慢采样轮），
+# 也保证与首页监控卡片、AI 巡检的宿主口径完全一致。
+_HOST_KEYS = ('host_cpu', 'host_cpu_iowait', 'host_mem', 'host_swap_pct',
+              'host_load1', 'host_load5', 'host_load15',
+              'host_disk_read_mb_s', 'host_disk_write_mb_s', 'host_disk_await_ms',
+              'host_collector_source', 'host_error')
+
+
+def _read_host_metrics(iid):
+    """读取指定实例最近一次宿主资源快照。
+
+    返回 None 的情形（前端据此显示"暂无宿主数据"）：
+      - 采集器未运行（get_collector() 为 None，如 web 启动时初始化失败）；
+      - 该实例尚无快照；
+      - 快照中不含任何宿主指标（如该实例采集失败）。
+    """
+    try:
+        from modules.pro.metrics_collector import get_collector
+        c = get_collector()
+        if c is None or not hasattr(c, 'store'):
+            return None
+        latest = c.store.get_latest(iid)
+        if not isinstance(latest, dict) or not latest:
+            return None
+        out = {}
+        for k in _HOST_KEYS:
+            v = latest.get(k)
+            if v is not None:
+                out[k] = v
+        return out or None
+    except Exception:
+        return None
+
+
+def _read_host_series(iid, limit=60):
+    """读取指定实例最近 N 个宿主资源采样点（供大屏「小倍数」折线图使用）。
+
+    复用常驻 MetricsCollector 的快照存储（MetricsStore.get_recent），逐点提取
+    host_cpu / host_mem / host_swap_pct / host_load1。采集器每 30s 落一个点，
+    默认 60 点 ≈ 30 分钟窗口（与全库 QPS 趋势 TREND_POINTS=60 同口径）。
+
+    返回按时间升序的 [{'ts','cpu','mem','swap','load1'}]（ts 为 epoch 秒），
+    或 None（采集器未运行 / 该实例无宿主快照 / 所有点宿主采集均失败）。
+
+    注意：本函数只读历史、不触发任何采集，因此不产生额外 SSH 开销。
+    """
+    try:
+        from modules.pro.metrics_collector import get_collector
+        c = get_collector()
+        if c is None or not hasattr(c, 'store'):
+            return None
+        try:
+            n = int(limit)
+        except (TypeError, ValueError):
+            n = 60
+        if n <= 0:
+            n = 60
+        # 多取一倍再过滤：宿主采集失败的点（四项皆 None）在 SQL 层看不出区别，
+        # 若只取 n 行再过滤，遇到近期采集失败时有效点会不足 n，30 分钟窗口会
+        # 悄然缩水（例如 SSH 断开 20 分钟 → 窗口只剩 10 分钟，易被误读）。
+        # 因此先多取、过滤、再截取最近 n 个有效点；上限 480 行控制解析开销。
+        rows = c.store.get_recent(iid, min(n * 2, 480))
+        if not rows:
+            return None
+        pts = []
+        for r in rows:
+            m = r.get('metrics')
+            if not isinstance(m, dict):
+                continue
+            pt = {'cpu': m.get('host_cpu'), 'mem': m.get('host_mem'),
+                  'swap': m.get('host_swap_pct'), 'load1': m.get('host_load1')}
+            # 该点宿主采集整体失败（四项皆空）时跳过——否则会在折线上留下
+            # 一串取值为 null 的断点，看上去像"指标掉零"。
+            if all(pt[k] is None for k in ('cpu', 'mem', 'swap', 'load1')):
+                continue
+            raw = r.get('ts')
+            try:
+                ts = float(raw)      # 入库为 TEXT，转回 epoch 秒与实时帧对齐
+            except (TypeError, ValueError):
+                ts = raw
+            pts.append({'ts': ts, 'cpu': pt['cpu'], 'mem': pt['mem'],
+                        'swap': pt['swap'], 'load1': pt['load1']})
+        # get_recent 返回升序，截取最近 n 个有效点
+        return pts[-n:] if pts else None
+    except Exception:
+        return None
+
+
 def _build_nodes(snap):
     """从快照装配拓扑节点（含 tbs 明细，供 TopN 表空间使用）。"""
     nodes = []
@@ -1334,6 +1432,7 @@ def _build_nodes(snap):
             'spark': s.get('spark') or [],
             'stat_hint': s.get('stat_hint'),
             'ssh': s.get('ssh'),
+            'host_res': s.get('host_res'),
         })
     return nodes
 

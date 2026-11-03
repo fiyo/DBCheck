@@ -21957,6 +21957,7 @@ function renderHostPanel() {
     if (src === 'ebpf') { txt = i18n('monitor.host_src_ebpf') || '内核级 eBPF'; bg = 'rgba(63,185,80,.18)'; fg = isLight ? '#047857' : '#00C8A0'; }
     else if (src === 'psutil') { txt = i18n('monitor.host_src_psutil') || 'psutil 用户态'; bg = 'rgba(59,130,246,.18)'; fg = isLight ? '#0A2A6E' : '#60A5FA'; }
     else if (src === 'shell') { txt = i18n('monitor.host_src_shell') || 'Shell /proc 零依赖'; bg = 'rgba(59,130,246,.18)'; fg = isLight ? '#0A2A6E' : '#60A5FA'; }
+    else if (src === 'local') { txt = i18n('monitor.host_src_local') || '中心机本机采集'; bg = 'rgba(245,158,11,.18)'; fg = isLight ? '#92400E' : '#FBBF24'; }
     else if (src === 'unavailable') { txt = i18n('monitor.host_src_unavailable') || '宿主资源不可用'; bg = 'rgba(139,148,158,.18)'; fg = isLight ? '#64748B' : '#94A3B8'; }
     else { txt = i18n('monitor.host_src_none') || '暂无宿主数据'; bg = 'rgba(139,148,158,.12)'; fg = isLight ? '#64748B' : '#94A3B8'; }
     badge.textContent = txt;

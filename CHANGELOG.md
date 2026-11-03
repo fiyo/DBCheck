@@ -1,5 +1,42 @@
 # Changelog
 
+## v26.11.4.0 (2026-11-03)
+
+### 修复（P0）：未配置 SSH 时，宿主资源指标「静默用中心机数据冒充目标机」
+- 现象：数据源未开启 SSH 时，宿主资源（CPU / 内存 / Swap / Load1 / 磁盘 IO）展示的是**DBCheck 所在机器**的数据，没有任何提示；同机部署时正确，异地部署时会把中心机的资源水位当成远端数据库服务器的。
+- 根因：`modules/pro/metrics_collector.py::_collect_host()` 的「未配置 SSH」分支**无条件**返回 `_collect_host_local()`，完全不判断数据库实例是否真在本机。已有的 `_is_self_host()` 只用在「配了 SSH 且远端采集失败」的回退分支，未覆盖此路径。同类历史问题：MariaDB 健康报告「C 盘警告误取自本地主机」。
+- 修复：
+  - 判断入参改用**数据库主机地址 `inst['host']`**（不是 `ssh_host`）——宿主采集与连库隧道共用同一套 SSH 凭据，但判定同机与否必须看数据库本身在哪台机器。
+  - `_is_self_host()` 升级为本机身份集合判定：hostname / FQDN / hostname 解析 IP / **psutil 枚举的全部网卡 IP** / UDP 出口 IP，模块级 TTL 300s 缓存。多网卡机器上用户常填本机另一网卡的 IP，仅靠 hostname 解析会漏判成远程。另补齐 IPv6 方括号剥离、`127.0.0.0/8` 整段环回；空地址视为本机（本地文件库场景，如 SQLite）。
+  - 判定结果：本机 → 本机采集并标注来源 `local`；非本机 → 返回 `unavailable` 并带明原因「未配置 SSH：实例主机 X 非本机，无法采集其宿主资源」，前端可悬浮查看，不再静默给错数。
+  - `_collect_host_local()` 内部统一标注 `source='local'`（已有的 unavailable 不被覆盖），使「配了 SSH 但远端失败且 ssh_host 指向本机」的既有回退分支也自动带正确来源，口径一致。
+  - 配套：`monitor_sentinel.py` 补 `src == 'local'` 分支（否则 AI 巡检上下文丢失来源说明）；`i18n/zh.py` / `en.py` 新增 `monitor.host_src_local`。
+- 验证：20 项断言全通过 —— localhost / 127.0.0.53 / ::1 / [::1] / 空 / None → 本机；8.8.8.8、TEST-NET-1 地址、陌生主机名 → 非本机；**本机第二网卡 IP → 本机**（多网卡覆盖生效）；同机 → 来源 `local` 且带真实 `host_cpu`；异地 → `unavailable` + `host_error` 含原因与实例地址且**不含任何 host_ 指标**；SSH 指向非本机且失败时不回退本机；`host_error` 经 `save_snapshot` → `get_latest` 往返可回传前端。
+- 已知边界（不改）：Docker 部署时 DBCheck 在容器内，实例 host 填 `127.0.0.1` 会被判为本机从而采容器指标，而真实数据库可能在宿主机——无法自动判定，靠来源徽标与文案提示用户自行判断。
+
+### 新增：监控大屏接入「宿主资源」面板（小倍数折线）
+- 背景：宿主采集能力早已具备（SSH 内联 psutil / eBPF，或 `/proc` 零依赖兜底，目标机零部署），但**监控大屏（`/monitor-screen`）此前完全没有宿主指标**——首页监控卡片有，大屏没有。
+- 架构决策：大屏**不自行发起 SSH 采集**，改为复用常驻 `MetricsCollector` 的存储结果（`metrics_snapshot.payload` 中的 `host_*` 键）。理由：采集器在 Web 启动时即常驻、每 30s 一轮、覆盖全部实例，大屏只读即可——零额外 SSH 开销（不叠加连接压垮 sshd、不拖慢大屏 15s 采样轮），且与首页监控卡片、AI 巡检口径完全一致（同一套 P0 同机判定与来源标注）。
+- 实现：
+  - `modules/monitor/screen_metrics.py`：新增 `_read_host_metrics()`（当前值）与 `_read_host_series(iid, limit=60)`（历史序列）；`_commit_snap()` 注入 `snap['host_res']`；`_build_nodes()` 显式投影 `host_res`（该函数是白名单投影，漏加则前端拿不到）。
+  - `modules/web/app.py`：新增 `GET /api/dashboard/host-series`（`limit` 默认 60、钳制 1–240，`ids` 逗号分隔可选）。**按需拉取，不参与 15s 常规轮询**，避免每轮解析大量历史 payload。
+  - `web_templates/monitor_screen.html`：宿主面板采用小倍数（small multiples）——每个实例一行 = 当前值行（CPU% / 内存% / Swap% / Load1 / 来源徽标）+ 下方 46px 迷你折线，覆盖最近 30 分钟（60 点）。
+- 折线图三处关键设计：
+  - **双 Y 轴**：CPU% / 内存% / Swap% 是 0–100 百分比（左轴固定 0–100），Load1 是绝对值（右轴 `scale: true` 独立自适应）——量纲不同，单轴会把 Load1 压成贴底直线。
+  - **DOM 按实例 ID 复用**：只更新文本/配色、不重建节点，否则每轮重建会导致每行 echarts 实例泄漏；已消失的实例行 `dispose` 后移除。
+  - **`connectNulls: false`**：采样缺失保留 `null`，不伪造 0、不连成假线；`mergeHostPoint()` 以 25s 为同周期阈值去重（采集 30s / 轮询 15s，防重复点）。
+- 历史序列的一个真实缺陷已修正：`get_recent(iid, n)` 原按 n 行**先裁剪再过滤**无效点，近期采集失败时有效点不足 n，30 分钟窗口会悄然缩水（SSH 中断 20 分钟 → 窗口只剩 10 分钟）。改为**多取一倍（上限 480 行）→ 过滤四项皆空点 → 取最近 n 个有效点**。
+- 验证：后端时序 20 项、端点 23 项（含 limit 钳制 999→240 / `abc`→60 / 0→1、ids 空片段过滤、采集器未运行时 `ok=true` 且 series 为空）、前端 32 项（函数源码由脚本从 HTML 实时抽取、非手工复制）全通过；回归 P0 同机判定 20 项、大屏链路 16 项全通过；`py_compile` 6 文件、`node --check` 大屏全部 JS 通过；文案键 15 个「注册数 = 引用数」，中英零缺失。
+
+### 优化：大屏右栏移除「实例健康分布」饼图，宿主面板加高
+- 移除原因：顶部状态筛选芯片（全部 / 严重 / 警告 / 正常）已实时带各状态实例数，饼图属重复展示。
+- 高度重算：右栏由 6 个面板变 5 个。原为 `5×1 + 2.2 = 7.2` 份，现取 `4×1 + 3.2` —— **总份数保持 7.2**，故其余 4 个常规图表（复制延迟 / 锁等待 / 慢查询 / 表空间）高度不变，腾出的空间全部给宿主面板（1080p 下约 275px → 约 400px，小倍数行由 3–4 行增至约 5 行，其余滚动）。
+- 清理范围：模板结构、`panelHasData` 判定、加载层 id 数组、图表初始化数组、`refresh()` 内的统计与 `setOption` 整段，共 5 处，无残留引用。
+
+### 其它
+- 版本号统一升至 `v26.11.4.0`（25 处引用点，覆盖 `modules/config/version.py` 与 `version.json`、skill 脚本、4 个 CI workflow、`deploy/Dockerfile` 与 compose、`build/`、`scripts/`、`assets/web/static/js/login.js`、登录页）。
+- 说明：历史回放模式下宿主面板显示「暂无宿主数据」属预期——历史库不存宿主指标；刚启动采样点 < 2 时显示「趋势序列积累中…（每 30 秒一个采样点）」，约 1–2 分钟后出线。
+
 ## v26.11.3.0 (2026-11-03)
 - **修复：通知邮件中的报告链接为 localhost，其它电脑无法打开**
   - 根因：`modules/web/app.py::_remember_base_url`（before_request）**无条件**把每次浏览器请求的 `host_url` 记进 `app.config['REMEMBERED_BASE_URL']`，不过滤回环地址；且为「最近一次请求覆盖」，服务器本机一次 `http://localhost:5003` 访问即冲掉先前 LAN IP。后台定时巡检无请求上下文，`modules/web/scheduler.py::_report_base_url()` 优先级 2 直接取该值拼出 `http://localhost:5003/share/xxx`；优先级 3 的「自动探测 LAN IP」永远走不到。收件人在其它电脑打开时，localhost 指向的是收件人自己的机器。
