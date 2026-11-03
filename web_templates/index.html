@@ -8767,6 +8767,26 @@ function wfCloseRunDrawer() {
 
       <!-- ══ Page: Notifier ══ -->
       <div class="page" id="page-notifier" data-page-node-id="W8oMwP8x9X8q9Xgf0UimhO">
+        <div class="card">
+          <div class="card-title">
+            <span>🔗</span> <span data-i18n="webui.report_base_title">报告访问基址</span>
+          </div>
+          <div class="form-grid">
+            <div class="field full">
+              <label data-i18n="webui.report_base_label">报告链接访问地址</label>
+              <input type="text" id="report-base-url"
+                     placeholder="http://192.168.1.100:5003 或 https://dbcheck.example.com" />
+              <div style="font-size:12px;color:var(--text-muted);margin-top:8px;line-height:1.6"
+                   data-i18n="webui.report_base_hint">通知邮件与 Webhook 中的「查看在线巡检报告」链接会使用该地址。请填写收件人在其它电脑上能打开的地址（服务器 IP 或域名），不要填 localhost / 127.0.0.1；留空则自动探测本机 IP。</div>
+              <div id="report-base-effective" style="font-size:12px;color:var(--text-muted);margin-top:6px;"></div>
+            </div>
+          </div>
+          <div class="btn-row" style="margin-top:16px;">
+            <button class="btn btn-primary" onclick="saveReportBaseUrl()" data-i18n="webui.report_base_btn_save">💾 保存地址</button>
+          </div>
+          <div id="report-base-msg" style="margin-top:10px;font-size:13px;"></div>
+        </div>
+
         <div class="card" data-page-node-id="R3379DlU7SJfB56oTklEgg">
           <div class="card-title" data-page-node-id="j9UdIJV3BkcNN7cAd298uV">
             <span data-page-node-id="svPCFoMkx7n7dlwcxYNW2r">📧</span> 邮件通知配置
@@ -19417,7 +19437,18 @@ async function loadNotifierConfig() {
     const data = await res.json();
     if (data.ok) {
       const cfg = data.config;
-      
+
+      // 报告访问基址（通知邮件 / Webhook 中的报告链接）
+      const rbInput = document.getElementById('report-base-url');
+      if (rbInput) rbInput.value = cfg.report_base_url || '';
+      const rbEff = document.getElementById('report-base-effective');
+      if (rbEff) {
+        const eff = cfg.report_base_url_effective || '';
+        rbEff.textContent = eff
+          ? (i18n('webui.report_base_effective') || '当前生效：') + eff
+          : (i18n('webui.report_base_effective_empty') || '当前未确定访问地址，通知中可能不含报告链接');
+      }
+
       // 邮件配置
       if (cfg.email) {
         document.getElementById('smtp-host').value = cfg.email.host || '';
@@ -19517,6 +19548,45 @@ function onWebhookTypeChange() {
   
   secretWrap.style.display = (type === 'wecom' || type === 'dingtalk') ? 'block' : 'none';
   dingtalkWrap.style.display = type === 'dingtalk' ? 'block' : 'none';
+}
+
+// ─── 报告访问基址 ───────────────────────────────────────────
+// 通知邮件 / Webhook 中的报告链接基址。填 localhost 会导致收件人在其它电脑上
+// 打开时指向自己的机器，这里在保存前直接拦下并给出提示。
+async function saveReportBaseUrl() {
+  const input = document.getElementById('report-base-url');
+  const msg = document.getElementById('report-base-msg');
+  if (!input || !msg) return;
+  let val = (input.value || '').trim().replace(/\/+$/, '');
+  if (val && !/^https?:\/\//i.test(val)) val = 'http://' + val;  // 允许只填 IP:端口
+
+  if (/^https?:\/\/(localhost|127\.|\[?::1\]?|0\.0\.0\.0)/i.test(val)) {
+    msg.textContent = '⚠️ ' + (i18n('webui.report_base_loopback_warn') ||
+      'localhost / 127.0.0.1 只能本机访问，其它电脑打不开，请改填服务器 IP 或域名');
+    msg.style.color = '#F59E0B';
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/notifier/config', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({report_base_url: val})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      input.value = val;
+      msg.textContent = '✅ ' + (i18n('webui.report_base_save_ok') || '已保存');
+      msg.style.color = '#00C8A0';
+      await loadNotifierConfig();  // 刷新「当前生效」展示
+    } else {
+      msg.textContent = '❌ ' + (i18n('webui.report_base_save_fail') || '保存失败：') + (data.error || '');
+      msg.style.color = '#EF4444';
+    }
+  } catch(e) {
+    msg.textContent = '❌ ' + (i18n('webui.report_base_save_fail') || '保存失败：') + e.message;
+    msg.style.color = '#EF4444';
+  }
 }
 
 async function saveEmailConfig() {

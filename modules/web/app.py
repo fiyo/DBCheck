@@ -703,12 +703,21 @@ def _remember_base_url():
     后台调度器没有请求上下文，无法得知用户是通过哪个地址访问 Web UI 的；
     这里把最近一次请求的 host（如 http://10.51.1.230:5003）保存到 app.config，
     调度器生成分享链接时优先使用它，避免自动探测到错误的网卡地址。
+
+    注意：本机回环地址（localhost / 127.x / ::1）**不能记录**。管理员在服务器
+    本机用 localhost 打开一次 Web UI，若被记住，后续所有通知邮件里的报告链接
+    都会变成 http://localhost:5003/share/...，收件人在其它电脑上打开只会指向
+    自己的机器。此类请求直接跳过，让链接基址回退到 LAN IP 自动探测或显式配置。
     """
     try:
         from flask import request as _req
         url = (_req.host_url or '').rstrip('/')
-        if url:
-            app.config['REMEMBERED_BASE_URL'] = url
+        if not url:
+            return
+        from modules.notify import is_loopback_url
+        if is_loopback_url(url):
+            return
+        app.config['REMEMBERED_BASE_URL'] = url
     except Exception:
         pass
 
@@ -5944,10 +5953,14 @@ def api_scheduler_cancel(job_id):
 
 @app.route('/api/notifier/config', methods=['GET'])
 def api_notifier_get():
-    """获取通知配置（隐藏密码）"""
+    """获取通知配置（隐藏密码），并附带当前实际生效的报告链接基址。"""
     try:
-        from modules.notify import get_notifier_config
-        return jsonify({'ok': True, 'config': get_notifier_config()})
+        from modules.notify import get_notifier_config, resolve_report_base_url
+        cfg = get_notifier_config()
+        # 与后台调度器用同一套决策逻辑，保证设置页展示的就是邮件里会用的地址
+        cfg['report_base_url_effective'] = resolve_report_base_url(
+            remembered_base_url=app.config.get('REMEMBERED_BASE_URL') or '')
+        return jsonify({'ok': True, 'config': cfg})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
@@ -5960,7 +5973,10 @@ def api_notifier_save():
         from modules.notify import save_notifier_config
         save_notifier_config(
             email_cfg=data.get('email'),
-            webhook_cfg=data.get('webhook')
+            webhook_cfg=data.get('webhook'),
+            # 用 in 区分「未传」（邮件 / Webhook 各自的保存请求，不能误清空）
+            # 与「传空串」（管理员主动清空，回退到自动探测）
+            report_base_url=data.get('report_base_url') if 'report_base_url' in data else None
         )
         return jsonify({'ok': True, 'msg': 'Configuration saved'})
     except Exception as e:

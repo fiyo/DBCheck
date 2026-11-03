@@ -333,11 +333,38 @@ def _save_config(cfg):
         return False
 
 
-def get_report_base_url(cfg=None):
+def is_loopback_url(url):
+    """判断 URL 的主机是否为回环 / 不可外部访问地址。
+
+    用于避免把 ``http://localhost:5003`` 这类地址写进通知邮件的报告链接：
+    收件人在其它电脑上打开会指向收件人自己的机器，链接必然打不开。
+    """
+    if not url:
+        return False
+    try:
+        from urllib.parse import urlparse
+        raw = str(url).strip()
+        # 没有 scheme 时 urlparse 会把 'localhost:5003' 误当成 scheme，先补全
+        if '://' not in raw:
+            raw = 'http://' + raw
+        host = (urlparse(raw).hostname or '').lower().strip('[]')
+    except Exception:
+        return False
+    if not host:
+        return False
+    if host in ('localhost', 'localhost.localdomain', '::1', '::', '0.0.0.0',
+                '0:0:0:0:0:0:0:1', '0:0:0:0:0:0:0:0'):
+        return True
+    if host.startswith('127.'):
+        return True
+    return False
+
+
+def get_report_base_url(cfg=None, port=None):
     """返回巡检报告查看链接的基址（不带结尾 '/'）。
 
     优先使用 notification.report_base_url（可由 .env 的 REPORT_BASE_URL 覆盖）；
-    未配置时自动探测本机出口 IP，并沿用 Web 服务默认端口 5003；
+    未配置时自动探测本机出口 IP，端口取 ``port``（缺省为 Web 服务默认 5003）；
     探测失败返回空字符串（调用方据此决定是否展示链接）。
     """
     if cfg is None:
@@ -368,10 +395,58 @@ def get_report_base_url(cfg=None):
         candidates.append(socket.gethostbyname(socket.gethostname()))
     except Exception:
         pass
+    try:
+        web_port = int(port) if port else 5003
+    except (TypeError, ValueError):
+        web_port = 5003
     for ip in candidates:
-        if ip and not ip.startswith('127.'):
-            return 'http://%s:5003' % ip
+        if not ip:
+            continue
+        candidate = 'http://%s:%d' % (ip, web_port)
+        if not is_loopback_url(candidate):
+            return candidate
     return ''
+
+
+def resolve_report_base_url(cfg=None, remembered_base_url=''):
+    """确定通知中报告链接的基址（不带结尾 '/'）——单一事实来源。
+
+    优先级：
+    1) 显式配置 ``notification.report_base_url``（或环境变量 ``REPORT_BASE_URL``）。
+       管理员最清楚外部可访问地址，尊重其选择，即使填的是 localhost 也不擅自改写。
+    2) 浏览器最近访问 Web UI 的地址（``remembered_base_url``），但**回环地址一律丢弃**：
+       管理员在服务器本机用 localhost 打开一次，不应污染后续所有通知链接。
+    3) 自动探测本机出口 LAN IP + Web 服务端口（``get_report_base_url``）。
+       回环地址虽不能作为基址，但其端口是真实监听端口，会被提取给自动探测使用，
+       避免服务跑在 8080 等自定义端口时探测结果仍写死 5003。
+
+    Web 路由与后台调度器都调用本函数，避免各自维护一套判定逻辑。
+    """
+    if cfg is None:
+        try:
+            cfg = _load_config()
+        except Exception:
+            cfg = {}
+    base = ''
+    if isinstance(cfg, dict):
+        base = str(cfg.get('report_base_url') or '').strip().rstrip('/')
+    if not base and remembered_base_url:
+        candidate = str(remembered_base_url).strip().rstrip('/')
+        if candidate and not is_loopback_url(candidate):
+            base = candidate
+    if not base:
+        port_hint = None
+        if remembered_base_url:
+            try:
+                from urllib.parse import urlparse
+                raw = str(remembered_base_url).strip()
+                if '://' not in raw:
+                    raw = 'http://' + raw
+                port_hint = urlparse(raw).port
+            except Exception:
+                port_hint = None
+        base = get_report_base_url(cfg, port=port_hint)
+    return base
 
 
 def build_share_url(base_url, share_id):
@@ -729,8 +804,12 @@ def get_notifier_config():
     return cfg
 
 
-def save_notifier_config(email_cfg=None, webhook_cfg=None):
-    """保存通知配置"""
+def save_notifier_config(email_cfg=None, webhook_cfg=None, report_base_url=None):
+    """保存通知配置。
+
+    ``report_base_url`` 为 None 表示「本次不改动该字段」（邮件 / Webhook 各自的
+    保存请求不会带它，不能误清空）；传空字符串表示清空，回退到自动探测。
+    """
     cfg = _load_config()
 
     if email_cfg is not None:
@@ -743,6 +822,13 @@ def save_notifier_config(email_cfg=None, webhook_cfg=None):
 
     if webhook_cfg is not None:
         cfg['webhook'] = dict(webhook_cfg)
+
+    if report_base_url is not None:
+        val = str(report_base_url or '').strip().rstrip('/')
+        if val:
+            cfg['report_base_url'] = val
+        else:
+            cfg.pop('report_base_url', None)
 
     return _save_config(cfg)
 

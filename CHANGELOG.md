@@ -1,5 +1,18 @@
 # Changelog
 
+## v26.11.3.0 (2026-11-03)
+- **修复：通知邮件中的报告链接为 localhost，其它电脑无法打开**
+  - 根因：`modules/web/app.py::_remember_base_url`（before_request）**无条件**把每次浏览器请求的 `host_url` 记进 `app.config['REMEMBERED_BASE_URL']`，不过滤回环地址；且为「最近一次请求覆盖」，服务器本机一次 `http://localhost:5003` 访问即冲掉先前 LAN IP。后台定时巡检无请求上下文，`modules/web/scheduler.py::_report_base_url()` 优先级 2 直接取该值拼出 `http://localhost:5003/share/xxx`；优先级 3 的「自动探测 LAN IP」永远走不到。收件人在其它电脑打开时，localhost 指向的是收件人自己的机器。
+  - 修复：
+    - `modules/notify/__init__.py`：新增 `is_loopback_url()` 与 `resolve_report_base_url()` 统一决策函数（Web 路由与调度器共用一套判定）；自动探测排除回环地址，并沿用被拒回环地址中的真实端口（服务跑自定义端口时不再错写 5003）；`save_notifier_config` 支持 `report_base_url` 字段。
+    - `modules/web/app.py`：`_remember_base_url` 源头过滤 localhost / 127.x / ::1；通知配置 API 透传 `report_base_url` 并返回 `report_base_url_effective`。
+    - `modules/web/scheduler.py`：`_report_base_url()` 收敛为统一函数的薄封装。
+    - `web_templates/index.html`：通知设置页新增「报告访问基址」卡片（输入框、保存、当前生效值展示、localhost 前置拦截）；`i18n/zh.py` / `en.py` 补 9 个键。
+  - 链接基址优先级：**显式配置（Web UI 或环境变量 `REPORT_BASE_URL`）> 浏览器访问地址（回环一律丢弃）> 自动探测 LAN IP**。此前 `report_base_url` 无任何 Web UI 入口，只能手改 `dbc_config.json` 或设环境变量。
+  - 验证：`is_loopback_url` 11 用例、基址优先级 6 用例、配置增量语义 3 用例全通过；Flask test_client 端到端 6 步（localhost 不被记住 → 生效 LAN IP、LAN IP 被记住、POST 保存、显式优先、邮件配置保存不清空基址、空串清空）全通过；`py_compile` / `node --check` 通过。全程 monkeypatch 拦掉落盘，未写真实 `dbc_config.json`。
+  - 注意：Docker / 反向代理场景**必须显式配置**基址（自动探测会拿到容器内 172.17.x.x）；已发出的旧邮件中的 localhost 链接不会改变，仅新通知生效。
+- 版本号统一升至 `v26.11.3.0`（19 处引用点）。
+
 ## v26.10.29.0 (2026-10-29)
 - **修复：Docker 容器重启后 admin 密码被重置、自建账户被清空（Issue #68）**
   - 根因：`deploy/docker-entrypoint.sh` 每次容器 start 都执行 `python -m modules.user_management.seed`，而 `init_seed_data()` 开头的 `DELETE FROM um_user` 等 8 张表是**破坏性**的——每次重启都会清空用户表、用硬编码 `admin123` 覆盖 admin 密码、删除用户自建账户。与此前 #66/#67 不同，`um_rbac.db` 本就落在持久化卷 `/app/data/user_db/` 内（文件没丢），纯属 seed 逻辑把数据"自己抹掉"，不是卷未挂载。

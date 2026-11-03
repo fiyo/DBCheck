@@ -3614,4 +3614,15 @@ EN.update({
     "webui.um_perm_level": "Level",    "webui.chapter_select_label": "Select Inspection Chapters",
     "webui.chapter_empty_tip": "Please select at least one chapter",
 
+    # Notifier: base URL for report links in notification emails / webhooks
+    "webui.report_base_title": "Report Base URL",
+    "webui.report_base_label": "Report Link Base URL",
+    "webui.report_base_hint": "The 'View Online Report' link in notification emails and webhooks uses this address. Enter an address recipients can open from other machines (server IP or domain name). Do not use localhost / 127.0.0.1; leave blank to auto-detect the LAN IP.",
+    "webui.report_base_btn_save": "Save URL",
+    "webui.report_base_effective": "Effective: ",
+    "webui.report_base_effective_empty": "No reachable base URL resolved; notifications may omit the report link",
+    "webui.report_base_loopback_warn": "localhost / 127.0.0.1 is only reachable from this machine. Use the server IP or a domain name instead.",
+    "webui.report_base_save_ok": "Saved",
+    "webui.report_base_save_fail": "Save failed: ",
+
 })

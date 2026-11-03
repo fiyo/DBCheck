@@ -692,28 +692,23 @@ def _risk_level_from_count(count):
 
 
 def _report_base_url():
-    """确定分享报告链接的基址，优先级：
-    1) notification.report_base_url（或 .env 的 REPORT_BASE_URL）
-    2) 浏览器最近访问 Web UI 的地址（app.config['REMEMBERED_BASE_URL']）
-    3) 自动探测本机出口 IP + 默认端口 5003
+    """确定分享报告链接的基址。
+
+    决策逻辑统一收敛在 ``notify.resolve_report_base_url``：
+    1) 显式配置 notification.report_base_url（或 .env 的 REPORT_BASE_URL）
+    2) 浏览器最近访问地址（app.config['REMEMBERED_BASE_URL']）——回环地址会被丢弃
+    3) 自动探测本机出口 IP + Web 服务端口
+
+    这里只负责把「记住的地址」传进去，避免后台线程各自维护一套判定。
     """
-    from modules.notify import _load_config, get_report_base_url
-    base = ''
+    from modules.notify import resolve_report_base_url
+    remembered = ''
     try:
-        cfg = _load_config()
-        if isinstance(cfg, dict):
-            base = str(cfg.get('report_base_url') or '').strip().rstrip('/')
+        from modules.web.app import app as _app
+        remembered = _app.config.get('REMEMBERED_BASE_URL') or ''
     except Exception:
-        base = ''
-    if not base:
-        try:
-            from modules.web.app import app as _app
-            base = (_app.config.get('REMEMBERED_BASE_URL') or '').rstrip('/')
-        except Exception:
-            base = ''
-    if not base:
-        base = get_report_base_url()
-    return base
+        pass
+    return resolve_report_base_url(remembered_base_url=remembered)
 
 
 def _create_report_share(job_id, db_info, report_file, issues, context=None):

@@ -3615,4 +3615,15 @@ ZI.update({
     "webui.um_perm_level": "级别",    "webui.chapter_select_label": "选择巡检章节",
     "webui.chapter_empty_tip": "请至少选择一个章节",
 
+    # 通知设置：报告访问基址（通知邮件 / Webhook 中的报告链接）
+    "webui.report_base_title": "报告访问基址",
+    "webui.report_base_label": "报告链接访问地址",
+    "webui.report_base_hint": "通知邮件与 Webhook 中的「查看在线巡检报告」链接会使用该地址。请填写收件人在其它电脑上能打开的地址（服务器 IP 或域名），不要填 localhost / 127.0.0.1；留空则自动探测本机 IP。",
+    "webui.report_base_btn_save": "💾 保存地址",
+    "webui.report_base_effective": "当前生效：",
+    "webui.report_base_effective_empty": "当前未确定访问地址，通知中可能不含报告链接",
+    "webui.report_base_loopback_warn": "localhost / 127.0.0.1 只能本机访问，其它电脑打不开，请改填服务器 IP 或域名",
+    "webui.report_base_save_ok": "已保存",
+    "webui.report_base_save_fail": "保存失败：",
+
 })
