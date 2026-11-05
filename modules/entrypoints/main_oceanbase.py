@@ -31,6 +31,7 @@ OceanBase 社区版 MySQL 租户与 MySQL 协议/参数高度兼容，本模块�
 
 import os
 from modules.inspection.engine import BaseInspectionEngine
+from modules.inspection.init_db import OCEANBASE_LOG_DISK_PLACEHOLDER_SQL
 from modules.core import entry
 
 
@@ -218,27 +219,37 @@ class OceanBaseInspector(BaseInspectionEngine):
         # 不是一回事：用物理盘使用率做分母会既误报又漏报。
         #
         # 结果按 USED_PCT 倒序：第 0 行即最危险的那一份副本（clog 是 per-node 的，
-        # 绝不能取平均）。规则用逐行 any() 判定，消息里的数值取第 0 行。
+        # 绝不能取平均）。规则用「标量 + 第 0 行」判定（原因见 oceanbase.yaml 注释：
+        # _safe_eval 的 locals 作用域缺陷使生成式规则静默失效）。
         # WHERE LOG_DISK_SIZE > 0 提前滤掉分母为 0 的行，避免 USED_PCT 为 NULL
-        # 时把整条规则的 any() 判成异常而静默失效。
-        sql_dict['ob_log_disk'] = (
+        # 时把整条规则的判定静默失效。
+        #
+        # 注入策略：真实 SQL 已落在模板章节里（init_db.OCEANBASE_LOG_DISK_CHAPTER），
+        # 模板页展示的 SQL = 实际执行的 SQL。这里只在本 key 缺失（老库未迁移）
+        # 或仍是 v26.11.5.0 初版的占位 SQL 时注入——用户在模板页改过的 SQL 以用户为准。
+        def _inject_if_placeholder(key, sql):
+            cur = (sql_dict.get(key) or '').replace('\n', ' ').replace('\r', ' ').strip()
+            if key not in sql_dict or cur == OCEANBASE_LOG_DISK_PLACEHOLDER_SQL:
+                sql_dict[key] = sql
+
+        _inject_if_placeholder('ob_log_disk', (
             "SELECT TENANT_ID, SVR_IP, SVR_PORT, ZONE, LOG_DISK_IN_USE, LOG_DISK_SIZE, "
             "ROUND(LOG_DISK_IN_USE * 100 / NULLIF(LOG_DISK_SIZE, 0), 2) AS USED_PCT "
             "FROM oceanbase.GV$OB_UNITS WHERE LOG_DISK_SIZE > 0 ORDER BY USED_PCT DESC"
-        )
+        ))
 
         # 阈值必须读实例真实参数、不能硬编码 95 —— 官方应急手段就是临时上调
         # log_disk_utilization_limit_threshold，运维改过之后若仍按 95 判定，
         #「已达写入拒绝阈值」的结论就与事实不符（会误报，也会掩盖真的复发）。
         # SHOW PARAMETERS 的列名为小写 name/value（与上方 ob_merge_params 一致）。
-        sql_dict['ob_log_disk_limit'] = (
+        _inject_if_placeholder('ob_log_disk_limit', (
             "SHOW PARAMETERS LIKE 'log_disk_utilization_limit_threshold'"
-        )
+        ))
         # 日志回收水位：超过即触发 clog 文件回收，正常应 ≤80%，长期破 80% 说明
         # 回收跟不上（通常小合并/转储卡住），是「还没挂但正在恶化」的早期信号。
-        sql_dict['ob_log_disk_recycle'] = (
+        _inject_if_placeholder('ob_log_disk_recycle', (
             "SHOW PARAMETERS LIKE 'log_disk_utilization_threshold'"
-        )
+        ))
 
         # ── B. 用户/密码章节：去掉 OceanBase mysql.user 没有的 password_lifetime 列 ──
         # password_expiry：OB 的 mysql.user 无 password_lifetime 列，去掉该列与 OR 条件

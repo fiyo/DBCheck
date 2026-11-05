@@ -252,6 +252,13 @@ def init_database(db_path: str = None):
     except Exception as e:  # 降级：补齐失败不影响数据库初始化结果
         print(f"[巡检] 缺失基线补齐失败（已忽略）: {e}")
 
+    # 先删 OceanBase 从 MySQL 骨架继承的空壳章节并重排章节号，再补齐日志盘章节。
+    # 顺序不能反：反了会把日志盘章节排进一个仍有空壳位置的编号里，重排后又会错位。
+    try:
+        ensure_oceanbase_no_empty_chapters(db_path=db_path)
+    except Exception as e:  # 降级：迁移失败不影响数据库初始化结果
+        print(f"[巡检] 空章节迁移失败（已忽略）: {e}")
+
     # 补齐「已播种默认模板的老库」缺失的新增章节（如 OceanBase 日志盘容量）。
     # 模板播种对已存在的模板整体跳过，因此后续新增章节不会进老库——报告里就少一张
     # 明细表。这里幂等插入，不动任何已有章节/查询，失败仅告警。
@@ -2202,12 +2209,99 @@ def ensure_missing_db_type_baselines(db_path: str = None) -> int:
         conn.close()
 
 
+def ensure_oceanbase_no_empty_chapters(db_path: str = None) -> int:
+    """删除 OceanBase 模板中「从 MySQL 骨架继承来的空壳章节」并重排章节号。
+
+    背景：OB 模板由 MySQL 模板裁剪而来，OB 不支持的 4 个章节（性能分析 / 复制状态检查 /
+    索引使用情况 / 主从复制延迟）当年只删了查询、留下了章节壳。而报告渲染会**跳过
+    空章节并把剩余章节连续重排（1..N）**，于是模板的第 22 章在报告里变成第 18 章
+    ——模板与报告章节号长期错位（OceanBase 是唯一有空章节的库型）。
+
+    这里把空壳章节删掉、章节号重排为连续 1..N，使模板编号与报告完全一致。
+
+    安全边界（宁可不删，不可误删）：
+
+    - 只删「**一条查询都没有**（含被禁用的查询）且标题命中内置白名单
+      ``OCEANBASE_PRUNABLE_CHAPTER_TITLES``」的章节；
+    - 用户自建的空章节（标题不在白名单）一律不动；
+    - 有任何查询的章节一律不动（哪怕只有一条禁用查询）；
+    - 章节号重排保持原有先后顺序，采用**两阶段更新**规避
+      ``UNIQUE(template_id, chapter_number)`` 冲突；
+    - 覆盖该库型下**所有**模板（含用户从默认模板复制出来的副本），任何异常只告警不抛出。
+
+    :param db_path: 数据库文件路径，``None`` 表示使用默认库
+    :return: 本次删除的空壳章节数（0 表示无需处理或已降级）
+    """
+    try:
+        from modules.inspection.init_db import OCEANBASE_PRUNABLE_CHAPTER_TITLES
+    except Exception as e:  # 白名单不可用：绝不动数据
+        print(f"[巡检] 空章节白名单不可用（已忽略）: {e}")
+        return 0
+
+    _titles = tuple(OCEANBASE_PRUNABLE_CHAPTER_TITLES or ())
+    if not _titles:
+        return 0
+
+    try:
+        conn = get_db_connection(db_path)
+        try:
+            cur = conn.cursor()
+            _ph = ','.join('?' * len(_titles))
+            cur.execute(
+                "SELECT c.id, c.template_id, c.chapter_number, c.chapter_title_zh "
+                "FROM inspection_chapter c "
+                "JOIN inspection_template t ON c.template_id = t.id "
+                f"WHERE t.db_type = 'oceanbase' AND c.chapter_title_zh IN ({_ph}) "
+                "  AND NOT EXISTS (SELECT 1 FROM inspection_query q WHERE q.chapter_id = c.id) "
+                "ORDER BY c.template_id, c.chapter_number",
+                _titles,
+            )
+            victims = cur.fetchall()
+            if not victims:
+                return 0
+
+            _ids = [v[0] for v in victims]
+            cur.executemany("DELETE FROM inspection_chapter WHERE id = ?",
+                            [(i,) for i in _ids])
+
+            # 章节号重排：受影响的模板逐个处理，两阶段更新避开唯一约束
+            _tpl_ids = sorted({v[1] for v in victims})
+            for _tid in _tpl_ids:
+                cur.execute(
+                    "SELECT id, chapter_number FROM inspection_chapter "
+                    "WHERE template_id = ? ORDER BY chapter_number, id", (_tid,))
+                _rows = cur.fetchall()
+                # 阶段 1：整体挪到高位（负数/高位均可能撞已有值，用足够大的偏移）
+                cur.executemany("UPDATE inspection_chapter SET chapter_number = ? WHERE id = ?",
+                                [(_OFF + i, r[0]) for i, r in enumerate(_rows)])
+                # 阶段 2：落回连续 1..N
+                cur.executemany("UPDATE inspection_chapter SET chapter_number = ? WHERE id = ?",
+                                [(i, r[0]) for i, r in enumerate(_rows, start=1)])
+            conn.commit()
+            print(f"[巡检] 已删除 {len(_ids)} 个 OceanBase 空壳章节并重排章节号"
+                  f"（{', '.join(sorted({v[3] for v in victims}))}）")
+            return len(_ids)
+        finally:
+            conn.close()
+    except Exception as e:  # 降级：迁移失败不阻断启动
+        print(f"[巡检] 空章节迁移跳过: {e}")
+        return 0
+
+
+# 章节号重排的中转偏移：必须大于任何真实章节号，避免与 UNIQUE(template_id, chapter_number) 撞
+_OFF = 100000
+
+
 def ensure_oceanbase_log_disk_chapter(db_path: str = None) -> int:
     """为「已播种过默认模板的存量库」幂等补齐 OceanBase 日志盘章节。
 
     背景：``init_default_templates`` 对已存在的默认模板一律走「跳过」分支，因此
-    新增章节（如「日志盘容量（Clog）」第 22 章）永远进不了老库——报告里就看不到
+    新增章节（如「日志盘容量（Clog）」，现为第 18 章）永远进不了老库——报告里就看不到
     日志盘明细表（规则结论仍然生效，因为 context 键由采集钩子注入，与章节无关）。
+
+    另承担占位 SQL 迁移：v26.11.5.0 初版播种的三个 query 是
+    ``SELECT 'N/A' AS note FROM DUAL WHERE 1=0`` 占位，本函数会把仍是占位的行
+    原位更新为真实 SQL（用户改过的不动），详见函数体内的迁移注释。
 
     策略是最保守的幂等插入：
 
@@ -2222,7 +2316,8 @@ def ensure_oceanbase_log_disk_chapter(db_path: str = None) -> int:
     :return: 本次插入的查询条数；``0`` 表示无需补齐或已降级
     """
     try:
-        from modules.inspection.init_db import OCEANBASE_LOG_DISK_CHAPTER
+        from modules.inspection.init_db import (OCEANBASE_LOG_DISK_CHAPTER,
+                                                OCEANBASE_LOG_DISK_PLACEHOLDER_SQL)
     except Exception as e:  # 定义不可用：静默降级
         print(f"[巡检] 日志盘章节定义不可用（已忽略）: {e}")
         return 0
@@ -2249,7 +2344,33 @@ def ensure_oceanbase_log_disk_chapter(db_path: str = None) -> int:
                 f"WHERE c.template_id = ? AND q.query_key IN ({_ph})",
                 (template_id, *_qkeys),
             )
-            if (cur.fetchone() or [0])[0] > 0:
+            _exists = (cur.fetchone() or [0])[0] > 0
+
+            # 占位 SQL 迁移：v26.11.5.0 初版把三个 query 的 SQL 播种成
+            # `SELECT 'N/A' ...` 占位（真实 SQL 只藏在采集钩子里），模板页看到的
+            # SQL 让用户误以为巡检没按模板执行。这里把仍是占位的行按 key 逐条
+            # 原位更新为真实 SQL；用户改过的 SQL（≠ 占位）绝不动。
+            _migrated = 0
+            for _q in _queries:
+                cur.execute(
+                    "UPDATE inspection_query SET query_sql = ? "
+                    "WHERE id IN ("
+                    "  SELECT q.id FROM inspection_query q "
+                    "  JOIN inspection_chapter c ON q.chapter_id = c.id "
+                    "  WHERE c.template_id = ? AND q.query_key = ? "
+                    "    AND TRIM(REPLACE(REPLACE(q.query_sql, char(13), ' '), char(10), ' ')) = ?"
+                    ")",
+                    (_q['sql'], template_id, _q['key'],
+                     OCEANBASE_LOG_DISK_PLACEHOLDER_SQL.strip()),
+                )
+                _migrated += max(cur.rowcount, 0)
+            if _migrated:
+                conn.commit()
+                print(f"[巡检] 已将 {_migrated} 条日志盘查询的占位 SQL 更新为真实 SQL")
+            elif _exists:
+                conn.commit()
+
+            if _exists:
                 return 0
 
             chapter_no = int(OCEANBASE_LOG_DISK_CHAPTER.get('chapter_number') or 0)

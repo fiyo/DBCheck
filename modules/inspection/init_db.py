@@ -477,10 +477,26 @@ MYSQL_DEFAULT_CHAPTERS = [
 #                              （OB 不支持这些 information_schema 表）
 #                              （保留 file_per_table）
 #
-# 注：第 4 / 7 / 13 / 14 章所有 query_key 均被剔除，变为空章节。报告渲染逻辑
-# （inspection_engine.py `if not queries: continue`）会自动跳过空查询章节，
-# 不在报告中显示。这符合"保留章节框架但只展示有意义内容"的意图。
+# 注：下列 4 章原本「所有 query_key 均被剔除，留下空章节壳」，导致
+#   模板章节号（22 章）与报告章节号（18 章）长期不一致 —— 报告渲染会跳过空章节并把
+#   剩余章节连续重排（inspection_engine `if not queries: continue` + 重排 1..N）。
+#   v26.11.5.1 起**直接删除这 4 个空壳章节并重排章节号**，使模板与报告完全一致：
+#     第 4 章  性能分析（OB 无对应状态变量）
+#     第 7 章  复制状态检查（OB 分布式无主从）
+#     第 13 章 索引使用情况（OB 不支持 performance_schema）
+#     第 14 章 主从复制延迟（OB 无主从）
+#   存量库由 dal.ensure_oceanbase_no_empty_chapters() 幂等迁移（只删「0 查询且标题
+#   命中 OCEANBASE_PRUNABLE_CHAPTER_TITLES」的章节，用户自建空章节一律不动）。
 # ─────────────────────────────────────────────────────────────────────────────
+
+# 从 MySQL 骨架继承、OB 侧内容全被剔除的空章节标题：存量库迁移的**白名单**。
+# 命中且 0 查询才删除；用户自建的同名章节若已填查询则不受影响。
+OCEANBASE_PRUNABLE_CHAPTER_TITLES = (
+    '性能分析',
+    '复制状态检查',
+    '索引使用情况',
+    '主从复制延迟',
+)
 
 OCEANBASE_DEFAULT_CHAPTERS = [
     {
@@ -539,13 +555,6 @@ OCEANBASE_DEFAULT_CHAPTERS = [
     },
     {
         'chapter_number': 4,
-        'chapter_title_zh': '性能分析',
-        'chapter_title_en': 'Performance Analysis',
-        'description': '数据库性能指标分析',
-        'queries': []
-    },
-    {
-        'chapter_number': 5,
         'chapter_title_zh': '数据库空间使用',
         'chapter_title_en': 'Database Space Usage',
         'description': '数据库和表的空间使用情况',
@@ -573,7 +582,7 @@ OCEANBASE_DEFAULT_CHAPTERS = [
         ]
     },
     {
-        'chapter_number': 6,
+        'chapter_number': 5,
         'chapter_title_zh': '安全信息',
         'chapter_title_en': 'Security Information',
         'description': '数据库安全相关配置',
@@ -603,14 +612,7 @@ OCEANBASE_DEFAULT_CHAPTERS = [
         ]
     },
     {
-        'chapter_number': 7,
-        'chapter_title_zh': '复制状态检查',
-        'chapter_title_en': 'Replication Status',
-        'description': '主从复制状态检查',
-        'queries': []
-    },
-    {
-        'chapter_number': 8,
+        'chapter_number': 6,
         'chapter_title_zh': 'InnoDB 锁等待检查',
         'chapter_title_en': 'InnoDB Lock Analysis',
         'description': 'InnoDB 锁等待和长事务检查',
@@ -630,7 +632,7 @@ OCEANBASE_DEFAULT_CHAPTERS = [
         ]
     },
     {
-        'chapter_number': 9,
+        'chapter_number': 7,
         'chapter_title_zh': '缓冲池状态',
         'chapter_title_en': 'Buffer Pool Status',
         'description': 'InnoDB 缓冲池使用状态',
@@ -640,7 +642,7 @@ OCEANBASE_DEFAULT_CHAPTERS = [
         ]
     },
     {
-        'chapter_number': 10,
+        'chapter_number': 8,
         'chapter_title_zh': '事务和锁分析',
         'chapter_title_en': 'Transaction & Lock Analysis',
         'description': '事务状态和锁等待分析',
@@ -654,7 +656,7 @@ OCEANBASE_DEFAULT_CHAPTERS = [
         ]
     },
     {
-        'chapter_number': 11,
+        'chapter_number': 9,
         'chapter_title_zh': '慢查询分析',
         'chapter_title_en': 'Slow Query Analysis',
         'description': '慢查询日志分析',
@@ -666,7 +668,7 @@ OCEANBASE_DEFAULT_CHAPTERS = [
         ]
     },
     {
-        'chapter_number': 12,
+        'chapter_number': 10,
         'chapter_title_zh': '表碎片和统计信息',
         'chapter_title_en': 'Table Fragmentation & Statistics',
         'description': '表碎片率和统计信息新鲜度',
@@ -683,21 +685,7 @@ OCEANBASE_DEFAULT_CHAPTERS = [
         ]
     },
     {
-        'chapter_number': 13,
-        'chapter_title_zh': '索引使用情况',
-        'chapter_title_en': 'Index Usage Analysis',
-        'description': '索引使用率和冗余索引分析',
-        'queries': []
-    },
-    {
-        'chapter_number': 14,
-        'chapter_title_zh': '主从复制延迟',
-        'chapter_title_en': 'Replication Lag',
-        'description': '主从复制延迟详细分析',
-        'queries': []
-    },
-    {
-        'chapter_number': 15,
+        'chapter_number': 11,
         'chapter_title_zh': 'Binlog 状态',
         'chapter_title_en': 'Binary Log Status',
         'description': 'Binary Log 状态和配置',
@@ -707,7 +695,7 @@ OCEANBASE_DEFAULT_CHAPTERS = [
         ]
     },
     {
-        'chapter_number': 16,
+        'chapter_number': 12,
         'chapter_title_zh': '用户权限审计',
         'chapter_title_en': 'User Privilege Audit',
         'description': '用户权限和安全审计',
@@ -727,7 +715,7 @@ OCEANBASE_DEFAULT_CHAPTERS = [
         ]
     },
     {
-        'chapter_number': 17,
+        'chapter_number': 13,
         'chapter_title_zh': '存储引擎状态',
         'chapter_title_en': 'Storage Engine Status',
         'description': '存储引擎状态和统计',
@@ -737,7 +725,7 @@ OCEANBASE_DEFAULT_CHAPTERS = [
         ]
     },
     {
-        'chapter_number': 18,
+        'chapter_number': 14,
         'chapter_title_zh': '系统变量检查',
         'chapter_title_en': 'System Variables Check',
         'description': '关键系统变量检查',
@@ -758,7 +746,7 @@ OCEANBASE_DEFAULT_CHAPTERS = [
         ]
     },
     {
-        'chapter_number': 19,
+        'chapter_number': 15,
         'chapter_title_zh': '错误日志检查',
         'chapter_title_en': 'Error Log Check',
         'description': '错误日志和告警信息',
@@ -770,7 +758,7 @@ OCEANBASE_DEFAULT_CHAPTERS = [
         ]
     },
     {
-        'chapter_number': 20,
+        'chapter_number': 16,
         'chapter_title_zh': '计划任务和事件',
         'chapter_title_en': 'Scheduled Events',
         'description': 'MySQL 事件调度器状态',
@@ -780,7 +768,7 @@ OCEANBASE_DEFAULT_CHAPTERS = [
         ]
     },
     {
-        'chapter_number': 21,
+        'chapter_number': 17,
         'chapter_title_zh': 'InnoDB 表空间状态',
         'chapter_title_en': 'InnoDB Tablespace Status',
         'description': 'InnoDB 表空间和文件状态',
@@ -791,35 +779,43 @@ OCEANBASE_DEFAULT_CHAPTERS = [
     },
 ]
 
-# ── 第 22 章：日志盘（Clog）容量（v26.11.5.0 新增）────────────────────────────
+# ── 第 18 章：日志盘（Clog）容量（v26.11.5.0 新增）────────────────────────────
+# 注意章节号：上方已删除 4 个空壳章节并重排为 1..17，故日志盘容量是**第 18 章**，
+# 与报告渲染的章节号完全一致（报告会跳过空章节并连续重排，模板若留空壳就会错位）。
 # 单独抽成常量而不是直接写进上面的列表，是为了让「存量库幂等补齐」复用同一份定义
 # （dal.ensure_oceanbase_log_disk_chapter 会 import 它，插入到已存在的默认模板里）。
 #
-# 三个 query_key 的 SQL 在这里只是占位：真实 SQL 由
-# main_oceanbase.OceanBaseInspector._customize_queries 的 G 段统一注入。
-# 之所以要占位而不是干脆不写，是因为章节渲染按 query_key 建表头——没有 key 就没有
-# 表格；之所以不在章节里写真实 SQL，是因为 OB 版本差异（3.x 无 GV$OB_UNITS）需要在
-# 采集层集中处理，两处各写一份必然走样。
+# 这里存的就是**真实 SQL**（不是占位符）：模板管理页展示的 SQL = 实际执行的 SQL，
+# 用户看得懂、也能自行调整。采集钩子（main_oceanbase._customize_queries 的 G 段）
+# 只在本 key 缺失或仍是旧占位 SQL 时才注入同一份 SQL——用于给 v26.11.5.1 之前
+# 播种的老库兜底，且尊重用户在 UI 里的修改（不再无条件覆盖）。
+# 历史注：v26.11.5.0 初版这里曾用 `SELECT 'N/A' AS note FROM DUAL WHERE 1=0`
+# 占位（真实 SQL 只藏在钩子里），导致模板页三个查询全显示占位 SQL，用户误以为
+# 巡检没按模板执行——已改为真实 SQL + 存量库迁移。
 OCEANBASE_LOG_DISK_CHAPTER = {
-    'chapter_number': 22,
+    'chapter_number': 18,
     'chapter_title_zh': '日志盘容量（Clog）',
     'chapter_title_en': 'Log Disk (Clog) Capacity',
     'description': '租户日志盘（clog）用量、回收水位与写入拒绝阈值（OceanBase 专有）',
     'queries': [
         {'key': 'ob_log_disk',
-         'sql': "SELECT 'N/A' AS note FROM DUAL WHERE 1=0",
+         'sql': ("SELECT TENANT_ID, SVR_IP, SVR_PORT, ZONE, LOG_DISK_IN_USE, LOG_DISK_SIZE, "
+                 "ROUND(LOG_DISK_IN_USE * 100 / NULLIF(LOG_DISK_SIZE, 0), 2) AS USED_PCT "
+                 "FROM oceanbase.GV$OB_UNITS WHERE LOG_DISK_SIZE > 0 ORDER BY USED_PCT DESC"),
          'desc_zh': '各租户各节点日志盘用量与使用率（任一副本超限即风险）',
          'desc_en': 'Log disk usage and usage pct per tenant/node (worst replica matters)'},
         {'key': 'ob_log_disk_limit',
-         'sql': "SELECT 'N/A' AS note FROM DUAL WHERE 1=0",
+         'sql': "SHOW PARAMETERS LIKE 'log_disk_utilization_limit_threshold'",
          'desc_zh': '写入拒绝阈值 log_disk_utilization_limit_threshold（默认 95%）',
          'desc_en': 'Write-reject threshold log_disk_utilization_limit_threshold (default 95%)'},
         {'key': 'ob_log_disk_recycle',
-         'sql': "SELECT 'N/A' AS note FROM DUAL WHERE 1=0",
+         'sql': "SHOW PARAMETERS LIKE 'log_disk_utilization_threshold'",
          'desc_zh': '日志回收水位 log_disk_utilization_threshold（默认 80%）',
          'desc_en': 'Log recycle threshold log_disk_utilization_threshold (default 80%)'},
     ]
 }
+# v26.11.5.0 初版的占位 SQL：存量库迁移的判据（见 dal.ensure_oceanbase_log_disk_chapter）
+OCEANBASE_LOG_DISK_PLACEHOLDER_SQL = "SELECT 'N/A' AS note FROM DUAL WHERE 1=0"
 OCEANBASE_DEFAULT_CHAPTERS.append(OCEANBASE_LOG_DISK_CHAPTER)
 # 临时文件：PostgreSQL 21 章配置
 

@@ -11,7 +11,8 @@
    ob_log_disk_recycle 三个 key，且 SQL 走 GV$OB_UNITS（不是仅 sys 可见的
    DBA_OB_UNITS）、分母是 LOG_DISK_SIZE、按 USED_PCT 倒序。
 2. 规则层：用真实 RuleEngine + 真实 oceanbase.yaml，对六种场景断言触发与否。
-3. 报告层：OCEANBASE_DEFAULT_CHAPTERS 末尾必须有第 22 章且含三个 key。
+3. 报告层：OCEANBASE_DEFAULT_CHAPTERS 末尾必须是第 18 章且含三个 key，
+   且模板不得有空章节、章节号必须连续 1..N（否则模板与报告章节号会错位）。
 4. 存量库补齐：删掉临时库里的该章节后调用 ensure_oceanbase_log_disk_chapter，
    断言能插入 3 条、再调一次返回 0（幂等）。
 
@@ -186,21 +187,47 @@ def test_context_iteration():
 
 # ── 3. 报告层 ────────────────────────────────────────────────────────────────
 def test_chapter():
-    print('\n[3] 报告层：第 22 章')
+    print('\n[3] 报告层：第 18 章（模板与报告章节号一致性）')
     from modules.inspection.init_db import OCEANBASE_DEFAULT_CHAPTERS, OCEANBASE_LOG_DISK_CHAPTER
 
     ch = OCEANBASE_DEFAULT_CHAPTERS[-1]
     check('章节已追加到末尾', ch is OCEANBASE_LOG_DISK_CHAPTER)
-    check('章节号 22', ch.get('chapter_number') == 22, str(ch.get('chapter_number')))
+    check('章节号 18', ch.get('chapter_number') == 18, str(ch.get('chapter_number')))
     keys = [q['key'] for q in ch.get('queries') or []]
     check('章节含三个 query_key',
           keys == ['ob_log_disk', 'ob_log_disk_limit', 'ob_log_disk_recycle'], str(keys))
     check('章节标题中英齐备', bool(ch.get('chapter_title_zh')) and bool(ch.get('chapter_title_en')))
     check('章节号无重复', len({c['chapter_number'] for c in OCEANBASE_DEFAULT_CHAPTERS}) ==
           len(OCEANBASE_DEFAULT_CHAPTERS))
-    # 章节里的占位 SQL 不得绕过采集钩子写下真实 SQL（避免两处维护走样）
+    # 关键一致性：模板只要还有一个空章节，报告（跳过空章节 + 连续重排）的章节号就会
+    # 与模板错位。OB 曾因 4 个 MySQL 骨架空壳章节导致 22 → 18 的长期错位。
+    _empty = [c['chapter_title_zh'] for c in OCEANBASE_DEFAULT_CHAPTERS if not c.get('queries')]
+    check('模板不含空章节（否则报告会跳章重排）', not _empty, str(_empty))
+    _nums = [c['chapter_number'] for c in OCEANBASE_DEFAULT_CHAPTERS]
+    check('章节号连续 1..N', _nums == list(range(1, len(_nums) + 1)), str(_nums))
+    check('日志盘为末章，编号 = 模板章数',
+          ch.get('chapter_number') == len(OCEANBASE_DEFAULT_CHAPTERS),
+          f"{ch.get('chapter_number')} vs {len(OCEANBASE_DEFAULT_CHAPTERS)}")
+    # 章节里必须存**真实 SQL**（模板页展示的 = 实际执行的）；
+    # v26.11.5.0 初版曾存占位 SQL，用户在模板页看到 `SELECT 'N/A' ...` 误以为
+    # 巡检没按模板执行——已改为真实 SQL + 存量库迁移。
+    from modules.inspection.init_db import OCEANBASE_LOG_DISK_PLACEHOLDER_SQL
+    _markers = {
+        'ob_log_disk': ['GV$OB_UNITS', 'USED_PCT', 'LOG_DISK_SIZE'],
+        'ob_log_disk_limit': ['SHOW PARAMETERS', 'log_disk_utilization_limit_threshold'],
+        'ob_log_disk_recycle': ['SHOW PARAMETERS', "LIKE 'log_disk_utilization_threshold'"],
+    }
     for q in ch.get('queries') or []:
-        check(f"章节 {q['key']} 为占位 SQL（真实 SQL 由钩子注入）", 'GV$OB_UNITS' not in q['sql'])
+        check(f"章节 {q['key']} 存的是真实 SQL（非占位）",
+              q['sql'].strip() != OCEANBASE_LOG_DISK_PLACEHOLDER_SQL.strip())
+        for m in _markers.get(q['key'], []):
+            check(f"章节 {q['key']} 的 SQL 含 {m}", m in q['sql'], q['sql'][:80])
+    # 采集钩子与章节的 SQL 必须同源：钩子只对「缺失或仍是占位」的 key 注入同一份
+    from modules.entrypoints.main_oceanbase import OceanBaseInspector
+    import inspect as _inspect
+    _src = _inspect.getsource(OceanBaseInspector._customize_queries)
+    for q in ch.get('queries') or []:
+        check(f"钩子含 {q['key']} 的兜底注入", q['key'] in _src and 'OCEANBASE_LOG_DISK_PLACEHOLDER_SQL' in _src)
 
 
 # ── 4. 存量库幂等补齐 ────────────────────────────────────────────────────────
@@ -217,8 +244,11 @@ def test_migration():
         print(f'  SKIP  未找到 {src_db}，跳过存量库补齐验证')
         return
 
-    # 先对默认库跑一次幂等迁移（与启动时同款调用），保证副本里能拿到第 22 章；
+    # 先对默认库跑一次幂等迁移（与启动时同款调用），保证副本里能拿到日志盘章节；
     # 该调用只做加法，不动任何已有章节/查询。
+    from modules.inspection.dal import ensure_oceanbase_no_empty_chapters
+    _pruned = ensure_oceanbase_no_empty_chapters()
+    check('默认库空壳章节迁移可执行（返回 0 或 4）', _pruned in (0, 4), str(_pruned))
     seeded = ensure_oceanbase_log_disk_chapter()
     check('默认库幂等迁移可执行（返回 0 或 3）', seeded in (0, 3), str(seeded))
 
@@ -226,19 +256,22 @@ def test_migration():
     tmp_db = os.path.join(tmpdir, 'inspection.db')
     try:
         shutil.copy2(src_db, tmp_db)
+        # 与启动流程同序：先剪空壳章节归一编号，再谈补齐（顺序反了编号会错位）
+        from modules.inspection.dal import ensure_oceanbase_no_empty_chapters
+        ensure_oceanbase_no_empty_chapters(db_path=tmp_db)
         tmpl = get_default_template('oceanbase', tmp_db)
         check('副本库有 OceanBase 默认模板', bool(tmpl))
         if not tmpl:
             return
 
-        # 模拟「老库」：把第 22 章连查询一起删掉（新装才有）
+        # 模拟「老库」：把日志盘章节连查询一起删掉（新装才有）
         conn = sqlite3.connect(tmp_db)
         cur = conn.cursor()
         cur.execute(
             "SELECT c.id FROM inspection_chapter c JOIN inspection_query q ON q.chapter_id=c.id "
             "WHERE c.template_id=? AND q.query_key='ob_log_disk'", (tmpl['id'],))
         rows = cur.fetchall()
-        check('副本库内确实存在第 22 章（本次改动已播种）', bool(rows))
+        check('副本库内确实存在日志盘章节（本次改动已播种）', bool(rows))
         for (cid,) in rows:
             cur.execute("DELETE FROM inspection_query WHERE chapter_id=?", (cid,))
             cur.execute("DELETE FROM inspection_chapter WHERE id=?", (cid,))
@@ -262,9 +295,119 @@ def test_migration():
                     "ORDER BY q.query_key", (tmpl['id'],))
         got = cur.fetchall()
         conn.close()
-        check('补齐后章节号为 22', bool(got) and all(r[0] == 22 for r in got), str(got))
+        check('补齐后章节号为 18', bool(got) and all(r[0] == 18 for r in got), str(got))
         check('补齐后三个 key 齐全', [r[1] for r in got] ==
               ['ob_log_disk', 'ob_log_disk_limit', 'ob_log_disk_recycle'], str(got))
+        conn.close()
+
+        # ── 占位 SQL 迁移：模拟 v26.11.5.0 初版播种的老库（SQL 为占位）──
+        from modules.inspection.init_db import (OCEANBASE_LOG_DISK_CHAPTER,
+                                                OCEANBASE_LOG_DISK_PLACEHOLDER_SQL)
+        conn = sqlite3.connect(tmp_db)
+        cur = conn.cursor()
+        for q in OCEANBASE_LOG_DISK_CHAPTER['queries']:
+            cur.execute(
+                "UPDATE inspection_query SET query_sql=? WHERE id IN ("
+                " SELECT q.id FROM inspection_query q JOIN inspection_chapter c ON q.chapter_id=c.id"
+                " WHERE c.template_id=? AND q.query_key=?)",
+                (OCEANBASE_LOG_DISK_PLACEHOLDER_SQL, tmpl['id'], q['key']))
+        conn.commit()
+        cur.execute("SELECT COUNT(*) FROM inspection_query q JOIN inspection_chapter c "
+                    "ON q.chapter_id=c.id WHERE c.template_id=? AND q.query_key LIKE 'ob_log_disk%' "
+                    "AND TRIM(q.query_sql)=?", (tmpl['id'], OCEANBASE_LOG_DISK_PLACEHOLDER_SQL.strip()))
+        check('已把三个查询还原成老库的占位 SQL', cur.fetchone()[0] == 3)
+        conn.close()
+
+        n3 = ensure_oceanbase_log_disk_chapter(db_path=tmp_db)
+        check('迁移调用幂等返回 0（key 已存在，不再插章）', n3 == 0, str(n3))
+
+        conn = sqlite3.connect(tmp_db)
+        cur = conn.cursor()
+        cur.execute("SELECT q.query_key, TRIM(q.query_sql) FROM inspection_query q "
+                    "JOIN inspection_chapter c ON q.chapter_id=c.id "
+                    "WHERE c.template_id=? AND q.query_key LIKE 'ob_log_disk%'", (tmpl['id'],))
+        rows = dict(cur.fetchall())
+        conn.close()
+        check('迁移后三个 key 的 SQL 均不再是占位',
+              all(v.strip() != OCEANBASE_LOG_DISK_PLACEHOLDER_SQL.strip() for v in rows.values()),
+              str(rows))
+        check('迁移后 SQL 与章节定义一致',
+              all(rows.get(q['key'], '').strip() == q['sql'].strip()
+                  for q in OCEANBASE_LOG_DISK_CHAPTER['queries']), str(rows))
+
+        # ── [5] 空壳章节迁移：模拟「从 MySQL 骨架继承的 OB 老库」──
+        # 老库有 4 个 0 查询的空壳章节（性能分析 / 复制状态检查 / 索引使用情况 /
+        # 主从复制延迟），正是模板 22 章 ↔ 报告 18 章错位的根因。
+        print('\n[5] 空壳章节迁移：ensure_oceanbase_no_empty_chapters')
+        from modules.inspection.dal import ensure_oceanbase_no_empty_chapters
+        from modules.inspection.init_db import OCEANBASE_PRUNABLE_CHAPTER_TITLES
+
+        conn = sqlite3.connect(tmp_db)
+        cur = conn.cursor()
+        # 还原成老库形态：按「合并后的最终位置」逐位分配 1..22，
+        # 4/7/13/14 位留给空壳章节，原有 18 章顺次落入其余位置。
+        cur.execute("SELECT id, chapter_title_zh FROM inspection_chapter "
+                    "WHERE template_id=? ORDER BY chapter_number", (tmpl['id'],))
+        _rows = cur.fetchall()
+        cur.executemany("UPDATE inspection_chapter SET chapter_number=? WHERE id=?",
+                        [(100000 + i, r[0]) for i, r in enumerate(_rows)])
+        _target = [4, 7, 13, 14]
+        _ei = 0
+        for _newno in range(1, 23):
+            if _newno in _target:
+                cur.execute("INSERT INTO inspection_chapter (template_id, chapter_number, "
+                            "chapter_title_zh, chapter_title_en, description) VALUES (?,?,?,?,?)",
+                            (tmpl['id'], _newno,
+                             OCEANBASE_PRUNABLE_CHAPTER_TITLES[_target.index(_newno)],
+                             'legacy empty chapter', 'legacy'))
+            else:
+                cur.execute("UPDATE inspection_chapter SET chapter_number=? WHERE id=?",
+                            (_newno, _rows[_ei][0]))
+                _ei += 1
+        conn.commit()
+        cur.execute("SELECT COUNT(*) FROM inspection_chapter WHERE template_id=?", (tmpl['id'],))
+        _total_old = cur.fetchone()[0]
+        cur.execute("SELECT chapter_number FROM inspection_chapter WHERE template_id=? "
+                    "AND chapter_title_zh='日志盘容量（Clog）'", (tmpl['id'],))
+        _ld_old = (cur.fetchone() or [None])[0]
+        conn.close()
+        check('模拟老库：4 个空壳章节就位', _total_old == 22, str(_total_old))
+        check('模拟老库：日志盘章节被挤到 22', _ld_old == 22, str(_ld_old))
+
+        n4 = ensure_oceanbase_no_empty_chapters(db_path=tmp_db)
+        check('删除空壳章节数为 4', n4 == 4, str(n4))
+        n5 = ensure_oceanbase_no_empty_chapters(db_path=tmp_db)
+        check('再次调用幂等返回 0', n5 == 0, str(n5))
+
+        conn = sqlite3.connect(tmp_db)
+        cur = conn.cursor()
+        cur.execute("SELECT chapter_number, chapter_title_zh FROM inspection_chapter "
+                    "WHERE template_id=? ORDER BY chapter_number", (tmpl['id'],))
+        _after = cur.fetchall()
+        conn.close()
+        _nums = [r[0] for r in _after]
+        check('空壳章节已删除（22 → 18 章）', len(_after) == 18, str(len(_after)))
+        check('章节号重排为连续 1..18', _nums == list(range(1, 19)), str(_nums))
+        check('日志盘章节落到第 18 章（与报告一致）',
+              _after[-1][1] == '日志盘容量（Clog）' and _after[-1][0] == 18, str(_after[-1]))
+
+        # 用户自建空章节（标题不在白名单）必须保留
+        conn = sqlite3.connect(tmp_db)
+        cur = conn.cursor()
+        cur.execute("INSERT INTO inspection_chapter (template_id, chapter_number, "
+                    "chapter_title_zh, chapter_title_en) VALUES (?,?,?,?)",
+                    (tmpl['id'], 19, '我的自定义章节', 'My custom chapter'))
+        conn.commit()
+        conn.close()
+        n6 = ensure_oceanbase_no_empty_chapters(db_path=tmp_db)
+        conn = sqlite3.connect(tmp_db)
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM inspection_chapter WHERE template_id=? "
+                    "AND chapter_title_zh='我的自定义章节'", (tmpl['id'],))
+        _kept = cur.fetchone()[0]
+        conn.close()
+        check('用户自建空章节被保留', _kept == 1, str(_kept))
+        check('保留时迁移返回 0（无空壳可删）', n6 == 0, str(n6))
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
 
