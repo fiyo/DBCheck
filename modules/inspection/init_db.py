@@ -790,6 +790,37 @@ OCEANBASE_DEFAULT_CHAPTERS = [
         ]
     },
 ]
+
+# ── 第 22 章：日志盘（Clog）容量（v26.11.5.0 新增）────────────────────────────
+# 单独抽成常量而不是直接写进上面的列表，是为了让「存量库幂等补齐」复用同一份定义
+# （dal.ensure_oceanbase_log_disk_chapter 会 import 它，插入到已存在的默认模板里）。
+#
+# 三个 query_key 的 SQL 在这里只是占位：真实 SQL 由
+# main_oceanbase.OceanBaseInspector._customize_queries 的 G 段统一注入。
+# 之所以要占位而不是干脆不写，是因为章节渲染按 query_key 建表头——没有 key 就没有
+# 表格；之所以不在章节里写真实 SQL，是因为 OB 版本差异（3.x 无 GV$OB_UNITS）需要在
+# 采集层集中处理，两处各写一份必然走样。
+OCEANBASE_LOG_DISK_CHAPTER = {
+    'chapter_number': 22,
+    'chapter_title_zh': '日志盘容量（Clog）',
+    'chapter_title_en': 'Log Disk (Clog) Capacity',
+    'description': '租户日志盘（clog）用量、回收水位与写入拒绝阈值（OceanBase 专有）',
+    'queries': [
+        {'key': 'ob_log_disk',
+         'sql': "SELECT 'N/A' AS note FROM DUAL WHERE 1=0",
+         'desc_zh': '各租户各节点日志盘用量与使用率（任一副本超限即风险）',
+         'desc_en': 'Log disk usage and usage pct per tenant/node (worst replica matters)'},
+        {'key': 'ob_log_disk_limit',
+         'sql': "SELECT 'N/A' AS note FROM DUAL WHERE 1=0",
+         'desc_zh': '写入拒绝阈值 log_disk_utilization_limit_threshold（默认 95%）',
+         'desc_en': 'Write-reject threshold log_disk_utilization_limit_threshold (default 95%)'},
+        {'key': 'ob_log_disk_recycle',
+         'sql': "SELECT 'N/A' AS note FROM DUAL WHERE 1=0",
+         'desc_zh': '日志回收水位 log_disk_utilization_threshold（默认 80%）',
+         'desc_en': 'Log recycle threshold log_disk_utilization_threshold (default 80%)'},
+    ]
+}
+OCEANBASE_DEFAULT_CHAPTERS.append(OCEANBASE_LOG_DISK_CHAPTER)
 # 临时文件：PostgreSQL 21 章配置
 
 POSTGRESQL_DEFAULT_CHAPTERS = [

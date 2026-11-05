@@ -258,3 +258,111 @@ rules:
     message: "存在表组副本数 < 3，单节点故障即可能丢数据，建议副本数 >= 3（REPLICA_NUM）"
     message_zh: "存在表组副本数 < 3，单节点故障即可能丢数据，建议副本数 >= 3（REPLICA_NUM）"
     fix_sql: "-- 通过 ALTER TABLEGROUP / 租户 Locality 提升副本数（REPLICA_NUM = 3）"
+
+  # ==============================================================
+  # 日志盘（Clog）容量规则（v26.11.5.0 新增）
+  #
+  # 背景：租户日志盘用量 > LOG_DISK_SIZE × log_disk_utilization_limit_threshold
+  #（默认 95%）后，OceanBase 直接拒绝该租户写入（事务提交失败、业务回滚），
+  # 是「已经宕了」级别的故障；而 > log_disk_utilization_threshold（默认 80%）
+  # 则进入 clog 回收状态，长期破 80% 说明回收跟不上，是恶化早期信号。
+  #
+  # 三个必须守住的点（否则规则会误判）：
+  #   1. 阈值读实例真实参数，不硬编码 95——官方应急办法就是临时上调它；
+  #   2. 分母是 LOG_DISK_SIZE（clog 预分配+循环复用），不是 df 的物理磁盘；
+  #   3. clog 是 per-node 的，任一副本超限即报，绝不取平均。
+  #
+  # context 键由 main_oceanbase.OceanBaseInspector._customize_queries 注入：
+  #   ob_log_disk        - GV$OB_UNITS 逐 Unit/节点的日志盘用量与 USED_PCT（倒序）
+  #   ob_log_disk_limit  - SHOW PARAMETERS 的写入拒绝阈值
+  #   ob_log_disk_recycle- SHOW PARAMETERS 的日志回收阈值
+  # 取不到数据时（OB 3.x 无 GV$OB_UNITS / 权限不足）规则降级为一条 info 提示，
+  # 不静默通过——否则用户会以为"巡检过了=没问题"。
+  #
+  # ⚠️ 这里刻意只用「标量 + 第 0 行」判定、不写 any()/生成式，原因不是图省事：
+  #   rule_engine._safe_eval 把解析后的 params 放进 eval 的 **locals**，而生成式
+  #   表达式（genexp / 列表推导）在 CPython 里是独立作用域，只能看到 **globals**，
+  #   于是 `any(... for u in units)` 会抛 NameError: name 'lim' is not defined，
+  #   被 _safe_eval 吞成 (False, err) —— 规则永不触发且无任何报错。
+  #   全仓现有 71 条带推导式的规则都受此影响（含本文件早先的 ob_unit_imbalance /
+  #   ob_merge_trigger / ob_replica_low），属独立缺陷，修复需评估误报复活风险，
+  #   不要在单条规则里试探。因此这里取 SQL 已按 USED_PCT 倒序后的第 0 行
+  #   （即最危险的哪一份副本），纯标量比较，行为确定、无坑。
+  #   若将来修好了引擎，可改回逐行 any()，但届时请一并复核上面那三条旧规则。
+  # ==============================================================
+  - id: ob_log_disk_limit_reached
+    name: 日志盘用量已达写入拒绝阈值
+    name_zh: 日志盘用量已达写入拒绝阈值
+    category: storage
+    db_types: [oceanbase]
+    severity: high
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 租户日志盘（clog）用量超过 log_disk_utilization_limit_threshold，OceanBase 已拒绝该租户写入
+    description_zh: 租户日志盘（clog）用量超过 log_disk_utilization_limit_threshold，OceanBase 已拒绝该租户写入
+    condition: "worst_pct is not None and float(worst_pct) >= float(lim)"
+    params:
+      lim: "${context.ob_log_disk_limit[0].value if context.ob_log_disk_limit else 95}"
+      worst_pct: "${context.ob_log_disk[0].USED_PCT}"
+      worst_tenant: "${context.ob_log_disk[0].TENANT_ID}"
+    message: "租户 {worst_tenant}（1=sys）日志盘(clog)用量已达 {worst_pct}%，触达写入拒绝阈值 {lim}%：该租户写入已被拒绝，事务无法提交。请立即扩容 LOG_DISK_SIZE 或处理 clog 回收，并排查是否小合并/转储卡住"
+    message_zh: "租户 {worst_tenant}（1=sys）日志盘(clog)用量已达 {worst_pct}%，触达写入拒绝阈值 {lim}%：该租户写入已被拒绝，事务无法提交。请立即扩容 LOG_DISK_SIZE 或处理 clog 回收，并排查是否小合并/转储卡住"
+    fix_sql: "-- 应急（仅争取时间，不解决根因）：ALTER SYSTEM SET log_disk_utilization_limit_threshold = 98;\n-- 根治：扩容日志盘（ALTER RESOURCE UNIT <unit_name> LOG_DISK_SIZE = <新值>），并检查合并/转储进度：SELECT * FROM oceanbase.DBA_OB_ZONE_MAJOR_COMPACTION;"
+
+  - id: ob_log_disk_above_recycle
+    name: 日志盘用量超过回收水位
+    name_zh: 日志盘用量超过回收水位
+    category: storage
+    db_types: [oceanbase]
+    severity: medium
+    priority: high
+    owner: DBA
+    enabled: true
+    description: 租户日志盘（clog）用量超过 log_disk_utilization_threshold（默认 80%），clog 回收已跟不上
+    description_zh: 租户日志盘（clog）用量超过 log_disk_utilization_threshold（默认 80%），clog 回收已跟不上
+    condition: "worst_pct is not None and float(worst_pct) >= float(rec) and float(worst_pct) < float(lim)"
+    params:
+      lim: "${context.ob_log_disk_limit[0].value if context.ob_log_disk_limit else 95}"
+      rec: "${context.ob_log_disk_recycle[0].value if context.ob_log_disk_recycle else 80}"
+      worst_pct: "${context.ob_log_disk[0].USED_PCT}"
+      worst_tenant: "${context.ob_log_disk[0].TENANT_ID}"
+    message: "租户 {worst_tenant}（1=sys）日志盘(clog)用量 {worst_pct}%，已超过回收水位 {rec}%，距写入拒绝阈值 {lim}% 已不宽裕：clog 回收跟不上，继续增长将直接拒绝写入。建议排查小合并/转储是否卡住并评估扩容"
+    message_zh: "租户 {worst_tenant}（1=sys）日志盘(clog)用量 {worst_pct}%，已超过回收水位 {rec}%，距写入拒绝阈值 {lim}% 已不宽裕：clog 回收跟不上，继续增长将直接拒绝写入。建议排查小合并/转储是否卡住并评估扩容"
+    fix_sql: "SELECT TENANT_ID, SVR_IP, LOG_DISK_IN_USE, LOG_DISK_SIZE FROM oceanbase.GV$OB_UNITS WHERE LOG_DISK_SIZE > 0 ORDER BY LOG_DISK_IN_USE / LOG_DISK_SIZE DESC;\n-- 检查合并/转储是否卡住后，评估扩容：ALTER RESOURCE UNIT <unit_name> LOG_DISK_SIZE = <新值>;"
+
+  - id: ob_log_disk_limit_relaxed
+    name: 日志盘写入拒绝阈值被放宽
+    name_zh: 日志盘写入拒绝阈值被放宽
+    category: storage
+    db_types: [oceanbase]
+    severity: medium
+    priority: medium
+    owner: DBA
+    enabled: true
+    description: log_disk_utilization_limit_threshold 被上调到 95% 以上，写入刹车被放松
+    description_zh: log_disk_utilization_limit_threshold 被上调到 95% 以上，写入刹车被放松
+    condition: "lim is not None and float(lim) > 95"
+    params:
+      lim: "${context.ob_log_disk_limit[0].value if context.ob_log_disk_limit else 95}"
+    message: "日志盘写入拒绝阈值 log_disk_utilization_limit_threshold 已被上调至 {lim}%（默认 95%）：这通常是为避免写入拒绝而做的临时应急，日志盘实际压力可能已经很高，建议核实并扩容后回调至默认值"
+    message_zh: "日志盘写入拒绝阈值 log_disk_utilization_limit_threshold 已被上调至 {lim}%（默认 95%）：这通常是为避免写入拒绝而做的临时应急，日志盘实际压力可能已经很高，建议核实并扩容后回调至默认值"
+    fix_sql: "ALTER SYSTEM SET log_disk_utilization_limit_threshold = 95;  -- 扩容日志盘后回调默认值\nSHOW PARAMETERS LIKE 'log_disk_utilization%';"
+
+  - id: ob_log_disk_unavailable
+    name: 未能采集到日志盘容量
+    name_zh: 未能采集到日志盘容量
+    category: storage
+    db_types: [oceanbase]
+    severity: info
+    priority: low
+    owner: DBA
+    enabled: true
+    description: 未采到 GV$OB_UNITS 的日志盘数据（OB 3.x 无该视图 / 权限不足），日志盘容量无法判定
+    description_zh: 未采到 GV$OB_UNITS 的日志盘数据（OB 3.x 无该视图 / 权限不足），日志盘容量无法判定
+    condition: "not units or len(units) == 0"
+    params:
+      units: "${context.ob_log_disk}"
+    message: "本次未采集到租户日志盘(clog)容量数据，无法判定是否存在写入拒绝风险（不是「没问题」）。常见原因：实例为 OceanBase 3.x（GV$OB_UNITS 自 V4.0.0 才提供）、账号无权访问该视图，或该租户无 Unit。业务租户只能看到本租户，要覆盖 sys 租户请改用 sys 账号连接"
+    message_zh: "本次未采集到租户日志盘(clog)容量数据，无法判定是否存在写入拒绝风险（不是「没问题」）。常见原因：实例为 OceanBase 3.x（GV$OB_UNITS 自 V4.0.0 才提供）、账号无权访问该视图，或该租户无 Unit。业务租户只能看到本租户，要覆盖 sys 租户请改用 sys 账号连接"
+    fix_sql: "SELECT TENANT_ID, SVR_IP, SVR_PORT, ZONE, LOG_DISK_IN_USE, LOG_DISK_SIZE FROM oceanbase.GV$OB_UNITS WHERE LOG_DISK_SIZE > 0;\nSHOW PARAMETERS LIKE 'log_disk_utilization%';"

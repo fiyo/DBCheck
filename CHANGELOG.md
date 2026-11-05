@@ -1,5 +1,45 @@
 # Changelog
 
+## v26.11.5.0 (2026-11-05)
+
+### 新增：OceanBase 日志盘（Clog）容量巡检（含 sys 租户写入拒绝预警）
+- 来源：用户实测故障 —— 租户 `sys` 的日志盘用量超过 95% 后 OceanBase **直接拒绝写入**，事务无法提交、业务报错回滚，属「服务已不可用」级故障，问能否巡检出来。
+- 排查结论：**此前完全巡检不出来**。全仓库无 `log_disk` / `LOG_DISK` / `clog` 任何代码；`oceanbase.yaml` 原有 12 条规则（连接数×2 / 长查询 / 慢日志 / binlog / sql_mode / buffer pool / Primary Zone / Locality / Unit 不均衡 / 合并参数 / 副本数）无一条涉及日志盘；`main_oceanbase.py::_customize_queries` 里 `ob_unit_info`（`DBA_OB_UNITS`）与 `ob_server_stat`（`GV$OB_SERVERS`）被降级为空查询占位 —— 理由是「仅 sys 可见，业务租户查会报 Table doesn't exist」，于是连 unit 的 `LOG_DISK_SIZE` / `LOG_DISK_IN_USE` 都没采过，规则层无从判断。
+- 采集层（`main_oceanbase.py` 新增 G 段，3 个 context 键）：
+  - `ob_log_disk`：`GV$OB_UNITS` 逐租户逐节点取 `LOG_DISK_IN_USE` / `LOG_DISK_SIZE` 与计算列 `USED_PCT`，**按 USED_PCT 倒序**，`WHERE LOG_DISK_SIZE > 0` 提前滤掉分母为 0 的行（否则 `USED_PCT` 为 NULL 会让整条判定失效）。
+  - `ob_log_disk_limit`：`SHOW PARAMETERS LIKE 'log_disk_utilization_limit_threshold'`（写入拒绝阈值，默认 95）。
+  - `ob_log_disk_recycle`：`SHOW PARAMETERS LIKE 'log_disk_utilization_threshold'`（日志回收水位，默认 80）。
+  - **视图选 `GV$OB_UNITS` 而非 `DBA_OB_UNITS`**：前者自 V4.0.0 提供，当前租户可查自身、sys 租户可查全集群；后者仅 sys 可见（正是原先那条降级注释的坑）。故用普通业务租户连接即可采到本租户日志盘，不必强制 sys 账号。
+- 规则层（`oceanbase.yaml` 新增 4 条，OB 规则 12 → 16）：
+
+  | 规则 | 判据 | 级别 | 含义 |
+  |---|---|---|---|
+  | `ob_log_disk_limit_reached` | `USED_PCT ≥ 实例实际 limit 阈值` | high | 该租户**写入已被拒绝**，事务无法提交 |
+  | `ob_log_disk_above_recycle` | `recycle ≤ USED_PCT < limit` | medium | 超过回收水位、clog 回收跟不上，继续增长即拒绝写入 |
+  | `ob_log_disk_limit_relaxed` | limit 阈值被上调至 > 95 | medium | 写入刹车被人为放松，实际压力可能已很高 |
+  | `ob_log_disk_unavailable` | 未采到 `GV$OB_UNITS` 数据 | info | 明确告知「**不是没问题**」，避免巡检静默通过造成错觉 |
+
+- 三个必须守住的口径（写进规则注释，防后人改错）：
+  - **阈值读实例真实参数、不硬编码 95** —— 官方应急手段就是临时上调 `log_disk_utilization_limit_threshold`，运维改过之后仍按 95 判定会误报、也会掩盖真的复发；
+  - **分母是 `LOG_DISK_SIZE`**（clog 预分配 + 循环复用），与 `df` 的物理磁盘使用率不是一回事，用物理盘做分母会既误报又漏报；
+  - **clog 是 per-node 的，任一副本超限即报，绝不取平均**（取平均会漏掉真正危险的那份）。
+- 报告层新增第 22 章「日志盘容量（Clog）」（3 个 query_key）。章节内 SQL 为占位、真实 SQL 由采集钩子注入：章节渲染按 `query_key` 建表头（没有 key 就没有表格），而 OB 版本差异（3.x 无 `GV$OB_UNITS`）集中在采集层处理，两处各写一份必然走样。
+- **存量库补齐**（最容易漏的一环）：`init_default_templates` 对已存在的默认模板整体跳过，新增章节**永远进不了老库**。新增 `dal.ensure_oceanbase_log_disk_chapter()` 幂等挂在 `_ensure_tables` 里：模板内已有任一目标 query_key 即视为已补齐（用户可能手工建过同名查询），章节号优先用 22、被占用则顺延到「当前最大章节号 + 1」，**绝不覆盖、绝不删除用户已有章节**，异常只告警不阻断启动。
+- 验证：`scripts/verify_oceanbase_log_disk.py` **60 项断言全通过**，覆盖六个场景 —— 96.5%@95 报写入拒绝（消息含真实数值与租户号、无占位符残留）；85%@95 只报回收水位；**96%@98 不误报写入拒绝、改报「阈值被放宽」**；单副本 97% 其余 10% 仍报（证明不取平均）；参数查询为空时回退默认 95 仍能判定；空数据 → info 提示且不误报；另含第 22 章定义完整性与存量库幂等补齐（首次返回 3、再次返回 0、章节号正确）。
+
+### 修复：规则引擎 `_SafeContext` 迭代导致巡检进程死循环
+- 现象：`rule_engine._SafeContext` 只实现 `__getitem__`，Python 会退化为旧式迭代协议 —— 不断请求 `__getitem__(0)`、`__getitem__(1)`……直到抛 `IndexError` 才停；而该类的 `__getitem__` 越界时**返回 `None` 而不是抛 `IndexError`**，于是迭代永不终止。YAML 规则里只要写一句 `[p for p in context.xxx]` 就能把巡检进程挂死。
+- 修复：显式实现 `__iter__` —— dict 迭代 key、list 迭代元素、其余返回空迭代器（与 `_wrap` 只包装 dict/list 的约定一致）。
+
+### 已知缺陷（本次未修，已规避）
+- `rule_engine._safe_eval` 把解析后的 params 放进 `eval` 的 **locals**，而生成式表达式（genexp / 列表推导）在 CPython 中是独立作用域、只能看到 **globals**：`any(... for u in units)` 会抛 `NameError`，被吞成 `(False, err)` —— **规则永不触发且无任何报错**。
+- 波及全仓 **71 条**带推导式的内置规则（dm / mariadb / hgdb / kingbase / haloDB / mongodb 的磁盘用量规则，以及 OceanBase 原有的 `ob_unit_imbalance` / `ob_merge_trigger` / `ob_replica_low` —— 难怪这三条从来报不出来）。
+- 本次**没有**顺手修：改一行（params 并入 globals）会一次性复活 71 条规则，且其中 `ob_unit_imbalance` 的判据本身有问题（多 Zone 就触发，必误报），误报风险需单独评估。因此本次 4 条新规则刻意只用「标量 + SQL 已倒序的第 0 行」判定，YAML 里已写明原因与复发风险。
+
+### 其它
+- 版本号统一升至 `v26.11.5.0`（28 处引用点，含 `modules/config/version.py` 与 `version.json`、skill 脚本、4 个 CI workflow、`deploy/Dockerfile` 与 compose、`build/`、`scripts/`、`assets/web/static/js/login.js`、登录页）。
+- 使用边界：**业务租户只能看到本租户的日志盘**，要覆盖 sys 租户（其日志盘满会卡住全局元数据写入）需改用 sys 账号连接 —— 该提示已写入 `ob_log_disk_unavailable` 规则文案；OceanBase 3.x 无 `GV$OB_UNITS`，采集降级为 info 提示而非静默通过。
+
 ## v26.11.4.0 (2026-11-03)
 
 ### 修复（P0）：未配置 SSH 时，宿主资源指标「静默用中心机数据冒充目标机」

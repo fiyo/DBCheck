@@ -157,6 +157,20 @@ class _SafeContext:
         except TypeError:
             return False
 
+    def __iter__(self):
+        """显式提供迭代协议，避免旧式迭代协议造成死循环。
+
+        本类只实现 __getitem__ 时，`for x in context.some_key` 会走 Python 的旧式
+        迭代协议：不断请求 __getitem__(0)、__getitem__(1)……直到抛 IndexError 为止。
+        而本类的 __getitem__ 越界时返回 None 而不是抛 IndexError，于是迭代永不终止
+        ——YAML 规则里只要写一句列表推导（如 [p for p in context.params]）就会把
+        巡检进程挂死。这里显式返回真实迭代器：dict 迭代 key、list 迭代元素，
+        其余不可迭代（与 _wrap 只包装 dict/list 保持一致）。
+        """
+        if isinstance(self._d, (dict, list)):
+            return iter(self._d)
+        return iter(())
+
     def __len__(self):
         try:
             return len(self._d)

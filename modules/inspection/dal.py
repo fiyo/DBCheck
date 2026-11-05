@@ -252,6 +252,14 @@ def init_database(db_path: str = None):
     except Exception as e:  # 降级：补齐失败不影响数据库初始化结果
         print(f"[巡检] 缺失基线补齐失败（已忽略）: {e}")
 
+    # 补齐「已播种默认模板的老库」缺失的新增章节（如 OceanBase 日志盘容量）。
+    # 模板播种对已存在的模板整体跳过，因此后续新增章节不会进老库——报告里就少一张
+    # 明细表。这里幂等插入，不动任何已有章节/查询，失败仅告警。
+    try:
+        ensure_oceanbase_log_disk_chapter(db_path=db_path)
+    except Exception as e:  # 降级：补齐失败不影响数据库初始化结果
+        print(f"[巡检] 日志盘章节补齐失败（已忽略）: {e}")
+
 
 def create_template(db_type: str, template_name: str, description: str = None,
                    template_name_en: str = None, version: str = 'v1', is_default: int = 0, is_preset: int = 0, db_path: str = None) -> int:
@@ -2192,6 +2200,102 @@ def ensure_missing_db_type_baselines(db_path: str = None) -> int:
         return 0
     finally:
         conn.close()
+
+
+def ensure_oceanbase_log_disk_chapter(db_path: str = None) -> int:
+    """为「已播种过默认模板的存量库」幂等补齐 OceanBase 日志盘章节。
+
+    背景：``init_default_templates`` 对已存在的默认模板一律走「跳过」分支，因此
+    新增章节（如「日志盘容量（Clog）」第 22 章）永远进不了老库——报告里就看不到
+    日志盘明细表（规则结论仍然生效，因为 context 键由采集钩子注入，与章节无关）。
+
+    策略是最保守的幂等插入：
+
+    - 只处理 OceanBase 的**默认**模板；找不到直接返回；
+    - 模板内已存在任一目标 query_key 即认为已补齐（用户可能手工建过同名查询），
+      绝不重复插入；
+    - 章节号优先用内置定义（22），被占用时顺延到「当前最大章节号 + 1」，
+      绝不覆盖、绝不删除用户已有章节；
+    - 任何异常只告警不抛出，不阻断启动。
+
+    :param db_path: 数据库文件路径，``None`` 表示使用默认库
+    :return: 本次插入的查询条数；``0`` 表示无需补齐或已降级
+    """
+    try:
+        from modules.inspection.init_db import OCEANBASE_LOG_DISK_CHAPTER
+    except Exception as e:  # 定义不可用：静默降级
+        print(f"[巡检] 日志盘章节定义不可用（已忽略）: {e}")
+        return 0
+
+    _queries = OCEANBASE_LOG_DISK_CHAPTER.get('queries') or []
+    _qkeys = [q['key'] for q in _queries]
+    if not _qkeys:
+        return 0
+
+    try:
+        tmpl = get_default_template('oceanbase', db_path)
+        if not tmpl:
+            return 0
+        template_id = tmpl['id']
+
+        # 幂等判断 + 章节号避让：独立连接、只读，读完立即关闭
+        conn = get_db_connection(db_path)
+        try:
+            cur = conn.cursor()
+            _ph = ','.join('?' * len(_qkeys))
+            cur.execute(
+                "SELECT COUNT(*) FROM inspection_query q "
+                "JOIN inspection_chapter c ON q.chapter_id = c.id "
+                f"WHERE c.template_id = ? AND q.query_key IN ({_ph})",
+                (template_id, *_qkeys),
+            )
+            if (cur.fetchone() or [0])[0] > 0:
+                return 0
+
+            chapter_no = int(OCEANBASE_LOG_DISK_CHAPTER.get('chapter_number') or 0)
+            cur.execute(
+                "SELECT COUNT(*) FROM inspection_chapter "
+                "WHERE template_id = ? AND chapter_number = ?",
+                (template_id, chapter_no),
+            )
+            if (cur.fetchone() or [0])[0] > 0:
+                # 章节号被用户占用：顺延，绝不复用/覆盖
+                cur.execute(
+                    "SELECT COALESCE(MAX(chapter_number), 0) FROM inspection_chapter "
+                    "WHERE template_id = ?",
+                    (template_id,),
+                )
+                chapter_no = int((cur.fetchone() or [0])[0]) + 1
+        finally:
+            conn.close()
+
+        chapter_id = create_chapter(
+            template_id=template_id,
+            chapter_number=chapter_no,
+            chapter_title_zh=OCEANBASE_LOG_DISK_CHAPTER['chapter_title_zh'],
+            chapter_title_en=OCEANBASE_LOG_DISK_CHAPTER.get('chapter_title_en'),
+            description=OCEANBASE_LOG_DISK_CHAPTER.get('description'),
+            db_path=db_path,
+        )
+        for idx, q in enumerate(_queries):
+            create_query(
+                chapter_id=chapter_id,
+                query_key=q['key'],
+                query_sql=q['sql'],
+                query_description_zh=q.get('desc_zh'),
+                query_description_en=q.get('desc_en'),
+                sort_order=idx,
+                db_path=db_path,
+            )
+        print(
+            f"[巡检] 已为存量 OceanBase 默认模板补齐章节「{OCEANBASE_LOG_DISK_CHAPTER['chapter_title_zh']}」"
+            f"（第 {chapter_no} 章，{len(_qkeys)} 条查询）"
+        )
+        return len(_qkeys)
+
+    except Exception as e:  # 降级：补齐失败不阻断启动
+        print(f"[巡检] 日志盘章节补齐跳过: {e}")
+        return 0
 
 
 def force_reset_baselines(db_type: str = None, db_path: str = None):
