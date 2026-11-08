@@ -2,7 +2,7 @@
 # Copyright 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
 # Author: fiyo (Jack Ge) - https://github.com/fiyo/DBCheck
 
-"""MCP 工具实现（阶段 1：6+ 带风险元数据的工具箱）。
+"""MCP 工具实现（阶段 1 只读工具箱 + 阶段 2 写类闸门）。
 
 每个 tool 只是现有 service 层的一层薄封装：
 - list_instances   -> InstanceManager.get_all_instances(mask_password=True)
@@ -12,14 +12,20 @@
 - index_health     -> subprocess(analysis_cli.py index_health)
 - baseline_check   -> subprocess(analysis_cli.py baseline)
 - ai_diagnose      -> DiagnosticHub.dispatch(goal, instance_id)
+- nl2sql / bicqa_ask -> 外部上游 MCP / 知识库协议桥接
+- kill_session / apply_index / execute_sql
+                   -> ``_write_gate``：转 SQL 提交 SQL 审计状态机（WriteGate），
+                      **从不直接连库执行**；无审批人只返回 pending_approval 提案。
 
 隔离契约（沿用阶段 0）
 ----------------------
 * ``principal`` 为 None 表示"无身份"（本地 stdio 且未开鉴权），保持向后兼容的
   全量行为；一旦解析出身份就必须过滤，绝不返回越权数据。
-* 所有实例级工具先过 ``assert_visible``，越权返回 ``RESOURCE_NOT_VISIBLE``
-  （不泄露"资源是否存在"）。
+* 所有实例级工具（**含写类**）先过 ``assert_visible``，越权返回
+  ``RESOURCE_NOT_VISIBLE``（不泄露"资源是否存在"）。
 * 每次调用都写 ``um_audit_log``（client=mcp），形成可追溯时间线。
+* 写类的审批人只能由进程内受信调用方经形参传入；工具入参里的 approver/principal
+  一律丢弃（``_WRITE_TRUSTED_KWARGS``），杜绝外部客户端自审批。
 * DB 连接类分析统一走 ``analysis_cli.py`` 子进程隔离（避免在主进程内直接拉起
   驱动/JVM），子进程单行 JSON 回传，其余日志走 stderr。
 """
@@ -314,6 +320,122 @@ def bicqa_ask_tool(question: str, dbtype: str = "", mask: bool = True,
     return {"ok": True, "answer": result}
 
 
+# ── 写类工具（access_mode=write）：统一走 WriteGate ───────────────────────────
+# 契约：写类工具**不直接连库执行**，一律把动作转成 SQL 提交 SQL 审计状态机
+# （submit_audit → pending_approval → approve → execute），与 Web 侧「写操作工单」
+# 和多 Agent 侧 Skills 共用同一个闸门，不另造审批逻辑。
+_WRITE_TRUSTED_KWARGS = ("approver", "principal")
+
+
+def _resolve_instance_db_type(instance_id: str) -> str | None:
+    """从实例管理器取库型；None 表示实例不存在或无权访问。"""
+    try:
+        from modules.pro import get_instance_manager  # noqa: E402
+        inst = get_instance_manager().get_instance_decrypted(instance_id)
+        if inst:
+            return (inst.get("db_type") or "").strip() or None
+    except Exception:  # noqa: BLE001
+        return None
+    return None
+
+
+def _submitter_label(principal) -> str:
+    return principal.label() if hasattr(principal, "label") else "agent"
+
+
+def _write_gate(op_key: str, args: dict, principal, approver) -> dict:
+    """写类工具的公共实现：可见性 → 库型 → 提案 →（可选）审批执行 → 审计。
+
+    ``approver`` **只能**由进程内受信调用方（dispatch_skill / 多 Agent）通过形参传入；
+    MCP 客户端在 arguments 里塞的 approver / principal 一律丢弃（``_WRITE_TRUSTED_KWARGS``），
+    否则任何客户端都能自审批，闸门形同虚设。
+    """
+    args = {k: v for k, v in (args or {}).items() if k not in _WRITE_TRUSTED_KWARGS}
+    instance_id = str(args.get("instance_id") or "").strip()
+    if not instance_id:
+        return {"ok": False, "error_code": "BAD_REQUEST",
+                "error": "写类工具必须指定 instance_id"}
+    deny = _assert_or_deny(principal, instance_id)
+    if deny is not None:
+        return deny
+    db_type = str(args.get("db_type") or "").strip() or _resolve_instance_db_type(instance_id)
+    if not db_type:
+        _audit(principal, f"mcp.{op_key}", instance_id, "deny",
+               detail="db_type unresolved")
+        return {"ok": False, "error_code": "BAD_REQUEST",
+                "error": "无法解析目标数据源 db_type（实例不存在或无权访问）"}
+
+    from modules.intelligence.skills import WriteGate, sql_for_skill  # noqa: E402
+    skill_name = f"dbcheck.{op_key}"
+    try:
+        task = WriteGate.propose(
+            skill_name, args, _submitter_label(principal), instance_id, db_type,
+            remark=str(args.get("reason") or ""),
+        )
+    except Exception as e:  # noqa: BLE001
+        _audit(principal, f"mcp.{op_key}", instance_id, "deny", detail=str(e)[:200])
+        return {"ok": False, "error_code": "PROPOSE_FAILED",
+                "error": f"WriteGate 提案失败: {e}"}
+
+    sql_text = sql_for_skill(skill_name, args)
+    status = task.get("status")
+    base = {
+        "task_id": task["id"],
+        "task_no": task.get("task_no"),
+        "sql_text": sql_text,
+        "status": status,
+        "risk_level": task.get("risk_level"),
+        "instance_id": instance_id,
+        "db_type": db_type,
+    }
+    # 命中阻断规则：直接拦截，不进审批流
+    if status == "blocked":
+        _audit(principal, f"mcp.{op_key}", instance_id, "deny",
+               detail=f"blocked task={base['task_no']}")
+        return {"ok": False, "error_code": "BLOCKED_BY_RULE",
+                "error": "语句命中 SQL 审计阻断规则，已拦截（未进入审批）", **base}
+    # 无审批人：只返回待审批提案，绝不执行 —— 默认的安全行为
+    if not approver:
+        _audit(principal, f"mcp.{op_key}", instance_id, "allow",
+               detail=f"propose task={base['task_no']} status={status}")
+        return {"ok": False, "error_code": "APPROVAL_REQUIRED",
+                "error": "写类操作需经 SQL 审计审批（pending_approval）后方可执行", **base}
+    # 带审批人：审批 + 受控执行（受信调用方专用，MCP 客户端拿不到这条路径）
+    try:
+        WriteGate.resolve(task["id"], approver, "approve",
+                          comment=f"auto-approved by {approver} via WriteGate")
+        res = WriteGate.execute(task["id"], approver, mode="real")
+    except Exception as e:  # noqa: BLE001
+        _audit(principal, f"mcp.{op_key}", instance_id, "deny",
+               detail=f"execute failed: {str(e)[:180]}")
+        return {"ok": False, "error_code": "EXECUTE_FAILED",
+                "error": f"受控执行失败: {e}", **base}
+    _audit(principal, f"mcp.{op_key}", instance_id, "allow",
+           detail=f"execute task={base['task_no']} by {approver}")
+    return {"ok": True, "executed": True, "approved_by": approver, **base, "result": res}
+
+
+def kill_session_tool(principal=None, approver=None, **kwargs) -> dict:
+    """终止会话（高危写）：生成 KILL 并提交 SQL 审计，审批后执行。"""
+    if not str(kwargs.get("session_id") or "").strip():
+        return {"ok": False, "error_code": "BAD_REQUEST", "error": "session_id 不能为空"}
+    return _write_gate("kill_session", kwargs, principal, approver)
+
+
+def apply_index_tool(principal=None, approver=None, **kwargs) -> dict:
+    """创建/重建索引（写）：生成 CREATE INDEX 并提交 SQL 审计，审批后执行。"""
+    if not str(kwargs.get("table") or "").strip() or not str(kwargs.get("columns") or "").strip():
+        return {"ok": False, "error_code": "BAD_REQUEST", "error": "table / columns 不能为空"}
+    return _write_gate("apply_index", kwargs, principal, approver)
+
+
+def execute_sql_tool(principal=None, approver=None, **kwargs) -> dict:
+    """执行 SQL（受控写）：语句直接提交 SQL 审计，阻断则拦截，否则待审批。"""
+    if not str(kwargs.get("sql_text") or "").strip():
+        return {"ok": False, "error_code": "BAD_REQUEST", "error": "sql_text 不能为空"}
+    return _write_gate("execute_sql", kwargs, principal, approver)
+
+
 # handler_key -> 实现函数（供 server.dispatch_tool 接线；与 registry 共用注册表）
 HANDLERS = {
     "list_instances": list_instances_tool,
@@ -325,4 +447,8 @@ HANDLERS = {
     "ai_diagnose": ai_diagnose_tool,
     "nl2sql": nl2sql_tool,
     "bicqa_ask": bicqa_ask_tool,
+    # 写类（access_mode=write）：实现落在 WriteGate，签名统一带 approver
+    "kill_session": kill_session_tool,
+    "apply_index": apply_index_tool,
+    "execute_sql": execute_sql_tool,
 }

@@ -8,7 +8,7 @@
 >
 > Formerly known as **DBCheck**.
 
-[![Version](https://img.shields.io/badge/Version-v26.10.27.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/Version-v26.11.5.1-blue.svg)]()
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)]()
 [![AI](https://img.shields.io/badge/AI-Ollama%20%7C%20OpenAI-orange.svg)]()
@@ -18,8 +18,8 @@
 [![GitHub Stars](https://img.shields.io/github/stars/fiyo/DBCheck?style=flat-square\&label=Stars)](https://github.com/fiyo/DBCheck/stargazers)
 [![GitHub Forks](https://img.shields.io/github/forks/fiyo/DBCheck?style=flat-square\&label=Forks)](https://github.com/fiyo/DBCheck/network/members)
 
-> 🗄️ **20+ database types**
-> 🔍 **800+ inspection rules**
+> 🗄️ **22 database types**
+> 🔍 **839 inspection rules**
 > 🤖 **AI-assisted diagnostics**
 > 🔌 **Extensible plugin architecture**
 > 📜 **Apache License 2.0**
@@ -94,15 +94,14 @@ RaccoonX started as **DBCheck** and has evolved through continuous development a
 
 | Milestone          |         Status |
 | ------------------ | -------------: |
-| Docker image pulls |    **32,000+** |
 | GitHub Stars       |       **180+** |
 | GitHub Forks       |        **60+** |
-| Database types     |        **20+** |
-| Inspection rules   |       **800+** |
+| Database types     |        **22** |
+| Inspection rules   |       **839** |
 | Languages          |          **9** |
 | License            | **Apache 2.0** |
 
-Docker pull counts represent image pulls and should not be interpreted as the number of unique users or installations.
+Docker pull counts change frequently and are shown live by the badge at the top of this page instead of being hard-coded here. They represent image pulls and should not be interpreted as the number of unique users or installations.
 
 ### ⭐ Help us reach the next milestone
 
@@ -111,7 +110,7 @@ If you have used RaccoonX, tested it, learned from it, or simply find the projec
 **Give it a Star.**
 
 ```text
-32,000+ Docker Pulls
+Every Single Pull
         ↓
    Keep Building
         ↓
@@ -125,7 +124,7 @@ If you have used RaccoonX, tested it, learned from it, or simply find the projec
 | Feature                      | Description                                                                                  |
 | ---------------------------- | -------------------------------------------------------------------------------------------- |
 | 🗄️ Data Source Manager      | Unified management of database instances, grouping, batch inspection, CSV import/export      |
-| 📋 Database Inspection       | 20+ database types and 800+ inspection rules with automated Word reports                     |
+| 📋 Database Inspection       | 22 database types and 839 inspection rules with automated Word reports                     |
 | 🔌 Plugin System             | Independent plugin lifecycle, plugin data, templates, baselines and rules                    |
 | 🔍 Slow Query Analysis       | Execution plans, I/O patterns, lock waits and AI-assisted analysis                           |
 | 🔒 Lock Diagnostics          | Blocking chains, deadlocks, long transactions and remediation suggestions                    |
@@ -134,6 +133,7 @@ If you have used RaccoonX, tested it, learned from it, or simply find the projec
 | 📈 Historical Analysis       | Multi-round inspection history, trends and before/after comparisons                          |
 | 🤖 AI Diagnostics            | Local Ollama or compatible cloud APIs for AI-assisted analysis                               |
 | 💬 AI Inspection Chat        | Natural-language interaction with the inspection system                                      |
+| 🧰 MCP Server                | Exposes 12 tools (9 read-only + 3 approval-gated writes) to Claude, Cursor and other MCP clients |
 | 📡 Real-time Monitoring      | Connections, latency, throughput and availability monitoring                                 |
 | 🖥️ Server Inspection        | CPU, memory, disk, network, services and processes                                           |
 | 🔗 Shareable Reports         | Generate report links that can be viewed without login                                       |
@@ -157,7 +157,7 @@ If you have used RaccoonX, tested it, learned from it, or simply find the projec
 
 # 🗄️ Supported Databases
 
-RaccoonX currently supports **20+ database and data systems**.
+RaccoonX currently supports **22 database and data systems**.
 
 | Database      | Driver                  | Default Port | Notes                      |
 | ------------- | ----------------------- | -----------: | -------------------------- |
@@ -260,7 +260,7 @@ so the host only needs **kernel ≥ 4.x** — Galaxy Kylin V10 SP3 ships kernel 
 ```bash
 uname -m                                      # expect aarch64
 # Version list: https://github.com/fiyo/DBCheck/releases
-VERSION=26.10.22.2
+VERSION=26.11.5.1
 docker pull jackge12345/dbcheck:$VERSION     # pin an explicit version
 docker run -d -p 5003:5003 \
   --memory=2g --memory-swap=2g \
@@ -1083,6 +1083,67 @@ For production environments, use a reverse proxy such as nginx and rotate API ke
 
 ---
 
+# 🧰 MCP Server
+
+RaccoonX ships a **Model Context Protocol (MCP)** server that hands inspection capabilities directly to MCP-capable clients such as Claude, Cursor and Codex.
+
+The point is simple: your AI no longer needs you to paste SQL output, screenshots or report contents. It can list your data sources, run an inspection, inspect blocking chains, check index health — and then reason about the result.
+
+## Start it
+
+```bash
+python -m modules.mcp_server
+```
+
+It uses **stdio transport** by default (local trusted mode). The MCP client spawns the process, so no port needs to be exposed.
+
+## Client configuration
+
+Add this to the `mcpServers` block of Claude Desktop, Cursor or any MCP client:
+
+```json
+{
+  "mcpServers": {
+    "dbcheck": {
+      "command": "python",
+      "args": ["-m", "modules.mcp_server"],
+      "cwd": "/path/to/DBCheck"
+    }
+  }
+}
+```
+
+## Available tools (12: 9 read-only + 3 write)
+
+| Tool                          | Description                                             |
+| ----------------------------- | ------------------------------------------------------- |
+| `dbcheck.list_instances`      | List data sources visible to the current user (passwords always stripped) |
+| `dbcheck.run_inspection`      | Run one inspection round against a data source and return the verdict |
+| `dbcheck.slow_queries`        | Top slow queries, execution plans and AI optimization advice |
+| `dbcheck.lock_tree`           | Blocking chains, deadlocks and long-transaction trees    |
+| `dbcheck.index_health`        | Missing, redundant and long-unused indexes               |
+| `dbcheck.baseline_check`      | Compare parameters against the configuration baseline    |
+| `dbcheck.ai_diagnose`         | Comprehensive AI diagnosis for one instance              |
+| `dbcheck.nl2sql`              | Natural language to SQL (bridged to Chat2DB as an upstream MCP server) |
+| `dbcheck.bicqa_ask`           | Knowledge-base Q&A backed by BIC-QA                      |
+| `dbcheck.kill_session`        | **Write.** Terminate a blocking session — returns a pending-approval ticket, never executes directly |
+| `dbcheck.apply_index`         | **Write.** Create/rebuild an index — pending-approval ticket, revertible via `DROP INDEX` |
+| `dbcheck.execute_sql`         | **Write.** Run arbitrary SQL — blocked by audit rules, otherwise pending approval, then controlled execution |
+
+> **Write operations never execute over MCP**
+>
+> The three write tools do not touch the database directly. Each call is converted into a SQL
+> statement and submitted to the same SQL audit state machine the Web UI uses (WriteGate:
+> **auto-read / approved-write / full audit**). You get back `APPROVAL_REQUIRED` plus a task number;
+> statements that hit a blocking rule come back as `BLOCKED_BY_RULE` and never enter the approval
+> queue. **An MCP client cannot name its own approver** — approval and execution can only happen in
+> the Web UI, so an AI cannot bypass approval and modify a database directly.
+
+Tools reuse the same user-visibility checks and audit logging as the Web UI, so the permission model
+is identical: over MCP an ordinary user can only see the data sources they are allowed to see.
+
+---
+
 # 📦 Distribution Packaging
 
 RaccoonX can be packaged as a standalone executable using PyInstaller.
@@ -1435,8 +1496,6 @@ RaccoonX is not built by a large team.
 It grows through code, feedback, issues, ideas, testing, documentation, contributions and the people who choose to use it.
 
 ```text
-32,000+ Docker Pulls
-
 One Pull at a Time,
 We Keep Building.
 

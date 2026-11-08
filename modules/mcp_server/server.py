@@ -9,7 +9,7 @@
 - initialize            -> 返回 protocolVersion / capabilities / serverInfo
 - notifications/initialized (通知，不回)
 - ping                 -> {}
-- tools/list           -> 7 个工具（来自 registry，含风险元数据 + annotations）
+- tools/list           -> 12 个工具（9 只读 + 3 写类，来自 registry，含风险元数据 + annotations）
 - tools/call           -> 按 handler_key 中央门控派发
 
 关键约束：stdout 只能放 JSON-RPC 响应，任何 DBCheck 模块的散落 print
@@ -101,9 +101,10 @@ def dispatch_tool(name: str, args: dict, principal=None) -> dict:
     """中央工具派发 + 风险门控（MCP 工具与 Skills 共用入口）。
 
     * 未知 -> unknown tool
-    * 写类 / 破坏性 Skill（access_mode=write）→ 路由到 Skills 调度器的 WriteGate：
-      生成 SQL 并提交 SQL 审计，返回 APPROVAL_REQUIRED + 任务号（pending_approval）；
-      带审批人时自动审批并受控执行。
+    * 写类 / 破坏性 Skill（access_mode=write）→ 路由到 Skills 调度器（最终由写类 handler
+      过 WriteGate）：生成 SQL 并提交 SQL 审计，返回 APPROVAL_REQUIRED + 任务号
+      （pending_approval）。**MCP 客户端无法指定审批人**——审批只能在 Web 端 SQL 审计
+      任务详情里由人完成，避免外部客户端自审批绕过闸门。
     * 读类工具 / Skill → 按 handler_key 调对应实现，传入 principal（驱动可见性/审计）。
     """
     spec = get_spec(name)
@@ -117,11 +118,13 @@ def dispatch_tool(name: str, args: dict, principal=None) -> dict:
     from modules.mcp_server.tools import HANDLERS
     handler = HANDLERS.get(spec["handler_key"])
     if handler is None:
-        return {"ok": False, "error": f"handler not wired: {spec['handler_key']}"}
+        return {"ok": False, "error_code": "HANDLER_NOT_WIRED",
+                "error": f"handler not wired: {spec['handler_key']}"}
+    clean = {k: v for k, v in (args or {}).items() if k != "principal"}
     try:
-        return handler(principal=principal, **args)
+        return handler(principal=principal, **clean)
     except TypeError as e:
-        return {"ok": False, "error": f"参数错误: {e}"}
+        return {"ok": False, "error_code": "BAD_REQUEST", "error": f"参数错误: {e}"}
 
 
 def handle(msg: dict):

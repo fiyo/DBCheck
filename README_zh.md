@@ -8,7 +8,7 @@
 >
 > 项目**原名 DBCheck**。
 
-[![Version](https://img.shields.io/badge/Version-v26.10.28.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/Version-v26.11.5.1-blue.svg)]()
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)]()
 [![AI](https://img.shields.io/badge/AI-Ollama%20%7C%20OpenAI-orange.svg)]()
@@ -18,8 +18,8 @@
 [![GitHub Stars](https://img.shields.io/github/stars/fiyo/DBCheck?style=flat-square\&label=Stars)](https://github.com/fiyo/DBCheck/stargazers)
 [![GitHub Forks](https://img.shields.io/github/forks/fiyo/DBCheck?style=flat-square\&label=Forks)](https://github.com/fiyo/DBCheck/network/members)
 
-* 🗄️ **20+ 数据库类型**
-* 🔍 **800+ 巡检规则**
+* 🗄️ **22 种数据库**
+* 🔍 **839 条巡检规则**
 * 🤖 **AI 辅助诊断**
 * 🔌 **可扩展插件架构**
 * 📜 **Apache License 2.0**
@@ -94,15 +94,14 @@ RaccoonX 前身是 **DBCheck**，在持续开发与社区反馈中不断演进�
 
 | 里程碑             |         现状 |
 | ------------------ | -------------: |
-| Docker 镜像拉取       |    **32,000+** |
 | GitHub Stars       |       **180+** |
 | GitHub Forks       |        **60+** |
-| 数据库类型             |        **20+** |
-| 巡检规则               |       **800+** |
+| 数据库类型             |        **22** |
+| 巡检规则               |       **839** |
 | 界面语言               |          **9** |
 | 开源协议               | **Apache 2.0** |
 
-Docker 拉取次数代表镜像拉取量，不应解读为独立用户数或安装数。
+Docker 镜像拉取量变动频繁，只由顶部徽标实时展示，不在此写死；它代表镜像拉取次数，不应解读为独立用户数或安装数。
 
 ### ⭐ 帮我们到达下一个里程碑
 
@@ -111,7 +110,7 @@ Docker 拉取次数代表镜像拉取量，不应解读为独立用户数或安�
 **给它一个 Star。**
 
 ```text
-32,000+ Docker Pulls
+每一次 Docker Pull
         ↓
      持续构建
         ↓
@@ -125,7 +124,7 @@ Docker 拉取次数代表镜像拉取量，不应解读为独立用户数或安�
 | 功能                         | 说明                                                                 |
 | ---------------------------- | -------------------------------------------------------------------- |
 | 🗄️ 数据源管理                 | 统一管理数据库实例，支持分组、批量巡检、CSV 导入导出                     |
-| 📋 数据库巡检                 | 20+ 数据库类型、800+ 巡检规则，自动生成 Word 报告                     |
+| 📋 数据库巡检                 | 22 种数据库类型、839 条巡检规则，自动生成 Word 报告                     |
 | 🔌 插件系统                   | 独立的插件生命周期、插件数据、模板、基线与规则                        |
 | 🔍 慢查询分析                 | 执行计划、I/O 模式、锁等待与 AI 辅助分析                              |
 | 🔒 锁诊断                     | 阻塞链、死锁、长事务与处置建议                                        |
@@ -134,6 +133,7 @@ Docker 拉取次数代表镜像拉取量，不应解读为独立用户数或安�
 | 📈 历史趋势                   | 多轮巡检历史、趋势与前后对比                                          |
 | 🤖 AI 诊断                    | 本地 Ollama 或兼容云端 API 的 AI 辅助分析                             |
 | 💬 AI 对话巡检                | 以自然语言与巡检系统交互                                              |
+| 🧰 MCP Server                | 暴露 12 个工具（9 只读 + 3 写类待审批）给 Claude / Cursor 等 MCP 客户端 |
 | 📡 实时监控                   | 连接、延迟、吞吐与可用性监控                                          |
 | 🖥️ 服务器巡检                | CPU、内存、磁盘、网络、服务与进程                                     |
 | 🔗 分享报告                   | 生成免登录即可查看的报告链接                                          |
@@ -157,7 +157,7 @@ Docker 拉取次数代表镜像拉取量，不应解读为独立用户数或安�
 
 # 🗄️ 支持的数据库
 
-RaccoonX 目前支持 **20+ 数据库与数据系统**。
+RaccoonX 目前支持 **22 种数据库与数据系统**。
 
 | 数据库        | 驱动                    | 默认端口 | 说明                       |
 | ------------- | ----------------------- | -----------: | -------------------------- |
@@ -250,7 +250,7 @@ docker compose -f deploy/docker-compose.yml up -d
 ```bash
 uname -m                                      # 期望 aarch64
 # 版本号见 Releases 页：https://github.com/fiyo/DBCheck/releases
-VERSION=26.10.28.0
+VERSION=26.11.5.1
 docker pull jackge12345/dbcheck:$VERSION     # 建议固定版本号
 docker run -d -p 5003:5003 \
   --memory=2g --memory-swap=2g \
@@ -1074,6 +1074,64 @@ curl -X POST http://localhost:5003/api/v1/inspect \
 
 ---
 
+# 🧰 MCP Server
+
+RaccoonX 内置一个符合 **Model Context Protocol（MCP）** 的服务端，把巡检能力直接交给 Claude、Cursor、Codex 等支持 MCP 的客户端。
+
+好处很直接：AI 不用你再手工贴 SQL 结果、截图、复制报告，它可以自己列出你的数据源、跑一轮巡检、看阻塞链、查索引健康，再给出结论。
+
+## 启动
+
+```bash
+python -m modules.mcp_server
+```
+
+默认使用 **stdio 传输**（本地受信模式），由 MCP 客户端负责拉起进程，无需开放端口。
+
+## 客户端配置
+
+Claude Desktop / Cursor 等客户端的 `mcpServers` 配置：
+
+```json
+{
+  "mcpServers": {
+    "dbcheck": {
+      "command": "python",
+      "args": ["-m", "modules.mcp_server"],
+      "cwd": "/path/to/DBCheck"
+    }
+  }
+}
+```
+
+## 可用工具（12 个：9 只读 + 3 写类）
+
+| 工具                          | 说明                                        |
+| ----------------------------- | ------------------------------------------- |
+| `dbcheck.list_instances`      | 列出当前用户可见的数据源（密码一律剔除）       |
+| `dbcheck.run_inspection`      | 对指定数据源触发一轮巡检并返回结论             |
+| `dbcheck.slow_queries`        | Top 慢查询、执行计划与 AI 优化建议             |
+| `dbcheck.lock_tree`           | 阻塞链、死锁与长事务树                        |
+| `dbcheck.index_health`        | 缺失、冗余与长期未使用索引                    |
+| `dbcheck.baseline_check`      | 参数与配置基线比对                            |
+| `dbcheck.ai_diagnose`         | 对目标实例做综合 AI 诊断                      |
+| `dbcheck.nl2sql`              | 自然语言转 SQL（经 Chat2DB 上游 MCP 桥接）     |
+| `dbcheck.bicqa_ask`           | 基于 BIC-QA 知识库的数据库问答                 |
+| `dbcheck.kill_session`        | **写类**。终止阻塞会话 —— 只返回待审批工单，不直接执行 |
+| `dbcheck.apply_index`         | **写类**。创建/重建索引 —— 待审批工单，可用 `DROP INDEX` 回滚 |
+| `dbcheck.execute_sql`         | **写类**。执行任意 SQL —— 命中阻断规则即拦截，否则待审批后受控执行 |
+
+> **写操作绝不通过 MCP 直接执行**
+>
+> 三个写类工具都不直接连库执行：调用时把动作转成 SQL 提交到与 Web UI 完全相同的 SQL 审核状态机
+> （WriteGate：**读自动 / 写审批 / 全审计**）。返回 `APPROVAL_REQUIRED` + 任务号；
+> 命中阻断规则的语句返回 `BLOCKED_BY_RULE`，连审批队列都不进。
+> **MCP 客户端无法指定审批人** —— 审批与执行只能在 Web UI 完成，AI 无法绕过审批直接改库。
+
+工具内部复用与 Web UI 相同的用户可见性校验与审计日志，权限模型保持一致：普通用户通过 MCP 只能看到自己能看的数据源。
+
+---
+
 # 📦 打包分发
 
 RaccoonX 可以使用 PyInstaller 打包为独立可执行文件。
@@ -1424,8 +1482,6 @@ RaccoonX 不是由一个大团队打造的。
 它靠代码、反馈、Issue、想法、测试、文档、贡献，以及每一位选择使用它的人成长。
 
 ```text
-32,000+ Docker Pulls
-
 一次拉取一小步，
 我们持续构建。
 
