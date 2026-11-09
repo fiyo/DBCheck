@@ -2509,6 +2509,21 @@ async function executeFixSql(taskId, sql) {
   cursor: not-allowed;
   transform: none;
 }
+/* 对话引擎切换：配置的 AI 模型 / BIC-QA 外部知识库（输入框下方） */
+.chat-engine-bar { display:flex; align-items:center; flex-wrap:wrap; gap:6px; }
+.chat-engine-label { font-size:11px; color:var(--text-muted); flex:0 0 auto; }
+.chat-engine-switch { display:inline-flex; align-items:center; gap:4px; }
+.chat-engine-btn {
+  font-family:inherit; font-size:11.5px; line-height:1.4; padding:3px 10px;
+  border:1px solid var(--border); border-radius:14px;
+  background:transparent; color:var(--text-muted); cursor:pointer;
+  white-space:nowrap; transition:background .2s ease, color .2s ease, border-color .2s ease;
+}
+.chat-engine-btn:hover:not(.active):not(:disabled) { background:var(--surface2); color:var(--text); }
+.chat-engine-btn.active { background:var(--accent2); border-color:var(--accent2); color:#fff; }
+.chat-engine-btn:disabled { opacity:.5; cursor:not-allowed; }
+.chat-engine-note { flex:1 0 100%; font-size:10.5px; line-height:1.4; color:var(--text-muted); }
+
 /* 模式切换按钮 */
 .chat-mode-btn {
   padding: 4px 12px;
@@ -3314,6 +3329,7 @@ async function executeFixSql(taskId, sql) {
 .home-hero {
   position: relative;
   display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
@@ -3407,35 +3423,175 @@ async function executeFixSql(taskId, sql) {
   50%      { transform: scale(1.06); }
 }
 
-/* 首屏 6 统计 */
-.hero-stats {
+/* 首屏 6 统计：与巡检日历同框，右侧 3 列 × 2 行彩色小卡 */
+.cal-stats-grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 14px;
-  margin-bottom: 22px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+  align-content: stretch;
 }
-.hero-stat-card {
+.hero-stat-item {
+  --stat-accent: #00A884;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  padding: 10px 12px 10px 16px;
   background: var(--surface2);
   border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 18px 16px;
-  text-align: center;
-  transition: transform .15s ease, box-shadow .15s ease;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
 }
-.hero-stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,.12); }
+.hero-stat-item:nth-child(1) { --stat-accent: #00A884; }
+.hero-stat-item:nth-child(2) { --stat-accent: #3FBF8F; }
+.hero-stat-item:nth-child(3) { --stat-accent: #38BDF8; }
+.hero-stat-item:nth-child(4) { --stat-accent: #A78BFA; }
+.hero-stat-item:nth-child(5) { --stat-accent: #F5A524; }
+.hero-stat-item:nth-child(6) { --stat-accent: #F472B6; }
+.hero-stat-item::before {
+  content: '';
+  position: absolute; left: 0; top: 12px; bottom: 12px;
+  width: 3px; border-radius: 0 3px 3px 0;
+  background: var(--stat-accent);
+}
+.hero-stat-item::after {
+  content: '';
+  position: absolute; right: -20px; top: -20px;
+  width: 62px; height: 62px; border-radius: 50%;
+  background: var(--stat-accent); opacity: .08;
+  pointer-events: none;
+}
+.hero-stat-item:hover {
+  transform: translateY(-2px);
+  border-color: var(--stat-accent);
+  box-shadow: 0 8px 20px rgba(0,0,0,.14);
+}
 .hero-stat-num {
-  font-size: 30px;
+  position: relative;
+  font-size: 26px;
   font-weight: 800;
-  line-height: 1;
+  line-height: 1.05;
   color: var(--text);
   letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
 }
 .hero-stat-label {
-  margin-top: 8px;
-  font-size: 12px;
+  position: relative;
+  margin-top: 5px;
+  font-size: 11px;
   color: var(--text-muted);
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
+
+/* ── 近一年巡检日历（GitHub 贡献图式） ── */
+.cal-card {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px 18px 12px;
+  margin-bottom: 22px;
+}
+/* 左：全年格子；右：两行统计卡。窄屏自动堆叠 */
+.cal-body {
+  display: flex;
+  align-items: stretch;
+  gap: 18px;
+}
+.cal-left {
+  flex: 0 1 712px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.cal-stats {
+  flex: 1 1 300px;
+  min-width: 260px;
+  display: flex;
+  align-items: stretch;
+  border-left: 1px solid var(--border);
+  padding-left: 18px;
+}
+.cal-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; margin-bottom: 10px;
+}
+.cal-head-left { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.cal-title { font-size: 14px; font-weight: 700; color: var(--text); }
+.cal-summary { font-size: 12px; color: var(--text-muted); }
+.cal-hint { font-size: 11px; color: var(--text-muted); }
+.cal-scroll { overflow-x: auto; overflow-y: hidden; padding-bottom: 2px; }
+.cal-inner { display: inline-block; min-width: 100%; }
+.cal-months {
+  display: grid;
+  grid-template-columns: repeat(53, 10px);
+  gap: 3px;
+  margin-left: 26px;
+  margin-bottom: 4px;
+  height: 14px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.cal-months span { white-space: nowrap; grid-row: 1; }
+.cal-main { display: flex; gap: 4px; }
+.cal-weekdays {
+  display: grid;
+  grid-template-rows: repeat(7, 10px);
+  gap: 3px;
+  width: 22px;
+  flex: 0 0 22px;
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 10px;
+}
+.cal-grid {
+  display: grid;
+  grid-template-rows: repeat(7, 10px);
+  grid-auto-flow: column;
+  grid-auto-columns: 10px;
+  gap: 3px;
+}
+.cal-cell {
+  display: block;
+  width: 10px; height: 10px;
+  border-radius: 2px;
+  background: var(--border);
+}
+.cal-cell--none { background: var(--border); }
+.cal-cell--0 { background: #EF4444; }
+.cal-cell--1 { background: #F5A524; }
+.cal-cell--2 { background: #8FD36B; }
+.cal-cell--3 { background: #3FBF8F; }
+.cal-cell--4 { background: #00A884; }
+.cal-grid .cal-cell[data-date] { cursor: help; }
+.cal-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; margin-top: 10px;
+}
+.cal-legend { display: flex; align-items: center; gap: 4px; }
+.cal-legend-text { font-size: 11px; color: var(--text-muted); margin-right: 2px; }
+.cal-legend-sep { width: 12px; }
+.cal-note { font-size: 11px; color: var(--text-muted); }
+.cal-empty {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 10px; font-size: 12px; color: var(--text-muted);
+}
+.cal-tooltip {
+  position: absolute; z-index: 30; pointer-events: none;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 10px; font-size: 11px;
+  color: var(--text); line-height: 1.6; box-shadow: 0 6px 18px rgba(0,0,0,.18);
+  white-space: nowrap;
+}
+.cal-tooltip b { font-weight: 700; }
 
 /* 健康驾驶舱（可折叠） */
 .health-cockpit {
@@ -3486,14 +3642,31 @@ async function executeFixSql(taskId, sql) {
 .quotes-card--muted .quotes-icon { font-size: 16px; }
 
 /* 响应式 */
+@media (max-width: 1320px) {
+  .cal-body { flex-direction: column; gap: 14px; }
+  .cal-left { flex: 1 1 auto; }
+  .cal-stats {
+    min-width: 0;
+    border-left: 0;
+    border-top: 1px solid var(--border);
+    padding-left: 0;
+    padding-top: 14px;
+  }
+  .cal-stats-grid { grid-template-rows: repeat(2, minmax(66px, 1fr)); }
+}
 @media (max-width: 1100px) {
   .home-hero { padding-right: 110px; }
-  .hero-stats { grid-template-columns: repeat(3, 1fr); }
+  .cal-card { padding: 12px 14px 10px; }
   .hero-mascot { width: 76px; right: 14px; }
 }
 @media (max-width: 640px) {
   .home-hero { padding-right: 22px; } /* 移动端取消吉祥物预留空间 */
-  .hero-stats { grid-template-columns: repeat(2, 1fr); }
+  .cal-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: none;
+    grid-auto-rows: minmax(66px, auto);
+  }
+  .cal-hint { display: none; }
   .hero-mascot { display: none; }
 }
 </style>
@@ -7810,32 +7983,77 @@ function wfCloseRunDrawer() {
           <img class="hero-mascot" id="hero-mascot-img" src="/mascot.png" alt="{{ product_name }} Mascot" data-page-node-id="zkQuXxe4J7Tpd3UTdxQJvd">
         </section>
 
-        <!-- ══ 首屏 6 统计 ══ -->
-        <section class="hero-stats" id="hero-stats" data-page-node-id="JsByGcGxvdqx7j51hIuPOO">
-          <div class="hero-stat-card" data-page-node-id="6vPWtJMvj2C5Bex3FpmVTr">
-            <div class="hero-stat-num" id="hero-stat-datasource" data-page-node-id="0mU1PuCuoqxT4fHMHmLFSm">0</div>
-            <div class="hero-stat-label" data-i18n="webui.home_stat_datasources" data-page-node-id="MTTwvfTXFBblUiiuQuJMpb">已接入数据源</div>
+        <!-- ══ 近一年巡检日历（GitHub 贡献图式） ══ -->
+        <section class="cal-card" id="inspection-calendar-card" aria-label="近一年巡检日历">
+          <div class="cal-head">
+            <div class="cal-head-left">
+              <span class="cal-title" data-i18n="webui.home_cal_title">近一年巡检</span>
+              <span class="cal-summary" id="cal-summary">--</span>
+            </div>
+            <span class="cal-hint" data-i18n="webui.home_cal_hint">按当日最差健康评分着色</span>
           </div>
-          <div class="hero-stat-card" data-page-node-id="SY3vIdJFOGXpJ3OV504D2M">
-            <div class="hero-stat-num" id="hero-stat-dbtype" data-page-node-id="F5fnHIxtdAsugzDC3iW9XO">0</div>
-            <div class="hero-stat-label" data-i18n="webui.home_stat_db_types" data-page-node-id="vemqpyAUhAo1zWa5gZAKzd">支持数据库类型</div>
+          <div class="cal-body">
+            <div class="cal-left">
+              <div class="cal-scroll">
+                <div class="cal-inner">
+                  <div class="cal-months" id="cal-months"></div>
+                  <div class="cal-main">
+                    <div class="cal-weekdays" id="cal-weekdays"></div>
+                    <div class="cal-grid" id="cal-grid"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="cal-foot">
+                <div class="cal-legend">
+                  <span class="cal-legend-text" data-i18n="webui.home_cal_none">未巡检</span>
+                  <span class="cal-cell cal-cell--none"></span>
+                  <span class="cal-legend-sep"></span>
+                  <span class="cal-legend-text" data-i18n="webui.home_cal_worse">差</span>
+                  <span class="cal-cell cal-cell--0"></span>
+                  <span class="cal-cell cal-cell--1"></span>
+                  <span class="cal-cell cal-cell--2"></span>
+                  <span class="cal-cell cal-cell--3"></span>
+                  <span class="cal-cell cal-cell--4"></span>
+                  <span class="cal-legend-text" data-i18n="webui.home_cal_better">好</span>
+                </div>
+                <span class="cal-note" data-i18n="webui.home_cal_note">灰色表示这一天没有进行巡检</span>
+              </div>
+              <div class="cal-empty" id="cal-empty" style="display:none">
+                <span data-i18n="webui.home_cal_empty">近一年还没有巡检记录，先跑一次巡检吧</span>
+                <button class="btn btn-primary" onclick="showPage('wizard')" data-i18n="webui.home_cal_go">立即巡检</button>
+              </div>
+            </div>
+            <!-- 六项统计：3 列 × 2 行小卡，与全年格子同框；id 保持 hero-stat-* 不变 -->
+            <aside class="cal-stats">
+              <div class="cal-stats-grid" id="hero-stats" data-page-node-id="JsByGcGxvdqx7j51hIuPOO">
+                <div class="hero-stat-item">
+                  <div class="hero-stat-num" id="hero-stat-datasource">0</div>
+                  <div class="hero-stat-label" data-i18n="webui.home_stat_datasources">已接入数据源</div>
+                </div>
+                <div class="hero-stat-item">
+                  <div class="hero-stat-num" id="hero-stat-dbtype">0</div>
+                  <div class="hero-stat-label" data-i18n="webui.home_stat_db_types">支持数据库类型</div>
+                </div>
+                <div class="hero-stat-item">
+                  <div class="hero-stat-num" id="hero-stat-inspection">0</div>
+                  <div class="hero-stat-label" data-i18n="webui.home_stat_inspections">累计巡检次数</div>
+                </div>
+                <div class="hero-stat-item">
+                  <div class="hero-stat-num" id="hero-stat-baseline">0</div>
+                  <div class="hero-stat-label" data-i18n="webui.home_stat_baseline">基线数</div>
+                </div>
+                <div class="hero-stat-item">
+                  <div class="hero-stat-num" id="hero-stat-rule">0</div>
+                  <div class="hero-stat-label" data-i18n="webui.home_stat_rules">巡检规则</div>
+                </div>
+                <div class="hero-stat-item">
+                  <div class="hero-stat-num" id="hero-stat-job">0</div>
+                  <div class="hero-stat-label" data-i18n="webui.home_stat_tasks">定时巡检任务</div>
+                </div>
+              </div>
+            </aside>
           </div>
-          <div class="hero-stat-card" data-page-node-id="8xd46LXoj2fBEFx4pt0jGa">
-            <div class="hero-stat-num" id="hero-stat-inspection" data-page-node-id="7XHyEKhCelZONmZBF3J8Ss">0</div>
-            <div class="hero-stat-label" data-i18n="webui.home_stat_inspections" data-page-node-id="SRYztQGxlZUqa293EreYyO">累计巡检次数</div>
-          </div>
-          <div class="hero-stat-card" data-page-node-id="t0YVYVmJrqRjLJyoW3JMam">
-            <div class="hero-stat-num" id="hero-stat-baseline" data-page-node-id="hdVuRywcw3HRb3KnWPA8g5">0</div>
-            <div class="hero-stat-label" data-i18n="webui.home_stat_baseline" data-page-node-id="sjQyoVmG3WbQ3Ncqn8bv89">基线数</div>
-          </div>
-          <div class="hero-stat-card" data-page-node-id="QVbdr67AI0jJM9JxH86T4n">
-            <div class="hero-stat-num" id="hero-stat-rule" data-page-node-id="tiA2aTNdt8B0cLSef3n0S2">0</div>
-            <div class="hero-stat-label" data-i18n="webui.home_stat_rules" data-page-node-id="UIdjyo3HEBH6z5L0lzHQnk">巡检规则</div>
-          </div>
-          <div class="hero-stat-card" data-page-node-id="rfT5QdAJyOIC9xcLmhyfcc">
-            <div class="hero-stat-num" id="hero-stat-job" data-page-node-id="9uSQRCquuWtXGx95oTS9x0">0</div>
-            <div class="hero-stat-label" data-i18n="webui.home_stat_tasks" data-page-node-id="MYCFkw7cvFDDHhKurzC1d1">定时巡检任务</div>
-          </div>
+          <div class="cal-tooltip" id="cal-tooltip" style="display:none"></div>
         </section>
 
         <!-- ══ 健康驾驶舱（可折叠，默认展开）══ -->
@@ -21253,6 +21471,8 @@ async function loadHomeStats() {
     try { const r = await fetch('/api/rag/documents'); dataRag = await r.json(); } catch(e) {}
     try { const r = await fetch('/api/home_stats'); dataHome = await r.json(); } catch(e) {}
     try { const r = await fetch('/api/db_types'); const _arr = await r.json(); dataDbTypes = Array.isArray(_arr) ? _arr : []; } catch(e) {}
+    // 近一年巡检日历：独立请求，失败不影响首页其它统计
+    try { const r = await fetch('/api/home/inspection_calendar?days=365'); renderInspectionCalendar(await r.json()); } catch(e) { console.error('Failed to load inspection calendar:', e); }
 
     // 1. 健康评分摘要（紧凑卡片——详细仪表盘见下方「健康态势大屏」）
     const dashEl = document.getElementById('home-health-dashboard');
@@ -21489,6 +21709,173 @@ async function loadHomeStats() {
 
   } catch(e) {
     console.error('Failed to load home stats:', e);
+  }
+}
+
+// ─── 近一年巡检日历（GitHub 贡献图式） ─────────────────────
+// 数据来自 /api/home/inspection_calendar，色块取「当日最差健康评分」；
+// 灰格由前端补齐，接口只返回有巡检的日期，一年最多 366 条。
+const CAL_WEEKS = 53;
+const CAL_DAYS = CAL_WEEKS * 7;
+const CAL_I18N_FALLBACK = {
+  'webui.home_cal_title': '近一年巡检',
+  'webui.home_cal_hint': '按当日最差健康评分着色',
+  'webui.home_cal_none': '未巡检',
+  'webui.home_cal_worse': '差',
+  'webui.home_cal_better': '好',
+  'webui.home_cal_note': '灰色表示这一天没有进行巡检',
+  'webui.home_cal_empty': '近一年还没有巡检记录，先跑一次巡检吧',
+  'webui.home_cal_go': '立即巡检',
+  'webui.home_cal_summary': '近一年 {0} 天有巡检 · 共 {1} 次',
+  'webui.home_cal_tip_none': '当天没有巡检',
+  'webui.home_cal_tip_count': '巡检 {0} 次',
+  'webui.home_cal_tip_worst': '最差 {0} 分',
+  'webui.home_cal_tip_avg': '平均 {0} 分',
+  'webui.home_cal_tip_risk': '异常 {0} 项',
+  'webui.home_cal_months': '1月,2月,3月,4月,5月,6月,7月,8月,9月,10月,11月,12月',
+  'webui.home_cal_weekdays': '一,三,五',
+  'webui.home_cal_error': '巡检日历加载失败'
+};
+
+function calText(key) {
+  let s = (typeof i18n === 'function') ? i18n(key) : undefined;
+  if (s === undefined || s === null || s === '') s = CAL_I18N_FALLBACK[key] || key;
+  return String(s);
+}
+
+function calFmt(key) {
+  let s = calText(key);
+  for (let i = 1; i < arguments.length; i++) {
+    s = s.split('{' + (i - 1) + '}').join(String(arguments[i]));
+  }
+  return s;
+}
+
+function calEsc(s) {
+  if (typeof escHtml === 'function') return escHtml(s);
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+    return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c];
+  });
+}
+
+// 5 档 + 灰：与图例、后端 min_score 口径一一对应
+function calLevel(score) {
+  const n = Number(score);
+  if (!isFinite(n)) return -1;
+  if (n >= 90) return 4;
+  if (n >= 75) return 3;
+  if (n >= 60) return 2;
+  if (n >= 45) return 1;
+  return 0;
+}
+
+function calDateKey(d) {
+  return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+}
+
+function calParseDay(s) {
+  const p = String(s || '').split('-');
+  return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+}
+
+function renderInspectionCalendar(data) {
+  const grid = document.getElementById('cal-grid');
+  if (!grid) return;
+  const monthsEl = document.getElementById('cal-months');
+  const weekdaysEl = document.getElementById('cal-weekdays');
+  const summaryEl = document.getElementById('cal-summary');
+  const emptyEl = document.getElementById('cal-empty');
+  const tooltipEl = document.getElementById('cal-tooltip');
+  const cardEl = document.getElementById('inspection-calendar-card');
+  const payload = data || {};
+  const items = Array.isArray(payload.items) ? payload.items : [];
+  const byDate = {};
+  items.forEach(function(it) { if (it && it.date) byDate[it.date] = it; });
+
+  // 后端已把查询窗口起点对齐到周日，网格从该起点铺满固定 53 周 × 7 天，
+  // 最后一列包含 until（今天）；窗口与网格同源，不会出现左边界漏着色。
+  const start = payload.since ? calParseDay(payload.since) : new Date();
+  start.setHours(0, 0, 0, 0);
+
+  // 月份标签：以每周三所在月为准，换月才标，避免跨月抖动
+  let monthNames = calText('webui.home_cal_months').split(',');
+  if (monthNames.length !== 12) {
+    monthNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  }
+  let monthHtml = '';
+  let lastMonth = -1;
+  for (let w = 0; w < CAL_WEEKS; w++) {
+    const mid = new Date(start);
+    mid.setDate(start.getDate() + w * 7 + 3);
+    if (mid.getMonth() !== lastMonth) {
+      lastMonth = mid.getMonth();
+      monthHtml += '<span style="grid-column:' + (w + 1) + '">' + calEsc(monthNames[lastMonth]) + '</span>';
+    }
+  }
+  if (monthsEl) monthsEl.innerHTML = monthHtml;
+
+  const weekLabels = calText('webui.home_cal_weekdays').split(',');
+  const weekMap = {1: weekLabels[0] || '一', 3: weekLabels[1] || '三', 5: weekLabels[2] || '五'};
+  let weekHtml = '';
+  for (let r = 0; r < 7; r++) {
+    weekHtml += '<span style="grid-row:' + (r + 1) + '">' + calEsc(weekMap[r] || '') + '</span>';
+  }
+  if (weekdaysEl) weekdaysEl.innerHTML = weekHtml;
+
+  let cells = '';
+  for (let i = 0; i < CAL_DAYS; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    const key = calDateKey(d);
+    const it = byDate[key];
+    const lv = it ? calLevel(it.min_score) : -1;
+    const cls = lv < 0 ? 'cal-cell--none' : 'cal-cell--' + lv;
+    cells += '<span class="cal-cell ' + cls + '" data-date="' + key + '"></span>';
+  }
+  grid.innerHTML = cells;
+
+  const totalRuns = payload.total_inspections != null
+    ? payload.total_inspections
+    : items.reduce(function(a, b) { return a + (Number(b.count) || 0); }, 0);
+  if (summaryEl) {
+    summaryEl.textContent = payload.ok === false
+      ? calText('webui.home_cal_error')
+      : calFmt('webui.home_cal_summary', items.length, totalRuns);
+  }
+  if (emptyEl) emptyEl.style.display = items.length ? 'none' : 'flex';
+
+  // 事件委托：hover 显示当天明细，不逐格绑定事件
+  if (tooltipEl && cardEl) {
+    grid.onmouseover = function(e) {
+      const cell = (e.target && e.target.closest) ? e.target.closest('.cal-cell[data-date]') : null;
+      if (!cell) return;
+      const key = cell.getAttribute('data-date');
+      const it = byDate[key];
+      let html = '<b>' + calEsc(key) + '</b>';
+      if (!it) {
+        html += '<br>' + calEsc(calText('webui.home_cal_tip_none'));
+      } else {
+        html += '<br>' + calEsc(calFmt('webui.home_cal_tip_count', it.count));
+        html += '<br>' + calEsc(calFmt('webui.home_cal_tip_worst', it.min_score))
+              + ' · ' + calEsc(calFmt('webui.home_cal_tip_avg', it.avg_score));
+        if (Number(it.risk_count) > 0) {
+          html += '<br>' + calEsc(calFmt('webui.home_cal_tip_risk', it.risk_count));
+        }
+        if (it.worst_instance) html += '<br>' + calEsc(it.worst_instance);
+      }
+      tooltipEl.innerHTML = html;
+      tooltipEl.style.display = 'block';
+      const cr = cardEl.getBoundingClientRect();
+      const br = cell.getBoundingClientRect();
+      let left = br.left - cr.left + 12;
+      let top = br.top - cr.top - tooltipEl.offsetHeight - 6;
+      if (top < 4) top = br.bottom - cr.top + 6;
+      const maxLeft = cr.width - tooltipEl.offsetWidth - 8;
+      if (left > maxLeft) left = Math.max(4, maxLeft);
+      tooltipEl.style.left = left + 'px';
+      tooltipEl.style.top = top + 'px';
+    };
+    grid.onmouseout = function() { tooltipEl.style.display = 'none'; };
   }
 }
 
@@ -23280,6 +23667,8 @@ function setInputEnabled(enabled) {
   const btn = document.getElementById('chat-send-btn');
   if (textarea) textarea.disabled = !enabled;
   if (btn) btn.disabled = !enabled;
+  // 请求进行中不允许切换对话引擎，避免出现「气泡归属」与当前引擎不一致
+  document.querySelectorAll('.chat-engine-btn').forEach(function(b) { b.disabled = !enabled; });
 }
 
 function showChatStatus(text) {
@@ -23302,11 +23691,136 @@ function setChatMode(mode) {
   if (mode === 'qa') {
     badge.textContent = '问答模式';
     badge.style.display = 'inline-block';
+    badge.style.background = 'rgba(76,175,80,0.15)';
+    badge.style.color = '#00C8A0';
   } else if (mode === 'inspect') {
     badge.textContent = '巡检模式';
     badge.style.display = 'inline-block';
+    badge.style.background = 'rgba(76,175,80,0.15)';
+    badge.style.color = '#00C8A0';
+  } else if (mode === 'bicqa') {
+    badge.textContent = i18n('webui.chat_bicqa_badge') || 'BIC-QA 模式';
+    badge.style.display = 'inline-block';
+    badge.style.background = 'rgba(10,42,110,0.15)';
+    badge.style.color = 'var(--accent2)';
   } else {
     badge.style.display = 'none';
+  }
+}
+
+// ─── 对话引擎：配置的 AI 模型（默认） / BIC-QA 外部知识库 ─────────────────────
+// BIC-QA 走 /api/bicqa/ask 协议层只读问答，不进入 /api/chat 的意图识别与 SSE 流。
+// 官方桥接每次新建会话，故由前端拼接最近 2 轮问答作为上下文（同样按配置脱敏后外发）。
+let chatEngine = 'ai';
+let chatBicqaTurns = [];
+
+function setChatEngine(engine) {
+  const next = (engine === 'bicqa') ? 'bicqa' : 'ai';
+  chatEngine = next;
+  document.querySelectorAll('.chat-engine-btn').forEach(function(btn) {
+    const on = btn.getAttribute('data-engine') === next;
+    btn.classList.toggle('active', on);
+    btn.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
+  const note = document.getElementById('chat-engine-note');
+  if (note) note.style.display = next === 'bicqa' ? 'block' : 'none';
+  setChatMode(next === 'bicqa' ? 'bicqa' : '');
+  try { localStorage.setItem('dbcheck_chat_engine', next); } catch (e) {}
+  const bar = document.getElementById('chat-status-bar');
+  if (next === 'bicqa') {
+    preloadChatBicqaCfg().then(updateChatEngineStatus);
+  } else {
+    if (bar) { bar.onclick = null; bar.style.cursor = ''; }
+    hideChatStatus();
+  }
+}
+
+function initChatEngine() {
+  let saved = 'ai';
+  try { saved = localStorage.getItem('dbcheck_chat_engine') || 'ai'; } catch (e) { saved = 'ai'; }
+  setChatEngine(saved);
+}
+
+async function preloadChatBicqaCfg() {
+  try {
+    const r = await fetch('/api/bicqa/config');
+    if (r.ok) {
+      const d = await r.json();
+      if (d && typeof d === 'object' && typeof __bicqaCfg !== 'undefined') __bicqaCfg = d;
+    }
+  } catch (e) {
+    // 配置接口不可用时保留默认值；发送时由后端返回明确的 BICQA_UNAVAILABLE
+  }
+}
+
+function updateChatEngineStatus() {
+  if (chatEngine !== 'bicqa') return;
+  const cfg = (typeof __bicqaCfg !== 'undefined' && __bicqaCfg) ? __bicqaCfg : {};
+  const ready = !!(cfg.enabled && cfg.has_key);
+  const bar = document.getElementById('chat-status-bar');
+  if (ready) {
+    showChatStatus(i18n('webui.chat_engine_bicqa_ready') || '🌐 外部知识库问答 · 内容按配置脱敏 · 仅供参考');
+    if (bar) { bar.onclick = null; bar.style.cursor = ''; }
+  } else {
+    showChatStatus(i18n('webui.chat_engine_bicqa_not_ready') || '⚠️ BIC-QA 未启用或未配置 API Key，点此前往配置');
+    if (bar) { bar.style.cursor = 'pointer'; bar.onclick = function() { showPage('bicqa'); }; }
+  }
+}
+
+function buildBicqaQuestion(message) {
+  const prev = chatBicqaTurns.slice(-2);
+  if (!prev.length) return message;
+  const lines = prev.map(function(t) {
+    return 'Q: ' + String(t.q || '').slice(0, 400) + '\nA: ' + String(t.a || '').slice(0, 300);
+  });
+  return (i18n('webui.chat_bicqa_context_prefix') || '以下为此前的问答，仅供参考：')
+    + '\n' + lines.join('\n') + '\n\n当前问题：' + message;
+}
+
+async function sendBicqaChatMessage(message, context) {
+  const ctx = context || {};
+  const cfg = (typeof __bicqaCfg !== 'undefined' && __bicqaCfg) ? __bicqaCfg : {};
+  const dbtype = String(ctx.db_type || cfg.default_dbtype || '').trim();
+  const payload = {
+    question: buildBicqaQuestion(message),
+    dbtype: dbtype,
+    mask: cfg.enable_masking !== false
+  };
+  try {
+    const res = await fetch('/api/bicqa/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload)
+    });
+    const d = await res.json();
+    hideTypingIndicator();
+    if (d && d.ok && d.result) {
+      const html = (typeof bicqaFourSegHtml === 'function')
+        ? bicqaFourSegHtml(String(d.result)) : renderMarkdown(String(d.result));
+      addChatMessage(html, 'ai', true);
+      chatBicqaTurns.push({ q: message, a: String(d.result) });
+      if (chatBicqaTurns.length > 6) chatBicqaTurns = chatBicqaTurns.slice(-6);
+    } else if (d && d.error_code === 'BICQA_UNAVAILABLE') {
+      const link = '<a href="#" onclick="showPage(\'bicqa\');return false">'
+        + escHtml(i18n('webui.chat_bicqa_goto_config') || '前往 BIC-QA 知识库配置') + '</a>';
+      addChatMessage('⚠️ '
+        + escHtml(i18n('webui.chat_engine_bicqa_not_ready') || 'BIC-QA 未启用或未配置 API Key')
+        + ' ' + link + '<br><span style="font-size:11px;color:var(--text-muted)">'
+        + escHtml(i18n('webui.chat_bicqa_no_send') || '未配置时不向外部发送任何数据。')
+        + '</span>', 'ai', true);
+    } else {
+      addChatMessage('❌ '
+        + escHtml(i18n('webui.chat_bicqa_failed') || 'BIC-QA 调用失败：')
+        + escHtml((d && (d.error || d.msg)) || (i18n('webui.chat_unknown_error') || '未知错误')), 'ai', true);
+    }
+  } catch (e) {
+    hideTypingIndicator();
+    addChatMessage('❌ '
+      + escHtml(i18n('webui.chat_bicqa_failed') || 'BIC-QA 调用失败：')
+      + escHtml(e.message || String(e)), 'ai', true);
+  } finally {
+    setInputEnabled(true);
   }
 }
 
@@ -23449,8 +23963,11 @@ function clearChatSession() {
       'ai', true
     );
     chatSessionId = 'default_' + Math.random().toString(36).slice(2, 8);
-    hideChatStatus();
-    setChatMode('');
+    // BIC-QA 的上下文只保存在前端，清空对话时一并重置；后端 /clear 仍清 AI 会话
+    chatBicqaTurns = [];
+    if (chatEngine === 'bicqa') updateChatEngineStatus();
+    else hideChatStatus();
+    setChatMode(chatEngine === 'bicqa' ? 'bicqa' : '');
   });
 }
 
@@ -23574,6 +24091,12 @@ async function sendChatMessage() {
 
   // 自动获取当前页面上下文
   const context = getChatContext();
+
+  // 对话引擎分叉：BIC-QA 走外部知识库问答，不进入巡检意图识别与 SSE 流
+  if (chatEngine === 'bicqa') {
+    await sendBicqaChatMessage(message, context);
+    return;
+  }
 
   // v2.6.3：使用 SSE 流式接收
   try {
@@ -24727,6 +25250,20 @@ async function deleteBackupHistory(recordId) {
     <textarea id="chat-textarea" class="chat-textarea" rows="2"
               placeholder="输入问题或巡检需求，如：检查MySQL连接数..."
               onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();sendChatMessage()}"></textarea>
+    <!-- 对话引擎切换：默认走已配置的 AI 模型；切到 BIC-QA 后走 /api/bicqa/ask 外部知识库问答 -->
+    <div class="chat-engine-bar" id="chat-engine-bar">
+      <span class="chat-engine-label" data-i18n="webui.chat_engine_label">引擎</span>
+      <div class="chat-engine-switch" role="tablist" aria-label="chat engine">
+        <button type="button" id="chat-engine-ai" class="chat-engine-btn active" data-engine="ai"
+                role="tab" aria-selected="true" onclick="setChatEngine('ai')"
+                data-i18n="webui.chat_engine_ai">配置的 AI 模型</button>
+        <button type="button" id="chat-engine-bicqa" class="chat-engine-btn" data-engine="bicqa"
+                role="tab" aria-selected="false" onclick="setChatEngine('bicqa')"
+                data-i18n="webui.chat_engine_bicqa">BIC-QA 知识库</button>
+      </div>
+      <span class="chat-engine-note" id="chat-engine-note" data-i18n="webui.chat_engine_bicqa_note"
+            style="display:none">外部知识库 · 内容按配置脱敏 · 仅供参考，变更操作请走工单审批</span>
+    </div>
     <div style="display:flex;align-items:center;justify-content:space-between" data-page-node-id="xFwdd50xoHyqinxbtFjcIv">
       <span id="chat-hint" style="font-size:11px;color:var(--text-secondary)" data-page-node-id="HZf3KRbmG4ZlQfH79SPUGO">Enter 发送，Shift+Enter 换行</span>
       <button class="chat-send-btn" id="chat-send-btn" onclick="sendChatMessage()" title="发送" data-page-node-id="Y3Fh1jf3dqISCzTFfC34lo">➤</button>
@@ -28232,6 +28769,7 @@ const STATIC_DB_PH_MAP = {'pg':'postgres','ivorysql':'ivorysql','kingbase':'king
   document.addEventListener('DOMContentLoaded', () => {
     loadDbTypes();
     syncShowAiAssistant();
+    initChatEngine();
     initChartResizeObserver();
   });
   </script>

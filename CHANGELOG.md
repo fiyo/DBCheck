@@ -1,5 +1,39 @@
 # Changelog
 
+## v26.11.9.1 (2026-11-09)
+
+### 新增：AI 聊天助手接入 BIC-QA 知识库
+
+- 右侧 AI 面板输入框下方新增「引擎」切换：**配置的 AI 模型**（默认，原 `/api/chat/stream` SSE 链路一字未改）/ **BIC-QA 知识库**（走既有 `/api/bicqa/ask`，复用四段式渲染）。发送逻辑在取页面上下文之后、SSE 之前分叉，BIC-QA 不进入巡检意图识别。
+- BIC-QA 请求携带 `dbtype`（优先当前页面数据源类型，回落配置默认库型）与 `mask`（遵循 `enable_masking` 脱敏开关）；切换时预加载 `/api/bicqa/config`，未配置 Key 时状态栏可直达配置页。
+- 官方桥接每次提问新建会话，前端把最近 2 轮问答拼进问题作为上下文，最多保留 6 轮，清空对话一并重置。引擎选择持久化到 localStorage，请求中禁用切换防止串话，标题栏显示「BIC-QA 模式」徽标，中英文案同步（新增 11 个 i18n 键）。
+- 边界：`/api/bicqa/ask` 只校验 API Key、不校验 `bicqa.enabled`，前端仅提示不拦截；本次未改后端接口。
+
+### 新增：近一年巡检日历（按当日最差评分着色）
+
+- 首页新增 GitHub 贡献图式 **53 周 × 7 天** 热力图：灰色=未巡检，≥90 深绿 / ≥75 中绿 / ≥60 浅绿 / ≥45 橙 / <45 红；图例写明「按当日最差健康评分着色」，避免被误读成 GitHub 的「深绿=次数多」。
+- 新增 `GET /api/home/inspection_calendar?days=365`（30~366），按日聚合次数 / 最差分 / 平均分 / 异常数 / 最差实例；前端补灰格、月份与星期标签、hover 明细、空态引导，灰格用 `var(--border)` 跟随深浅主题。`instance_manager.py` 给 `inspect_time` 加 `IF NOT EXISTS` 索引，老库启动自动补齐。
+- 修复边界：后端把查询窗口起点对齐到周日、前端直接用 `since` 铺满 371 格，否则网格最左一列「有巡检却显示灰」且今天落在网格外。
+
+### 改进：首屏统计口径统一与布局整合
+
+- `累计巡检次数` 与按库型分布从 `data/history.db::snapshots` 改为评分历史 `pro_history.db::inspection_history`（与日历同源，按 `normalize_db_type()` 归一，评分历史库缺失时回退旧口径）。本机实测 **396 次 = 按库型 20 类求和 = 日历 396 次 / 56 天有巡检**，三处数字不再打架。
+- 六项统计先收成欢迎卡片内一行小条，再按反馈移入巡检日历卡片右侧，改为 **3 列 × 2 行** 彩色描边小卡（配色呼应热力图色阶、竖分隔线、hover 反馈）；欢迎卡片恢复横向布局。≥1320px 保持两栏，窄屏自动堆叠 / 折列。
+- 6 个 `hero-stat-*` id 与 `data-i18n` 全部保留，`loadHomeStats()` 的数字滚动无需改动；新增 17 个 `webui.home_cal_*` 键（中英同步），其它语言缺键时保留中文原文，不显示 undefined。
+
+### 已知边界
+
+- 评分历史表 `instance_id` 是 `md5(db_type-host-port)`，与实例表主键不同源且无 owner/scope，按可见实例过滤会误杀全部记录；新接口沿用首页既有的**本机全局聚合**口径，多租户隔离仍是独立待办，本次未扩大改造范围。
+- 热力图格子暂只做 hover，不支持点击跳转：`/api/pro/history?limit=20` 尚无 `date=` 参数。
+- 前 6 个月全灰是真实数据（本机巡检历史从 2026-05-07 开始），不是渲染故障。
+
+### 验证
+
+- 三步验证：`compileall -q` EXIT=0；`import modules.web.app` OK；`discover_plugins()` = 12。
+- 主模板 22 个 script 块（约 89 万字符）`node --check` 全通过；CSS 花括号 892/892 平衡；23 个首页 i18n 键中英齐全、DOM 无重复 id。
+- BIC-QA 聊天 mock DOM 19/19 + 分叉 2/2 PASS；热力图真实数据 18/18 PASS；两栏布局结构 22/22 PASS、渲染复跑 6/6 PASS。
+- 接口实测 `inspection_total=396`、`source=score_history`、`inspection_by_db` 20 类求和 396、`active_days=56`、`since=2025-11-09` / `until=2026-11-09`。
+
 ## v26.11.9.0 (2026-11-09)
 
 ### 修复：首页统计口径混乱（规则数 149 → 839）

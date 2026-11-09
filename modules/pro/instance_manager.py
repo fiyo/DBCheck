@@ -678,6 +678,13 @@ class InstanceManager:
             )
         """)
 
+        # 首页巡检日历按近一年范围读取 inspection_history，数据量上来后靠此索引
+        # 避免全表扫描；IF NOT EXISTS 保证老库启动即自动补齐，无需迁移。
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_insp_history_time
+            ON inspection_history(inspect_time)
+        """)
+
         conn.commit()
         conn.close()
 
