@@ -270,7 +270,11 @@ jobs:
       fail-fast: false  # 两个架构互相独立，一个失败不影响另一个跑完（便于一次看全结果）
       matrix:
         include:
-          - { runner: macos-14, arch: arm64 }
+          # GitHub 已于 2026-11-02 退役 macOS 14 runner image(含 macos-14 / -large /
+          # -xlarge 标签)，继续用会让 arm64 job 在分配 runner 前直接被 cancelled，
+          # Release 静默少一个资产。官方推荐 arm64 替代标签：macos-15 / macos-latest。
+          # 这里固定 macos-15(与 x86_64 的 macos-15-intel 同代)，不用会漂移的 latest。
+          - { runner: macos-15, arch: arm64 }
           - { runner: macos-15-intel, arch: x86_64 }
     steps:
       - name: Checkout

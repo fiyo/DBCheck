@@ -25,6 +25,13 @@
 - 安全红线：**MCP 客户端不能自审批**，`approver` 只认进程内受信调用方的形参，`arguments` 里塞的 `approver` / `principal` 一律丢弃。
 - README 中英补 3 个写类工具行，把过时的「写操作不走 MCP」改为「写操作绝不在 MCP 侧直接执行」。
 
+### 修复：CI 出包缺 macOS arm64 资产
+
+- 现象：v26.11.9.0 首次 tag 触发的 `Build Release Binaries` 显示 `cancelled`，Release 只有 Windows + macOS x86_64 两个资产，缺 `RaccoonX-macOS-arm64-*.tar.gz`；两次触发都复现，非偶发。
+- 根因：`Build macOS (arm64)` job 用 `runs-on: macos-14`，而 GitHub 已于 **2026-11-02 退役 macOS 14 runner image**（含 `macos-14` / `-large` / `-xlarge` 标签）。job 在 `runner_id=0`、0 个 step 的情况下 1 秒内被取消，属 runner 池不可用；`fail-fast:false` 让另外两个 job 与 `Attach to Release` 照常成功，于是静默少包。v26.11.5.1（11-05）还能跑通是退役过渡期的残留容量。
+- 修复（`.github/workflows/build-release.yml`）：arm64 runner 改固定为 **`macos-15`**（官方推荐 arm64 标签，与 x86_64 的 `macos-15-intel` 同代），不采用会漂移的 `macos-latest`；全仓仅此一处 `macos-14`。
+- 发版流程补充：本机无 `gh` / `GITHUB_TOKEN`、HTTPS 凭据也不可用 → 无法调 API rerun 或 workflow_dispatch；重触发只能 `git tag -f -a <tag>` + `git push -f origin <tag>`（tag 对象更新会重新触发 `on.push.tags`，Release 不删、下载 URL 不变、`allowUpdates:true` 重传资产）。
+
 ### 其它
 
 - 官网双仓「836+ 巡检规则」→ **839+**（index.html 5 处，口径为 `inspection_query` 表实数）。
