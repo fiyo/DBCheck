@@ -565,6 +565,27 @@ async function executeFixSql(taskId, sql) {
   min-height: 0;
 }
 
+/* 合并菜单的二级 Tab 条：只在进入合并组时显示，不改动任何 page 容器 */
+.merged-tabs {
+  display: none;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  margin: -18px 0 16px;
+  padding: 0 0 10px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.merged-tabs .mt-label { font-size:12px; color:var(--text-muted); margin-right:8px; flex:0 0 auto; }
+.merged-tabs .mt-tab {
+  font-size:12px; padding:5px 12px; border:1px solid var(--border);
+  border-radius:16px; background:transparent; color:var(--text-muted);
+  cursor:pointer; flex:0 0 auto; font-family:inherit;
+}
+.merged-tabs .mt-tab:hover { background:var(--surface2); color:var(--text); }
+.merged-tabs .mt-tab.active { background:var(--accent2); border-color:var(--accent2); color:#fff; }
+
 /* 历史报告 / 趋势分析页面更宽 */
 #page-reports .content,
 #page-trends .content {
@@ -4157,7 +4178,7 @@ async function intelAskBicqa() {
     if (r.ok && r.result) {
       box.innerHTML = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-weight:600;font-size:13.5px">🤖 BIC-QA 知识补充</span><span style="font-size:11.5px;color:var(--text-muted)">外部知识库 · 仅供参考，变更操作请走工单审批</span></div>' + bicqaFourSegHtml(String(r.result));
     } else if (r.error_code === 'BICQA_UNAVAILABLE') {
-      box.innerHTML = '<div class="bicqa-error">BIC-QA 未启用或未配置 API Key。请前往 <a href="#" onclick="showPage(\'bicqa\');loadBicqaPage();return false">BIC-QA 知识库</a> 页配置后再试；未配置时不向外部发送任何数据。</div>';
+      box.innerHTML = '<div class="bicqa-error">BIC-QA 未启用或未配置 API Key。请前往 <a href="#" onclick="showPage(\'bicqa\');return false">BIC-QA 知识库</a> 页配置后再试；未配置时不向外部发送任何数据。</div>';
     } else {
       box.innerHTML = '<div class="bicqa-error">' + escHtml(r.msg || r.error || 'BIC-QA 调用失败') + '</div>';
     }
@@ -5989,7 +6010,7 @@ async function awrAskBicqa() {
       const head = [meta.db_name, meta.instance, meta.snap_range].filter(Boolean).join(' · ');
       box.innerHTML = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap"><span style="font-weight:600;font-size:13.5px">🤖 BIC-QA AWR 分析</span>' + (head ? '<span style="font-size:11.5px;color:var(--text-muted)">' + escHtml(head) + '</span>' : '') + '</div>' + bicqaFourSegHtml(String(r.result));
     } else if (r.error_code === 'BICQA_UNAVAILABLE') {
-      box.innerHTML = '<div class="bicqa-error">BIC-QA 未启用或未配置 API Key。请前往 <a href="#" onclick="showPage(\'bicqa\');loadBicqaPage();return false">BIC-QA 知识库</a> 页配置后再试；未配置时不向外部发送任何数据。</div>';
+      box.innerHTML = '<div class="bicqa-error">BIC-QA 未启用或未配置 API Key。请前往 <a href="#" onclick="showPage(\'bicqa\');return false">BIC-QA 知识库</a> 页配置后再试；未配置时不向外部发送任何数据。</div>';
     } else {
       box.innerHTML = '<div class="bicqa-error">' + escHtml(r.error || r.msg || '分析失败') + '</div>';
     }
@@ -7583,7 +7604,7 @@ function wfCloseRunDrawer() {
     <div class="nav-item" onclick="showPage('intelligence')" id="nav-intelligence" data-page-node-id="Pei5vUyERS4ilMxgshv3FL">
       <span class="icon" data-page-node-id="EF6W16iTlpwu0smlKAoZUV"><svg viewBox="0 0 24 24" aria-hidden="true" data-page-node-id="pDkI4sw5kBnJWbyMRnWM4V"><circle cx="6" cy="6" r="2.5" data-page-node-id="XzVoWicgp6Pesg9dzyClnD"/><circle cx="18" cy="6" r="2.5" data-page-node-id="zVPWuuzyUMCDlIhs9uaQGL"/><circle cx="12" cy="18" r="2.5" data-page-node-id="1uqM8MxbolGvabd6PYSu4l"/><path d="M7.6 7.6 11 16M16.4 7.6 13 16M8 6h8" data-page-node-id="HFrh6zcV9MHKPuCu5sDfCd"/></svg></span> <span data-i18n="webui.nav_intelligence" data-page-node-id="GBjTMOMkjtYBHwYXNVtAw7">智能诊断中心</span>
     </div>
-    <div class="nav-item" onclick="showPage('bicqa'); loadBicqaPage()" id="nav-bicqa" data-page-node-id="bicqaNavX1">
+    <div class="nav-item" onclick="showPage('bicqa')" id="nav-bicqa" data-page-node-id="bicqaNavX1">
       <span class="icon" data-page-node-id="bicqaNavX2"><svg viewBox="0 0 24 24" aria-hidden="true" data-page-node-id="bicqaNavX3"><path d="M4 5a2 2 0 0 1 2-2h6v16H6a2 2 0 0 0-2 2V5Z" data-page-node-id="bicqaNavX4"/><path d="M20 5a2 2 0 0 0-2-2h-6v16h6a2 2 0 0 1 2 2V5Z" data-page-node-id="bicqaNavX5"/><path d="M12 3v16" data-page-node-id="bicqaNavX6"/></svg></span> <span data-i18n="menu.bicqa">BIC-QA 知识库</span>
     </div>
     <div class="nav-item" onclick="showPage('workflow'); loadWorkflowPage()" id="nav-workflow" data-page-node-id="lRYSpwfXIiRwD9wk7jWXLc">
@@ -7763,6 +7784,9 @@ function wfCloseRunDrawer() {
 
     <div class="content" data-page-node-id="MFb7foGL7l8UVC0UGSmTUt">
 
+      <!-- 合并菜单二级导航：由 renderMergedTabs() 按 MENU_MERGE_GROUPS 填充 -->
+      <div id="merged-menu-tabs" class="merged-tabs" role="tablist" aria-label="合并菜单切换"></div>
+
       <!-- ══ Page: Home ══ -->
       <div class="page active" id="page-home" data-page-node-id="2gqowy8G7m63F8Kpw6C95w">
         <!-- 简化标题栏 -->
@@ -7806,7 +7830,7 @@ function wfCloseRunDrawer() {
           </div>
           <div class="hero-stat-card" data-page-node-id="QVbdr67AI0jJM9JxH86T4n">
             <div class="hero-stat-num" id="hero-stat-rule" data-page-node-id="tiA2aTNdt8B0cLSef3n0S2">0</div>
-            <div class="hero-stat-label" data-i18n="webui.home_stat_rules" data-page-node-id="UIdjyo3HEBH6z5L0lzHQnk">规则数</div>
+            <div class="hero-stat-label" data-i18n="webui.home_stat_rules" data-page-node-id="UIdjyo3HEBH6z5L0lzHQnk">巡检规则</div>
           </div>
           <div class="hero-stat-card" data-page-node-id="rfT5QdAJyOIC9xcLmhyfcc">
             <div class="hero-stat-num" id="hero-stat-job" data-page-node-id="9uSQRCquuWtXGx95oTS9x0">0</div>
@@ -8019,7 +8043,7 @@ function wfCloseRunDrawer() {
                 <div class="card-icon" style="background:linear-gradient(135deg,#0A2A6E,#00C8A0);" data-page-node-id="jXvWDHxvjow6bQJDlHr4uo">📏</div>
                 <div data-page-node-id="jWxzWnlsASFEU32zUVem7p">
                   <div class="card-title" data-i18n="webui.home_rule_stats" data-page-node-id="GRgBMJwjR4K3SltHBwyzi7">规则统计</div>
-                  <div class="card-subtitle" data-i18n="webui.home_rule_stats_sub" data-page-node-id="vIitWyJwMMRsSv6orAeIZL">各数据库规则数</div>
+                  <div class="card-subtitle" data-i18n="webui.home_rule_stats_sub" data-page-node-id="vIitWyJwMMRsSv6orAeIZL">规则引擎告警规则（YAML）</div>
                 </div>
               </div>
               <div class="stat-card-body" data-page-node-id="a3GR03lsn9OCsnhdVCLdmf"><div class="stat-num" id="home-rule-num" data-page-node-id="5X1FBgkv90E5sILmnoqWWC">--</div></div>
@@ -12747,6 +12771,57 @@ function dm8OfflineDownloadReport() {
   window.location.href = '/api/dm8_offline/report/' + dm8OfflineTaskId;
 }
 
+// ─── 合并菜单（P1）───────────────────────────────────────────────
+// 把同质的多个一级菜单收敛为一个入口：侧边栏只保留 lead，组内其余页面
+// 通过内容区顶部的 Tab 条切换。所有 page 容器、后端 API 与 seed 菜单项
+// 均保留不动，RBAC 仍按原子菜单码生效；改这份配置即可回退或调整分组。
+const MENU_MERGE_GROUPS = [
+  { lead:'reports', labelKey:'menu.group_history', label:'历史中心',
+    tabs:['reports','server-history','diag-history','run-log','trend'] },
+  { lead:'inspection-config', labelKey:'menu.group_config', label:'巡检配置',
+    tabs:['inspection-config','baseline-config','server-thresholds','rules'] },
+  // BIC-QA 含对话 / 告警分析 / AWR 分析 / 配置四个子功能，原属「智能巡检」分组，
+  // 与 RAG / doc-kb / schema-dict 的事实库维护不是同类，保留为独立一级菜单。
+  { lead:'rag', labelKey:'menu.group_knowledge', label:'知识库',
+    tabs:['rag','doc-kb','schema-dict'] },
+  { lead:'monitor-slow', labelKey:'menu.group_monitor', label:'实时监控',
+    tabs:['monitor-slow','monitor-conn'] },
+];
+const MERGE_GROUP_OF = Object.create(null);
+const MERGE_LEADS = Object.create(null);
+const MERGE_HIDDEN = Object.create(null);
+MENU_MERGE_GROUPS.forEach(function(g){
+  MERGE_LEADS[g.lead] = g;
+  g.tabs.forEach(function(c){
+    MERGE_GROUP_OF[c] = g;
+    if (c !== g.lead) MERGE_HIDDEN[c] = g;
+  });
+});
+window.__visibleMenuCodes = null;
+
+function mtEscape(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function renderMergedTabs(name) {
+  var bar = document.getElementById('merged-menu-tabs');
+  if (!bar) return;
+  var g = MERGE_GROUP_OF[name];
+  if (!g) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
+  var visible = window.__visibleMenuCodes;
+  var html = '<span class="mt-label">' + mtEscape(i18n(g.labelKey) || g.label) + '</span>';
+  g.tabs.forEach(function(code) {
+    if (visible && visible.indexOf(code) < 0) return;
+    if (code === 'rules' && typeof RULES_AVAILABLE !== 'undefined' && !RULES_AVAILABLE) return;
+    var span = document.querySelector('#nav-' + code + ' span:not(.icon)');
+    var label = span ? span.textContent.trim() : code;
+    html += '<button type="button" role="tab" class="mt-tab' + (code === name ? ' active' : '') +
+            '" aria-selected="' + (code === name ? 'true' : 'false') +
+            '" onclick="showPage(\'' + code + '\')">' + mtEscape(label) + '</button>';
+  });
+  bar.innerHTML = html;
+  bar.style.display = 'flex';
+}
+
 // ─── Page Navigation ───
 function showPage(name) {
   // P0-c：切换页面时关闭自治闭环抽屉（避免 fixed 抽屉残留浮层）
@@ -12782,6 +12857,13 @@ function showPage(name) {
   }
   var navEl = document.getElementById('nav-' + name);
   if (navEl) navEl.classList.add('active');
+  // 合并菜单：组内页面共用侧边栏 lead 的高亮，并渲染二级 Tab 条
+  var mergeGroup = MERGE_GROUP_OF[name];
+  if (mergeGroup) {
+    var leadNav = document.getElementById('nav-' + mergeGroup.lead);
+    if (leadNav) leadNav.classList.add('active');
+  }
+  renderMergedTabs(name);
   const titles = {
     home:    [i18n('webui.home_title') || '首页',                      i18n('webui.home_subtitle') || '欢迎使用 {{ product_name }} 数据库巡检工具'],
     wizard:  [i18n('webui.nav_wizard') || '数据库巡检',                    i18n('webui.wizard_desc') || ''],
@@ -12825,6 +12907,9 @@ function showPage(name) {
     'fleet': ['智能基线 · Smart Baseline', '无监督基线学习 + 漂移检测 + 容量预测：从单点巡检到全库智能（P1）'],
     'xinchuang': [i18n('menu.xinchuang') || '信创合规', i18n('webui.xinchuang_subtitle') || '对纳管实例做信创化程度盘点：国产（信创）占比、国外数据库待替换清单、库型分布。'],
     'run-log': [i18n('menu.run-log') || '运行日志', i18n('webui.run_log_subtitle') || '统一汇聚巡检 / 定时巡检 / 智能诊断 / 监控 的运行日志，可按分类过滤。'],
+    'workflow': [i18n('menu.workflow') || '工作流编排', ''],
+    'workflow-task': [i18n('menu.workflow_task') || '工作流任务', ''],
+    'twin': [i18n('menu.twin') || '数字孪生 · 拓扑巡检', ''],
   };
   const t = titles[name] || [name, ''];
   document.getElementById('topbar-title').textContent = t[0];
@@ -12840,6 +12925,7 @@ function showPage(name) {
   if (name === 'ai') loadAIConfig();
   if (name === 'rag') showRagPage();
   if (name === 'doc-kb') loadDocKb();
+  if (name === 'bicqa') loadBicqaPage();
   if (name === 'schema-dict') loadSchemaDict();
   if (name === 'home') loadHomeStats();
   if (name === 'shares') loadShares();
@@ -12849,7 +12935,7 @@ function showPage(name) {
   if (name === 'apikey') loadApiKeys();
   if (name === 'server-history') loadServerHistory();
   if (name === 'account') loadAccountPage();
-  if (name === 'um-admin') loadUmAdminPage();
+  // 用户管理统一由 showUserManagement() 以模态框打开，不走 showPage 页面分支
   if (name === 'oracle-client') loadDrivers();
   if (name === 'plugin-market') loadMarketPlugins();
   if (name === 'run-log') loadRunLog();
@@ -17778,10 +17864,15 @@ function renderHomeCharts(stats, dbTypeMap) {
     baselineNumEl.textContent = Object.values(stats.baseline_by_db || {}).reduce((a, b) => a + (Number(b) || 0), 0);
   }
 
-  // 4. 规则统计：各数据库规则数之和
+  // 4. 规则统计：规则引擎的真实规则总数。
+  // rule_engine_by_db 是「库型×规则」分布（一条规则可适用多个库型），求和会偏大，
+  // 且旧实现用固定别名列表只覆盖部分库型，求和会偏小；总数一律取 rule_engine_total。
   const ruleNumEl = document.getElementById('home-rule-num');
   if (ruleNumEl) {
-    ruleNumEl.textContent = Object.values(stats.rule_engine_by_db || {}).reduce((a, b) => a + (Number(b) || 0), 0);
+    const ruleTotal = Number(stats.rule_engine_total);
+    ruleNumEl.textContent = ruleTotal > 0
+      ? ruleTotal
+      : Object.values(stats.rule_engine_by_db || {}).reduce((a, b) => a + (Number(b) || 0), 0);
   }
 }
 
@@ -21373,14 +21464,13 @@ async function loadHomeStats() {
       const _insp = Number(_stats.inspection_total != null ? _stats.inspection_total : (dataHome.inspection_total || 0)) || 0;
       const _base = Number(_stats.baseline_total != null ? _stats.baseline_total : (sumOf(_stats.baseline_by_db) || dataHome.baseline_total || 0)) || 0;
       const _job = Number(_stats.scheduled_jobs != null ? _stats.scheduled_jobs : (dataHome.scheduled_jobs || 0)) || 0;
-      let _rule = 0;
-      if (dataStats && dataStats.statistics && dataStats.statistics.rule_engine_by_db) {
-        _rule = sumOf(dataStats.statistics.rule_engine_by_db);
-      } else if (_stats.rule_engine_by_db) {
-        _rule = sumOf(_stats.rule_engine_by_db);
-      } else if (_stats.rule_engine_total) {
-        _rule = Number(_stats.rule_engine_total) || 0;
-      }
+      // 首屏「巡检规则」取模板巡检项总数（inspection_query，与官网 839+ 同口径）。
+      // 规则引擎 YAML 告警规则数 rule_engine_total 单独在健康驾驶舱「规则统计」卡展示，
+      // 两套口径不相加、不混用；rule_engine_by_db 只是「库型×规则」分布，不能求和当总数。
+      // 老版本接口无 inspection_query_total 时逐级回退，保证兼容性。
+      let _rule = Number(_stats.inspection_query_total) || 0;
+      if (!_rule) _rule = Number(_stats.rule_engine_total) || 0;
+      if (!_rule) _rule = sumOf(_stats.rule_engine_by_db);
       animateCountUp(document.getElementById('hero-stat-datasource'), _ds);
       animateCountUp(document.getElementById('hero-stat-dbtype'), _dbTypeCount);
       animateCountUp(document.getElementById('hero-stat-inspection'), _insp);
@@ -27797,14 +27887,24 @@ function mkdirRemote() {
       if (d.code !== 0) return;
       var visibleCodes = (d.data || []).map(function(m) { return m.menu_code; });
       console.log('[MenuPerm] visible menus:', visibleCodes);
-      // 隐藏所有 nav-item
+      window.__visibleMenuCodes = visibleCodes;
+      // 合并菜单：组内非 lead 不占侧边栏；lead 的可见性 = 组内任一成员可见。
+      // 原子菜单码仍逐项参与 RBAC，权限粒度不因合并而丢失。
       var items = document.querySelectorAll('.sidebar-nav .nav-item');
       items.forEach(function(el) {
         var id = el.id;       // nav-home / nav-wizard / ...
         if (!id) return;
         var code = id.replace('nav-', '');  // home / wizard / ...
-        el.style.display = visibleCodes.includes(code) ? '' : 'none';
+        if (MERGE_HIDDEN[code]) { el.style.display = 'none'; return; }
+        var leadGroup = MERGE_LEADS[code];
+        var ok = leadGroup
+          ? leadGroup.tabs.some(function(c) { return visibleCodes.includes(c); })
+          : visibleCodes.includes(code);
+        el.style.display = ok ? '' : 'none';
       });
+      // 权限返回后若正停在合并组页面，按最新权限重绘 Tab 条
+      var activePageEl = document.querySelector('.page.active');
+      if (activePageEl) renderMergedTabs(activePageEl.id.replace('page-', ''));
       // 隐藏没有可见子项的 nav-section
       var sections = document.querySelectorAll('.sidebar-nav .nav-section');
       sections.forEach(function(sec) {

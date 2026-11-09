@@ -107,10 +107,12 @@ a = Analysis(
         'engineio.async_drivers.gevent',
         'socketio.async_server.gevent',
         # App modules（已统一迁入 modules/ 命名空间；列举各子包，PyInstaller 递归收集全部子模块）
+        # modules/skill 是对外分发的 SkillHub 技能包（非运行时 import，含 2.9MB JDBC jar），
+        # 故意不列入 hiddenimports，避免把整包打进安装包。
         'modules.entrypoints', 'modules.inspection', 'modules.web',
         'modules.pro', 'modules.rag', 'modules.user_management',
         'modules.desensitize', 'modules.notify', 'modules.monitor',
-        'modules.server', 'modules.skill', 'modules.ssh', 'modules.ingest',
+        'modules.server', 'modules.ssh', 'modules.ingest',
         'modules.intelligence', 'modules.core', 'modules.config',
         'modules.db_types', 'modules.disaster_recovery', 'modules.pluginkit',
     ],

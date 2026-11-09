@@ -11670,24 +11670,8 @@ def _setup_driver_paths():
         _add_path(yashandb_lib)
 
 
-def _get_gbase_driver():
-    """
-    ⚠️ DEPRECATED：保留仅作向下兼容。GBase JDBC 驱动解析已统一走到
-    modules.entrypoints.main_gbase.resolve_gbase_driver()(优先驱动管理，
-    否则回退 drivers/gbase/ 自动发现)。新代码请直接调用该函数。
-    """
-    import os, glob
-    driver_dir = os.path.join(BASE_DIR, 'drivers', 'gbase')
-    if not os.path.isdir(driver_dir):
-        print(f"[GBase] 驱动目录不存在: {driver_dir}")
-        return None
-    pattern = os.path.join(driver_dir, '*.jar')
-    jars = glob.glob(pattern)
-    if not jars:
-        print(f"[GBase] 驱动目录中没有找到 .jar 文件: {driver_dir}")
-        return None
-    print(f"[GBase] 找到驱动文件: {jars}")
-    return jars  # 返回列表，不是字符串
+# GBase JDBC 驱动解析统一走 modules.entrypoints.main_gbase.resolve_gbase_driver()，
+# 旧的 _get_gbase_driver() 兼容封装已无调用点，已移除。
 
 
 # ── 数据管理 API ───────────────────────────────────────────
@@ -11826,6 +11810,12 @@ def api_home_stats():
             row = cur.fetchone()
             result['template_count'] = row['cnt'] if row else 0
 
+            # 巡检项总数：模板里实际执行的查询条目数，与官网「839+ 巡检规则」同口径。
+            # 注意与 rule_engine_total（YAML 告警规则）是两套口径，不可混用，也不相加。
+            cur.execute("SELECT COUNT(*) as cnt FROM inspection_query")
+            qrow = cur.fetchone()
+            result['inspection_query_total'] = qrow['cnt'] if qrow else 0
+
             # 各模板章节数
             cur.execute("""
                 SELECT t.id, t.template_name_zh, t.db_type, COUNT(c.id) as chapter_count
@@ -11849,14 +11839,23 @@ def api_home_stats():
             result['rule_engine_total'] = len(all_rules)
             result['rule_builtin_count'] = len(engine.builtin_rules)
             result['rule_custom_count'] = len(engine.custom_rules)
-            # 按 db_type 统计
-            db_types = ['mysql', 'mariadb', 'postgresql', 'pg', 'oracle', 'dm8', 'dm', 'sqlserver', 'tidb', 'ivorysql', 'halodb', 'yashandb', 'kingbase']
-            rule_by_db = {}
-            for dt in db_types:
-                rules_for_db = engine.list_rules(db_type=dt)
-                if rules_for_db:
-                    rule_by_db[dt] = len(rules_for_db)
-            result['rule_engine_by_db'] = rule_by_db
+            # 按库型统计「可应用规则数」：动态取规则自身声明的 db_types，
+            # 不再用固定别名列表（会漏掉 oceanbase / mongodb / db2 / redis 等新增库型）。
+            # _jdbc 只是连接实现方式，按 driver_registry.normalize_db_type 归一；
+            # 同一条规则声明了 oracle 与 oracle_jdbc 时只计一次，避免别名重复。
+            # 注意：一条规则可适用多个库型，因此本字典之和是「库型×规则」分布，
+            # 不等于规则总数；总数一律取 rule_engine_total，切勿对字典求和当总数。
+            from collections import Counter
+            from modules.driver_registry import normalize_db_type
+            rule_by_db = Counter()
+            for rule in all_rules:
+                seen = set()
+                for dt in (rule.get('db_types') or []):
+                    key = normalize_db_type(dt)
+                    if key and key not in seen:
+                        seen.add(key)
+                        rule_by_db[key] += 1
+            result['rule_engine_by_db'] = dict(sorted(rule_by_db.items()))
         except Exception:
             result['rule_engine_total'] = 0
             result['rule_builtin_count'] = 0

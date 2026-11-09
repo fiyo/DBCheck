@@ -1,5 +1,43 @@
 # Changelog
 
+## v26.11.9.0 (2026-11-09)
+
+### 修复：首页统计口径混乱（规则数 149 → 839）
+
+- 现象（用户反馈）：首页「规则数」显示 149，怀疑不是实时取值。核查后确认六个首屏数字**全部实时查库、无缓存**（仅页面停留期间不轮询），但规则数确实错。
+- 根因一（后端）：`/api/home_stats` 用一段**写死的 13 个库型别名**调 `list_rules(db_type=...)` 统计，精确字符串匹配且不做归一化，只命中 11 种，漏掉 oceanbase / mongodb / db2 / clickhouse / gbase / hgdb / vastbase / uxdb / redis / tdsqlc_mysql 等 13 种。
+- 根因二（前端）：把 `rule_engine_by_db`（「库型×规则」分布，一条规则可适用多库型）**求和当总数**，既漏库型又重复计数；后端其实一直返回了正确的 `rule_engine_total=375`，只是三段 if/else 永远优先走到 by_db 分支。
+- 修复（`modules/web/app.py`）：规则分布改为**动态枚举规则自身声明的 `db_types`** + `driver_registry.normalize_db_type()` 归一（`_jdbc` 去后缀、`hgdb`→`highgo`），同条规则内别名去重；by_db 从 11 种恢复到 **22 种**，并注明不可求和当总数。
+- 口径统一：新增 `inspection_query_total`，实时 `SELECT COUNT(*) FROM inspection_query`（本机 **839**），首屏「巡检规则」取该值，与官网「839+ 巡检规则」同口径；健康驾驶舱「规则统计」卡保留 `rule_engine_total`（**375** 条 YAML 告警规则）并改副标题区分。i18n 中英同步、老接口无新字段时逐级回退。
+- 三套口径从此分明确认，互不相加：**839** = 模板巡检项（`inspection_query`）；**375** = 规则引擎告警规则（builtin YAML）；**267** = 基线配置项（`inspection_baseline`）。
+
+### 改进：菜单精简 P0 / P1（只收敛导航，不删能力）
+
+- P1 菜单配置化：`web_templates/index.html` 新增 `MENU_MERGE_GROUPS`，把历史 5 / 巡检配置 4 / 知识库 3 / 实时监控 2 共 14 个页面收成 **4 个一级入口**，内容区顶部出 Tab 条切换，一级菜单 43 → 33；后端 340 个 API、所有 page 容器、seed 42 项菜单**一个没删**，改一处配置即可整体回退。RBAC 不削弱：组内非 lead 隐藏，lead 可见性 = 组内任一成员有权限。
+- BIC-QA 保持独立一级菜单：它含对话 / 告警分析 / AWR 分析 / 配置四个子功能，与 RAG / doc-kb / schema-dict 的事实库维护不是同类，且跨分组、高频，不予折叠。
+- 顺带修 3 个真 bug：`showPage()` 的 `titles` 补 `workflow` / `workflow-task` / `twin`（原来顶栏显示原始英文 code）；`bicqa` 改由 `showPage` 统一派发并消除两处重复 `loadBicqaPage()`；删除 `loadUmAdminPage()` 未定义调用。
+- P0 清理：删 `scripts/inspection_api.py`（1114 行 / 21 路由、无 import 无注册）、DEPRECATED `_get_gbase_driver()`；`modules/skill/` 经复核是**对外发布的 SkillHub 技能包**（不是死代码），保留源码，仅从 3 个 PyInstaller spec 的 hiddenimports 移除，发行包少 9.1MB。
+
+### 新增：MCP 三个写类工具接上 WriteGate（读自动 / 写审批 / 全审计）
+
+- `kill_session` / `apply_index` / `execute_sql` 补上独立 handler，`HANDLERS` 9 → **12**；`dispatch_skill` 统一从 HANDLERS 路由，读写共用一套实现。
+- 闸门顺序：`assert_visible` → 解析 db_type → `WriteGate.propose` → 返回 `APPROVAL_REQUIRED` + 任务号；命中阻断规则返回 `BLOCKED_BY_RULE`（连审批队列都不进）；审计写 `mcp.<op>`。
+- 安全红线：**MCP 客户端不能自审批**，`approver` 只认进程内受信调用方的形参，`arguments` 里塞的 `approver` / `principal` 一律丢弃。
+- README 中英补 3 个写类工具行，把过时的「写操作不走 MCP」改为「写操作绝不在 MCP 侧直接执行」。
+
+### 其它
+
+- 官网双仓「836+ 巡检规则」→ **839+**（index.html 5 处，口径为 `inspection_query` 表实数）。
+- 版本号统一升至 `v26.11.9.0`（29 处引用点：`modules/config/version.py` 与 `version.json`、skill 脚本、4 个 CI workflow、`deploy/Dockerfile` 与 compose、`build/`、`scripts/`、`assets/web/static/js/login.js`、登录页、README 中英徽标）；批量替换时保留描述历史事件与存量库边界的 `v26.11.5.1` / `v26.11.5.0` 注释。
+
+### 验证
+
+- 三步验证：`compileall` EXIT=0；`import modules.web.app` OK；`discover_plugins()` = 12。
+- 相关单测 8 个文件 **69 passed**；3 个 PyInstaller spec `ast.parse` OK 且无 `modules.skill`。
+- 首页统计接口实测：`inspection_query_total=839` / `rule_engine_total=375` / `baseline_total=267` / `rule_engine_by_db` 22 种；前端两处取数模拟分别得 839 与 375，老接口回退路径正确。
+- 菜单合并 mock DOM 断言 21/21 PASS；源模板 22 个 script 块（约 88 万字符）剥离 Jinja 标记后 `node --check` OK。
+- `tests/refactor_paths_test.py` 的 2 个失败经恢复 HEAD 版复跑确认为**既有基线问题**（旧路径硬编码扫描 / dry-run 环境状态），与本版改动无关。
+
 ## v26.11.5.1 (2026-11-05)
 
 ### 修复：模板章节号与报告不一致（OceanBase 独有）

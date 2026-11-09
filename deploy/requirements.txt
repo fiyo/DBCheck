@@ -28,7 +28,7 @@ requests>=2.25.0         # Webhook notifications (DingTalk/WeCom/Feishu) used by
 flask>=2.0.0
 flask-socketio>=5.0.0
 gevent>=24.0.0           # Required by flask-socketio async_mode='gevent' (Werkzeug 3.x dropped threading)
-Werkzeug>=3.0.0         # Flask 依赖；inspection_api.py 直接 from werkzeug.utils import secure_filename
+Werkzeug>=3.0.0         # Flask 依赖
 
 # ── Database Drivers ──────────────────────────────────────────────────────────
 pymysql>=1.0.0          # MySQL / TiDB

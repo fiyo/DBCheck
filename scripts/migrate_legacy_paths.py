@@ -62,10 +62,9 @@ OPERATIONS = [
     ("dbcheck_logo_banner.png", "assets/brand/dbcheck_logo_banner.png"),
     ("dbcheck_logo_icon.png", "assets/brand/dbcheck_logo_icon.png"),
     ("favicon.ico", "assets/brand/favicon.ico"),
-    # ---------- 阶段2：脚本 (6) ----------
+    # ---------- 阶段2：脚本 (5) ----------
     ("init_mongodb_template.py", "scripts/init_mongodb_template.py"),
     ("diag_oceanbase.py", "scripts/diag_oceanbase.py"),
-    ("inspection_api.py", "scripts/inspection_api.py"),
     ("mod_logger.py", "scripts/mod_logger.py"),
     ("pro_data/_scan_dbs.py", "scripts/pro_scan_dbs.py"),
     ("pro_data/_merge_dbs.py", "scripts/pro_merge_dbs.py"),
