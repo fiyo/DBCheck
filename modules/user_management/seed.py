@@ -64,6 +64,7 @@ menus_data = [
     ('twin',             'menu.twin',              0, 625),
     ('data-management',  'menu.data-management', 0, 66),
     ('about',            'menu.about',           0, 67),
+    ('donate',           'menu.donate',          0, 68),
     ('disaster-recovery','menu.disaster-recovery',0, 65),
 ]
 
@@ -231,8 +232,8 @@ def sync_menus():
 
         role_menu_map = {
             'admin': 'ALL',
-            'operator': ['home', 'wizard', 'monitor-slow', 'awr', 'reports', 'sql-editor', 'datasources', 'disaster-recovery'],
-            'viewer': ['home', 'reports', 'monitor-slow', 'ai'],
+            'operator': ['home', 'wizard', 'monitor-slow', 'awr', 'reports', 'sql-editor', 'datasources', 'disaster-recovery', 'donate'],
+            'viewer': ['home', 'reports', 'monitor-slow', 'ai', 'donate'],
         }
         access_perm = db.query_one("SELECT id FROM um_permission WHERE perm_level=1")
         if not access_perm:
