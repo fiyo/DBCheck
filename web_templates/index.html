@@ -3490,120 +3490,149 @@ async function executeFixSql(taskId, sql) {
   text-overflow: ellipsis;
 }
 
-/* ── 支持作者 / 捐赠页 ── */
-.dn-wrap { max-width: 1080px; width: 100%; margin: 0 auto; padding: 2px 2px 28px; }
+/* ── 支持作者 / 捐赠页：舒展长页 + 吸顶收款码 ── */
+/* 铺满可用宽度；不再压缩字号换「一屏」，让内容按正常阅读节奏自然展开 */
+.content.donate-page-active { padding: 20px 24px 30px; }
+.dn-wrap { width: 100%; max-width: none; margin: 0; padding: 0; box-sizing: border-box; }
+
+/* 顶部横幅：标题在左、标签在右 */
 .dn-hero {
   position: relative; overflow: hidden;
-  border: 1px solid var(--border); border-radius: 20px;
-  padding: 30px 34px 28px;
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  grid-template-areas: "kicker chips" "title chips" "lead chips";
+  align-items: center; column-gap: 32px; row-gap: 0;
+  border: 1px solid var(--border); border-radius: 16px; padding: 22px 30px;
   background: linear-gradient(118deg, rgba(0,168,132,.16), rgba(56,189,248,.09) 52%, rgba(245,158,11,.09)), var(--surface);
   animation: dnFadeUp .45s ease both;
 }
 .dn-hero::before {
-  content: ''; position: absolute; width: 280px; height: 280px; right: -70px; top: -130px;
-  border-radius: 50%; background: radial-gradient(circle, rgba(0,168,132,.22), transparent 68%);
+  content: ''; position: absolute; width: 280px; height: 280px; right: -90px; top: -160px;
+  border-radius: 50%; background: radial-gradient(circle, rgba(0,168,132,.18), transparent 68%);
   pointer-events: none;
 }
-.dn-hero-deco {
-  position: absolute; right: 34px; top: 30px; width: 54px; height: 54px;
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 16px; color: #fff;
-  background: linear-gradient(135deg, #00A884, #34C77B);
-  box-shadow: 0 10px 26px rgba(0,168,132,.28);
-  animation: dnPulse 3.2s ease-in-out infinite;
-}
-.dn-hero-deco svg { width: 28px; height: 28px; }
+.dn-hero-deco { display: none; }
 .dn-kicker {
-  display: inline-block; font-size: 12px; font-weight: 600; letter-spacing: .04em;
+  grid-area: kicker; justify-self: start;
+  font-size: 12px; font-weight: 600; letter-spacing: .04em;
   color: var(--accent); background: rgba(0,168,132,.12);
-  border: 1px solid rgba(0,168,132,.28); border-radius: 999px; padding: 4px 12px;
+  border: 1px solid rgba(0,168,132,.28); border-radius: 999px; padding: 3px 12px;
 }
 .dn-hero h1 {
-  margin: 14px 0 10px; font-size: 30px; line-height: 1.3; font-weight: 800;
+  grid-area: title; margin: 10px 0 7px; font-size: 27px; line-height: 1.3; font-weight: 800;
   color: var(--text); letter-spacing: -.02em;
 }
-.dn-lead { max-width: 720px; font-size: 14px; line-height: 1.85; color: var(--text-muted); }
-.dn-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.dn-lead { grid-area: lead; max-width: none; font-size: 13.5px; line-height: 1.7; color: var(--text-muted); }
+.dn-chips { grid-area: chips; display: grid; grid-template-columns: repeat(2, max-content); gap: 9px; margin-top: 0; }
 .dn-chip {
-  font-size: 12px; font-weight: 500; color: var(--text);
-  padding: 5px 11px; border-radius: 999px;
+  font-size: 12px; font-weight: 500; color: var(--text); white-space: nowrap;
+  padding: 5px 12px; border-radius: 999px;
   background: var(--surface2); border: 1px solid var(--border);
 }
-.dn-grid { display: grid; grid-template-columns: minmax(0,1fr) 318px; gap: 18px; margin-top: 18px; }
+
+/* 主体：左侧长文 + 右侧吸顶收款码 */
+.dn-layout {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) 340px;
+  gap: 20px; margin-top: 20px; align-items: start;
+}
+.dn-main { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.dn-side { position: sticky; top: 18px; min-width: 0; }
 .dn-card {
   background: var(--surface); border: 1px solid var(--border);
-  border-radius: 16px; padding: 24px 26px;
+  border-radius: 16px; padding: 24px 28px; min-width: 0;
   animation: dnFadeUp .5s ease both;
 }
-.dn-grid .dn-qr { animation-delay: .09s; }
-.dn-letter h2, .dn-section > h2 {
-  font-size: 17px; font-weight: 700; color: var(--text); margin: 0 0 14px;
-  display: flex; align-items: center; gap: 8px;
+.dn-main > *:nth-child(2) { animation-delay: .06s; }
+.dn-main > *:nth-child(3) { animation-delay: .11s; }
+.dn-main > *:nth-child(4) { animation-delay: .16s; }
+.dn-main .dn-section { margin-top: 0; }
+.dn-letter h2, .dn-section > h2, .dn-story > h2 {
+  font-size: 16px; font-weight: 700; color: var(--text); margin: 0 0 14px;
+  display: flex; align-items: center; gap: 9px;
 }
-.dn-letter h2::before, .dn-section > h2::before {
-  content: ''; width: 4px; height: 16px; border-radius: 2px; background: var(--accent);
+.dn-letter h2::before, .dn-section > h2::before, .dn-story > h2::before {
+  content: ''; width: 3px; height: 16px; border-radius: 2px; background: var(--accent);
 }
-.dn-letter p { font-size: 14px; line-height: 1.95; color: var(--text-main); margin: 0 0 14px; }
+.dn-letter p { font-size: 14px; line-height: 1.9; color: var(--text-main); margin: 0 0 13px; }
 .dn-letter p:last-of-type { margin-bottom: 0; }
 .dn-quote {
-  margin: 18px 0 16px; padding: 12px 16px;
+  margin: 18px 0 14px; padding: 12px 16px;
   border-left: 3px solid var(--accent); border-radius: 0 10px 10px 0;
   background: rgba(0,168,132,.08); color: var(--text);
-  font-size: 14px; line-height: 1.8; font-weight: 500;
+  font-size: 13.5px; line-height: 1.75; font-weight: 500;
 }
-.dn-sign { font-size: 13px; color: var(--text-muted); text-align: right; }
-.dn-qr { display: flex; flex-direction: column; align-items: center; text-align: center; }
-.dn-qr-head {
-  font-size: 15px; font-weight: 700; color: var(--text);
-  display: flex; align-items: center; gap: 7px; margin-bottom: 16px;
-}
-.dn-qr-badge {
-  display: inline-flex; align-items: center; gap: 5px;
-  font-size: 11px; font-weight: 600; color: #fff; background: #07C160;
-  border-radius: 999px; padding: 3px 9px;
-}
-.dn-qr-frame {
-  background: #fff; padding: 9px; border-radius: 16px;
-  border: 2px solid #07C160;
-  box-shadow: 0 10px 30px rgba(7,193,96,.18);
-  transition: transform .25s ease, box-shadow .25s ease;
-}
-.dn-qr-frame:hover { transform: translateY(-3px); box-shadow: 0 16px 38px rgba(7,193,96,.28); }
-.dn-qr-img { display: block; width: 100%; max-width: 254px; height: auto; border-radius: 9px; }
-.dn-qr-payee { margin-top: 16px; font-size: 13px; font-weight: 600; color: var(--text); }
-.dn-qr-tip { margin-top: 5px; font-size: 13px; color: var(--accent); font-weight: 600; }
-.dn-qr-note { margin-top: 12px; font-size: 11px; color: var(--text-muted); line-height: 1.7; }
-.dn-section { margin-top: 22px; animation: dnFadeUp .55s ease both; }
+.dn-sign { font-size: 12.5px; color: var(--text-muted); text-align: right; }
+
+/* 我的故事：信笺式引线，段落自然舒展 */
 .dn-story-body {
   position: relative;
-  background: var(--surface); border: 1px solid var(--border);
-  border-left: 3px solid var(--accent);
-  border-radius: 0 16px 16px 0; padding: 26px 30px 24px;
+  border-left: 2px solid rgba(0,168,132,.45);
+  padding: 2px 0 2px 20px;
 }
 .dn-story-body::after {
-  content: '✦'; position: absolute; right: 22px; top: 16px;
-  font-size: 17px; color: rgba(0,168,132,.42);
+  content: '✦'; position: absolute; right: 2px; top: -6px;
+  font-size: 18px; color: rgba(0,168,132,.42);
 }
-.dn-story-body p { font-size: 14px; line-height: 2.05; color: var(--text-main); margin: 0 0 15px; }
-.dn-story-body p.dn-story-lead { font-size: 13px; color: var(--text-muted); margin-bottom: 18px; }
+.dn-story-body p { font-size: 14px; line-height: 1.95; color: var(--text-main); margin: 0 0 14px; }
+.dn-story-body p:last-child { margin-bottom: 0; }
+.dn-story-body p.dn-story-lead { font-size: 12.5px; color: var(--text-muted); margin-bottom: 16px; }
 .dn-story-body p.dn-story-line {
-  margin: 22px 0 14px; padding-top: 18px;
-  border-top: 1px dashed var(--border);
-  font-weight: 600; color: var(--text);
+  margin: 18px 0 13px; padding-top: 16px;
+  border-top: 1px dashed var(--border); font-weight: 600; color: var(--text); font-size: 13.5px;
 }
-.dn-story-body p.dn-story-sign { font-size: 13px; color: var(--text-muted); margin: 0; }
+.dn-story-body p.dn-story-sign { font-size: 12.5px; color: var(--text-muted); }
+
+/* 底部：不花钱的支持方式 + 说明 */
 .dn-free {
-  display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px 18px;
+  display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px 24px;
   background: var(--surface); border: 1px solid var(--border);
   border-radius: 14px; padding: 18px 22px;
 }
-.dn-free-item { display: flex; align-items: flex-start; gap: 9px; font-size: 13px; line-height: 1.7; color: var(--text); }
+.dn-free-item { display: flex; align-items: flex-start; gap: 9px; font-size: 13px; line-height: 1.75; color: var(--text); }
 .dn-free-item::before { content: '✓'; flex: 0 0 auto; color: var(--accent); font-weight: 800; }
 .dn-note {
-  margin-top: 20px; padding: 12px 16px; border-radius: 10px;
+  margin: 0; padding: 14px 18px; border-radius: 14px;
   background: var(--surface2); border: 1px solid var(--border);
-  font-size: 12px; line-height: 1.85; color: var(--text-muted);
+  font-size: 12px; line-height: 1.8; color: var(--text-muted);
 }
+.dn-section { margin-top: 18px; animation: dnFadeUp .5s ease both; }
+
+/* 收款码卡片：吸顶常驻，切换微信 / 支付宝 */
+.dn-side .dn-qr {
+  padding: 22px 20px; display: flex; flex-direction: column;
+  align-items: center; text-align: center;
+}
+.dn-pay-choose { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; }
+.dn-pay-tabs { display: flex; gap: 8px; width: 100%; max-width: none; margin-bottom: 18px; }
+.dn-pay-tab {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 10px 8px; border-radius: 10px; cursor: pointer;
+  font-size: 13px; font-weight: 600; line-height: 1.2; font-family: inherit;
+  color: var(--text-muted); background: var(--surface2); border: 1px solid var(--border);
+  transition: color .2s ease, background .2s ease, border-color .2s ease, box-shadow .2s ease;
+}
+.dn-pay-tab:hover { color: var(--text); border-color: var(--accent); }
+.dn-pay-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+.dn-pay-tab[data-pay="wechat"] .dn-pay-dot { background: #07C160; }
+.dn-pay-tab[data-pay="alipay"] .dn-pay-dot { background: #1677FF; }
+.dn-pay-tab.active[data-pay="wechat"] { color: #fff; background: #07C160; border-color: #07C160; box-shadow: 0 4px 12px rgba(7,193,96,.24); }
+.dn-pay-tab.active[data-pay="alipay"] { color: #fff; background: #1677FF; border-color: #1677FF; box-shadow: 0 4px 14px rgba(22,119,255,.24); }
+.dn-pay-tab.active .dn-pay-dot { background: #fff; }
+.dn-qr-head { font-size: 14px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 7px; margin-bottom: 14px; }
+.dn-qr-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: #fff; background: #07C160; border-radius: 999px; padding: 3px 10px; }
+.dn-qr-frame { background: #fff; padding: 9px; border-radius: 14px; border: 2px solid #07C160; box-shadow: 0 10px 28px rgba(7,193,96,.18); transition: transform .25s ease, box-shadow .25s ease; }
+.dn-qr-frame:hover { transform: translateY(-3px); box-shadow: 0 14px 34px rgba(7,193,96,.28); }
+.dn-qr-img { display: block; width: 100%; max-width: 226px; height: auto; border-radius: 9px; }
+.dn-qr-payee { margin-top: 16px; font-size: 13px; font-weight: 600; color: var(--text); }
+.dn-qr-tip { margin-top: 6px; font-size: 13px; color: var(--accent); font-weight: 600; }
+.dn-qr-note { margin-top: 14px; font-size: 11.5px; line-height: 1.75; color: var(--text-muted); }
+.dn-qr[data-pay="alipay"] .dn-qr-frame { padding: 0; border: none; background: transparent; box-shadow: 0 10px 26px rgba(22,119,255,.22); }
+.dn-qr[data-pay="alipay"] .dn-qr-frame:hover { box-shadow: 0 14px 34px rgba(22,119,255,.32); }
+.dn-qr[data-pay="alipay"] .dn-qr-img { max-width: 242px; border-radius: 14px; }
+.dn-qr[data-pay="alipay"] .dn-qr-badge { background: #1677FF; }
+.dn-qr[data-pay="alipay"] .dn-qr-tip { color: #1677FF; }
+
 .about-donate-btn {
   display: block; margin: 10px auto 0; padding: 7px 18px;
   border-radius: 999px; cursor: pointer;
@@ -3615,17 +3644,39 @@ async function executeFixSql(taskId, sql) {
 .about-donate-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(7,193,96,.36); }
 @keyframes dnFadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 @keyframes dnPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.07); } }
-@media (max-width: 980px) {
-  .dn-grid { grid-template-columns: minmax(0,1fr); }
-  .dn-qr-frame { max-width: 300px; }
+
+/* 中等宽度：收窄收款码栏 */
+@media (max-width: 1280px) {
+  .dn-layout { grid-template-columns: minmax(0,1fr) 300px; }
+  .dn-qr-img { max-width: 202px; }
+  .dn-qr[data-pay="alipay"] .dn-qr-img { max-width: 216px; }
+}
+/* 窄屏：收款码移到最上，长文单栏 */
+@media (max-width: 1020px) {
+  .dn-layout { grid-template-columns: minmax(0,1fr); }
+  .dn-side { position: static; order: -1; }
+  .dn-side .dn-qr { max-width: 420px; margin: 0 auto; }
+  .dn-hero { column-gap: 20px; padding: 20px 22px; }
 }
 @media (max-width: 640px) {
-  .dn-hero { padding: 22px 20px; }
-  .dn-hero h1 { font-size: 23px; }
-  .dn-hero-deco { display: none; }
-  .dn-card { padding: 20px 18px; }
-  .dn-story-body { padding: 20px 18px; }
+  .content.donate-page-active { padding: 14px 14px 24px; }
+  .dn-hero { display: block; padding: 20px 18px; }
+  .dn-hero h1 { font-size: 22px; }
+  .dn-chips { display: flex; flex-wrap: wrap; margin-top: 14px; }
+  .dn-card, .dn-side .dn-qr { padding: 20px 17px; }
+  .dn-letter p, .dn-story-body p { font-size: 13.5px; line-height: 1.85; }
   .dn-free { grid-template-columns: minmax(0,1fr); }
+  .dn-qr-img { max-width: 210px; }
+}
+/* 矮屏：只做温和收紧，不再把正文压到小字 */
+@media (max-height: 700px) and (min-width: 1021px) {
+  .content.donate-page-active { padding-top: 14px; padding-bottom: 20px; }
+  .dn-hero { padding: 16px 24px; }
+  .dn-hero h1 { font-size: 24px; margin: 7px 0 5px; }
+  .dn-layout { margin-top: 14px; }
+  .dn-main { gap: 14px; }
+  .dn-card, .dn-side .dn-qr { padding: 18px 22px; }
+  .dn-letter p, .dn-story-body p { font-size: 13.5px; line-height: 1.8; margin-bottom: 10px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .dn-hero, .dn-card, .dn-section, .dn-hero-deco { animation: none; }
@@ -12641,53 +12692,61 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
             </div>
           </section>
 
-          <div class="dn-grid">
-            <section class="dn-card dn-letter">
-              <h2 data-i18n="webui.donate_letter_title">一封感谢信</h2>
-              <p data-i18n="webui.donate_p1">如果 RaccoonX 曾帮你少熬一次夜、提前发现一个快要撑爆的表空间，或者只是把一份周报从两小时压缩到十分钟——那它就已经值回了我写它的那些周末。</p>
-              <p data-i18n="webui.donate_p2">这个项目的全部代码以 Apache License 2.0 开源，社区版永久免费。没有功能锁，没有「赞助后解锁」，也不会因为捐没捐而改变你能用的能力。你正在用的，就是完整版。</p>
-              <p data-i18n="webui.donate_p3">这些都是我一个人用业余时间做的，没有公司赞助，也没有基金会支持。</p>
-              <p data-i18n="webui.donate_p4">所以，如果你愿意，可以扫一扫旁边的收款码，请我喝杯茶。金额真的随意，一块钱和一百块在我这里是同样的心意；不方便也完全没关系，点个 Star、提一个 issue、把它推荐给同事，对我同样是实打实的支持。</p>
-              <p data-i18n="webui.donate_p5">如果转账时留一句话，我都会看到——很多时候，一句「我在使用它」比金额更让我开心。</p>
-              <blockquote class="dn-quote" data-i18n="webui.donate_quote">谢谢你把它用在真实的生产环境里，也谢谢你读到这里。</blockquote>
-              <div class="dn-sign" data-i18n="webui.donate_sign">— Jack Ge，RaccoonX 维护者</div>
-            </section>
+          <div class="dn-layout">
+            <div class="dn-main">
+              <section class="dn-card dn-letter">
+                <h2 data-i18n="webui.donate_letter_title">一封感谢信</h2>
+                <p data-i18n="webui.donate_p1">如果 RaccoonX 曾帮你少熬一次夜、提前发现一个快要撑爆的表空间，或者只是把一份周报从两小时压缩到十分钟——那它就已经值回了我写它的那些周末。</p>
+                <p data-i18n="webui.donate_p2">这个项目的全部代码以 Apache License 2.0 开源，社区版永久免费。没有功能锁，没有「赞助后解锁」，也不会因为捐没捐而改变你能用的能力。你正在用的，就是完整版。</p>
+                <p data-i18n="webui.donate_p3">但它并不是零成本的。这里有作者无数个夜里复现问题、回复 issue、写文档、打包发版……这些都是一个人用业余时间在处理，没有公司赞助，也没有基金会支持。</p>
+                <p data-i18n="webui.donate_p4">所以，如果你愿意，可以扫一扫旁边的收款码，请我喝杯茶。金额真的随意，一块钱和一百块在我这里是同样的心意；不方便也完全没关系，点个 Star、提一个 issue、把它推荐给同事，对我同样是实打实的支持。</p>
+                <p data-i18n="webui.donate_p5">如果转账时留一句话，我都会看到——很多时候，一句「我在使用它」比金额更让我开心。</p>
+                <blockquote class="dn-quote" data-i18n="webui.donate_quote">谢谢你把它用在真实的生产环境里，也谢谢你读到这里。</blockquote>
+                <div class="dn-sign" data-i18n="webui.donate_sign">— Jack Ge，RaccoonX 维护者</div>
+              </section>
 
-            <aside class="dn-card dn-qr">
-              <div class="dn-qr-head" data-i18n="webui.donate_qr_title">微信扫码 · 请作者喝杯茶</div>
-              <div class="dn-qr-frame">
-                <img class="dn-qr-img" src="/donate-wechat.png" alt="微信收款码 · 程序猿水果摊">
+              <section class="dn-card dn-story">
+                <h2 data-i18n="webui.donate_story_title">我的故事</h2>
+                <div class="dn-story-body">
+                  <p class="dn-story-lead" data-i18n="webui.donate_story_lead">这一节和代码无关，但和这个项目的每一行代码都有关。犹豫了很久，还是写下来。</p>
+                  <p data-i18n="webui.donate_story_p1">我的儿子是一位「星星的孩子」，医学上叫孤独症（也就是自闭症）。他不太看人的眼睛，也不太用语言回应这个世界；他有自己的秩序和节奏，我们得学着走进去，而不是把他拉出来。</p>
+                  <p data-i18n="webui.donate_story_p2">孤独症没有一针见效的办法，靠的是长期、重复、按年计算的康复训练。每周固定的几趟课，一节课几十分钟，家长在教室外的走廊上等。我有很多时间是在那条走廊的椅子上度过的：包里装着电脑，手机开着热点，等他上课的间隙复现一个 issue、改一条巡检 SQL；下课了，合上盖子，牵他回家。等他睡了，再打开电脑打包、发版、写文档。</p>
+                  <p data-i18n="webui.donate_story_p3">RaccoonX 就是在这些间隙里一点点长出来的。22 种数据库、839 条巡检项、几十个版本，不少规则是在走廊上改完、在深夜里打包的。它不是某个冲刺出来的产品，更像是一天一天攒下来的——他在教室里一遍遍练习一个我们看着很简单的动作，我在门外把一条巡检 SQL 改到能真跑通。我们都在做很慢、但每天都得做的事。</p>
+                  <p data-i18n="webui.donate_story_p4">康复是一场长跑。课程、评估、往返、请假，还有那些说不清的精力，是持续多年的开销，没有哪一天能算出终点。我很少对外提这些，不是难以启齿，只是习惯了把日子一天天过下去。</p>
+                  <p class="dn-story-line" data-i18n="webui.donate_story_line">说这些，不是想让谁为难。软件照常免费、照常更新，以后也不会变。</p>
+                  <p class="dn-story-sign" data-i18n="webui.donate_story_sign">如果你恰好愿意扫一下一旁的收款码，我记着；不方便，也真的没关系——下面那些不花钱的方式，对我一样重要。</p>
+                </div>
+              </section>
+
+              <section class="dn-section">
+                <h2 data-i18n="webui.donate_free_title">不花钱，也是在帮我</h2>
+                <div class="dn-free">
+                  <div class="dn-free-item" data-i18n="webui.donate_free1">到 GitHub 点一个 Star，让更多人看见它</div>
+                  <div class="dn-free-item" data-i18n="webui.donate_free2">提一个 issue，把误报、漏报或不好用的地方告诉我</div>
+                  <div class="dn-free-item" data-i18n="webui.donate_free3">写篇使用心得、在内部分享一次，或推荐给需要的同事</div>
+                  <div class="dn-free-item" data-i18n="webui.donate_free4">在社区里回答别人的问题——这比一笔捐款更难得</div>
+                </div>
+              </section>
+              <p class="dn-note" data-i18n="webui.donate_note">说明：社区版永久免费并以 Apache License 2.0 开源，捐赠是心意、不是购买服务，不构成技术支持或响应时间的承诺；社区版仍按 issue 跟踪、自担风险的方式维护。感谢每一份信任。</p>
+            </div>
+
+            <aside class="dn-side">
+              <div class="dn-card dn-qr" id="dn-qr" data-pay="wechat">
+                <div class="dn-pay-choose" data-i18n="webui.donate_pay_choose">选一种你顺手的方式</div>
+                <div class="dn-pay-tabs" role="tablist">
+                  <button type="button" class="dn-pay-tab active" data-pay="wechat" role="tab" aria-selected="true" onclick="setDonatePay('wechat')"><span class="dn-pay-dot"></span><span data-i18n="webui.donate_qr_badge">微信支付</span></button>
+                  <button type="button" class="dn-pay-tab" data-pay="alipay" role="tab" aria-selected="false" onclick="setDonatePay('alipay')"><span class="dn-pay-dot"></span><span data-i18n="webui.donate_qr_badge_alipay">支付宝</span></button>
+                </div>
+                <div class="dn-qr-head" id="dn-qr-head" data-i18n="webui.donate_qr_title">微信扫码 · 请作者喝杯茶</div>
+                <div class="dn-qr-frame">
+                  <img class="dn-qr-img" id="dn-qr-img" src="/donate-wechat.png" alt="微信收款码 · 程序猿水果摊">
+                </div>
+                <div class="dn-qr-payee" id="dn-qr-payee" data-i18n="webui.donate_qr_payee">收款方：程序猿水果摊</div>
+                <div class="dn-qr-tip" data-i18n="webui.donate_qr_tip">金额随意 · 心意不限</div>
+                <div class="dn-qr-note"><span class="dn-qr-badge" id="dn-qr-badge" data-i18n="webui.donate_qr_badge">微信支付</span><br><span id="dn-qr-note" data-i18n="webui.donate_qr_note">长按识别二维码，或用微信「扫一扫」。捐赠完全自愿，不影响任何功能。</span></div>
               </div>
-              <div class="dn-qr-payee" data-i18n="webui.donate_qr_payee">收款方：程序猿水果摊</div>
-              <div class="dn-qr-tip" data-i18n="webui.donate_qr_tip">金额随意 · 心意不限</div>
-              <div class="dn-qr-note"><span class="dn-qr-badge" data-i18n="webui.donate_qr_badge">微信支付</span><br><span data-i18n="webui.donate_qr_note">长按识别二维码，或用微信「扫一扫」。捐赠完全自愿，不影响任何功能。</span></div>
             </aside>
           </div>
-
-          <section class="dn-section">
-            <h2 data-i18n="webui.donate_story_title">我的故事</h2>
-            <div class="dn-story-body">
-              <p class="dn-story-lead" data-i18n="webui.donate_story_lead">这一节和代码无关，但和这个项目的每一行代码都有关。犹豫了很久，还是写下来。</p>
-              <p data-i18n="webui.donate_story_p1">我的儿子是一位「星星的孩子」，医学上叫孤独症谱系障碍。他不太看人的眼睛，也不太用语言回应这个世界；他有自己的秩序和节奏，我们得学着走进去，而不是把他拉出来。</p>
-              <p data-i18n="webui.donate_story_p2">孤独症没有一针见效的办法，靠的是长期、重复、按年计算的康复训练。每周固定的几趟课，一节课几十分钟，家长在教室外的走廊上等。我有很多时间是在那条走廊的椅子上度过的：包里装着电脑，手机开着热点，等他上课的间隙复现一个 issue、改一条巡检 SQL；下课了，合上盖子，牵他回家。等他睡了，再打开电脑打包、发版、写文档。</p>
-              <p data-i18n="webui.donate_story_p3">RaccoonX 就是在这些间隙里一点点长出来的。22 种数据库、839 条巡检项、几十个版本，不少规则是在走廊上改完、在深夜里打包的。它不是某个冲刺出来的产品，更像是一天一天攒下来的——他在教室里一遍遍练习一个我们看着很简单的动作，我在门外把一条巡检 SQL 改到能真跑通。我们都在做很慢、但每天都得做的事。</p>
-              <p data-i18n="webui.donate_story_p4">康复是一场长跑。课程、评估、往返、请假，还有那些说不清的精力，是持续多年的开销，没有哪一天能算出终点。我很少对外提这些，不是难以启齿，只是习惯了把日子一天天过下去。</p>
-              <p class="dn-story-line" data-i18n="webui.donate_story_line">说这些，不是想让谁为难。软件照常免费、照常更新，以后也不会变。</p>
-              <p class="dn-story-sign" data-i18n="webui.donate_story_sign">每一位捐赠者，我都记着；不方便捐赠，也真的没关系——下面那些不花钱的方式，对我一样重要。</p>
-            </div>
-          </section>
-
-          <section class="dn-section">
-            <h2 data-i18n="webui.donate_free_title">不花钱，也是在帮我</h2>
-            <div class="dn-free">
-              <div class="dn-free-item" data-i18n="webui.donate_free1">到 GitHub 点一个 Star，让更多人看见它</div>
-              <div class="dn-free-item" data-i18n="webui.donate_free2">提一个 issue，把误报、漏报或不好用的地方告诉我</div>
-              <div class="dn-free-item" data-i18n="webui.donate_free3">写篇使用心得、在内部分享一次，或推荐给需要的同事</div>
-              <div class="dn-free-item" data-i18n="webui.donate_free4">在社区里回答别人的问题——这比一笔捐款更难得</div>
-            </div>
-          </section>
-
-          <p class="dn-note" data-i18n="webui.donate_note">说明：社区版永久免费并以 Apache License 2.0 开源，捐赠是心意、不是购买服务，不构成技术支持或响应时间的承诺；社区版仍按 issue 跟踪、自担风险的方式维护。感谢每一份信任。</p>
         </div>
       </div>
 
@@ -12794,6 +12853,9 @@ function i18n(key) {
 }
 
 function applyI18N() {
+  try {
+    document.documentElement.setAttribute('data-lang', CURRENT_LANG || 'zh');
+  } catch (e) {}
   // 语言切换下拉框
   const langSel = document.getElementById('lang-select');
   if (langSel) langSel.value = CURRENT_LANG;
@@ -12851,6 +12913,48 @@ function applyI18N() {
     const _tv = i18n(k);
     if (_tv !== undefined && _tv !== '') el.title = _tv;
   });
+}
+
+// ── 捐赠页：微信 / 支付宝收款码切换（data-i18n 同步切换，语言切换后仍生效）──
+const DONATE_PAY_CFG = {
+  wechat: {
+    img: '/donate-wechat.png', alt: '微信收款码 · 程序猿水果摊',
+    title: 'webui.donate_qr_title', badge: 'webui.donate_qr_badge',
+    payee: 'webui.donate_qr_payee', note: 'webui.donate_qr_note'
+  },
+  alipay: {
+    img: '/donate-alipay.png', alt: '支付宝收款码 · 程序猿水果摊',
+    title: 'webui.donate_qr_title_alipay', badge: 'webui.donate_qr_badge_alipay',
+    payee: 'webui.donate_qr_payee_alipay', note: 'webui.donate_qr_note_alipay'
+  }
+};
+function setDonatePay(method) {
+  const cfg = DONATE_PAY_CFG[method] || DONATE_PAY_CFG.wechat;
+  const pay = DONATE_PAY_CFG[method] ? method : 'wechat';
+  const card = document.getElementById('dn-qr');
+  if (!card) return;
+  card.setAttribute('data-pay', pay);
+  document.querySelectorAll('.dn-pay-tab').forEach(function(btn) {
+    const on = btn.getAttribute('data-pay') === pay;
+    btn.classList.toggle('active', on);
+    btn.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
+  const img = document.getElementById('dn-qr-img');
+  if (img) { img.src = cfg.img; img.alt = cfg.alt; }
+  [['dn-qr-head', cfg.title], ['dn-qr-payee', cfg.payee],
+   ['dn-qr-badge', cfg.badge], ['dn-qr-note', cfg.note]].forEach(function(pair) {
+    const el = document.getElementById(pair[0]);
+    if (!el) return;
+    el.setAttribute('data-i18n', pair[1]);
+    const v = (typeof i18n === 'function') ? i18n(pair[1]) : undefined;
+    if (v !== undefined && v !== '') el.textContent = v;
+  });
+  try { localStorage.setItem('dbcheck_donate_pay', pay); } catch (e) {}
+}
+function initDonatePay() {
+  let saved = 'wechat';
+  try { saved = localStorage.getItem('dbcheck_donate_pay') || 'wechat'; } catch (e) {}
+  setDonatePay(saved === 'alipay' ? 'alipay' : 'wechat');
 }
 
 async function changeLang() {
@@ -13284,6 +13388,11 @@ function showPage(name) {
     pageEl.style.minHeight = '0';
     pageEl.style.width = '100%';
   }
+  // 捐赠页内容铺满可用宽度：仅该页抵消 .content 的左右内边距
+  try {
+    var contentBox = document.querySelector('.content');
+    if (contentBox) contentBox.classList.toggle('donate-page-active', name === 'donate');
+  } catch (e) {}
   var navEl = document.getElementById('nav-' + name);
   if (navEl) navEl.classList.add('active');
   // 合并菜单：组内页面共用侧边栏 lead 的高亮，并渲染二级 Tab 条
@@ -21611,6 +21720,7 @@ setInterval(renderAnnouncement, 30 * 60 * 1000);
 
 async function initApp() {
   await initI18N();
+  initDonatePay();
   initTheme();
   renderAnnouncement();
   // 只绑定一次 RAG 删除按钮事件

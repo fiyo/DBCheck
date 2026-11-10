@@ -3729,3 +3729,54 @@ ZH_TW.update({
     "webui.placeholder_inspector": "Jack",
     "webui.inspector_name_hint": "將顯示於報告封面"
 })
+
+# ── 支持作者 / 捐赠页（多语言补齐） ──
+ZH_TW.update({
+    "menu.donate": "支持作者",
+    "webui.nav_donate": "支持作者",
+    "webui.donate_subtitle": "謝謝你支持這個小小的開源專案",
+    "webui.donate_about_btn": "♥ 支持作者",
+    "webui.donate_kicker": "一封寫給使用者的感謝信",
+    "webui.donate_title": "謝謝你，讓浣巡能一直跑下去",
+    "webui.donate_lead": "這不是一道付費牆，而是一封寫給使用者的感謝信。你正在用的，已經是完整版。",
+    "webui.donate_chip1": "Apache 2.0 · 永久免費",
+    "webui.donate_chip2": "22 種資料庫 · 839 條巡檢項目",
+    "webui.donate_chip3": "無功能鎖 · 無捐贈版",
+    "webui.donate_chip4": "一人維護 · 無企業贊助",
+    "webui.donate_letter_title": "一封感謝信",
+    "webui.donate_p1": "如果 RaccoonX 曾幫你少熬一次夜、提前發現一個快要撐爆的表格空間，或者只是把一份週報從兩小時壓縮到十分鐘——那它就已經值回了我寫它的那些週末。",
+    "webui.donate_p2": "這個專案的全部程式碼以 Apache License 2.0 開源，社群版永久免費。沒有功能鎖，沒有「贊助後解鎖」，也不會因為捐沒捐而改變你能用的功能。你正在用的，就是完整版。",
+    "webui.donate_p3": "但它並不是零成本的。這裡有作者無數個夜裡重現問題、回覆 issue、寫文件、打包發版……這些都是一個人用業餘時間在處理，沒有企業贊助，也沒有基金會支持。",
+    "webui.donate_p4": "所以，如果你願意，可以掃一掃旁邊的收款碼，請我喝杯茶。金額真的隨意，一塊錢和一百塊在我這裡是同樣的心意；不方便也完全沒關係，點個 Star、提一個 issue、把它推薦給同事，對我同樣是實實在在的支持。",
+    "webui.donate_p5": "如果轉帳時留一句話，我都會看到——很多時候，一句「我在使用它」比金額更讓我開心。",
+    "webui.donate_quote": "謝謝你把它用在真實的正式環境裡，也謝謝你讀到這裡。",
+    "webui.donate_sign": "— Jack Ge，RaccoonX 維護者",
+    "webui.donate_qr_title": "微信掃碼 · 請作者喝杯茶",
+    "webui.donate_qr_badge": "微信支付",
+    "webui.donate_qr_payee": "收款方：程序猿水果攤",
+    "webui.donate_qr_tip": "金額隨意 · 心意不限",
+    "webui.donate_qr_note": "長按辨識 QR Code，或用微信「掃一掃」。捐贈完全自願，不影響任何功能。",
+    "webui.donate_story_title": "我的故事",
+    "webui.donate_story_lead": "這一節和程式碼無關，但和這個專案的每一行程式碼都有關。猶豫了很久，還是寫下來。",
+    "webui.donate_story_p1": "我的兒子是一位「星星的孩子」，醫學上叫孤獨症（也就是自閉症）。他不太看人的眼睛，也不太用語言回應這個世界；他有自己的秩序和節奏，我們得學著走進去，而不是把他拉出來。",
+    "webui.donate_story_p2": "自閉症沒有一針見效的辦法，靠的是長期、重複、按年計算的復健訓練。每週固定的幾趟課，一節課幾十分鐘，家長在教室外的走廊上等。這些年，我有很多時間是在那條走廊的椅子上度過的：包裡裝著電腦，手機開著熱點，等他上課的空檔重現一個 issue、改一條巡檢 SQL；下課了，闔上蓋子，牽他回家。等他睡了，再打開電腦打包、發版、寫文件。",
+    "webui.donate_story_p3": "RaccoonX 就是在這些空檔裡一點點長出來的。22 種資料庫、839 條巡檢項目、幾十個版本，不少規則是在走廊上改完、在深夜裡打包的。它不是某個衝刺出來的產品，更像是一天一天攢下來的——他在教室裡一遍遍練習一個我們看著很簡單的動作，我在門外把一條巡檢 SQL 改到能真的跑通。我們都在做很慢、但每天都得做的事。",
+    "webui.donate_story_p4": "復健是一場長跑。課程、評估、往返、請假，還有那些說不清的精力，是持續多年的開銷，沒有哪一天能算出終點。我很少對外提這些，不是難以啟齒，只是習慣了把日子一天天過下去。",
+    "webui.donate_story_line": "說這些，不是想讓誰為難。軟體照常免費、照常更新，以後也不會變。",
+    "webui.donate_story_sign": "如果你恰好願意掃一下一旁的收款碼，我記著；不方便，也真的沒關係——下面那些不花錢的方式，對我一樣重要。",
+    "webui.donate_free_title": "不花錢，也是在幫我",
+    "webui.donate_free1": "到 GitHub 點一個 Star，讓更多人看見它",
+    "webui.donate_free2": "提一個 issue，把誤報、漏報或不好用的地方告訴我",
+    "webui.donate_free3": "寫篇使用心得、在內部分享一次，或推薦給需要的同事",
+    "webui.donate_free4": "在社群裡回答別人的問題——這比一筆捐款更難得",
+    "webui.donate_note": "說明：社群版永久免費並以 Apache License 2.0 開源，捐贈是心意、不是購買服務，不構成技術支援或回應時間的承諾；社群版仍按 issue 追蹤、自擔風險的方式維護。感謝每一份信任。",
+})
+
+# ── 捐赠页：支付宝收款码切换 ──
+ZH_TW.update({
+    "webui.donate_pay_choose": "選一個你順手的方式",
+    "webui.donate_qr_title_alipay": "支付寶掃碼 · 請作者喝杯茶",
+    "webui.donate_qr_badge_alipay": "支付寶",
+    "webui.donate_qr_payee_alipay": "收款方：程序猿水果(**杰)",
+    "webui.donate_qr_note_alipay": "用支付寶「掃一掃」，或儲存圖片後從相簿辨識。捐贈完全自願，不影響任何功能。",
+})

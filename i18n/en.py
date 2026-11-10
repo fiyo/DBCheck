@@ -2684,7 +2684,7 @@ EN = {
     "webui.donate_story_p3": "RaccoonX grew out of those gaps, a little at a time. Twenty-two databases, 839 inspection items, dozens of releases — many rules were fixed in that corridor and packaged late at night. It was not built in a sprint; it accumulated, one day at a time. Inside the classroom he practises, over and over, a movement that looks effortless to us; outside, I adjust a query until it actually runs. We are both doing something slow that has to be done every single day.",
     "webui.donate_story_p4": "Rehabilitation is a long run. Sessions, assessments, the back-and-forth travel, the days off work, and the kind of effort that is hard to put into words — it is a cost that continues for years, with no date on which it ends. I rarely mention it, not because it is hard to say, but because I am used to living one day at a time.",
     "webui.donate_story_line": "I am not telling you this to make anyone uncomfortable. It stays free, it keeps being updated, and that will not change.",
-    "webui.donate_story_sign": "If you happen to feel like scanning the QR code above, I will remember it. If not, that is genuinely fine — the free ways to help listed below mean just as much to me.",
+    "webui.donate_story_sign": "If you happen to feel like scanning the QR code, I will remember it. If not, that is genuinely fine — the free ways to help listed below mean just as much to me.",
     "webui.donate_free_title": "Ways to help that cost nothing",
     "webui.donate_free1": "Star the project on GitHub so more people find it",
     "webui.donate_free2": "Open an issue about a false positive, a gap, or something clumsy",
@@ -3717,4 +3717,13 @@ EN.update({
     "webui.report_base_save_ok": "Saved",
     "webui.report_base_save_fail": "Save failed: ",
 
+})
+
+# ── 捐赠页：支付宝收款码切换 ──
+EN.update({
+    "webui.donate_pay_choose": "Pick whichever is easier for you",
+    "webui.donate_qr_title_alipay": "Scan with Alipay · Buy the author a tea",
+    "webui.donate_qr_badge_alipay": "Alipay",
+    "webui.donate_qr_payee_alipay": "Payee: 程序猿水果(**杰) (Alipay)",
+    "webui.donate_qr_note_alipay": "Open Alipay and tap 'Scan', or save the image and pick it from your gallery. Donations are entirely optional and never affect any feature.",
 })

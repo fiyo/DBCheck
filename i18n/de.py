@@ -3301,3 +3301,54 @@ DE.update({
     "webui.nav_fleet": "Intelligente Baseline",
     "webui.nav_twin": "Topologie-Inspektion"
 })
+
+# ── 支持作者 / 捐赠页（多语言补齐） ──
+DE.update({
+    "menu.donate": "Autor unterstützen",
+    "webui.nav_donate": "Autor unterstützen",
+    "webui.donate_subtitle": "Danke, dass du dieses kleine Open-Source-Projekt unterstützt",
+    "webui.donate_about_btn": "♥ Autor unterstützen",
+    "webui.donate_kicker": "Ein Dankesbrief an alle, die es nutzen",
+    "webui.donate_title": "Danke, dass RaccoonX weiterläuft",
+    "webui.donate_lead": "Das ist keine Bezahlschranke, sondern ein Dankesbrief. Was du gerade nutzt, ist bereits die Vollversion.",
+    "webui.donate_chip1": "Apache 2.0 · Dauerhaft kostenlos",
+    "webui.donate_chip2": "22 Datenbanken · 839 Prüfpunkte",
+    "webui.donate_chip3": "Keine gesperrten Funktionen · Keine Spender-Edition",
+    "webui.donate_chip4": "Ein einzelner Maintainer · Kein Firmensponsor",
+    "webui.donate_letter_title": "Ein Dankesbrief",
+    "webui.donate_p1": "Wenn RaccoonX dir schon einmal eine durchwachte Nacht erspart, einen kurz vor dem Überlauf stehenden Tablespace rechtzeitig gemeldet oder einen zwei Stunden dauernden Wochenbericht auf zehn Minuten verkürzt hat, dann hat es mir die Wochenenden, die ich hineingesteckt habe, längst zurückgegeben.",
+    "webui.donate_p2": "Der gesamte Code steht unter der Apache License 2.0, und die Community-Edition bleibt dauerhaft kostenlos. Keine gesperrten Funktionen, kein «nach Spende freischalten», und nichts an dem, was du tun kannst, hängt davon ab, ob du spendest. Was du nutzt, ist die vollständige Version.",
+    "webui.donate_p3": "Doch kostenlos heißt nicht ohne Aufwand. Nächte voller Reproduktionen, Antworten auf Issues, Dokumentation, Pakete bauen und Releases veröffentlichen…… all das erledigt ein Einzelner in seiner freien Zeit, ohne Firmensponsor und ohne Stiftungsgeld.",
+    "webui.donate_p4": "Wenn du magst, scanne den QR-Code daneben und gib mir einen Tee aus. Der Betrag ist wirklich egal: Für mich zählt bei einem kleinen und einem großen Betrag dieselbe Geste. Und wenn es gerade nicht passt, ist das völlig in Ordnung — ein GitHub-Stern, ein Issue oder eine Empfehlung an Kolleginnen und Kollegen helfen genauso konkret.",
+    "webui.donate_p5": "Wenn du bei der Überweisung eine Zeile hinterlässt, lese ich sie — oft freut mich ein schlichtes «Ich benutze es» mehr als der Betrag.",
+    "webui.donate_quote": "Danke, dass du es in echten Produktivsystemen einsetzt, und danke, dass du bis hierhin gelesen hast.",
+    "webui.donate_sign": "— Jack Ge, Maintainer von RaccoonX",
+    "webui.donate_qr_title": "Mit WeChat scannen · Dem Autor einen Tee ausgeben",
+    "webui.donate_qr_badge": "WeChat Pay",
+    "webui.donate_qr_payee": "Empfänger: 程序猿水果摊 (WeChat)",
+    "webui.donate_qr_tip": "Betrag frei · Geste frei",
+    "webui.donate_qr_note": "QR-Code lange gedrückt halten oder in WeChat «Scannen» verwenden. Spenden ist vollkommen freiwillig und hat keinen Einfluss auf Funktionen.",
+    "webui.donate_story_title": "Meine Geschichte",
+    "webui.donate_story_lead": "Dieser Abschnitt hat nichts mit Code zu tun — und mit jeder einzelnen Zeile dieses Projekts. Ich habe lange gezögert, ihn aufzuschreiben.",
+    "webui.donate_story_p1": "Mein Sohn ist ein «Kind der Sterne», wie man in China sagt; medizinisch gesprochen ist er autistisch (Autismus-Spektrum-Störung). Er sieht Menschen selten in die Augen und antwortet der Welt kaum mit Worten. Er hat seine eigene Ordnung und sein eigenes Tempo; wir müssen lernen, zu ihm hineinzugehen, statt ihn herauszuziehen.",
+    "webui.donate_story_p2": "Autismus lässt sich nicht mit einer einzigen Behandlung lösen. Was hilft, ist eine lange, sich wiederholende Förderung, die in Jahren rechnet. Ein paar feste Termine pro Woche, jeder nur einige Dutzend Minuten lang, während die Eltern auf dem Flur vor dem Kursraum warten. In all den Jahren habe ich viel Zeit auf einem Stuhl in diesem Flur verbracht: Laptop im Rucksack, Handy als Hotspot, in den Pausen einen Issue nachgestellt oder eine Prüf-SQL korrigiert. Ist der Kurs zu Ende, klappe ich den Deckel zu und nehme ihn an der Hand mit nach Hause. Wenn er schläft, klappe ich den Rechner wieder auf, baue Pakete, veröffentliche Versionen und schreibe Doku.",
+    "webui.donate_story_p3": "RaccoonX ist in genau diesen Lücken Stück für Stück gewachsen. 22 Datenbanken, 839 Prüfpunkte, Dutzende Releases — manche Regel wurde auf jenem Flur fertig und nachts verpackt. Es ist nicht in einem Sprint entstanden, sondern Tag für Tag zusammengekommen. Drinnen übt er immer wieder eine Bewegung, die für uns ganz selbstverständlich aussieht; draußen korrigiere ich eine Prüf-SQL, bis sie wirklich läuft. Wir beide tun etwas Langsames, das jeden Tag getan werden muss.",
+    "webui.donate_story_p4": "Förderung ist ein Langstreckenlauf. Kurse, Diagnostik, Hin- und Rückwege, freie Tage im Job und dazu die Mühe, die sich schwer in Worte fassen lässt: Ausgaben über viele Jahre, ohne Datum, an dem man ein Ende berechnen könnte. Ich spreche selten darüber — nicht, weil es mir schwerfiele, sondern weil ich mich daran gewöhnt habe, einen Tag nach dem anderen zu leben.",
+    "webui.donate_story_line": "Ich erzähle das nicht, um jemanden in Verlegenheit zu bringen. Die Software bleibt kostenlos, wird weiter gepflegt, und daran ändert sich nichts.",
+    "webui.donate_story_sign": "Wenn du den QR-Code scannen magst, behalte ich es im Gedächtnis. Wenn nicht, ist das wirklich in Ordnung — die Möglichkeiten ohne Geld weiter unten bedeuten mir genauso viel.",
+    "webui.donate_free_title": "Helfen, ohne Geld auszugeben",
+    "webui.donate_free1": "Gib dem Projekt einen GitHub-Stern, damit es mehr Menschen finden",
+    "webui.donate_free2": "Melde Fehlalarme, Lücken oder unpraktische Stellen in einem Issue",
+    "webui.donate_free3": "Schreib über deine Erfahrung, teile sie intern oder empfiehl es weiter",
+    "webui.donate_free4": "Beantworte in der Community die Frage eines anderen — das ist seltener als jede Spende",
+    "webui.donate_note": "Hinweis: Die Community-Edition ist unter der Apache License 2.0 dauerhaft kostenlos. Eine Spende ist eine Geste, kein Kauf von Dienstleistung; sie begründet weder Support noch zugesagte Reaktionszeiten. Die Community-Edition wird weiterhin über Issues und in eigener Verantwortung gepflegt. Danke für das Vertrauen.",
+})
+
+# ── 捐赠页：支付宝收款码切换 ──
+DE.update({
+    "webui.donate_pay_choose": "Wähle, was dir lieber ist",
+    "webui.donate_qr_title_alipay": "Mit Alipay scannen · Dem Autor einen Tee ausgeben",
+    "webui.donate_qr_badge_alipay": "Alipay",
+    "webui.donate_qr_payee_alipay": "Empfänger: 程序猿水果(**杰) (Alipay)",
+    "webui.donate_qr_note_alipay": "Öffne Alipay und tippe auf «Scannen», oder speichere das Bild und wähle es aus der Galerie. Spenden ist vollkommen freiwillig und hat keinen Einfluss auf Funktionen.",
+})
