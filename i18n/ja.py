@@ -3442,3 +3442,14 @@ JA.update({
 JA.update({
     "webui.donate_qr_disclaimer": "個人の受取口座です。ソフトウェアの機能やサポート対応とは関係ありません。",
 })
+
+# 作者手记名字墙：只记名，不排名、不计数
+JA.update({
+    "webui.donate_wall_title": "名前を添えてくれた方々へ",
+    "webui.donate_wall_note": "名前を載せたくない場合は issue で知らせてください。削除します。",
+})
+
+# 作者手记：文字云中心大字（比捐赠者名字更大）
+JA.update({
+    "webui.donate_cloud_core": "ご支援ありがとうございます",
+})

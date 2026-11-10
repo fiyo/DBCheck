@@ -1,5 +1,34 @@
 # Changelog
 
+## v26.11.10.0 (2026-11-10)
+
+### 新增：作者手记与捐赠者名单
+
+- 新增「作者手记」页（原「支持作者」捐赠页）：菜单、标题、关于弹窗按钮统一改为中性命名，删掉全部扫码邀请、免责安抚、金额暗示与成本铺垫；正文只保留感谢信、我的故事与参与方式，Apache 2.0 / 永久免费 / 无功能锁的合规口径改为陈述式说明。
+- 微信 / 支付宝双收款码切换，选择记忆到 localStorage；收款码从常驻卡片改为右栏目录卡下方的折叠入口（✦ +「留了张小卡片 / 点开看看」），默认收起，展开时自动取消侧栏 sticky 以适配矮屏，展开后双码、收款方与识别说明完整可扫。
+- 新增捐赠者名单：以 README「社区支持者」15 人为出厂快照 `assets/web/donors.json`；新增 `/api/donors`，三层数据源＝手动覆盖 `data/donors.json`（`enabled:false` 可关）> 官网缓存 `data/donors_cache.json` > 随包出厂快照。后台 daemon 每 30 分钟拉 `https://dbcheck.top/donors.json`，8s 超时、tmp + `os.replace` 原子写、失败保留旧缓存，离线也能显示。
+- 名单改为**心形文字云**常驻在右栏折叠入口上方：中心「感谢您的支持」24px 渐变大字，15 个名字 12.5–18.5px 错落排布（三档配色、轻微旋转与位移、一处淡色竖排），配淡心形轮廓与散落爱心；只显示名字，无日期 / 编号 / 金额 / 总数 / 按钮，附一行退出通道。
+
+### 修复：九语言文案统一与折叠版式自洽
+
+- 根因：`i18n/*.py` 里 donate 文案并存两套（主字典仍是旧「支持作者 / 扫一扫旁边的收款码」，末尾 `update()` 块才覆盖成「作者手记」）。Jinja 模板按 mtime 热重载、Python 模块进程内不重载 → 用户看到「新折叠布局 + 旧文案」。本次把 9 语言各 78 处 donate 定义统一为同一份最终值，彻底消除影子旧文案。
+- 收款码折叠后，正文不再出现「旁边 / 一旁 / 扫一扫 / 点开」等位置与动作指代；个人收款的合规说明移入折叠卡底部 `donate_qr_disclaimer`，只在读者展开后可见。
+- 9 语言补齐 `donate_cloud_core` 等新键，HTML 内写死的中文默认文本同步，避免 i18n 未加载时露出旧句。远程名单按不可信输入处理：后端只收字符串、去控制字符、单名 ≤24 字、总数 ≤500、去重保序；前端一律 `createElement + textContent`，不拼 innerHTML。
+
+### 已知边界
+
+- 官网 `donors.json` 需随本次发版推送到双仓；未推送前远程拉取返回 404，按设计降级显示随包的 15 人出厂快照。
+- 本次改动包含 `i18n/*.py`、`modules/web/app.py`、`modules/core/paths.py` 等 Python 模块，**必须重启 Web 服务**才生效（Ctrl+F5 只刷模板）；PyInstaller 打包版需重新出包。
+- 名单为「只记名」的鸣谢，不含金额与排序；不希望显示名字可通过 issue 退出。
+
+### 验证
+
+- 三步验证：`compileall -q` EXIT=0；`import modules.web.app` OK；`discover_plugins()` = 12。
+- 9 语言 donate 引用键与新键 0 缺失、52 个 donate 值 × 9 语言禁词命中 0；各语言 78 处 donate 定义值全等于最终值。
+- 主模板 22 个 script 块 `node --check` 0 失败、14 个 style 块括号平衡；Jinja 完整渲染 1,587,957 B。
+- `/api/donors` 四态实测：`bundled 15` → `cache` → `override` → `enabled:false`；清洗函数 8 类异常输入通过；Chrome 用真实 `loadDonors()` 注入 XSS payload → `CHIPS=3 IMGTAG=0`，恶意串未变成元素。
+- headless Chrome 浅色首屏 / 云区放大 / 展开态 / 深色主题 4 张截图均无溢出、遮挡或错位。
+
 ## v26.11.9.1 (2026-11-09)
 
 ### 新增：AI 聊天助手接入 BIC-QA 知识库

@@ -3767,3 +3767,14 @@ EN.update({
 EN.update({
     "webui.donate_qr_disclaimer": "A personal receiving account, unrelated to software features or support.",
 })
+
+# 作者手记名字墙：只记名，不排名、不计数
+EN.update({
+    "webui.donate_wall_title": "A few names I owe thanks to",
+    "webui.donate_wall_note": "If you'd rather not be listed, open an issue and I'll remove your name.",
+})
+
+# 作者手记：文字云中心大字（比捐赠者名字更大）
+EN.update({
+    "webui.donate_cloud_core": "Thank you for your support",
+})

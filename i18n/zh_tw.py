@@ -3820,3 +3820,14 @@ ZH_TW.update({
 ZH_TW.update({
     "webui.donate_qr_disclaimer": "個人收款，與軟體功能、服務回應無關。",
 })
+
+# 作者手记名字墙：只记名，不排名、不计数
+ZH_TW.update({
+    "webui.donate_wall_title": "也謝謝這些名字",
+    "webui.donate_wall_note": "如果不想顯示名字，提個 issue 告訴我，我刪掉。",
+})
+
+# 作者手记：文字云中心大字（比捐赠者名字更大）
+ZH_TW.update({
+    "webui.donate_cloud_core": "感謝您的支持",
+})

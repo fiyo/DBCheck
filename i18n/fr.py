@@ -3392,3 +3392,14 @@ FR.update({
 FR.update({
     "webui.donate_qr_disclaimer": "Compte personnel, sans lien avec les fonctionnalités du logiciel ni le support.",
 })
+
+# 作者手记名字墙：只记名，不排名、不计数
+FR.update({
+    "webui.donate_wall_title": "Merci aussi à ces noms",
+    "webui.donate_wall_note": "Si vous préférez ne pas figurer, ouvrez un ticket et je retire votre nom.",
+})
+
+# 作者手记：文字云中心大字（比捐赠者名字更大）
+FR.update({
+    "webui.donate_cloud_core": "Merci pour votre soutien",
+})

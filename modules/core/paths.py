@@ -135,6 +135,11 @@ VERSION_JSON = CONFIG_DIR / "version.json"
 # 优先级高于缓存，enabled:false 可永久关闭公告条。
 ANNOUNCEMENT_JSON = DATA_DIR / "announcement.json"
 ANNOUNCEMENT_CACHE_JSON = DATA_DIR / "announcement_cache.json"
+# 作者手记「也谢谢这些名字」：官网 https://dbcheck.top/donors.json 为唯一权威源，
+# 后台线程定时拉取写入 DONORS_CACHE_JSON（data/，不进 git）；DONORS_JSON 为用户手动覆盖，
+# enabled:false 可关闭名单。出厂兜底快照在 assets/web/donors.json（随包只读，绝不写入）。
+DONORS_JSON = DATA_DIR / "donors.json"
+DONORS_CACHE_JSON = DATA_DIR / "donors_cache.json"
 BATCH_TEMPLATE_DIR = CONFIG_DIR / "batch_templates"
 
 

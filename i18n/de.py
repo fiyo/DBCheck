@@ -3392,3 +3392,14 @@ DE.update({
 DE.update({
     "webui.donate_qr_disclaimer": "Privates Empfangskonto, ohne Bezug zu Funktionen des Programms oder Supportzeiten.",
 })
+
+# 作者手记名字墙：只记名，不排名、不计数
+DE.update({
+    "webui.donate_wall_title": "Auch danke an diese Namen",
+    "webui.donate_wall_note": "Wenn du nicht genannt werden möchtest, schreib ein Issue, dann entferne ich deinen Namen.",
+})
+
+# 作者手记：文字云中心大字（比捐赠者名字更大）
+DE.update({
+    "webui.donate_cloud_core": "Danke für Ihre Unterstützung",
+})

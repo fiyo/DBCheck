@@ -3941,6 +3941,120 @@ def api_announcement():
             return jsonify({'enabled': True, 'items': items})
     return jsonify({'enabled': False, 'items': []})
 
+# ─── 作者手记「也谢谢这些名字」：官网名单 + 出厂快照兜底 ───
+# 解析顺序：data/donors.json（用户手动覆盖，enabled:false 可关闭）
+#          > data/donors_cache.json（官网 30 分钟定时拉取的本地缓存）
+#          > assets/web/donors.json（随包出厂快照，只读，断网/首次运行也能显示）
+_DONORS_REMOTE_URL = "https://dbcheck.top/donors.json"
+_DONORS_REFRESH_INTERVAL = 30 * 60
+_DONORS_FETCH_TIMEOUT = 8
+_DONORS_MAX_NAMES = 500
+_DONORS_MAX_NAME_LEN = 24
+_donors_refresher_started = False
+_donors_refresher_lock = threading.Lock()
+
+def _clean_donor_names(raw):
+    """官网名单是不可信输入：只收字符串，去控制字符、限长、限总量、去重保序。"""
+    if not isinstance(raw, list):
+        return []
+    out, seen = [], set()
+    for item in raw:
+        if not isinstance(item, str):
+            continue
+        name = ''.join(ch for ch in item.strip() if ch.isprintable()).strip()
+        if not name or len(name) > _DONORS_MAX_NAME_LEN or name in seen:
+            continue
+        seen.add(name)
+        out.append(name)
+        if len(out) >= _DONORS_MAX_NAMES:
+            break
+    return out
+
+def _refresh_donors_cache():
+    """从官网拉取名单，成功且内容有变化才原子覆盖本地缓存；任何失败保留旧缓存。"""
+    from modules.core.paths import DONORS_CACHE_JSON
+    try:
+        import urllib.request
+        req = urllib.request.Request(
+            _DONORS_REMOTE_URL,
+            headers={'User-Agent': 'DBCheck-Donors/1.0'})
+        with urllib.request.urlopen(req, timeout=_DONORS_FETCH_TIMEOUT) as resp:
+            raw = resp.read()
+        cfg = json.loads(raw.decode('utf-8'))
+        if not isinstance(cfg, dict):
+            print(f"[donors] 官网名单格式非法，跳过覆盖: {_DONORS_REMOTE_URL}")
+            return
+        names = _clean_donor_names(cfg.get('names'))
+        if not names:
+            print(f"[donors] 官网名单无有效名字，跳过覆盖: {_DONORS_REMOTE_URL}")
+            return
+        clean = {'enabled': bool(cfg.get('enabled', True)), 'names': names}
+        if DONORS_CACHE_JSON.exists():
+            try:
+                with open(DONORS_CACHE_JSON, 'r', encoding='utf-8') as f:
+                    if json.load(f) == clean:
+                        return
+            except Exception:
+                pass  # 现有缓存损坏 → 走正常覆盖
+        tmp = DONORS_CACHE_JSON.with_suffix('.json.tmp')
+        tmp.parent.mkdir(parents=True, exist_ok=True)
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump(clean, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, DONORS_CACHE_JSON)
+        print(f"[donors] 检测到官网名单更新，已写入缓存: {DONORS_CACHE_JSON}")
+    except Exception as e:
+        print(f"[donors] 拉取官网名单失败（保留本地缓存）: {e}")
+
+def _donors_refresher_loop():
+    while True:
+        _refresh_donors_cache()
+        time.sleep(_DONORS_REFRESH_INTERVAL)
+
+def _ensure_donors_refresher():
+    """懒启动后台拉取线程（仅启动一次，daemon 不阻断退出）。"""
+    global _donors_refresher_started
+    if _donors_refresher_started:
+        return
+    with _donors_refresher_lock:
+        if _donors_refresher_started:
+            return
+        _donors_refresher_started = True
+        t = threading.Thread(target=_donors_refresher_loop,
+                             name='donors-refresher', daemon=True)
+        t.start()
+
+def _load_donors_file(path):
+    """读取名单文件；enabled:false 返回 'disabled'，有效返回 {'names': [...]}，其余 None。"""
+    try:
+        if not path.exists():
+            return None
+        with open(path, 'r', encoding='utf-8') as f:
+            cfg = json.load(f)
+        if not isinstance(cfg, dict) or not cfg.get('enabled', True):
+            return 'disabled'
+        names = _clean_donor_names(cfg.get('names'))
+        return {'names': names} if names else None
+    except Exception as e:
+        print(f"[donors] 读取名单失败（{path}，降级）: {e}")
+        return None
+
+@app.route('/api/donors', methods=['GET'])
+def api_donors():
+    """作者手记名字墙（公开只读）：手动覆盖 > 官网缓存 > 出厂快照；只返回名字。"""
+    from modules.core.paths import DONORS_JSON, DONORS_CACHE_JSON, ASSETS_DIR
+    _ensure_donors_refresher()
+    for path, source in ((DONORS_JSON, 'override'), (DONORS_CACHE_JSON, 'cache')):
+        cfg = _load_donors_file(path)
+        if cfg == 'disabled':
+            return jsonify({'enabled': False, 'names': [], 'source': source})
+        if isinstance(cfg, dict):
+            return jsonify({'enabled': True, 'names': cfg['names'], 'source': source})
+    bundled = ASSETS_DIR / 'web' / 'donors.json'
+    cfg = _load_donors_file(bundled)
+    if isinstance(cfg, dict):
+        return jsonify({'enabled': True, 'names': cfg['names'], 'source': 'bundled'})
+    return jsonify({'enabled': False, 'names': [], 'source': 'none'})
+
 @app.route('/api/config', methods=['GET'])
 def api_get_config():
     cfg_path = paths.DBC_CONFIG_PATH

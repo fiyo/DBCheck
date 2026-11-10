@@ -3768,3 +3768,14 @@ ZI.update({
 ZI.update({
     "webui.donate_qr_disclaimer": "个人收款，与软件功能、服务响应无关。",
 })
+
+# 作者手记名字墙：只记名，不排名、不计数
+ZI.update({
+    "webui.donate_wall_title": "也谢谢这些名字",
+    "webui.donate_wall_note": "如果不想显示名字，提个 issue 告诉我，我删掉。",
+})
+
+# 作者手记：文字云中心大字（比捐赠者名字更大）
+ZI.update({
+    "webui.donate_cloud_core": "感谢您的支持",
+})

@@ -3597,6 +3597,75 @@ async function executeFixSql(taskId, sql) {
   font-size: 12px; line-height: 1.8; color: var(--text-muted);
 }
 .dn-section { margin-top: 18px; animation: dnFadeUp .5s ease both; }
+/* 文字云：常驻不折叠，心形氛围里只记名，不排名、不计数、不引导 */
+.dn-cloud-card[hidden] { display: none; }
+.dn-cloud-card {
+  position: relative; min-width: 0; margin-top: 14px; padding: 12px 10px 8px;
+  text-align: center; animation: dnFadeUp .5s ease both; animation-delay: .08s;
+}
+.dn-cloud-label {
+  position: relative; z-index: 2;
+  font-size: 11.5px; letter-spacing: .08em; color: var(--text-muted);
+}
+.dn-cloud {
+  position: relative; z-index: 1;
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+  gap: 6px 11px; min-height: 164px; padding: 8px 4px 12px; overflow: hidden;
+}
+.dn-cloud-heart {
+  position: absolute; left: 50%; top: 50%; width: 94%; height: 94%;
+  transform: translate(-50%, -50%); pointer-events: none;
+}
+.dn-cloud-heart-bg { opacity: .16; }
+.dn-cloud-heart-mini {
+  width: 25%; height: 25%; left: 73%; top: 21%; opacity: .3;
+  transform: translate(-50%, -50%) rotate(-12deg);
+}
+.dn-cloud-deco { position: absolute; inset: 0; pointer-events: none; }
+.dn-cloud-deco i { position: absolute; font-style: normal; line-height: 1; }
+.dn-cloud-deco i:nth-child(1) { left: 2%;  top: 13%; font-size: 14px; color: #f19bbb; opacity: .6;  transform: rotate(-18deg); }
+.dn-cloud-deco i:nth-child(2) { left: 13%; top: 72%; font-size: 19px; color: #5fd0bd; opacity: .55; transform: rotate(14deg); }
+.dn-cloud-deco i:nth-child(3) { left: 23%; top: 4%;  font-size: 10px; color: #f19bbb; opacity: .5;  transform: rotate(8deg); }
+.dn-cloud-deco i:nth-child(4) { left: 78%; top: 7%;  font-size: 12px; color: #f19bbb; opacity: .55; transform: rotate(20deg); }
+.dn-cloud-deco i:nth-child(5) { left: 91%; top: 35%; font-size: 16px; color: #5fd0bd; opacity: .5;  transform: rotate(-10deg); }
+.dn-cloud-deco i:nth-child(6) { left: 6%;  top: 45%; font-size: 11px; color: #5fd0bd; opacity: .55; transform: rotate(24deg); }
+.dn-cloud-deco i:nth-child(7) { left: 86%; top: 78%; font-size: 21px; color: #f19bbb; opacity: .45; transform: rotate(-16deg); }
+.dn-cloud-deco i:nth-child(8) { left: 62%; top: 88%; font-size: 10px; color: #5fd0bd; opacity: .6;  transform: rotate(12deg); }
+.dn-cloud-core {
+  position: relative; z-index: 2; flex: 0 0 100%; margin: 2px 0 8px;
+  font-size: 24px; font-weight: 800; line-height: 1.35; letter-spacing: .04em;
+  color: var(--accent); overflow-wrap: anywhere;
+}
+@supports (-webkit-background-clip: text) {
+  .dn-cloud-core {
+    background: linear-gradient(100deg, #2fd0a8 0%, #7fd0c0 42%, #f19bbb 100%);
+    -webkit-background-clip: text; background-clip: text;
+    color: transparent; -webkit-text-fill-color: transparent;
+  }
+  [data-theme="light"] .dn-cloud-core {
+    background-image: linear-gradient(100deg, #008a70 0%, #3f9c96 42%, #c2568c 100%);
+  }
+}
+.dn-cloud-name {
+  position: relative; z-index: 2; font-weight: 600; line-height: 1.4;
+  white-space: nowrap; max-width: 100%; overflow-wrap: anywhere;
+  transition: transform .2s ease, opacity .2s ease;
+}
+.dn-cloud-name[data-tone="0"] { color: var(--text-muted); opacity: .95; }
+.dn-cloud-name[data-tone="1"] { color: #4ec9b0; opacity: .9; }
+.dn-cloud-name[data-tone="2"] { color: #ef9dbd; opacity: .9; }
+[data-theme="light"] .dn-cloud-name[data-tone="1"] { color: #1f9c85; }
+[data-theme="light"] .dn-cloud-name[data-tone="2"] { color: #c86594; }
+.dn-cloud-name.dn-cloud-vertical {
+  writing-mode: vertical-rl; letter-spacing: .16em;
+  font-size: 11px !important; opacity: .6 !important;
+  color: var(--text-muted) !important;
+}
+.dn-cloud-name:hover { transform: scale(1.12) rotate(0deg) !important; opacity: 1 !important; }
+.dn-cloud-note {
+  position: relative; z-index: 2; margin: 0;
+  font-size: 10.5px; line-height: 1.6; color: var(--text-muted); opacity: .85;
+}
 
 /* 收款码卡片：页尾折叠区内，切换微信 / 支付宝 */
 .dn-qr {
@@ -3730,6 +3799,7 @@ async function executeFixSql(taskId, sql) {
   .dn-side { position: static; order: -1; }
   .dn-qr { max-width: 420px; margin: 0 auto; }
   .dn-side .dn-tip-body .dn-qr { max-width: 420px; margin: 0 auto; }
+  .dn-cloud-card { max-width: 420px; margin-left: auto; margin-right: auto; }
   .dn-hero { column-gap: 20px; padding: 20px 22px; }
 }
 @media (max-width: 640px) {
@@ -3741,6 +3811,8 @@ async function executeFixSql(taskId, sql) {
   .dn-letter p, .dn-story-body p { font-size: 13.5px; line-height: 1.85; }
   .dn-free { grid-template-columns: minmax(0,1fr); }
   .dn-qr-img { max-width: 210px; }
+  .dn-cloud { min-height: 148px; }
+  .dn-cloud-core { font-size: 21px; }
 }
 /* 矮屏：只做温和收紧，不再把正文压到小字 */
 @media (max-height: 700px) and (min-width: 1021px) {
@@ -3753,8 +3825,8 @@ async function executeFixSql(taskId, sql) {
   .dn-letter p, .dn-story-body p { font-size: 13.5px; line-height: 1.8; margin-bottom: 10px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .dn-hero, .dn-card, .dn-section, .dn-hero-deco, .dn-tip-star { animation: none; }
-  .dn-qr-frame, .about-donate-btn, .dn-side .dn-tip { transition: none; }
+  .dn-hero, .dn-card, .dn-section, .dn-hero-deco, .dn-tip-star, .dn-cloud-card { animation: none; }
+  .dn-qr-frame, .about-donate-btn, .dn-side .dn-tip, .dn-cloud-name { transition: none; }
 }
 
 /* ── 近一年巡检日历（GitHub 贡献图式） ── */
@@ -12814,6 +12886,22 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
                 <div class="dn-toc-sign" data-i18n="webui.donate_toc_sign">写于日常的间隙</div>
               </div>
 
+              <section class="dn-cloud-card" id="dn-cloud" hidden>
+                <div class="dn-cloud-label" data-i18n="webui.donate_wall_title">也谢谢这些名字</div>
+                <div class="dn-cloud" id="dn-cloud-words">
+                  <svg class="dn-cloud-heart dn-cloud-heart-bg" viewBox="0 0 100 92" aria-hidden="true">
+                    <defs><linearGradient id="dnHeartGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#5fd0bd"/><stop offset="100%" stop-color="#f19bbb"/></linearGradient></defs>
+                    <path d="M50 88C20 66 3 48 3 29 3 14 15 3 30 3c9 0 16 5 20 13 4-8 11-13 20-13 15 0 27 11 27 26 0 19-17 37-47 59z" fill="url(#dnHeartGrad)"/>
+                  </svg>
+                  <svg class="dn-cloud-heart dn-cloud-heart-mini" viewBox="0 0 100 92" aria-hidden="true">
+                    <path d="M50 88C20 66 3 48 3 29 3 14 15 3 30 3c9 0 16 5 20 13 4-8 11-13 20-13 15 0 27 11 27 26 0 19-17 37-47 59z" fill="#5fd0bd"/>
+                  </svg>
+                  <span class="dn-cloud-deco" aria-hidden="true"><i>♥</i><i>♥</i><i>♥</i><i>♥</i><i>♥</i><i>♥</i><i>♥</i><i>♥</i></span>
+                  <span class="dn-cloud-core" data-i18n="webui.donate_cloud_core">感谢您的支持</span>
+                </div>
+                <p class="dn-cloud-note" data-i18n="webui.donate_wall_note">如果不想显示名字，提个 issue 告诉我，我删掉。</p>
+              </section>
+
               <details class="dn-tip" id="dn-tip" ontoggle="var s=this.closest('.dn-side'); if(s) s.classList.toggle('has-open-tip', this.open)">
                 <summary>
                   <span class="dn-tip-star" aria-hidden="true">✦</span>
@@ -13048,6 +13136,48 @@ function initDonatePay() {
   try { saved = localStorage.getItem('dbcheck_donate_pay') || 'wechat'; } catch (e) {}
   setDonatePay(saved === 'alipay' ? 'alipay' : 'wechat');
 }
+
+// ── 作者手记：捐赠者名字云（/api/donors，后端 30 分钟同步官网名单）──
+// 只记名、不排名、不计数；远程内容一律 textContent 渲染，绝不拼 innerHTML
+var _donorsSig = null;
+function _cloudHash(i, salt) { return ((i * 9301 + salt) % 233280) / 233280; }
+function _styleDonorName(el, i) {
+  var text = el.textContent;
+  var r1 = _cloudHash(i + 1, 49297), r2 = _cloudHash(i + 1, 18719);
+  var size = text.length > 14 ? 11.5 : text.length > 9 ? 12.5 : (12.5 + Math.round(r1 * 6));
+  el.style.fontSize = size + 'px';
+  el.style.transform = 'translateY(' + ((r1 - .5) * 9).toFixed(1) + 'px) rotate(' + (r2 * 16 - 8).toFixed(1) + 'deg)';
+  el.setAttribute('data-tone', String(i % 3));
+  if (i % 5 === 2) el.style.opacity = '.65';
+  if (/^[\u4e00-\u9fa5]{2,4}$/.test(text) && i % 9 === 7) el.classList.add('dn-cloud-vertical');
+}
+async function loadDonors() {
+  var data;
+  try {
+    var r = await fetch('/api/donors');
+    data = await r.json();
+  } catch (e) { return; }
+  var card = document.getElementById('dn-cloud');
+  var box = document.getElementById('dn-cloud-words');
+  if (!card || !box) return;
+  var names = (data && data.enabled && Array.isArray(data.names)) ? data.names : [];
+  if (!names.length) { card.hidden = true; return; }
+  var sig = JSON.stringify(names);
+  card.hidden = false;
+  if (sig === _donorsSig) return;
+  _donorsSig = sig;
+  var old = box.querySelectorAll('.dn-cloud-name');
+  for (var j = 0; j < old.length; j++) old[j].remove();
+  names.forEach(function (n, i) {
+    var span = document.createElement('span');
+    span.className = 'dn-cloud-name';
+    span.textContent = String(n);
+    _styleDonorName(span, i);
+    box.appendChild(span);
+  });
+}
+// 与公告条一致的 30 分钟重查：仅停留在作者手记页时才请求
+setInterval(function () { if (_currentPage === 'donate') loadDonors(); }, 30 * 60 * 1000);
 
 async function changeLang() {
   const sel = document.getElementById('lang-select');
@@ -13558,6 +13688,7 @@ function showPage(name) {
   if (name === 'doc-kb') loadDocKb();
   if (name === 'bicqa') loadBicqaPage();
   if (name === 'schema-dict') loadSchemaDict();
+  if (name === 'donate') loadDonors();
   if (name === 'home') loadHomeStats();
   if (name === 'shares') loadShares();
   if (name === 'data-management') loadDataManagement();

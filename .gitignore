@@ -58,6 +58,10 @@ data/autobackup/
 data/announcement.json
 data/announcement_cache.json
 data/announcement_cache.json.tmp
+# 作者手记名字墙运行时文件：donors.json=用户手动覆盖；donors_cache.json=官网拉取缓存
+data/donors.json
+data/donors_cache.json
+data/donors_cache.json.tmp
 data/tenants/
 drivers_bak/*
 commit_msg.txt

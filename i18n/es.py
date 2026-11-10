@@ -3391,3 +3391,14 @@ ES.update({
 ES.update({
     "webui.donate_qr_disclaimer": "Cuenta personal de cobro, ajena a las funciones del software y a los tiempos de respuesta.",
 })
+
+# 作者手记名字墙：只记名，不排名、不计数
+ES.update({
+    "webui.donate_wall_title": "También gracias a estos nombres",
+    "webui.donate_wall_note": "Si prefieres no aparecer, abre un issue y quito tu nombre.",
+})
+
+# 作者手记：文字云中心大字（比捐赠者名字更大）
+ES.update({
+    "webui.donate_cloud_core": "Gracias por tu apoyo",
+})

@@ -8,7 +8,7 @@
 >
 > Formerly known as **DBCheck**.
 
-[![Version](https://img.shields.io/badge/Version-v26.11.9.1-blue.svg)]()
+[![Version](https://img.shields.io/badge/Version-v26.11.10.0-blue.svg)]()
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)]()
 [![AI](https://img.shields.io/badge/AI-Ollama%20%7C%20OpenAI-orange.svg)]()
@@ -260,7 +260,7 @@ so the host only needs **kernel ≥ 4.x** — Galaxy Kylin V10 SP3 ships kernel 
 ```bash
 uname -m                                      # expect aarch64
 # Version list: https://github.com/fiyo/DBCheck/releases
-VERSION=26.11.9.1
+VERSION=26.11.10.0
 docker pull jackge12345/dbcheck:$VERSION     # pin an explicit version
 docker run -d -p 5003:5003 \
   --memory=2g --memory-swap=2g \

@@ -3390,3 +3390,14 @@ KO.update({
 KO.update({
     "webui.donate_qr_disclaimer": "개인 수신 계정이며, 소프트웨어 기능이나 지원 응답과는 관련이 없습니다.",
 })
+
+# 作者手记名字墙：只记名，不排名、不计数
+KO.update({
+    "webui.donate_wall_title": "이름을 남겨 주신 분들께",
+    "webui.donate_wall_note": "이름을 올리고 싶지 않다면 issue로 알려 주세요. 삭제하겠습니다.",
+})
+
+# 作者手记：文字云中心大字（比捐赠者名字更大）
+KO.update({
+    "webui.donate_cloud_core": "지원해 주셔서 감사합니다",
+})
