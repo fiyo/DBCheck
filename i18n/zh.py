@@ -3779,3 +3779,14 @@ ZI.update({
 ZI.update({
     "webui.donate_cloud_core": "感谢您的支持",
 })
+
+# 监控大屏：实例健康矩阵（替代侧栏 6 张 Top10 榜单）
+ZI.update({
+    "webui.screen_hm_title": "实例健康矩阵 · 异常置顶 · 点行看详情",
+    "webui.screen_hm_inst": "实例",
+    "webui.screen_hm_qps": "QPS",
+    "webui.screen_hm_conn": "连接%",
+    "webui.screen_hm_tbs": "剩余%",
+    "webui.screen_hm_risk": "异常",
+    "webui.screen_hm_tip": "点击行查看实例详情",
+})

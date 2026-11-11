@@ -55,12 +55,10 @@
     border-radius: 10px; display: flex; flex-direction: column; min-height: 0; overflow: hidden;
     position: relative;
   }
-  /* 宿主面板需更高：aside 内现为 5 个面板（已移除「实例健康分布」饼图——顶部状态筛选
-     芯片已带各状态计数，信息不丢失），4 个常规图表面板各 flex:1、宿主面板 flex:3.2：
-     总份数 7.2 与移除前的 6 面板 1*5+2.2 相同，故常规图表高度维持原样，
-     宿主面板由 ~2.2 份升到 3.2 份（1080p 下约 275px → 400px，可同时看 5 行小倍数，
-     其余滚动）。宿主行内含迷你折线，按 1 份高度只能露出约 1 行。 */
-  .panel-host { flex: 3.2; }
+  /* 静态排名不再各占一份固定高度：上方「实例健康矩阵 / 表空间明细」按数据条数
+     自适应高度（行数少就收缩、行数多则内部滚动），下方「趋势 / 宿主资源」吃掉
+     剩余空间。避免 5 个实例却摊出 9 个等高面板 → 大片空白 + 标签互相叠加。 */
+  .panel-auto { flex: 0 1 auto; max-height: 58%; min-height: 92px; }
   .panel h3 {
     font-size: 12.5px; font-weight: 500; color: var(--tx2);
     padding: 9px 12px 0; letter-spacing: .5px;
@@ -71,6 +69,39 @@
     background: linear-gradient(180deg, var(--accent), var(--blue));
   }
   .chart { flex: 1; min-height: 0; }
+  /* ── 趋势图：外层视口可滚动，内层画布高度由 JS 按模式/实例数显式设定 ──
+     ECharts 只在 init / resize 时读取容器高度；左栏「实例健康矩阵」按行数
+     自适应高度会改变趋势容器尺寸，若画布仍按旧高度绘制，下半部分会被面板
+     overflow:hidden 裁掉（合计与按实例两种模式都「显示不全」）。 */
+  .trend-viewport { overflow-y: auto; overflow-x: hidden; position: relative; }
+  .trend-viewport::-webkit-scrollbar { width: 6px; }
+  .trend-viewport::-webkit-scrollbar-thumb { background: rgba(143,163,192,.55); border-radius: 3px; }
+  .trend-viewport::-webkit-scrollbar-track { background: rgba(255,255,255,.03); }
+  .trend-canvas { width: 100%; height: 100%; min-height: 80px; }
+  /* ── 实例健康矩阵：一行=一实例，列=关键指标，异常项用徽章收在末列 ──
+     替代原先 6 张 Top10 横向条形榜（同一批实例被重复画 6 遍、各配一套坐标轴）。
+     行高固定，实例多时列表内部滚动，不再靠截断条数去迁就面板高度。 */
+  .hm-head, .hm-row {
+    display: grid; grid-template-columns: minmax(0,1.55fr) .62fr .68fr .72fr minmax(0,1.25fr);
+    align-items: center; gap: 4px; padding: 0 10px;
+  }
+  .hm-head { flex: none; height: 22px; font-size: 9.5px; color: var(--tx2);
+             border-bottom: 1px solid var(--border); }
+  .hm-head div + div, .hm-v { text-align: right; }
+  .hm-list { flex: 1; min-height: 0; overflow-y: auto; padding: 3px 0 5px;
+             display: flex; flex-direction: column; }
+  .hm-list::-webkit-scrollbar { width: 4px; }
+  .hm-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .hm-row { flex: none; height: 30px; border-radius: 6px; cursor: pointer; font-size: 10.5px; }
+  .hm-row:hover { background: rgba(255,255,255,.05); }
+  .hm-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .hm-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; }
+  .hm-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hm-v { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .hm-risk { display: flex; gap: 3px; justify-content: flex-end; overflow: hidden; }
+  .hm-tag { flex: none; font-size: 9px; line-height: 14px; padding: 0 4px; border-radius: 4px;
+            border: 1px solid currentColor; white-space: nowrap; }
+  .hm-ok { color: var(--tx2); opacity: .65; font-size: 10px; }
   /* ── 表空间进度列表（替代 ECharts 条形：标签完整、等级配色、可点下钻） ── */
   .tbs-hint { display: flex; align-items: flex-start; gap: 6px; margin: 0 12px 8px;
               padding: 7px 9px; border-radius: 7px; font-size: 11px; line-height: 1.5;
@@ -90,14 +121,27 @@
   .host-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
   .hhead, .hline { display: grid; grid-template-columns: minmax(0,1fr) 44px 44px 42px 40px auto;
                    align-items: center; gap: 6px; padding: 2px 4px; }
-  .hhead { font-size: 9px; color: var(--tx2); padding-bottom: 2px; }
+  .hhead { flex: none; font-size: 9px; color: var(--tx2); padding-bottom: 2px; }
   .hhead div + div { text-align: right; }
-  .hrow { border-radius: 6px; cursor: pointer; padding: 2px 0 3px; }
+  /* 行数少时每行均分剩余高度 → 迷你折线变大，右栏底部不再留一大片空白；
+     行数多时 min-height 兜底、列表整体滚动。
+     basis 必须是 0 且允许收缩：ECharts 会在容器里插入一个带固定高度的内部 div，
+     若用 basis:auto，这个内部高度会参与内容尺寸计算，每轮 refresh 后把行越撑越高
+     （一个不可用行就能吃掉整个面板，把其它实例挤出可视区）。 */
+  .hrow { flex: 1 1 0; min-height: 68px; display: flex; flex-direction: column;
+          border-radius: 6px; cursor: pointer; padding: 2px 0 3px; }
+  .hrow .hline { flex: none; }
   .hrow:hover { background: rgba(255,255,255,.045); }
   .hrow .hname { font-size: 10.5px; color: var(--tx); overflow: hidden;
                  text-overflow: ellipsis; white-space: nowrap; }
-  .hrow .hval { font-size: 10.5px; text-align: right; font-variant-numeric: tabular-nums; }
-  .hspark { height: 46px; width: 100%; }
+  .hrow .hval { font-size: 10.5px; text-align: right; font-variant-numeric: tabular-nums;
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hspark { flex: 1 1 0; min-height: 46px; height: auto; width: 100%; }
+  /* 采集失败 / 异地未配 SSH 的实例没有折线可画：压成「数值行 + 一行提示」的
+     紧凑单行，不参与剩余高度分配，把空间全让给真正有数据的实例。
+     overflow 只加在不可用行（只画 graphic 文本），可用行若裁剪会连 tooltip 一起裁掉。 */
+  .hrow.hrow-na { flex: 0 0 auto; min-height: 0; }
+  .hrow.hrow-na .hspark { flex: 0 0 24px; min-height: 24px; height: 24px; overflow: hidden; }
   .hbadge { font-size: 9px; padding: 1px 6px; border-radius: 8px; border: 1px solid var(--border);
             color: var(--tx2); background: rgba(139,148,158,.12); white-space: nowrap;
             overflow: hidden; text-overflow: ellipsis; }
@@ -419,10 +463,15 @@
 
 <main>
   <aside>
-    <div class="panel"><h3>{{ S.qps_top }}</h3><div class="chart" id="c-qps"></div></div>
-    <div class="panel"><h3>{{ S.conn_util_top }}</h3><div class="chart" id="c-conn"></div></div>
-    <div class="panel"><h3>{{ S.conns_top }}</h3><div class="chart" id="c-conns"></div></div>
-    <div class="panel"><h3>{{ S.trend }}<span class="trend-toggle"><button id="tm-global" class="on" onclick="setTrendMode('global')">{{ S.trend_global }}</button><button id="tm-inst" onclick="setTrendMode('inst')">{{ S.trend_by_inst }}</button></span></h3><div class="chart" id="c-trend"></div></div>
+    <div class="panel panel-auto"><h3>{{ S.hm_title }}</h3>
+      <div class="hm-head">
+        <div>{{ S.hm_inst }}</div><div>{{ S.hm_qps }}</div>
+        <div title="{{ S.th_conn_util }}">{{ S.hm_conn }}</div>
+        <div title="{{ S.th_tbs_free }}">{{ S.hm_tbs }}</div>
+        <div title="{{ S.hm_tip }}">{{ S.hm_risk }}</div>
+      </div>
+      <div class="hm-list" id="hm-list"></div></div>
+    <div class="panel"><h3>{{ S.trend }}<span class="trend-toggle"><button id="tm-global" class="on" onclick="setTrendMode('global')">{{ S.trend_global }}</button><button id="tm-inst" onclick="setTrendMode('inst')">{{ S.trend_by_inst }}</button></span></h3><div class="chart trend-viewport" id="trend-viewport"><div class="trend-canvas" id="c-trend"></div></div></div>
   </aside>
 
   <div class="panel" id="topo-panel">
@@ -448,16 +497,13 @@
   </div>
 
   <aside>
-    <div class="panel"><h3 id="tbs-title">{{ S.tbs_top }}</h3>
+    <div class="panel panel-auto"><h3 id="tbs-title">{{ S.tbs_top }}</h3>
       <div id="tbs-analyze-hint" class="tbs-hint" style="display:none">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 1 21h22L12 2zm0 6 6.5 11h-13L12 8zm-1 3v4h2v-4h-2zm0 5v2h2v-2h-2z"/></svg>
         <span>{{ S.tbs_analyze_hint }}</span>
       </div>
       <div class="tbs-list" id="tbs-list"></div></div>
-    <div class="panel"><h3>{{ S.repl_top }}</h3><div class="chart" id="c-repl"></div></div>
-    <div class="panel"><h3>{{ S.lock_top }}</h3><div class="chart" id="c-lock"></div></div>
-    <div class="panel"><h3>{{ S.slowq_top }}</h3><div class="chart" id="c-slow"></div></div>
-    <div class="panel panel-host"><h3>{{ S.host_title }}</h3>
+    <div class="panel"><h3>{{ S.host_title }}</h3>
       <div class="host-list" id="host-list"></div></div>
   </aside>
 </main>
@@ -707,7 +753,14 @@ function rowsTableHtml(rows){
 }
 var charts = {};
 function chart(id){
-  if (charts[id]) return charts[id];
+  if (charts[id]){
+    // 兄弟面板按内容自适应高度会改变本容器尺寸，而 ECharts 只在 init / 显式
+    // resize 时读取容器高度。尺寸脱节时画布仍按旧高度绘制，下半部分被面板
+    // overflow:hidden 裁掉（表现为「图表显示不全 / 底部到屏幕外」）。
+    var cur = document.getElementById(id);
+    if (cur && Math.abs(charts[id].getHeight() - cur.clientHeight) > 1) charts[id].resize();
+    return charts[id];
+  }
   var el = document.getElementById(id);
   charts[id] = echarts.init(el);
   // 点条形 → 打开对应实例详情（数据项须带 iid）
@@ -716,7 +769,84 @@ function chart(id){
   });
   return charts[id];
 }
-var BASE_GRID = { left: 6, right: 48, top: 8, bottom: 4, containLabel: true };
+/* 仅供「全库合计」趋势图使用（侧栏榜单已改为矩阵/列表）。right 由 48 收到 16：
+   48 是原先横向条形图给数值标签留的空，趋势图用不上，会让曲线右端凭空少一截。 */
+var BASE_GRID = { left: 6, right: 16, top: 12, bottom: 4, containLabel: true };
+/* ── 实例健康矩阵 ──
+   一屏看全所有实例的静态指标，替代原先 6 张 Top10 横向条形榜。数据直接取
+   overview.nodes（每实例一条，已含 conn / qps / tbs_free_pct / repl_lag_s /
+   lock_waits / slowq / host_res），后端零改动。
+   异常项只在末列以徽章出现（正常项不占位），按「状态严重度 → 异常项数 →
+   连接利用率」置顶；行高固定，实例多时列表内滚动，不再按面板高度截断数据。 */
+function hmV(v, unit){
+  if (v === null || v === undefined || v === '') return '–';
+  var num = Number(v);
+  if (isNaN(num)) return esc(String(v));
+  return (Math.round(num * 10) / 10) + (unit || '');
+}
+function hmRisks(m){
+  var out = [];
+  if (m.status === 'down') out.push({ t: esc(S.st_down), c: C.crit, tip: S.st_down });
+  if (m.lag != null && m.lag >= 30)
+    out.push({ t: 'LAG ' + Math.round(m.lag) + 's', c: m.lag >= 60 ? C.crit : C.warn, tip: S.node_repl });
+  if (m.lock != null && m.lock >= 10)
+    out.push({ t: 'LOCK ' + Math.round(m.lock), c: C.warn, tip: S.d_locks });
+  if (m.slow != null && m.slow > 0)
+    out.push({ t: 'SLOW ' + Math.round(m.slow), c: C.warn, tip: S.node_slowq });
+  if (m.cpu != null && m.cpu >= 90)
+    out.push({ t: 'CPU ' + Math.round(m.cpu) + '%', c: m.cpu >= 95 ? C.crit : C.warn, tip: S.host_col_cpu });
+  if (m.mem != null && m.mem >= 90)
+    out.push({ t: 'MEM ' + Math.round(m.mem) + '%', c: m.mem >= 95 ? C.crit : C.warn, tip: S.host_col_mem });
+  return out;
+}
+function renderHealthMatrix(nodes){
+  var el = document.getElementById('hm-list');
+  if (!el) return;
+  var src = nodes || [];
+  if (!src.length){
+    el.innerHTML = '<div class="no-data">' + esc(S.no_data) + '</div>';
+    return;
+  }
+  var sev = { down:0, crit:1, warn:2, pending:3, unsupported:4, ok:5 };
+  var rows = src.map(function(n){
+    var c = n.conn || {}, h = n.host_res || {};
+    var m = { qps:n.qps, conn:c.usage_pct, tbs:n.tbs_free_pct, lag:n.repl_lag_s,
+              lock:n.lock_waits, slow:n.slowq, cpu:h.host_cpu, mem:h.host_mem,
+              status:n.status, connTotal:c.total, connActive:c.active };
+    return { n:n, m:m, r:hmRisks(m) };
+  });
+  rows.sort(function(a, b){
+    var sa = sev[a.m.status] == null ? 5 : sev[a.m.status];
+    var sb = sev[b.m.status] == null ? 5 : sev[b.m.status];
+    if (sa !== sb) return sa - sb;
+    if (a.r.length !== b.r.length) return b.r.length - a.r.length;
+    return (Number(b.m.conn) || 0) - (Number(a.m.conn) || 0);
+  });
+  el.innerHTML = rows.map(function(x){
+    var n = x.n, m = x.m, r = x.r;
+    var tags = r.slice(0, 2).map(function(t){
+      return '<span class="hm-tag" style="color:' + t.c + '" title="' + esc(t.tip) + '">' + t.t + '</span>';
+    }).join('');
+    if (r.length > 2)
+      tags += '<span class="hm-tag" style="color:' + C.tx2 + '" title="' + esc(S.hm_tip) + '">+' + (r.length - 2) + '</span>';
+    if (!r.length) tags = '<span class="hm-ok">' + esc(S.st_ok) + '</span>';
+    var tip = [n.name, S.d_qps + ': ' + hmV(m.qps), S.d_conn + ': ' + hmV(m.connTotal),
+               S.d_active + ': ' + hmV(m.connActive), S.th_conn_util + ': ' + hmV(m.conn, '%'),
+               S.th_tbs_free + ': ' + hmV(m.tbs, '%'), S.node_repl + ': ' + hmV(m.lag, 's'),
+               S.d_locks + ': ' + hmV(m.lock), S.d_slowq + ': ' + hmV(m.slow),
+               S.host_col_cpu + ': ' + hmV(m.cpu, '%'), S.host_col_mem + ': ' + hmV(m.mem, '%')].join('\n');
+    return '<div class="hm-row" data-iid="' + esc(n.id) + '" title="' + esc(tip) + '">' +
+      '<div class="hm-name"><span class="hm-dot" style="background:' + statusColor(m.status) + '"></span>' +
+        '<span>' + esc(n.name) + '</span></div>' +
+      '<div class="hm-v" style="color:' + C.tx + '">' + hmV(m.qps) + '</div>' +
+      '<div class="hm-v" style="color:' + (m.conn == null ? C.tx2 : pctColor(m.conn)) + '">' + hmV(m.conn, '%') + '</div>' +
+      '<div class="hm-v" style="color:' + (m.tbs == null ? C.tx2 : tbsColor(m.tbs)) + '">' + hmV(m.tbs, '%') + '</div>' +
+      '<div class="hm-risk">' + tags + '</div></div>';
+  }).join('');
+  Array.prototype.forEach.call(el.querySelectorAll('.hm-row'), function(row){
+    row.addEventListener('click', function(){ openDetailById(row.getAttribute('data-iid')); });
+  });
+}
 /* ── 数据预热（warming-up）状态机 ──
    打开大屏到后端首轮真实采集完成前，所有面板显示「正在努力读取数据…」动画
    覆盖层 + 顶部全局横幅。一旦任一实例采集完成（status 不再是 pending），或
@@ -771,6 +901,9 @@ function ensureLoader(id){
   var el = document.getElementById(id);
   if (!el || loaders[id]) return loaders[id];
   var panel = el.parentNode;
+  // 趋势图的直接父级已改成可滚动视口：加载层必须挂到 .panel，
+  // 否则会随滚动内容一起移动（其它面板的直接父级本就是 .panel）
+  if (id === 'c-trend' && el.closest) panel = el.closest('.panel') || panel;
   var ov = document.createElement('div');
   ov.className = 'loader-overlay';
   ov.innerHTML = '<div class="spinner"></div><div class="loader-txt">' + S.loading_hard + '</div>';
@@ -785,13 +918,11 @@ function showLoader(id){ if (loaders[id]) loaders[id].classList.remove('hide'); 
 function panelHasData(id, data){
   var T = data.topn || {};
   switch (id){
-    case 'c-qps':    return (T.qps || []).length > 0;
-    case 'c-conn':   return (T.conn_util || []).length > 0;
-    case 'c-conns':  return (T.conn_total || []).length > 0;
-    case 'c-trend':  return (data.trend || []).length > 0;
-    case 'c-repl':   return (T.repl_lag || []).length > 0;
-    case 'c-lock':   return (T.lock_wait || []).length > 0;
-    case 'c-slow':   return (T.slowq || []).length > 0;
+    case 'hm-list':  return (data.nodes || []).length > 0;
+    // 按实例模式的数据源是 nodes[].spark，不能只看全局 trend，否则加载层遮住已画好的小倍数
+    case 'c-trend':  return (data.trend || []).length > 0 ||
+                            (trendMode === 'inst' && (data.nodes || [])
+                              .some(function(n){ return (n.spark || []).length > 1; }));
     case 'tbs-list': return (T.tbs_worst || []).length > 0 || (T.tbs_used || []).length > 0;
     case 'topo':     return (data.nodes || []).length > 0;
     // 宿主资源：任一实例带 host_res 即视为有数据（采集器未运行/实例异地未配 SSH 时为无）
@@ -805,30 +936,24 @@ function updateLoaders(data){
   var real = nodes.filter(function(n){ return n.status && n.status !== 'pending'; });
   if (real.length) endWarming();
   if (!warmingUp) hideGlobalLoading();
-  ['c-qps','c-conn','c-conns','c-trend','c-repl','c-lock','c-slow','tbs-list','topo','host-list']
+  ['hm-list','c-trend','tbs-list','topo','host-list']
     .forEach(function(id){
       if (panelHasData(id, data) || !warmingUp) hideLoader(id);
       else showLoader(id);
     });
 }
 
-/* 页面加载即初始化所有 ECharts 面板为「加载中…」占位 + 加载动画覆盖层，
-   保证打开大屏时基础图表面板（标题 + 占位结构 + 努力读取动画）立即可见。 */
+/* 页面加载即初始化趋势图为「加载中…」占位 + 各面板加载动画覆盖层，
+   保证打开大屏时基础结构（标题 + 占位 + 努力读取动画）立即可见。 */
 function initCharts(){
-  ['c-qps','c-conn','c-conns','c-trend','c-repl','c-lock','c-slow'].forEach(function(id){
-    try {
-      var c = chart(id);
-      c.setOption({
-        backgroundColor: 'transparent',
-        graphic: [{ type: 'text', left: 'center', top: 'middle',
-          style: { text: S.loading, fill: C.tx2, fontSize: 12 } }]
-      }, true);
-      ensureLoader(id);
-    } catch (e) { /* 面板尚未就绪时静默跳过，待首个 refresh 重建 */ }
-  });
-  ensureLoader('tbs-list');
-  ensureLoader('topo');
-  ensureLoader('host-list');
+  try {
+    chart('c-trend').setOption({
+      backgroundColor: 'transparent',
+      graphic: [{ type: 'text', left: 'center', top: 'middle',
+        style: { text: S.loading, fill: C.tx2, fontSize: 12 } }]
+    }, true);
+  } catch (e) { /* 面板尚未就绪时静默跳过，待首个 refresh 重建 */ }
+  ['c-trend','hm-list','tbs-list','topo','host-list'].forEach(ensureLoader);
   showGlobalLoading();
 }
 var TIP_STYLE = {
@@ -836,58 +961,9 @@ var TIP_STYLE = {
   textStyle: { color: C.tx, fontSize: 12 },
   extraCssText: 'box-shadow:0 4px 14px rgba(0,0,0,.45);border-radius:6px;'
 };
-/* 横向渐变条：左淡右实，比纯色块更有质感 */
-function grad(hex){
-  return new echarts.graphic.LinearGradient(0, 0, 1, 0, [
-    { offset: 0, color: hex + '59' }, { offset: 1, color: hex }]);
-}
 /* 等级配色：表空间按剩余越多越安全；连接利用率按越高越危险 */
 function tbsColor(v){ return v <= 15 ? C.crit : v <= 30 ? C.warn : C.ok; }
 function pctColor(v){ return v >= 95 ? C.crit : v >= 80 ? C.warn : C.blue; }
-function barOpt(data, color, opts){
-  opts = opts || {};
-  var names = data.map(function(d){ return d.name; });
-  var barData = data.map(function(d){
-    var c = opts.colorFn ? opts.colorFn(d.value) : color;
-    return { value: d.value, iid: d.id, tab: opts.tab, itemStyle: { color: grad(c) },
-             label: { color: c } };   // 数值标签与条同色，等级一眼可辨
-  });
-  return {
-    animation: false,
-    grid: BASE_GRID,
-    tooltip: Object.assign({ trigger: 'axis', axisPointer: { type: 'shadow',
-               shadowStyle: { color: 'rgba(255,255,255,.04)' } },
-               formatter: function(p){ var d = data[p[0].dataIndex];
-                 return d.tip || esc(d.name) + '：<b>' + d.value + (opts.unit || '') + '</b>'; } }, TIP_STYLE),
-    xAxis: opts.hideX ? { show: false, max: opts.max } :
-           { type: 'value', axisLabel: { color: C.tx2, fontSize: 10 },
-             splitLine: { lineStyle: { color: C.border, type: 'dashed' } } },
-    yAxis: { type: 'category', data: names.reverse(), inverse: false,
-             axisLabel: { color: C.tx, fontSize: 10.5, width: 118, overflow: 'truncate', interval: 0 },
-             axisLine: { lineStyle: { color: C.border } }, axisTick: { show: false } },
-    series: [{ type: 'bar', data: barData.reverse(), barWidth: opts.barW || 8,
-      showBackground: !!opts.showBg,
-      backgroundStyle: { color: 'rgba(255,255,255,.045)', borderRadius: [0, 5, 5, 0] },
-      itemStyle: { borderRadius: [0, 5, 5, 0] },
-      label: { show: true, position: 'right', fontSize: 10,
-               formatter: function(p){ return p.value + (opts.unit || ''); } },
-      ...(opts.markLine ? { markLine: { silent: true, symbol: 'none',
-        lineStyle: { color: C.crit, type: 'dashed', width: 1 },
-        label: { show: false }, data: [{ xAxis: 80 }] } } : {}) }]
-  };
-}
-/* 无数据时图面显示「暂无数据」而非空坐标轴 */
-function setBar(id, arr, color, opts){
-  opts = opts || {};
-  var opt = barOpt(arr || [], color, opts);
-  if (!(arr || []).length){
-    opt.graphic = [{ type: 'text', left: 'center', top: 'middle',
-      style: { text: opts.emptyText || S.no_data, fill: C.tx2, fontSize: 12 } }];
-    opt.xAxis.show = false; opt.yAxis.show = false;
-  }
-  chart(id).setOption(opt, true);
-}
-
 /* ══════════════ 拓扑画布 ══════════════ */
 var topo = document.getElementById('topo');
 var ctx = topo.getContext('2d');
@@ -905,7 +981,13 @@ function resizeCanvas(){
   topo.width = r.width * dpr; topo.height = r.height * dpr;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
-window.addEventListener('resize', function(){ fittedForCount = -1; layoutDirty = true; resizeCanvas(); layoutCharts(); });
+window.addEventListener('resize', function(){
+  // 侧栏矩阵/列表是纯 HTML，行数不随容器高度截断，无需按窗口重算数据；
+  // 趋势图要按新视口重算画布高度与按实例行高，再统一 resize 其余 ECharts。
+  fittedForCount = -1; layoutDirty = true; resizeCanvas();
+  drawTrend();
+  layoutCharts();
+});
 
 function statusColor(s){
   if (s === 'pending') return C.pending;   // 检测中：浅灰蓝，与 down 深灰区分
@@ -1593,53 +1675,117 @@ var TREND_PALETTE = ['#38BDF8','#E11D48','#F59E0B','#A78BFA','#F97316','#22D3EE'
                      '#F472B6','#4ADE80','#FACC15','#60A5FA','#FB7185','#34D399',
                      '#C084FC','#2DD4BF','#FBBF24','#818CF8'];
 var trendMode = 'global';          // 'global' = 全库合计 QPS；'inst' = 各实例 QPS 迷你趋势（全部实例）
+/* 按实例每行像素高度（含标题）：实例少时按视口均分铺满（上限 160px 防止
+   单实例时一条线被拉得过高），实例多时落到下限 50px 并靠视口滚动查看。 */
+var TREND_ROW_MIN = 50, TREND_ROW_MAX = 160;
+/* 趋势画布高度必须显式设定：合计模式铺满视口；按实例模式按「行数 × 行高」撑开，
+   由 .trend-viewport 滚动查看全部实例。随后 chart('c-trend') 会自动校验并 resize。 */
+function setTrendCanvasHeight(px){
+  var vp = document.getElementById('trend-viewport');
+  var el = document.getElementById('c-trend');
+  if (!vp || !el) return 240;
+  var h = Math.max(80, Math.round(px || vp.clientHeight || 240));
+  if (el.style.height !== h + 'px') el.style.height = h + 'px';
+  return h;
+}
 var lastOverview = null;           // 最近一次 refresh 的完整数据，供切换模式后重渲染
 var lastRefreshTs = 0;             // 最近一次成功拿到数据的时间戳（数据新鲜度基准）
 function drawTrend(){
   if (!lastOverview) return;
   var data = lastOverview;
+  var isNum = function(v){ return typeof v === 'number' && isFinite(v); };
   if (trendMode === 'inst'){
-    // 实例下钻：展示全部有趋势数据的实例（不再 Top8 截断），展示序按最新 QPS 降序；
-    // 配色按实例名序稳定分配（刷新/重排后同实例颜色不跳变）
-    var arr = (data.nodes || []).filter(function(n){ return (n.spark || []).length > 1 && n.status !== 'pending'; })
-              .sort(function(a, b){ return (b.spark[b.spark.length - 1] || 0) - (a.spark[a.spark.length - 1] || 0); });
+    /* 按实例：一行一实例、各自独立 y 轴的小倍数。
+       各库 QPS 常差两个数量级（实测 DM 24.9~63.4 / Oracle 0.8~13.1 /
+       ob-test、halodb 0.2~0.5），原先所有实例共用一根线性 y 轴 + scale:true：
+       低量级曲线被压成贴底的一条直线，y 轴 min 随数据跳到高位时更是整条被
+       clip 裁掉，看上去就是「有些线没显示出来」。小倍数保留绝对数值（行标题
+       带当前 QPS、y 轴各自刻度），又能让每条线的走势都占满自己的行高。 */
+    var arr = (data.nodes || []).filter(function(n){
+      return (n.spark || []).some(isNum) && n.status !== 'pending';
+    }).sort(function(a, b){
+      var av = (a.spark || []).filter(isNum), bv = (b.spark || []).filter(isNum);
+      return (bv.length ? bv[bv.length - 1] : 0) - (av.length ? av[av.length - 1] : 0);
+    });
     if (!arr.length){
+      setTrendCanvasHeight(null);
       chart('c-trend').setOption({ graphic: [{ type: 'text', left: 'center', top: 'middle',
         style: { text: S.no_data, fill: C.tx2, fontSize: 12 } }] }, true);
       return;
     }
+    // 配色按实例名序稳定分配（刷新/重排后同实例颜色不跳变）
     var byName = arr.slice().sort(function(a, b){ return a.name < b.name ? -1 : a.name > b.name ? 1 : 0; });
     var colorOf = {};
     byName.forEach(function(n, i){ colorOf[n.id] = TREND_PALETTE[i % TREND_PALETTE.length]; });
-    var len = Math.max.apply(null, arr.map(function(n){ return n.spark.length; }));
-    var xs = []; for (var i = 0; i < len; i++) xs.push(i === len - 1 ? 'now' : '');
-    var series = arr.map(function(n){
-      var s = n.spark, pad = len - s.length, d = [];
+    /* 全部实例一律画出，不再按容器高度截断条数：行高固定 50~88px，
+       画布按「行数 × 行高」撑开，超出视口由 .trend-viewport 滚动查看。
+       这样 30 个实例也能全部看到，且每行高度不会因为实例少就被拉得过大。 */
+    var vp = document.getElementById('trend-viewport');
+    var viewH = (vp && vp.clientHeight) || 240;
+    // 先按「视口高度扣掉末行时间标签」反算行高：实例少时刚好铺满、不出现
+    // 无谓的滚动条；实例多时落到 TREND_ROW_MIN 并靠滚动查看剩余行。
+    var fitH = Math.floor((viewH - 18) / arr.length);
+    var rowH = Math.max(TREND_ROW_MIN, Math.min(TREND_ROW_MAX, fitH));
+    var contentH = arr.length * rowH + 18;   // 末行 x 轴标签留白
+    setTrendCanvasHeight(Math.max(viewH, contentH));
+    var rows = arr;
+    var len = Math.max.apply(null, rows.map(function(n){ return n.spark.length; }));
+    var grids = [], xAxes = [], yAxes = [], series = [], titles = [];
+    rows.forEach(function(n, i){
+      var col = colorOf[n.id], topPx = i * rowH;
+      var s = n.spark, vals = s.filter(isNum), last = vals.length ? vals[vals.length - 1] : null;
+      var d = [], pad = len - s.length;
       for (var k = 0; k < pad; k++) d.push(null);
-      s.forEach(function(v){ d.push({ value: v, iid: n.id }); });
-      var col = colorOf[n.id];
-      return { name: n.name, type: 'line', data: d, smooth: true, symbol: 'none',
-               lineStyle: { width: 1.4, color: col }, areaStyle: { color: col + '14' } };
+      s.forEach(function(v){ d.push(isNum(v) ? { value: v, iid: n.id } : null); });
+      // grid / title 用 px 绝对定位：百分比会随画布总高把每行拉大，
+      // 实例数变化时行高就不稳定，也无法保证滚动时逐行对齐。
+      grids.push({ left: 40, right: 12, top: topPx + 16,
+                   height: rowH - 20, containLabel: false });
+      // left 需越过 y 轴标签区（grid.left=40），否则行标题会与最大刻度数字叠在一起
+      titles.push({ text: n.name + '   ' + (last === null ? '–' : (Math.round(last * 10) / 10)),
+                    left: 46, top: topPx + 1,
+                    textStyle: { color: col, fontSize: 10, fontWeight: 'normal' } });
+      xAxes.push({ type: 'category', gridIndex: i, boundaryGap: false,
+        data: (function(){ var a = []; for (var j = 0; j < len; j++) a.push(j === len - 1 ? 'now' : ''); return a; })(),
+        axisLine: { show: false }, axisTick: { show: false }, splitLine: { show: false },
+        axisLabel: { show: i === rows.length - 1, color: C.tx2, fontSize: 9, interval: 0,
+          hideOverlap: true, formatter: function(v, idx){
+            var ago = (len - 1 - idx) * 15;   // 采样间隔 15s，与后端 INTERVAL 一致
+            if (idx === len - 1) return 'now';
+            return idx === 0 ? '-' + (ago >= 60 ? Math.round(ago / 60) + 'm' : ago + 's') : '';
+          } } });
+      yAxes.push({ type: 'value', gridIndex: i, min: 0, scale: false, splitNumber: 2,
+        axisLine: { show: false }, axisTick: { show: false },
+        // 只留中间刻度：min/max 标签贴着行首标题，去掉后每行更干净
+        axisLabel: { color: C.tx2, fontSize: 9, showMinLabel: false, showMaxLabel: false,
+          formatter: function(v){ return Math.round(v * 100) / 100; } },
+        splitLine: { lineStyle: { color: C.border, type: 'dashed' } } });
+      series.push({ name: n.name, type: 'line', xAxisIndex: i, yAxisIndex: i, data: d,
+        smooth: true, symbol: 'circle', symbolSize: vals.length < 3 ? 4 : 2.5,
+        showSymbol: vals.length < 3,          // 稀疏/孤立采样点也要看得见
+        connectNulls: false,
+        lineStyle: { width: 1.6, color: col }, itemStyle: { color: col },
+        areaStyle: { color: col + '14' } });
     });
-    chart('c-trend').setOption({
-      animation: false, grid: BASE_GRID,
-      color: arr.map(function(n){ return colorOf[n.id]; }),
-      tooltip: Object.assign({ trigger: 'axis',
-        formatter: function(ps){
-          return ps.filter(function(p){ return p.value != null; })
-                    .map(function(p){ return esc(p.seriesName) + '：<b>' + fmt(p.value) + '</b>'; }).join('<br>');
-        } }, TIP_STYLE),
-      legend: { top: 0, right: 4, itemWidth: 10, itemHeight: 8, type: 'scroll', textStyle: { color: C.tx2, fontSize: 10 } },
-      xAxis: { type: 'category', data: xs, axisLabel: { color: C.tx2, fontSize: 9 }, boundaryGap: false,
-               axisLine: { lineStyle: { color: C.border } } },
-      yAxis: { type: 'value', axisLabel: { color: C.tx2, fontSize: 10 },
-               splitLine: { lineStyle: { color: C.border, type: 'dashed' } }, scale: true },
-      series: series
-    }, true);
+    var instOpt = {
+      animation: false,
+      color: rows.map(function(n){ return colorOf[n.id]; }),
+      tooltip: Object.assign({ trigger: 'item', formatter: function(p){
+        var v = (p.value && typeof p.value === 'object') ? p.value.value : p.value;
+        var ago = (len - 1 - p.dataIndex) * 15;
+        return esc(p.seriesName) + '：<b>' + (isNum(v) ? Math.round(v * 100) / 100 : '–') +
+               '</b> QPS　' + (ago === 0 ? 'now' : '-' + (ago >= 60 ? Math.round(ago / 60) + 'm' : ago + 's'));
+      } }, TIP_STYLE),
+      title: titles, grid: grids, xAxis: xAxes, yAxis: yAxes, series: series
+    };
+    chart('c-trend').setOption(instOpt, true);
     return;
   }
-  // 全局合计趋势（与原本一致）
+  setTrendCanvasHeight(null);   // 合计模式：画布铺满视口（不滚动）
+  // 全局合计趋势：y 轴固定从 0 起，避免 scale:true 让可视范围随数据跳动；
+  // 时间标签按步长抽样，避免 30~60 个 HH:MM:SS 挤成一团。
   var tr = data.trend || [];
+  var step = Math.max(1, Math.ceil(tr.length / 5));
   var trendOpt = {
     animation: false,
     grid: BASE_GRID,
@@ -1647,10 +1793,13 @@ function drawTrend(){
     xAxis: { type: 'category', data: tr.map(function(t){
         var d = new Date(t.ts * 1000);
         return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + ':' + ('0' + d.getSeconds()).slice(-2);
-      }), axisLabel: { color: C.tx2, fontSize: 10 }, boundaryGap: false,
-      axisLine: { lineStyle: { color: C.border } } },
-    yAxis: { type: 'value', axisLabel: { color: C.tx2, fontSize: 10 },
-             splitLine: { lineStyle: { color: C.border, type: 'dashed' } }, scale: true },
+      }), axisLabel: { color: C.tx2, fontSize: 10, interval: 0, hideOverlap: true,
+        formatter: function(v, idx){
+          return (idx % step === 0 || idx === tr.length - 1) ? String(v).slice(0, 5) : '';
+        } },
+      boundaryGap: false, axisLine: { lineStyle: { color: C.border } } },
+    yAxis: { type: 'value', min: 0, axisLabel: { color: C.tx2, fontSize: 10 },
+             splitLine: { lineStyle: { color: C.border, type: 'dashed' } } },
     series: [{ type: 'line', data: tr.map(function(t){ return t.qps; }), smooth: true,
       symbol: 'none', lineStyle: { color: C.accent, width: 1.8 },
       areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
@@ -1805,6 +1954,14 @@ function hostPctColor(v){
   if (v >= 75) return C.warn;
   return C.tx;
 }
+/* 数值列只有 40px：浮点尾差（如 0.6000000000000001）会撑破列宽压到徽标上。
+   统一取 8 位有效数字消除 IEEE 尾数，再去掉无意义的小数末尾。 */
+function hostVal(v){
+  if (v === null || v === undefined || v === '') return fmt(v);
+  var n = Number(v);
+  if (!isFinite(n)) return fmt(v);
+  return String(parseFloat(n.toPrecision(8)));
+}
 /* ── 宿主资源「小倍数」折线 ──
    每实例一块：上行 = 实例名 + CPU%/内存%/Swap%/Load1 当前值 + 采集来源徽标，
    下行 = 一条 46px 迷你折线（30 分钟窗口）。
@@ -1812,37 +1969,84 @@ function hostPctColor(v){
    数据分两路合流进 hostSeries 缓冲：
      1) 历史：首次进入大屏 / 退出历史回放时拉一次 /api/dashboard/host-series 回填。
         后端只读 MetricsCollector 的快照存储，不触发采集、无额外 SSH 开销。
-     2) 实时：每轮 overview 用当前帧 host_res 增量追加一点，按 ts 去重后裁到 60 点。
-   刻意不在每轮 15s 轮询里重复拉历史——那会反复解析大量历史 payload。
+     2) 实时：每轮 overview 用当前帧 host_res 增量追加一点，按「采集采样时刻」
+        去重后裁到 60 点。注意 overview 的 ts 是每次 HTTP 请求的时刻（首屏 2s
+        轮询、稳态 15s），不能用相邻两帧的 ts 差去判断是不是同一次采集——
+        那样差值恒为 2s/15s，会永远只更新末点、折线永不前进。
+   历史回填不参与每轮轮询（避免反复解析大 payload），但首次拉取若为空
+   （采集器刚启动、还没有宿主快照），需有兜底自动补拉，否则只能靠手动刷新
+   浏览器才会出现折线。这里按 60s 节流，仅当仍有实例序列不足 2 点时才补拉。
 
    量纲：CPU%/内存%/Swap% 共用左轴（固定 0-100）；Load1 是绝对值、与百分比
    量纲不同，走独立右轴自适应，否则会被压成贴底直线。 */
 var HOST_SERIES_POINTS = 60;      // 30s 采样 × 60 点 ≈ 30 分钟（与 QPS 趋势 TREND_POINTS 同口径）
-var hostSeries = {};              // { iid: [{ts,cpu,mem,swap,load1}] } 时间升序
+var HOST_SERIES_RETRY_MS = 60000; // 历史回填兜底重试间隔
+var hostSeriesLastFetch = 0;      // 上次发起回填的时刻（成功/失败都记，避免失败时每轮打接口）
+var hostSeries = {};              // { iid: [{ts,cpu,mem,swap,load1}] } 时间升序，ts 恒为 epoch 秒
 var hostRowEls = {};              // { iid: {row,nameEl,valEls,badgeEl,sparkEl,chart} } DOM 复用
 var lastNodes  = [];              // 供历史回填后即时重绘
 
 function hostSparkId(iid){ return 'host-spark-' + iid; }
 
-/** 用 overview 当前帧增量追加采样点（同一采样周期内的重复帧只更新末点）。 */
+/** 该帧是否真的采到了宿主指标（unavailable / 四项皆空时只有来源与错误说明）。 */
+function hostHasValues(h){
+  if (!h) return false;
+  return ['host_cpu', 'host_mem', 'host_swap_pct', 'host_load1'].some(function(k){
+    return h[k] !== null && h[k] !== undefined;
+  });
+}
+
+/** 时间标签：兼容 epoch 秒、epoch 字符串和历史遗留的 ISO 字符串。
+    无效值返回空串——绝不能让 ('0' + NaN).slice(-2) 变成 'aN' 混进 tooltip。 */
+function hostTimeLabel(ts){
+  var n = Number(ts), d = null;
+  if (isFinite(n) && n > 0) d = new Date(n * 1000);
+  else if (ts) {
+    var p = Date.parse(String(ts));
+    if (isFinite(p)) d = new Date(p);
+  }
+  if (!d || isNaN(d.getTime())) return '';
+  return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+}
+
+/** 用 overview 当前帧增量追加采样点（同一采集快照的重复帧只更新末点）。 */
 function mergeHostPoint(node, ts){
   if (!node || !node.host_res) return;
   var h = node.host_res;
+  var realTs = Number(h.host_sample_ts);
+  var fallback = !(isFinite(realTs) && realTs > 0);   // 旧后端未透出采样时刻时回退
+  if (fallback) realTs = Number(ts);
+  if (!isFinite(realTs) || realTs <= 0) return;
   var buf = hostSeries[node.id];
   if (!buf) buf = hostSeries[node.id] = [];
-  var pt = { ts: ts, cpu: h.host_cpu, mem: h.host_mem,
+  var pt = { ts: realTs, cpu: h.host_cpu, mem: h.host_mem,
              swap: h.host_swap_pct, load1: h.host_load1 };
   var last = buf[buf.length - 1];
-  // 采集 30s 一点而轮询 15s 一次：25s 内视为同一采样周期的重复帧，更新而非新增
-  if (last && Math.abs(last.ts - ts) < 25) buf[buf.length - 1] = pt;
-  else {
-    buf.push(pt);
-    while (buf.length > HOST_SERIES_POINTS) buf.shift();
+  if (last){
+    var lt = Number(last.ts);
+    if (!isFinite(lt) || lt <= 0) buf.pop();          // 丢弃历史脏点
+    else {
+      // 关键：重复帧只更新指标，末点的 ts 保持最初的采样时刻。
+      // 若每帧都把 ts 刷成当前请求时刻，相邻帧差值恒为 2s/15s，永远凑不满
+      // 一个采样周期，折线就永远停在历史回填的那批点上。
+      var sameSample = !fallback && lt === realTs;
+      var withinCycle = fallback && realTs >= lt && (realTs - lt) < 25;
+      if (sameSample || withinCycle){
+        buf[buf.length - 1] = { ts: lt, cpu: pt.cpu, mem: pt.mem,
+                                swap: pt.swap, load1: pt.load1 };
+        return;
+      }
+      if (realTs < lt) return;     // 服务端时钟/写入延迟导致的逆序点，忽略
+    }
   }
+  buf.push(pt);
+  while (buf.length > HOST_SERIES_POINTS) buf.shift();
 }
 
-/** 回填历史序列（仅首次进入与退出历史回放时调用，非每轮轮询）。 */
-async function fetchHostSeries(){
+/** 回填历史序列：首次进入 / 退出回放 / 历史为空时的低频兜底。force 跳过节流。 */
+async function fetchHostSeries(force){
+  if (!force && Date.now() - hostSeriesLastFetch < HOST_SERIES_RETRY_MS) return;
+  hostSeriesLastFetch = Date.now();
   try {
     var r = await fetch('/api/dashboard/host-series?limit=' + HOST_SERIES_POINTS);
     if (!r.ok) return;
@@ -1851,10 +2055,31 @@ async function fetchHostSeries(){
     var s = d.series || {};
     Object.keys(s).forEach(function(iid){
       var pts = (s[iid] || {}).points || [];
-      if (pts.length) hostSeries[iid] = pts.slice(-HOST_SERIES_POINTS);
+      // 归一化 ts：后端已统一为 epoch 秒，这里再兼容一次旧版 ISO 字符串/脏点，
+      // 避免旧服务端数据把 Invalid Date 带进折线与 tooltip。
+      var clean = pts.map(function(p){
+        var t = Number(p.ts);
+        if (!isFinite(t) || t <= 0){
+          var parsed = Date.parse(String(p.ts || ''));
+          t = isFinite(parsed) ? parsed / 1000 : 0;
+        }
+        return t > 0 ? { ts: t, cpu: p.cpu, mem: p.mem,
+                         swap: p.swap, load1: p.load1 } : null;
+      }).filter(function(p){ return p !== null; });
+      if (clean.length) hostSeries[iid] = clean.slice(-HOST_SERIES_POINTS);
     });
-    renderHostList(lastNodes);     // 回填后立即重绘，不必等下一轮轮询
-  } catch (e) { /* 回填失败不阻塞实时渲染 */ }
+    if (lastNodes.length) renderHostList(lastNodes);  // 回填后立即重绘，不必等下一轮轮询
+  } catch (e) { /* 回填失败不阻塞实时渲染，60s 后由兜底逻辑重试 */ }
+}
+
+/** 是否还有「有宿主数据但折线尚未成形」的实例，需要补拉一次历史。 */
+function needHostSeriesBackfill(nodes){
+  if (historyMode) return false;
+  if (Date.now() - hostSeriesLastFetch < HOST_SERIES_RETRY_MS) return false;
+  return (nodes || []).some(function(n){
+    return n && n.host_res && hostHasValues(n.host_res) &&
+           (hostSeries[n.id] || []).length < 2;
+  });
 }
 
 /** 迷你折线：左轴 %（CPU/内存/Swap），右轴 Load1（独立自适应，轴线隐藏省空间）。 */
@@ -1862,16 +2087,21 @@ function renderSpark(iid){
   var slot = hostRowEls[iid];
   if (!slot || !slot.sparkEl || typeof echarts === 'undefined') return;
   if (!slot.chart) slot.chart = echarts.init(slot.sparkEl);
+  // 行高会随「不可用行数 / 可用行数」变化，每轮按当前容器重算，避免 ECharts
+  // 仍按上一次的大尺寸绘制（不可用行尤其明显：从整屏缩到 24px）
+  else { try { slot.chart.resize(); } catch (e) {} }
   var pts = hostSeries[iid] || [];
-  if (pts.length < 2){
+  // 采集失败 / 异地未配 SSH 的实例四项指标皆空，不该用「趋势序列积累中」误导读者
+  if (slot.hostAvailable === false || pts.length < 2){
+    var waitTxt = slot.hostAvailable === false
+      ? hostSrcMeta('unavailable').txt : S.host_spark_wait;
     slot.chart.setOption({ graphic: [{ type: 'text', left: 'center', top: 'middle',
-      style: { text: S.host_spark_wait, fill: C.tx2, fontSize: 10 } }] }, true);
+      style: { text: waitTxt, fill: C.tx2, fontSize: 10 } }] }, true);
     return;
   }
-  var xs = pts.map(function(p){
-    var d = new Date(p.ts * 1000);
-    return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
-  });
+  // 时间标签统一走 hostTimeLabel：epoch 秒 / ISO 字符串都能解析，无效值退化为序号，
+  // 不再出现 new Date(NaN) 被格式化成 'aN:aN' 的 tooltip 标题。
+  var xs = pts.map(function(p, i){ return hostTimeLabel(p.ts) || ('#' + (i + 1)); });
   function mk(key, color, axis){
     return { name: key, type: 'line', yAxisIndex: axis, smooth: true, symbol: 'none',
              connectNulls: false, lineStyle: { color: color, width: 1.2 },
@@ -1885,9 +2115,10 @@ function renderSpark(iid){
       if (!ps || !ps.length) return '';
       var names = { cpu: S.host_col_cpu, mem: S.host_col_mem,
                     swap: S.host_col_swap, load1: S.host_col_load };
-      return (ps[0].axisValue || '') + '<br/>' + ps.map(function(p){
-        return p.marker + (names[p.seriesName] || p.seriesName) + ' ' +
-               (p.data === null || p.data === undefined ? '–' : fmt(p.data));
+      var p0 = pts[ps[0].dataIndex] || {};
+      var title = hostTimeLabel(p0.ts) || ps[0].axisValue || '–';
+      return esc(title) + '<br/>' + ps.map(function(p){
+        return p.marker + (names[p.seriesName] || p.seriesName) + ' ' + hostVal(p.data);
       }).join('<br/>');
     } }, TIP_STYLE),
     xAxis: { type: 'category', data: xs, show: false, boundaryGap: false },
@@ -1912,6 +2143,10 @@ function renderHostList(nodes){
     el.innerHTML = '<div class="host-empty">' + esc(S.host_no_data) + '</div>';
     return;
   }
+  // 首帧（采集器尚未产出 host_res）写入的空态提示，后续有数据必须移除；
+  // 之前只往容器里追加表头和行，导致「暂无宿主数据」永久压在表头上方。
+  var stale = el.querySelector('.host-empty');
+  if (stale && stale.parentNode) stale.parentNode.removeChild(stale);
   if (!el.querySelector('.hhead')){
     var head = document.createElement('div');
     head.className = 'hhead';
@@ -1949,12 +2184,19 @@ function renderHostList(nodes){
     // 行 DOM 复用：只更新文本/配色，不重建节点——否则每行每次都新建 echarts 实例会泄漏
     var h = n.host_res || {};
     var m = hostSrcMeta(h.host_collector_source);
+    slot.hostAvailable = hostHasValues(h);   // 四项皆空时不显示「趋势序列积累中」
+    // 不可用的行压成紧凑单行（.hrow-na），不参与迷你折线的剩余高度分配；
+    // 采集恢复/失效时切换 class，renderSpark 会按新容器尺寸重算 ECharts。
+    if (slot.naState !== !slot.hostAvailable){
+      slot.naState = !slot.hostAvailable;
+      if (slot.row) slot.row.classList.toggle('hrow-na', slot.naState);
+    }
     if (slot.nameEl) slot.nameEl.textContent = n.name || n.id;
     [['cpu', h.host_cpu], ['mem', h.host_mem],
      ['swap', h.host_swap_pct], ['load1', h.host_load1]].forEach(function(p){
       var e = slot.valEls[p[0]];
       if (!e) return;
-      e.textContent = fmt(p[1]);
+      e.textContent = hostVal(p[1]);
       e.style.color = hostPctColor(p[1]);
     });
     // unavailable 时把具体原因放进悬浮提示（如「未配置 SSH：实例主机 X 非本机…」）
@@ -1990,49 +2232,8 @@ function refresh(data){
   setKpi('k-tps', k.total_tps || 0);
 
   var T = data.topn || {};
-  setBar('c-qps', T.qps, C.accent, { unit: '', showBg: true });
-  setBar('c-conn', T.conn_util, C.blue, { unit: '%', markLine: true, colorFn: pctColor, showBg: true, hideX: true, max: 100 });
-  // 连接数 / 活跃会话 Top 10（双系列，按连接数排序，点条开详情）
-  var ct = T.conn_total || [], saMap = {};
-  (T.sess_active || []).forEach(function(d){ saMap[d.name] = d.value; });
-  var ctNames = ct.map(function(d){ return d.name; }).reverse();
-  var ctV = ct.map(function(d){
-    return { value: d.value, iid: d.id, tab: 'conn', itemStyle: { color: grad(C.blue) }, label: { color: C.blue } };
-  }).reverse();
-  var ctS = ct.map(function(d){
-    return { value: saMap[d.name] || 0, iid: d.id, tab: 'conn', itemStyle: { color: grad(C.accent) } };
-  }).reverse();
-  var connsOpt = {
-    animation: false,
-    color: [C.blue, C.accent],
-    grid: BASE_GRID,
-    tooltip: Object.assign({ trigger: 'axis', axisPointer: { type: 'shadow',
-        shadowStyle: { color: 'rgba(255,255,255,.04)' } },
-        formatter: function(ps){ var i = ps[0].dataIndex;
-          return esc(ctNames[i]) + '<br>连接数：<b>' + fmt(ctV[i] && ctV[i].value) + '</b>　活跃会话：<b>' + fmt(ctS[i] && ctS[i].value) + '</b>'; } }, TIP_STYLE),
-    legend: { top: 0, right: 4, itemWidth: 10, itemHeight: 8, textStyle: { color: C.tx2, fontSize: 10 } },
-    xAxis: { type: 'value', axisLabel: { color: C.tx2, fontSize: 10 },
-             splitLine: { lineStyle: { color: C.border, type: 'dashed' } } },
-    yAxis: { type: 'category', data: ctNames,
-             axisLabel: { color: C.tx, fontSize: 10.5, width: 104, overflow: 'truncate', interval: 0 },
-             axisLine: { lineStyle: { color: C.border } }, axisTick: { show: false } },
-    series: [
-      { name: '连接数', type: 'bar', data: ctV, barWidth: 5,
-        itemStyle: { borderRadius: [0, 3, 3, 0] },
-        showBackground: true, backgroundStyle: { color: 'rgba(255,255,255,.035)', borderRadius: [0, 3, 3, 0] },
-        label: { show: true, position: 'right', fontSize: 9, formatter: function(p){ return p.value || ''; } } },
-      { name: '活跃会话', type: 'bar', data: ctS, barWidth: 5,
-        itemStyle: { borderRadius: [0, 3, 3, 0] },
-        showBackground: true, backgroundStyle: { color: 'rgba(255,255,255,.035)', borderRadius: [0, 3, 3, 0] } }
-    ]
-  };
-  if (!ct.length){
-    connsOpt.graphic = [{ type: 'text', left: 'center', top: 'middle',
-      style: { text: S.no_data, fill: C.tx2, fontSize: 12 } }];
-    connsOpt.xAxis.show = false; connsOpt.yAxis.show = false;
-  }
-  chart('c-conns').setOption(connsOpt, true);
-  setBar('c-slow', T.slowq, C.warn, { unit: '', showBg: true, tab: 'slow' });
+  // 静态排名统一由「实例健康矩阵」呈现，不再按指标各画一张 Top10 横向条形图
+  renderHealthMatrix(data.nodes);
   /* 表空间：HTML 进度列表（标签完整可读 + 三档等级配色 + 点行下钻实例详情）
      自适应两种数据来源：
        - tbs_worst：Oracle/DM/DB2 等有 free 列 → 剩余% 越小越危险（标题带 %）
@@ -2083,26 +2284,24 @@ function refresh(data){
       row.addEventListener('click', function(){ openDetailById(row.getAttribute('data-iid'), 'tbs'); });
     });
   })();
-  setBar('c-repl', T.repl_lag, C.blue, { unit: 's', showBg: true, emptyText: S.repl_no_data });
-  setBar('c-lock', T.lock_wait, C.warn, { unit: '', showBg: true });
 
   drawTrend();   // 趋势图（全局合计 / 实例下钻），数据来自 lastOverview
-
-  /* 「实例健康分布」饼图已移除：顶部状态筛选芯片（mf-ok / mf-warn / mf-crit …）已实时
-     带各状态实例数，饼图信息重复；腾出的高度全部给下方「宿主资源」面板（见 .panel-host）。 */
 
 
 /* 宿主资源：小倍数折线（每实例 = 数值行 + 迷你折线）
      当前值来自常驻 MetricsCollector 的宿主采集结果（服务端 _build_nodes 透出 host_res），
      大屏不自行发起 SSH——既零额外连接开销，也与首页监控卡片、AI 巡检口径完全一致。
      趋势由 hostSeries 缓冲提供：历史序列在进入大屏 / 退出回放时回填一次，之后每轮
-     用当前帧增量追加。历史回放模式下不累积——回放帧的 ts 是历史时刻，混入会污染
-     实时窗口的时间轴。
+     用当前帧按「采集采样时刻」增量追加；回填为空时另有 60s 节流的兜底补拉。
+     历史回放模式下不累积——回放帧的 ts 是历史时刻，混入会污染实时窗口的时间轴。
      来源语义：ebpf 内核级 / psutil 用户态 / shell /proc 零依赖 / local 中心机本机 /
      unavailable 不可用（悬浮显示具体原因，如异地实例未配置 SSH）。 */
   if (!historyMode){
     var _hts = data.ts || Math.floor(Date.now() / 1000);
     (data.nodes || []).forEach(function(n){ mergeHostPoint(n, _hts); });
+    // 首次回填时采集器可能还没有宿主快照（或请求失败），此后便再无历史拉取入口，
+    // 折线只能靠实时帧一点点积累；这里按 60s 节流自动补拉，不必手动刷新浏览器。
+    if (needHostSeriesBackfill(data.nodes)) fetchHostSeries();
   }
   renderHostList(data.nodes);
 
@@ -2268,7 +2467,7 @@ function exitHistory(){
   document.getElementById('hist-bar').classList.remove('show');
   document.getElementById('btn-hist').classList.remove('on');
   document.getElementById('hist-badge').classList.remove('show');
-  fetchHostSeries();                                 // 回填实时宿主时序（回放期间未累积）
+  fetchHostSeries(true);                             // 回填实时宿主时序（回放期间未累积，强制立即拉）
   poll().then(scheduleNextPoll, scheduleNextPoll);   // 恢复实时轮询
 }
 
@@ -2343,7 +2542,7 @@ function updateFreshness(){
 updateFreshness();
 setInterval(updateFreshness, 1000);
 frame();
-fetchHostSeries();                 // 宿主折线：回填 30 分钟历史序列（仅此一次）
+fetchHostSeries(true);             // 宿主折线：回填 30 分钟历史序列（首次强制，后续按需补拉）
 poll().then(scheduleNextPoll, scheduleNextPoll);
 </script>
 </body>

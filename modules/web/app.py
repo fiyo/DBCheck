@@ -6250,6 +6250,7 @@ def monitor_screen_page():
              'dt_overview', 'dt_conn', 'dt_slow', 'dt_tbs', 'dt_loading', 'dt_no_conn', 'dt_no_slow', 'dt_rows',
              'dt_conn_pending', 'dt_capacity', 'dt_conn_nosql', 'dt_slow_nosql',
              'hist_ns', 'view_matrix', 'view_topo', 'f_all', 'crit_first', 'matrix_title',
+             'hm_title', 'hm_inst', 'hm_qps', 'hm_conn', 'hm_tbs', 'hm_risk', 'hm_tip',
              'role_primary', 'role_standby', 'adg_link',
              'host_title', 'host_no_data', 'host_col_inst', 'host_col_cpu', 'host_col_mem',
              'host_col_swap', 'host_col_load', 'host_col_src',

@@ -1,5 +1,44 @@
 # Changelog
 
+## v26.11.11.0 (2026-11-11)
+
+### 修复：监控大屏侧栏榜单结构性错配（issue #65）
+
+- **根因**：`modules/monitor/screen_metrics.py` 中 QPS / 连接利用率 / 连接数 / 活跃会话 / 慢查询 / 复制延迟 / 锁等待 7 个 TopN 榜单都是「一个实例一条」，条数上限等于实例数，只有表空间是「实例 × 表空间」才可能凑到 10 条；再叠加侧栏 `.panel{flex:1}` 的固定份数分配（空面板照样占一份、宿主面板 `flex:3.2` 吃掉近一半），5 个实例时同一批名字被重复列 7 遍，有数据的图被压到约 100px，y 轴实例名与图例 / 刻度纵向叠字。issue #65 反馈的「复制延迟 / 锁等待 / 慢查询 右侧三部分显示不全」即由此产生。
+- 改为**实例健康矩阵**：左右两栏 6 张 Top10 榜单收敛成一行一实例的矩阵（实例 / QPS / 连接% / 剩余% / 异常徽章），按「状态严重度 → 异常项数 → 连接利用率」置顶，点行复用详情下钻；右栏保留「表空间剩余最危」与「宿主资源」。矩阵按行数自适应高度，趋势图吃掉剩余空间。后端零改动，直接读 `overview.nodes`。
+- 新增 7 个 `webui.screen_hm_*` 键，9 语言以末尾 `update()` 追加并注册到 `app.py` 的 `S` 字典；删除 `setBar` / `barOpt` / `fitCats` / `grad` / `.chart-lim` 与「N / 10」截断角标等死代码。
+
+### 修复：宿主资源时序链路（折线停滞 / 空态常驻 / tooltip `aN:aN`）
+
+- 后端新增 `_ts_to_epoch()`：`MetricsStore` 里 `ts` 是 `datetime.now().isoformat()` 文本，原 `_read_host_series` 的 `float()` 失败后原样透出，前端 `new Date(ts*1000)` 得到 Invalid Date → `('0'+NaN).slice(-2)` = `aN`，tooltip 标题显示 `aN:aN`。现在 ISO / epoch 数字统一成 epoch 秒、脏点丢弃，并在 `_read_host_metrics` 透出 `host_sample_ts`（采集快照真实时刻）。
+- `mergeHostPoint` 原按「相邻帧 ts 差 < 25s」判同采样周期，而 `data.ts` 每次请求现算、首屏 2s / 稳态 15s 轮询，差值恒小于 25 → **永远只更新末点、从不追加**，折线停在首次回填的历史点上，只有手动刷新浏览器才重新拉到数据。改按 `host_sample_ts` 去重（重复帧保留末点原始 ts），并新增 60s 节流的兜底补拉 `needHostSeriesBackfill`，首次回填空或失败也能自动补上。
+- 启动瞬间 `fetchHostSeries()` 用空 `lastNodes` 调 `renderHostList([])` 写入 `.host-empty`，之后有数据只 append 行、从不移除 → 「暂无宿主数据（采集器未运行…）」常驻。现在有数据时清理残留空态，回填时 `lastNodes` 为空不再渲染；四项皆空的不可用实例改显示「宿主资源不可用」。
+- `hostTimeLabel()` 兼容 epoch 秒 / ISO 字符串 / 无效值（退化为序号），tooltip 改用 `pts[dataIndex]` 的时间；`renderSpark` 每轮 `resize()`。
+
+### 修复：宿主不可用行吃满面板 + 数值溢出
+
+- `.hrow{flex:1 0 auto}` 让采集不可用行（无折线）也平分面板；ECharts 在 `.hspark` 插固定 px 高度 div 又通过 `flex-basis:auto` 参与内容尺寸，`flex-shrink:0` 阻止回收 → 每轮 `refresh()` 把行越撑越高。改 `flex:1 1 0` 隔断自举；新增 `.hrow.hrow-na`（`flex:0 0 auto`、迷你折线 24px），不可用行压成紧凑单行，采集恢复自动切回。
+- Load1 浮点尾数 `0.6000000000000001` 撑破 40px 数值列压到徽标：新增 `hostVal()`（`toPrecision(8)`）+ `.hval` 省略保护，`overflow:hidden` 只加在不可用行，避免裁掉可用行的 ECharts tooltip。
+
+### 修复：QPS 趋势曲线不可见与画布被裁
+
+- 「按实例」模式原把 4 条 series 塞进一根线性 y 轴 + `scale:true`；实测本机 DM-主库 24.9~63.4、Oracle-主库 0.8~13.1、ob-test / halodb 0.2~0.5 相差两个数量级，低量级线被压成贴底直线甚至裁出可视区 → 图例 4 项、只见 1 条线。改成单 ECharts 多 grid 小倍数，一行一实例、各自独立 y 轴；合计模式 y 轴固定 `min:0`、30~60 个 `HH:MM:SS` 抽样成约 6 个 `HH:MM`，`BASE_GRID.right` 48→16。
+- **趋势面板可滚动**：`#c-trend` 容器只有 325px、ECharts `getHeight()` 却是 737（左栏矩阵按行数自适应改变容器尺寸，但 ECharts 只在 init / window-resize 时读高度），画布下半部分含 x 轴被 `.panel{overflow:hidden}` 裁掉；按实例 `maxRows=floor(boxH/36)` 又直接截断实例、只给 `+N` 角标且无法滚动。现在加 `.trend-viewport`（`overflow-y:auto`）+ `setTrendCanvasHeight()` 显式画布高度，`chart(id)` 对已有实例校验 `getHeight()!==el.clientHeight` 自动 `resize()`；按实例全部画出、grid / title 改 px 绝对定位，行高 `clamp(50,(视口−18)/实例数,160)` —— 实例少时铺满，几十个实例固定 50px/行滚动查看；加载层改挂 `.panel`，滚动条加亮。
+
+### 已知边界
+
+- `web_templates/monitor_screen.html` 是 Jinja 模板，热重载即可见；但 `modules/monitor/screen_metrics.py`、`modules/web/app.py` 与 `i18n/*.py` 是 Python 模块，**必须重启 Web 服务**才生效；PyInstaller 打包版需重新出包。
+- 中间栏「实例状态矩阵」在实例少时下方仍有空白，属原有视图设计，本次未纳入范围。
+- 宿主迷你折线依赖 `MetricsCollector` 快照；采集器未运行或异地实例未配 SSH 时仍显示「宿主资源不可用」，属预期。
+
+### 验证
+
+- 三步验证：`compileall -q modules web_templates i18n` EXIT=0；`import modules.web.app` OK；`discover_plugins()` = 12。
+- 内联 JS `node --check`、CSS 括号平衡、Jinja `StrictUndefined` 严格渲染通过；9 语言键集合 zh=3461，ja / ko / es / fr / de / ru 各 3461 且 0 缺失，en=3469，zh_tw 仍只缺 61 个历史键。
+- 宿主链路：后端 mock store 验证 ISO→epoch / 脏点丢弃 / `host_sample_ts` 透出；headless Chrome 18/18 断言 PASS（空态清除、无 `aN`、tooltip `17:39`、同采样不增点 / 新采样 +1、兜底补拉回填 20 点）。
+- 宿主行高：复刻「1 不可用 + 4 可用」1920×1080 / 1920×908 各 17/17 PASS，不可用行 49px、可用行 146px / 103px，连续 3 轮 `refresh()` 高度零增长。
+- 趋势：4 视口（1920×1080 / 908 / 768 / 720）× 2 模式 × 7 项断言全 PASS；30 实例按实例 30 grids / 30 titles / 30 series、画布 1518px 可滚动；最终回归 14/14 PASS；真实 4 实例铺满不滚动。
+
 ## v26.11.10.0 (2026-11-10)
 
 ### 新增：作者手记与捐赠者名单

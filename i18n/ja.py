@@ -3453,3 +3453,14 @@ JA.update({
 JA.update({
     "webui.donate_cloud_core": "ご支援ありがとうございます",
 })
+
+# 监控大屏：实例健康矩阵（替代侧栏 6 张 Top10 榜单）
+JA.update({
+    "webui.screen_hm_title": "インスタンス健全性マトリクス · 異常を上位に · 行クリックで詳細",
+    "webui.screen_hm_inst": "インスタンス",
+    "webui.screen_hm_qps": "QPS",
+    "webui.screen_hm_conn": "接続%",
+    "webui.screen_hm_tbs": "残量%",
+    "webui.screen_hm_risk": "異常",
+    "webui.screen_hm_tip": "行をクリックして詳細を表示",
+})

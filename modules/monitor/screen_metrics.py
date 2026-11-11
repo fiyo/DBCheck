@@ -31,6 +31,7 @@ import time
 import json
 import os
 import threading
+from datetime import datetime
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -1326,6 +1327,30 @@ _HOST_KEYS = ('host_cpu', 'host_cpu_iowait', 'host_mem', 'host_swap_pct',
               'host_collector_source', 'host_error')
 
 
+def _ts_to_epoch(raw):
+    """把采集快照的 ts 统一成 epoch 秒（float），解析不了返回 None。
+
+    MetricsStore 的 ts 列是 TEXT，写入端用 datetime.now().isoformat()；早期数据
+    也可能是 epoch 数字/数字字符串。大屏折线与前端缓冲只认 epoch 秒，若把 ISO
+    字符串原样透出，前端 new Date(ts * 1000) 会得到 Invalid Date，时间标签被
+    格式化成 'aN:aN'。naive datetime 按本地时区解释，与写入端 datetime.now()
+    一致；带时区的 ISO 串由 fromisoformat 自行处理。
+    """
+    if isinstance(raw, (int, float)):
+        return float(raw)
+    s = str(raw or '').strip()
+    if not s:
+        return None
+    try:
+        return float(s)                       # 兼容早期 epoch 字符串
+    except (TypeError, ValueError):
+        pass
+    try:
+        return datetime.fromisoformat(s.replace('Z', '+00:00')).timestamp()
+    except (ValueError, TypeError, OverflowError):
+        return None
+
+
 def _read_host_metrics(iid):
     """读取指定实例最近一次宿主资源快照。
 
@@ -1347,7 +1372,14 @@ def _read_host_metrics(iid):
             v = latest.get(k)
             if v is not None:
                 out[k] = v
-        return out or None
+        if not out:                       # 快照里没有任何宿主字段，仍按「无数据」处理
+            return None
+        # 采样时刻（不是 overview 的请求时刻）：前端据此判断两帧是否同一次采集，
+        # 否则 2s/15s 轮询会把每个重复帧都当成新采样点或永远卡在末点。
+        sample_ts = _ts_to_epoch(latest.get('ts'))
+        if sample_ts:
+            out['host_sample_ts'] = sample_ts
+        return out
     except Exception:
         return None
 
@@ -1393,11 +1425,11 @@ def _read_host_series(iid, limit=60):
             # 一串取值为 null 的断点，看上去像"指标掉零"。
             if all(pt[k] is None for k in ('cpu', 'mem', 'swap', 'load1')):
                 continue
-            raw = r.get('ts')
-            try:
-                ts = float(raw)      # 入库为 TEXT，转回 epoch 秒与实时帧对齐
-            except (TypeError, ValueError):
-                ts = raw
+            ts = _ts_to_epoch(r.get('ts'))
+            if ts is None:
+                # 时间戳解析不了的点不进序列：前端会把它算成 Invalid Date，
+                # 折线的 tooltip 标题会变成 'aN:aN'（('0'+NaN).slice(-2)）。
+                continue
             pts.append({'ts': ts, 'cpu': pt['cpu'], 'mem': pt['mem'],
                         'swap': pt['swap'], 'load1': pt['load1']})
         # get_recent 返回升序，截取最近 n 个有效点

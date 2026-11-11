@@ -3402,3 +3402,14 @@ ES.update({
 ES.update({
     "webui.donate_cloud_core": "Gracias por tu apoyo",
 })
+
+# 监控大屏：实例健康矩阵（替代侧栏 6 张 Top10 榜单）
+ES.update({
+    "webui.screen_hm_title": "Salud de instancias · incidencias primero · clic para detalles",
+    "webui.screen_hm_inst": "Instancia",
+    "webui.screen_hm_qps": "QPS",
+    "webui.screen_hm_conn": "Conex.%",
+    "webui.screen_hm_tbs": "Libre%",
+    "webui.screen_hm_risk": "Alertas",
+    "webui.screen_hm_tip": "Clic en una fila para ver detalles",
+})
