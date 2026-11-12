@@ -3422,6 +3422,14 @@ async function executeFixSql(taskId, sql) {
   0%, 100% { transform: scale(1); }
   50%      { transform: scale(1.06); }
 }
+/* 三态只改光晕 / 呼吸速度，不再替换图片，让 GIF 动画保持连续 */
+.hero-mascot.mascot-task {
+  filter: drop-shadow(0 0 9px rgba(0,176,147,.8));
+  animation-duration: 1.5s;
+}
+.hero-mascot.mascot-alert {
+  filter: drop-shadow(0 0 9px rgba(239,68,68,.75));
+}
 
 /* 首屏 6 统计：与巡检日历同框，右侧 3 列 × 2 行彩色小卡 */
 .cal-stats-grid {
@@ -8322,7 +8330,7 @@ function wfCloseRunDrawer() {
               </button>
             </div>
           </div>
-          <img class="hero-mascot" id="hero-mascot-img" src="/mascot.png" alt="{{ product_name }} Mascot" data-page-node-id="zkQuXxe4J7Tpd3UTdxQJvd">
+          <img class="hero-mascot" id="hero-mascot-img" src="/raccoonx_alpha.gif" alt="{{ product_name }} Mascot" data-page-node-id="zkQuXxe4J7Tpd3UTdxQJvd">
         </section>
 
         <!-- ══ 近一年巡检日历（GitHub 贡献图式） ══ -->
@@ -25075,19 +25083,19 @@ if (typeof socket !== 'undefined') {
     }
   });
 
-  // ═══ 首页吉祥物三态切换（正常 / 任务中 / 健康告警）═══
-  // mascot.png=默认 · mascot_02.png=巡检任务进行中 · mascot_01.png=数据源健康告警
-  // 映射可随时调整：改 _setMascotImg 的 src 即可。
+  // ═══ 首页吉祥物三态（动图常驻，状态只用样式表达）═══
+  // raccoonx_alpha.gif 常驻；任务中=青绿光晕+呼吸加速，健康告警=红色光晕，任务优先。
+  // 重复赋同一个 src 会让浏览器重启动画，所以只在 src 不一致时才设置。
+  var MASCOT_SRC = '/raccoonx_alpha.gif';
   var _mascotTaskCount = 0;
   var _mascotAlert = false;
-  function _mascotImg(src) {
-    var el = document.getElementById('hero-mascot-img');
-    if (el) el.src = src;
-  }
   function updateMascot() {
-    if (_mascotTaskCount > 0) { _mascotImg('/mascot_02.png'); return; }  // 任务优先
-    if (_mascotAlert)         { _mascotImg('/mascot_01.png'); return; }  // 健康告警
-    _mascotImg('/mascot.png');
+    var el = document.getElementById('hero-mascot-img');
+    if (!el) return;
+    if (el.getAttribute('src') !== MASCOT_SRC) el.src = MASCOT_SRC;
+    var task = _mascotTaskCount > 0;
+    el.classList.toggle('mascot-task', task);
+    el.classList.toggle('mascot-alert', !task && _mascotAlert);
   }
   function mascotTaskStart() { _mascotTaskCount++; updateMascot(); }
   function mascotTaskEnd()   { if (_mascotTaskCount > 0) _mascotTaskCount--; updateMascot(); }
