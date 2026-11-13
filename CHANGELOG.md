@@ -12,6 +12,7 @@
 - **已知边界**：二进制包仅 x86_64；arm64（鲲鹏 / 飞腾）麒麟与 glibc 2.17 的 CentOS 7 仍使用 Docker 多架构镜像。产物与构建机 glibc 绑定，勿在更高 glibc 的机器上本地打包后拷到麒麟运行。
 - **首次 CI 验证与依赖修复**：tag `v26.11.13.0` 首次运行 `build-linux` 已真正启动（不再 skipped），但核心模块校验报 `pandas (ImportError)`——`deploy/requirements.txt` 的 `pandas>=1.3.0` 无上限，PyPI 最新 pandas 3.1.1 强制 `numpy>=2.0.2`，而项目 pin 了 `numpy>=1.26,<2`；`ci_install_deps.py` 逐个 `pip install` 时先装 pandas 把 numpy 顶到 2.x、再装 `numpy<2` 压回 1.26，最终 `import pandas` 失败（Windows / macOS 走离线 wheel 联合解析，未触发）。已给 pandas 加上限 `<3`；核心校验失败时改为输出异常详情与 numpy / pandas 实际版本；Release 追加说明改为幂等，避免 tag 重跑产生重复正文。
 - **二次 CI 验证与解释器来源修复**：加上限后核心模块 28 项全通过（日志实测 `numpy=1.26.4 / pandas=2.3.3`），但 PyInstaller 随即报 `Python was built without a shared library` —— pypa/manylinux 的 CPython 是用 `--disable-shared` 编译的（`build-cpython.sh` 的 `CONFIGURE_ARGS`），镜像里没有 `libpython.so`，而 PyInstaller 在 Linux 上必须嵌入共享解释器，这不是 `LD_LIBRARY_PATH` 能绕过的。改为在同一 `manylinux_2_28` 容器内 `dnf install python3.11 python3.11-devel`，使用 EL8 系统 Python 3.11（shared build，`libpython3.11.so.1.0` 在 `/usr/lib64`）；容器与 glibc 2.28 基线不变，产物兼容性不变。`rebuild-linux.yml` 同步，容器内新增 `sysconfig` / libpython 诊断输出。
+- **三次 CI 验证与 ODBC 运行时补齐**：系统 Python 3.11 生效后 PyInstaller 已能 `Using Python shared library: /usr/lib64/libpython3.11.so.1.0`，但在 Analysis 阶段由 `hook-pyodbc` 隔离导入 `pyodbc` 时抛 `ImportError: libodbc.so.2: cannot open shared object file`。EL8 的 `unixODBC` 运行时包提供该库，已加入两个 workflow 的 dnf 必需组（含 `unixODBC-devel`）；psycopg2 / lxml / cryptography / bcrypt / nacl 等 hook 均已通过，无需额外补库。
 
 ### 其它
 

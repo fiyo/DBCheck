@@ -187,14 +187,17 @@ jobs:
             # 没有 libpython.so；PyInstaller 在 Linux 上必须嵌入共享解释器，直接用会报
             # "Python was built without a shared library"。改用 EL8 系统 Python 3.11
             # （shared build，libpython3.11.so.1.0 在 /usr/lib64），glibc 2.28 基线不变。
+            # unixODBC 提供 libodbc.so.2：hook-pyodbc 会隔离导入 pyodbc，缺库会在
+            # PyInstaller Analysis 阶段直接抛 ImportError。
             dnf install -y --setopt=install_weak_deps=False \
                 java-11-openjdk-headless java-11-openjdk-devel \
                 gcc gcc-c++ make libffi-devel openssl-devel \
                 python3.11 python3.11-devel \
+                unixODBC unixODBC-devel \
               || dnf --enablerepo="*" install -y --setopt=install_weak_deps=False \
                 java-11-openjdk-headless java-11-openjdk-devel \
                 gcc gcc-c++ make libffi-devel openssl-devel \
-                python3.11 python3.11-devel
+                python3.11 python3.11-devel unixODBC unixODBC-devel
             dnf install -y python3.11-pip 2>&1 || echo "[warn] python3.11-pip unavailable; venv ensurepip will be used"
             ln -sf /usr/bin/python3.11 /usr/local/bin/python3
             export LD_LIBRARY_PATH="/usr/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"

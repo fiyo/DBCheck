@@ -41,10 +41,11 @@ jobs:
                 java-11-openjdk-headless java-11-openjdk-devel \
                 gcc gcc-c++ make libffi-devel openssl-devel \
                 python3.11 python3.11-devel \
+                unixODBC unixODBC-devel \
               || dnf --enablerepo="*" install -y --setopt=install_weak_deps=False \
                 java-11-openjdk-headless java-11-openjdk-devel \
                 gcc gcc-c++ make libffi-devel openssl-devel \
-                python3.11 python3.11-devel
+                python3.11 python3.11-devel unixODBC unixODBC-devel
             dnf install -y python3.11-pip 2>&1 || echo "[warn] python3.11-pip unavailable; venv ensurepip will be used"
             ln -sf /usr/bin/python3.11 /usr/local/bin/python3
             export LD_LIBRARY_PATH="/usr/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
