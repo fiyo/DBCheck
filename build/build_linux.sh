@@ -1,9 +1,10 @@
 #!/bin/bash
 # ============================================================
 # RaccoonX Linux Build Script
-# Target: glibc >= 2.28 的 x86_64 发行版
+# Target: glibc >= 2.28 的 x86_64 / aarch64 发行版
 #   （RHEL 8 / AlmaLinux 8 / 银河麒麟 V10 SP3 / 统信 UOS / Ubuntu 20.04+ 等）
-#   CI 在 quay.io/pypa/manylinux_2_28_x86_64 容器内构建，产物即以此为最低 glibc 基线。
+#   CI 在 quay.io/pypa/manylinux_2_28_{x86_64,aarch64} 容器内构建，
+#   产物即以此为最低 glibc 基线；压缩包名按构建容器的 uname -m 自动带架构后缀。
 # Requires: Python >= 3.10, pip, gcc
 # ============================================================
 set -e
@@ -95,8 +96,19 @@ STARTEOF
 chmod +x "$BUILDDIR/start.sh"
 
 # Create tar.gz
+# 架构后缀取自构建容器的 uname -m：x86_64 保持既有产物名不变；
+# aarch64（鲲鹏 / 飞腾 / 麒麟 arm64）输出独立包，避免两种架构互相覆盖。
+TARGET_ARCH="$(uname -m)"
+case "$TARGET_ARCH" in
+    x86_64|amd64)  TARGET_ARCH="x86_64" ;;
+    aarch64|arm64) TARGET_ARCH="aarch64" ;;
+    *)
+        echo "[ERROR] Unsupported build architecture: $TARGET_ARCH (expected x86_64 or aarch64)"
+        exit 1
+        ;;
+esac
 VERSION=$($PYTHON_CMD -c "import json; print(json.load(open('modules/config/version.json', encoding='utf-8-sig'))['version'])")
-RELEASE_NAME="RaccoonX-Linux-x86_64-$VERSION"
+RELEASE_NAME="RaccoonX-Linux-$TARGET_ARCH-$VERSION"
 cd dist
 tar czf "$RELEASE_NAME.tar.gz" RaccoonX-Linux/
 cd "$PROJECT_ROOT"
@@ -108,8 +120,8 @@ echo "  Build complete!"
 echo "  Release: dist/$RELEASE_NAME.tar.gz ($RELEASE_SIZE)"
 echo "========================================"
 echo ""
-echo "Deploy (x86_64, glibc >= 2.28):"
+echo "Deploy ($TARGET_ARCH, glibc >= 2.28):"
 echo "  ldd --version | head -1     # 确认 glibc 版本 >= 2.28"
 echo "  tar xzvf $RELEASE_NAME.tar.gz"
 echo "  cd RaccoonX-Linux && bash start.sh"
-echo "Note: arm64 服务器与 glibc 2.17 的旧系统请使用 Docker 多架构镜像。"
+echo "Note: glibc 2.17 的旧系统请使用 Docker 多架构镜像；Oracle thick / GBase 原生驱动仅提供 x86_64 版本。"
