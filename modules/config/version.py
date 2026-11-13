@@ -7,7 +7,7 @@
 DBCheck 版本信息
 """
 
-__version__ = 'v26.11.11.0'
+__version__ = 'v26.11.13.0'
 
 # 发行版本：community 为社区版，professional 为专业版
 EDITION = 'community'
