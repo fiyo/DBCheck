@@ -1188,7 +1188,7 @@ ORACLE_DEFAULT_CHAPTERS = [
         'chapter_title_en': 'Health Overview',
         'description': '数据库整体健康状态概览',
         'queries': [
-            {'key': 'oracle_version',   'sql': "SELECT * FROM v$version;",
+            {'key': 'oracle_version',   'sql': "SELECT banner FROM v$version;",
              'desc_zh': '获取 Oracle 版本',         'desc_en': 'Get Oracle version'},
             {'key': 'instance_status', 'sql': "SELECT INSTANCE_NUMBER, INSTANCE_NAME, HOST_NAME, VERSION, STARTUP_TIME, STATUS, PARALLEL FROM v$instance;",
              'desc_zh': '实例状态',                 'desc_en': 'Instance status'},
@@ -1205,9 +1205,7 @@ ORACLE_DEFAULT_CHAPTERS = [
             {'key': 'tablespace_usage', 'sql': """
                 SELECT a.tablespace_name,
                        ROUND(a.total_space_mb, 2) AS total_mb,
-                       ROUND(a.max_space_mb, 2) AS max_mb,
                        ROUND(NVL(b.used_space_mb, 0), 2) AS used_mb,
-                       ROUND(GREATEST(a.total_space_mb, a.max_space_mb) - NVL(b.used_space_mb, 0), 2) AS free_mb,
                        ROUND(NVL(b.used_space_mb, 0) * 100.0 / GREATEST(a.total_space_mb, a.max_space_mb), 2) AS used_percent
                 FROM (SELECT tablespace_name,
                              SUM(bytes) / 1024 / 1024 AS total_space_mb,
@@ -1308,7 +1306,7 @@ ORACLE_DEFAULT_CHAPTERS = [
         'chapter_title_en': 'RMAN Backup Status',
         'description': 'RMAN 备份状态检查',
         'queries': [
-            {'key': 'rman_status', 'sql': "SELECT * FROM v$rman_status;",
+            {'key': 'rman_status', 'sql': "SELECT operation, status, start_time, end_time, ROUND(NVL(output_bytes,0)/1024/1024/1024, 2) AS output_gb, object_type, output_device_type FROM (SELECT operation, status, start_time, end_time, output_bytes, object_type, output_device_type, ROW_NUMBER() OVER (ORDER BY NVL(start_time, SYSDATE) DESC) AS rn FROM v$rman_status) WHERE rn <= 30 ORDER BY start_time DESC;",
              'desc_zh': 'RMAN 运行状态',        'desc_en': 'RMAN running status'},
             {'key': 'backup_files', 'sql': """
                 SELECT TO_CHAR(END_TIME, 'YYYY-MM-DD HH24:MI') AS backup_time, STATUS, OUTPUT_DEVICE_TYPE AS device,
@@ -1436,8 +1434,8 @@ ORACLE_DEFAULT_CHAPTERS = [
         'description': 'AWR 快照和基线状态',
         'queries': [
             {'key': 'awr_snap', 'sql': """
-                SELECT snap_id, dbid, instance_number, begin_interval_time, end_interval_time,
-                       snap_level, error_count
+                SELECT snap_id, dbid, begin_interval_time, end_interval_time,
+                       snap_level
                 FROM dba_hist_snapshot
                 ORDER BY snap_id DESC
                 FETCH FIRST 20 ROWS ONLY;
@@ -1503,16 +1501,6 @@ ORACLE_DEFAULT_CHAPTERS = [
                 FETCH FIRST 10 ROWS ONLY;
             """,
              'desc_zh': 'TOP SQL（CPU）',        'desc_en': 'Top SQL by CPU time'},
-            {'key': 'top_sql_reads', 'sql': """
-                SELECT sql_id, executions, disk_reads,
-                       elapsed_time/1000000 AS elapsed_sec,
-                       SUBSTR(sql_text, 1, 100) AS sql_preview
-                FROM v$sqlarea
-                WHERE executions > 0
-                ORDER BY disk_reads DESC
-                FETCH FIRST 10 ROWS ONLY;
-            """,
-             'desc_zh': 'TOP SQL（物理读）',     'desc_en': 'Top SQL by disk reads'},
         ]
     },
     {
@@ -1609,7 +1597,7 @@ ORACLE_DEFAULT_CHAPTERS = [
         'description': '数据库作业和调度器状态',
         'queries': [
             {'key': 'dba_jobs', 'sql': """
-                SELECT job, log_user, priv_user, last_date, last_sec, next_date, next_sec,
+                SELECT job, log_user, priv_user, last_date, next_date,
                        broken, failures
                 FROM dba_jobs
                 ORDER BY job;
@@ -1632,7 +1620,7 @@ ORACLE_DEFAULT_CHAPTERS = [
         'queries': [
             {'key': 'dba_users', 'sql': """
                 SELECT username, account_status, lock_date, expiry_date,
-                       created, profile, authentication_type
+                       created, profile
                 FROM dba_users
                 WHERE username NOT IN ('SYS','SYSTEM','OUTLN','DBSNMP','APPQOSSYS','GSMADMIN_INTERNAL')
                 ORDER BY username;
@@ -1713,7 +1701,7 @@ ORACLE_11G_CHAPTERS = [
         'chapter_title_en': 'Health Overview',
         'description': '数据库整体健康状态概览',
         'queries': [
-            {'key': 'oracle_version',   'sql': "SELECT * FROM v$version;",
+            {'key': 'oracle_version',   'sql': "SELECT banner FROM v$version;",
              'desc_zh': '获取 Oracle 版本',         'desc_en': 'Get Oracle version'},
             {'key': 'instance_status', 'sql': "SELECT INSTANCE_NUMBER, INSTANCE_NAME, HOST_NAME, VERSION, STARTUP_TIME, STATUS, PARALLEL FROM v$instance;",
              'desc_zh': '实例状态',                 'desc_en': 'Instance status'},
@@ -1730,9 +1718,7 @@ ORACLE_11G_CHAPTERS = [
             {'key': 'tablespace_usage', 'sql': """
                 SELECT a.tablespace_name,
                        ROUND(a.total_space_mb, 2) AS total_mb,
-                       ROUND(a.max_space_mb, 2) AS max_mb,
                        ROUND(NVL(b.used_space_mb, 0), 2) AS used_mb,
-                       ROUND(GREATEST(a.total_space_mb, a.max_space_mb) - NVL(b.used_space_mb, 0), 2) AS free_mb,
                        ROUND(NVL(b.used_space_mb, 0) * 100.0 / GREATEST(a.total_space_mb, a.max_space_mb), 2) AS used_percent
                 FROM (SELECT tablespace_name,
                              SUM(bytes) / 1024 / 1024 AS total_space_mb,
@@ -1843,7 +1829,7 @@ ORACLE_11G_CHAPTERS = [
         'chapter_title_en': 'RMAN Backup Status',
         'description': 'RMAN 备份状态检查',
         'queries': [
-            {'key': 'rman_status', 'sql': "SELECT * FROM v$rman_status;",
+            {'key': 'rman_status', 'sql': "SELECT operation, status, start_time, end_time, ROUND(NVL(output_bytes,0)/1024/1024/1024, 2) AS output_gb, object_type, output_device_type FROM (SELECT operation, status, start_time, end_time, output_bytes, object_type, output_device_type, ROW_NUMBER() OVER (ORDER BY NVL(start_time, SYSDATE) DESC) AS rn FROM v$rman_status) WHERE rn <= 30 ORDER BY start_time DESC;",
              'desc_zh': 'RMAN 运行状态',        'desc_en': 'RMAN running status'},
             {'key': 'backup_files', 'sql': """
                 SELECT TO_CHAR(END_TIME, 'YYYY-MM-DD HH24:MI') AS backup_time, STATUS, OUTPUT_DEVICE_TYPE AS device,
@@ -1973,12 +1959,12 @@ ORACLE_11G_CHAPTERS = [
         'description': 'AWR 快照和基线状态（需 Diagnostic+Tuning Pack 授权）',
         'queries': [
             {'key': 'awr_snap', 'sql': """
-                SELECT snap_id, dbid, instance_number, begin_interval_time, end_interval_time,
-                       snap_level, error_count
-                FROM (SELECT snap_id, dbid, instance_number, begin_interval_time, end_interval_time,
-                              snap_level, error_count,
-                              ROW_NUMBER() OVER (ORDER BY snap_id DESC) AS rn
-                       FROM dba_hist_snapshot)
+                SELECT snap_id, dbid, begin_interval_time, end_interval_time,
+                       snap_level
+                FROM (SELECT snap_id, dbid, begin_interval_time, end_interval_time,
+                             snap_level,
+                             ROW_NUMBER() OVER (ORDER BY snap_id DESC) AS rn
+                      FROM dba_hist_snapshot)
                 WHERE rn <= 20;
             """,
              'desc_zh': 'AWR 快照列表',       'desc_en': 'AWR snapshot list'},
@@ -2042,16 +2028,6 @@ ORACLE_11G_CHAPTERS = [
                 WHERE rn <= 10;
             """,
              'desc_zh': 'TOP SQL（CPU）',        'desc_en': 'Top SQL by CPU time'},
-            {'key': 'top_sql_reads', 'sql': """
-                SELECT sql_id, executions, disk_reads,
-                       elapsed_time/1000000 AS elapsed_sec,
-                       SUBSTR(sql_text, 1, 100) AS sql_preview
-                FROM (SELECT sql_id, executions, disk_reads, elapsed_time, sql_text,
-                              ROW_NUMBER() OVER (ORDER BY disk_reads DESC) AS rn
-                       FROM v$sqlarea WHERE executions > 0)
-                WHERE rn <= 10;
-            """,
-             'desc_zh': 'TOP SQL（物理读）',     'desc_en': 'Top SQL by disk reads'},
         ]
     },
     {
@@ -2148,7 +2124,7 @@ ORACLE_11G_CHAPTERS = [
         'description': '数据库作业和调度器状态',
         'queries': [
             {'key': 'dba_jobs', 'sql': """
-                SELECT job, log_user, priv_user, last_date, last_sec, next_date, next_sec,
+                SELECT job, log_user, priv_user, last_date, next_date,
                        broken, failures
                 FROM dba_jobs
                 ORDER BY job;
@@ -2171,7 +2147,7 @@ ORACLE_11G_CHAPTERS = [
         'queries': [
             {'key': 'dba_users', 'sql': """
                 SELECT username, account_status, lock_date, expiry_date,
-                       created, profile, authentication_type
+                       created, profile
                 FROM dba_users
                 WHERE username NOT IN ('SYS','SYSTEM','OUTLN','DBSNMP','APPQOSSYS','GSMADMIN_INTERNAL')
                 ORDER BY username;

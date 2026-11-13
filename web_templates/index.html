@@ -4016,6 +4016,52 @@ async function executeFixSql(taskId, sql) {
   .cal-hint { display: none; }
   .hero-mascot { display: none; }
 }
+/* ─── 生日彩蛋（每年 11 月生日月专属）─── */
+@keyframes bday-badge-glow {
+  0%   { box-shadow: 0 0 0 0 rgba(255,95,162,.55); background-position: 0 0; }
+  50%  { box-shadow: 0 0 16px 5px rgba(255,209,102,.5); }
+  100% { box-shadow: 0 0 0 0 rgba(6,214,160,0); background-position: 300% 0; }
+}
+@keyframes bday-badge-bob {
+  0%,100% { transform: translateY(0) rotate(-2deg); }
+  50%     { transform: translateY(-3px) rotate(2deg); }
+}
+.version-badge.bday {
+  background: linear-gradient(90deg,#ff5fa2,#ffd166,#06d6a0,#4cc9f0,#ff5fa2) !important;
+  background-size: 300% 100%;
+  color: #fff !important;
+  animation: bday-badge-glow 2.6s ease-in-out infinite, bday-badge-bob 1.3s ease-in-out infinite;
+}
+.version-badge.bday .bday-cake { display: inline-block; margin-left: 3px; animation: bday-badge-bob 1.3s ease-in-out infinite; }
+/* 首页 hero 区彩蛋：庆祝效果局限在英雄区内部（hero 本身 overflow:hidden），不遮挡其它内容 */
+.home-hero.bday-hero {
+  box-shadow: 0 0 0 2px rgba(255,95,162,.5), 0 12px 32px rgba(255,95,162,.18);
+  animation: bday-hero-glow 3.4s ease-in-out infinite;
+}
+@keyframes bday-hero-glow {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(255,95,162,.45), 0 12px 32px rgba(255,95,162,.16); }
+  50%      { box-shadow: 0 0 0 3px rgba(255,209,102,.7),  0 16px 40px rgba(76,201,240,.24); }
+}
+.home-hero.bday-hero .hero-mascot {
+  animation: bdayMascotParty 1.2s ease-in-out infinite;
+}
+@keyframes bdayMascotParty {
+  0%, 100% { transform: scale(1)    rotate(-4deg); }
+  25%      { transform: scale(1.07) rotate(4deg);  }
+  50%      { transform: scale(1)    rotate(-4deg); }
+  75%      { transform: scale(1.07) rotate(4deg);  }
+}
+.bday-emoji {
+  position: absolute; bottom: -26px; z-index: 3; pointer-events: none;
+  opacity: 0; will-change: transform, opacity;
+  animation-name: bdayFloat; animation-timing-function: linear; animation-iteration-count: infinite;
+}
+@keyframes bdayFloat {
+  0%   { transform: translateY(0)      rotate(0deg);   opacity: 0;   }
+  12%  { opacity: .95; }
+  88%  { opacity: .95; }
+  100% { transform: translateY(-160px) rotate(50deg); opacity: 0;   }
+}
 </style>
 
   <link rel="stylesheet" href="/static/codemirror/lib/codemirror.css" data-page-node-id="EX6LoBPcFDjvnbg1FpjV9k">
@@ -29418,6 +29464,45 @@ document.addEventListener('keydown', function(e) {
 
 
 
+</script>
+
+<!-- 生日月彩蛋（每年 11 月专属，纯前端零依赖；庆祝动画局限在首页 hero 区，不遮挡界面） -->
+<script>
+(function () {
+  // 生日月彩蛋：每年 11 月整月，在首页 hero 区做局部庆祝动画（不遮挡界面，无文字）
+  function isBirthdayMonth() { return new Date().getMonth() === 10; } // 11 月 = 10
+  var EMOJIS = ['🎉', '✨', '🎂', '🎈', '🥳', '🌟'];
+  function spawnHeroEmojis() {
+    var hero = document.getElementById('home-hero');
+    if (!hero) return;
+    hero.classList.add('bday-hero');
+    for (var i = 0; i < 14; i++) {
+      var s = document.createElement('span');
+      s.className = 'bday-emoji';
+      s.textContent = EMOJIS[(Math.random() * EMOJIS.length) | 0];
+      s.style.left = (Math.random() * 100).toFixed(2) + '%';
+      s.style.fontSize = (16 + Math.random() * 12).toFixed(0) + 'px';
+      s.style.animationDuration = (3 + Math.random() * 3).toFixed(2) + 's';
+      s.style.animationDelay = (Math.random() * 5).toFixed(2) + 's';
+      hero.appendChild(s);
+    }
+  }
+  function initBday() {
+    if (!isBirthdayMonth()) return;
+    var badge = document.getElementById('version-badge');
+    if (badge) {
+      badge.classList.add('bday');
+      if (!badge.querySelector('.bday-cake')) {
+        var cake = document.createElement('span');
+        cake.className = 'bday-cake'; cake.textContent = '🎂';
+        badge.appendChild(cake);
+      }
+    }
+    spawnHeroEmojis();
+  }
+  if (document.readyState !== 'loading') initBday();
+  else document.addEventListener('DOMContentLoaded', initBday);
+})();
 </script>
 
 </body>

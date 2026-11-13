@@ -17,7 +17,7 @@
       "queries": [
         {
           "query_key": "oracle_version",
-          "query_sql": "SELECT * FROM v$version;",
+          "query_sql": "SELECT banner FROM v$version;",
           "query_description_zh": "获取 Oracle 版本",
           "query_description_en": "Get Oracle version"
         },
@@ -43,7 +43,7 @@
       "queries": [
         {
           "query_key": "tablespace_usage",
-          "query_sql": "\n                SELECT a.tablespace_name,\n                       ROUND(a.total_space_mb, 2) AS total_mb,\n                       ROUND(a.max_space_mb, 2) AS max_mb,\n                       ROUND(NVL(b.used_space_mb, 0), 2) AS used_mb,\n                       ROUND(GREATEST(a.total_space_mb, a.max_space_mb) - NVL(b.used_space_mb, 0), 2) AS free_mb,\n                       ROUND(NVL(b.used_space_mb, 0) * 100.0 / GREATEST(a.total_space_mb, a.max_space_mb), 2) AS used_percent\n                FROM (SELECT tablespace_name,\n                             SUM(bytes) / 1024 / 1024 AS total_space_mb,\n                             SUM(CASE WHEN autoextensible = 'YES' THEN GREATEST(MAXBYTES, bytes) ELSE bytes END) / 1024 / 1024 AS max_space_mb\n                      FROM dba_data_files\n                      GROUP BY tablespace_name) a\n                LEFT JOIN (SELECT tablespace_name, SUM(bytes) / 1024 / 1024 AS used_space_mb FROM dba_segments GROUP BY tablespace_name) b\n                ON a.tablespace_name = b.tablespace_name\n                ORDER BY used_percent DESC;\n            ",
+          "query_sql": "SELECT a.tablespace_name,\n       ROUND(a.total_space_mb, 2) AS total_mb,\n       ROUND(NVL(b.used_space_mb, 0), 2) AS used_mb,\n       ROUND(NVL(b.used_space_mb, 0) * 100.0 / GREATEST(a.total_space_mb, a.max_space_mb), 2) AS used_percent\nFROM (SELECT tablespace_name,\n             SUM(bytes) / 1024 / 1024 AS total_space_mb,\n             SUM(CASE WHEN autoextensible = 'YES' THEN GREATEST(MAXBYTES, bytes) ELSE bytes END) / 1024 / 1024 AS max_space_mb\n      FROM dba_data_files\n      GROUP BY tablespace_name) a\nLEFT JOIN (SELECT tablespace_name, SUM(bytes) / 1024 / 1024 AS used_space_mb FROM dba_segments GROUP BY tablespace_name) b\nON a.tablespace_name = b.tablespace_name\nORDER BY used_percent DESC;",
           "query_description_zh": "表空间使用率",
           "query_description_en": "Tablespace usage"
         },
@@ -147,7 +147,7 @@
       "queries": [
         {
           "query_key": "rman_status",
-          "query_sql": "SELECT * FROM v$rman_status;",
+          "query_sql": "SELECT operation, status, start_time, end_time, ROUND(NVL(output_bytes,0)/1024/1024/1024, 2) AS output_gb, object_type, output_device_type FROM (SELECT operation, status, start_time, end_time, output_bytes, object_type, output_device_type, ROW_NUMBER() OVER (ORDER BY NVL(start_time, SYSDATE) DESC) AS rn FROM v$rman_status) WHERE rn <= 30 ORDER BY start_time DESC;",
           "query_description_zh": "RMAN 运行状态",
           "query_description_en": "RMAN running status"
         },
@@ -265,7 +265,7 @@
       "queries": [
         {
           "query_key": "awr_snap",
-          "query_sql": "\n                SELECT snap_id, dbid, instance_number, begin_interval_time, end_interval_time,\n                       snap_level, error_count\n                FROM (SELECT snap_id, dbid, instance_number, begin_interval_time, end_interval_time,\n                              snap_level, error_count,\n                              ROW_NUMBER() OVER (ORDER BY snap_id DESC) AS rn\n                       FROM dba_hist_snapshot)\n                WHERE rn <= 20;\n            ",
+          "query_sql": "SELECT snap_id, dbid, begin_interval_time, end_interval_time, snap_level FROM (SELECT snap_id, dbid, begin_interval_time, end_interval_time, snap_level, ROW_NUMBER() OVER (ORDER BY snap_id DESC) AS rn FROM dba_hist_snapshot) WHERE rn <= 20;",
           "query_description_zh": "AWR 快照列表",
           "query_description_en": "AWR snapshot list"
         },
@@ -314,12 +314,6 @@
           "query_sql": "\n                SELECT sql_id, executions, cpu_time/1000000 AS cpu_sec,\n                       elapsed_time/1000000 AS elapsed_sec, disk_reads,\n                       SUBSTR(sql_text, 1, 100) AS sql_preview\n                FROM (SELECT sql_id, executions, cpu_time, elapsed_time, disk_reads, sql_text,\n                              ROW_NUMBER() OVER (ORDER BY cpu_time DESC) AS rn\n                       FROM v$sqlarea WHERE executions > 0)\n                WHERE rn <= 10;\n            ",
           "query_description_zh": "TOP SQL（CPU）",
           "query_description_en": "Top SQL by CPU time"
-        },
-        {
-          "query_key": "top_sql_reads",
-          "query_sql": "\n                SELECT sql_id, executions, disk_reads,\n                       elapsed_time/1000000 AS elapsed_sec,\n                       SUBSTR(sql_text, 1, 100) AS sql_preview\n                FROM (SELECT sql_id, executions, disk_reads, elapsed_time, sql_text,\n                              ROW_NUMBER() OVER (ORDER BY disk_reads DESC) AS rn\n                       FROM v$sqlarea WHERE executions > 0)\n                WHERE rn <= 10;\n            ",
-          "query_description_zh": "TOP SQL（物理读）",
-          "query_description_en": "Top SQL by disk reads"
         }
       ]
     },
@@ -405,7 +399,7 @@
       "queries": [
         {
           "query_key": "dba_jobs",
-          "query_sql": "\n                SELECT job, log_user, priv_user, last_date, last_sec, next_date, next_sec,\n                       broken, failures\n                FROM dba_jobs\n                ORDER BY job;\n            ",
+          "query_sql": "SELECT job, log_user, priv_user, last_date, next_date, broken, failures FROM dba_jobs ORDER BY job;",
           "query_description_zh": "传统作业状态",
           "query_description_en": "Legacy jobs status"
         },
@@ -425,7 +419,7 @@
       "queries": [
         {
           "query_key": "dba_users",
-          "query_sql": "\n                SELECT username, account_status, lock_date, expiry_date,\n                       created, profile, authentication_type\n                FROM dba_users\n                WHERE username NOT IN ('SYS','SYSTEM','OUTLN','DBSNMP','APPQOSSYS','GSMADMIN_INTERNAL')\n                ORDER BY username;\n            ",
+          "query_sql": "SELECT username, account_status, lock_date, expiry_date, created, profile FROM dba_users WHERE username NOT IN ('SYS','SYSTEM','OUTLN','DBSNMP','APPQOSSYS','GSMADMIN_INTERNAL') ORDER BY username;",
           "query_description_zh": "用户账号状态",
           "query_description_en": "User account status"
         },
