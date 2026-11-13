@@ -8,7 +8,7 @@
 >
 > 项目**原名 DBCheck**。
 
-[![Version](https://img.shields.io/badge/Version-v26.11.13.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/Version-v26.11.13.1-blue.svg)]()
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)]()
 [![AI](https://img.shields.io/badge/AI-Ollama%20%7C%20OpenAI-orange.svg)]()
@@ -250,7 +250,7 @@ docker compose -f deploy/docker-compose.yml up -d
 ```bash
 uname -m                                      # 期望 aarch64
 # 版本号见 Releases 页：https://github.com/fiyo/DBCheck/releases
-VERSION=26.11.13.0
+VERSION=26.11.13.1
 docker pull jackge12345/dbcheck:$VERSION     # 建议固定版本号
 docker run -d -p 5003:5003 \
   --memory=2g --memory-swap=2g \
@@ -279,10 +279,12 @@ docker run -d -p 5003:5003 \
 
 > **麒麟 / ARM64 服务器请按架构选安装方式**
 >
-> Linux 二进制包为 **x86_64 / glibc ≥ 2.28**（在 `manylinux_2_28` 容器内构建），
-> 银河麒麟 V10 SP3 的 **x86_64** 版可直接下载 `RaccoonX-Linux-x86_64-*.tar.gz` 解压运行；
-> **arm64（鲲鹏 920 / 飞腾）服务器请使用上方多架构镜像**，二进制包暂不提供 arm64。
-> glibc 2.17 的旧系统（CentOS 7 等）同样只能用容器。
+> Linux 二进制包提供 **x86_64 与 aarch64 两个架构**，均在 `manylinux_2_28` 系列容器内构建，需 glibc ≥ 2.28；按 `uname -m` 选包：
+>
+> - `x86_64` → `RaccoonX-Linux-x86_64-*.tar.gz`（银河麒麟 V10 SP3 x86_64 版）
+> - `aarch64` → `RaccoonX-Linux-aarch64-*.tar.gz`（鲲鹏 920 / 飞腾、麒麟 V10 arm64 版）
+>
+> 解压后执行 `bash start.sh`。glibc 2.17 的旧系统（CentOS 7 等）仍只能用上方 Docker 多架构镜像；Oracle thick / GBase 原生驱动仅提供 x86_64 版本。
 > 切勿在更高 glibc 的机器上自行编译后拷到麒麟运行，会报 `GLIBC_2.34 not found`。
 
 ---

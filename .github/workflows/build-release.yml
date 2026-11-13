@@ -10,9 +10,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release tag, e.g. v26.11.13.0"
+        description: "Release tag, e.g. v26.11.13.1"
         required: true
-        default: "v26.11.13.0"
+        default: "v26.11.13.1"
 
 permissions:
   contents: write
@@ -276,6 +276,108 @@ jobs:
         timeout-minutes: 15
         continue-on-error: true
 
+  build-linux-arm64:
+    name: Build Linux aarch64 (manylinux_2_28 / glibc 2.28)
+    runs-on: ubuntu-24.04-arm
+    steps:
+      # 与试跑 workflow 保持一致：v4 已在 ubuntu-24.04-arm 上实测成功。
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 与 build-linux 同一套构建链：原生 arm64 runner + manylinux_2_28_aarch64 容器，
+      # 产物仍锁定 glibc 2.28（银河麒麟 V10 SP3 / 统信 UOS 的 aarch64 版可用）。
+      # 2026-11-13 已用 try-linux-arm64.yml 试跑验证：EL8 aarch64 源可装齐
+      # python3.11(shared) / JDK11 / unixODBC，32/32 依赖与 28 个核心模块全部通过，
+      # PyInstaller bootloader 为 Linux-64bit-arm（x86_64 为 Linux-64bit-intel）。
+      - name: Build in manylinux_2_28_aarch64 container
+        run: |
+          docker run --rm --platform linux/arm64 -v "$PWD":/src -w /src \
+            -e DBCHECK_CI_LENIENT=1 \
+            quay.io/pypa/manylinux_2_28_aarch64 bash -c '
+            set -e
+            dnf install -y --setopt=install_weak_deps=False \
+                java-11-openjdk-headless java-11-openjdk-devel \
+                gcc gcc-c++ make libffi-devel openssl-devel \
+                python3.11 python3.11-devel \
+                unixODBC unixODBC-devel \
+              || dnf --enablerepo="*" install -y --setopt=install_weak_deps=False \
+                java-11-openjdk-headless java-11-openjdk-devel \
+                gcc gcc-c++ make libffi-devel openssl-devel \
+                python3.11 python3.11-devel unixODBC unixODBC-devel
+            dnf install -y python3.11-pip 2>&1 || echo "[warn] python3.11-pip unavailable; venv ensurepip will be used"
+            ln -sf /usr/bin/python3.11 /usr/local/bin/python3
+            export LD_LIBRARY_PATH="/usr/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+            python3 --version
+            python3 -m sysconfig | grep -E "LIBDIR|LDLIBRARY|Py_ENABLE_SHARED" || true
+            ls -l /usr/lib64/libpython3.11.so* || { echo "::error::libpython3.11.so missing on aarch64"; exit 1; }
+            export JAVA_HOME="$(dirname "$(dirname "$(readlink -f "$(command -v java)")")")"
+            export PATH="$JAVA_HOME/bin:$PATH"
+            java -version
+            python3 -m pip install --upgrade pip setuptools wheel --timeout 120 --retries 10 \
+              2>&1 || echo "[warn] system pip unavailable, venv will bootstrap pip"
+            dnf install -y libjpeg-turbo-devel zlib-devel libpng-devel freetype-devel \
+                2>&1 || echo "[warn] optional image devel libs unavailable"
+            python3 build/ci_prepare.py
+            bash build/build_linux.sh 2>&1 | tee build-linux-arm64.log
+            RC=${PIPESTATUS[0]}
+            chmod -R a+rwX /src/dist || true
+            if [ "$RC" -eq 0 ]; then
+              readelf -h dist/RaccoonX-Linux/dbcheck | grep -E "Class:|Machine:" || true
+              ls -lh dist/RaccoonX-Linux-*.tar.gz
+            fi
+            exit $RC
+          '
+
+      - name: Extract error snippet
+        if: failure()
+        run: |
+          SNIP=$(grep -aiE "error|failed|Traceback|No matching|Unable to find" build-linux-arm64.log \
+            | tail -3 | tr -d '\r' | tr '\n' '|' | tr -c 'a-zA-Z0-9 |._-' ' ' | cut -c1-160)
+          echo "snippet: $SNIP"
+          if [ -n "$SNIP" ]; then echo "::error::Linux arm64 build failed: $SNIP"; fi
+          if [ -f build-linux-arm64.log ]; then
+            grep -aiE "error|fail|traceback|exception|No matching|Could not|Missing" build-linux-arm64.log 2>/dev/null \
+              | tail -20 | cut -c1-200 | while IFS= read -r line; do
+                s=$(printf '%s' "$line" | tr -c 'a-zA-Z0-9 |._\-/:()=<>' ' ')
+                echo "::error::LOG: $s"
+              done
+          fi
+          {
+            echo "## Linux arm64 构建失败摘要"
+            echo ""
+            echo '```'
+            echo "$SNIP"
+            echo '```'
+            if [ -f build/core-missing.txt ]; then
+              echo ""
+              echo "### 缺失的核心模块"
+              echo ""
+              echo '```'
+              cat build/core-missing.txt
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-linux-arm64
+          path: |
+            build-linux-arm64.log
+            build/core-missing.txt
+          if-no-files-found: warn
+        timeout-minutes: 10
+        continue-on-error: true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-arm64
+          path: dist/RaccoonX-Linux-aarch64-*.tar.gz
+        timeout-minutes: 15
+        continue-on-error: true
+
   build-macos:
     name: Build macOS (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
@@ -387,7 +489,7 @@ jobs:
 
   release:
     name: Attach to Release
-    needs: [build-windows, build-linux, build-macos]
+    needs: [build-windows, build-linux, build-linux-arm64, build-macos]
     # 部分构建失败时也尝试运行（有 artifact 就上传，没有则跳过）
     if: always()
     runs-on: ubuntu-latest
@@ -412,7 +514,7 @@ jobs:
       - name: Collect release assets
         run: |
           mkdir -p release_assets
-          for pattern in artifacts/windows/*.zip artifacts/linux/*.tar.gz artifacts/macos-arm64/*.tar.gz artifacts/macos-x86_64/*.tar.gz; do
+          for pattern in artifacts/windows/*.zip artifacts/linux/*.tar.gz artifacts/linux-arm64/*.tar.gz artifacts/macos-arm64/*.tar.gz artifacts/macos-x86_64/*.tar.gz; do
             for f in $pattern; do
               if [ -f "$f" ]; then
                 cp "$f" release_assets/
@@ -441,7 +543,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ ! -s release_append.md ]; then
-            NOTE=$'\n---\n\n## ⚠️ 安装注意事项\n\n- **macOS**：当前分发包**未做 Apple 公证（二进制未签名）**。首次打开若被 Gatekeeper 拦截，请右键点击 App / 可执行文件 →「打开」并在弹窗中确认即可运行；如需彻底消除提示，后续可接入 Apple 开发者证书做正式公证。\n- **Windows**：解压后双击 `start.bat` 启动，浏览器访问 http://localhost:5003 。\n- **Linux**：`RaccoonX-Linux-x86_64-*.tar.gz` 基于 manylinux_2_28 构建，需 glibc >= 2.28 的 x86_64 系统（RHEL 8 / 银河麒麟 V10 SP3 / 统信 UOS 等）；解压后执行 `bash start.sh`。arm64 服务器与 glibc 2.17 的旧系统请使用 Docker 多架构镜像。'
+            NOTE=$'\n---\n\n## ⚠️ 安装注意事项\n\n- **macOS**：当前分发包**未做 Apple 公证（二进制未签名）**。首次打开若被 Gatekeeper 拦截，请右键点击 App / 可执行文件 →「打开」并在弹窗中确认即可运行；如需彻底消除提示，后续可接入 Apple 开发者证书做正式公证。\n- **Windows**：解压后双击 `start.bat` 启动，浏览器访问 http://localhost:5003 。\n- **Linux**：`RaccoonX-Linux-x86_64-*.tar.gz` 与 `RaccoonX-Linux-aarch64-*.tar.gz` 均基于 manylinux_2_28 构建，需 glibc >= 2.28（RHEL 8 / 银河麒麟 V10 SP3 / 统信 UOS 等）；按 `uname -m` 选包，解压后执行 `bash start.sh`。glibc 2.17 的旧系统请使用 Docker 多架构镜像。'
             printf '%s\n' "$NOTE" > release_append.md
           fi
           BODY=$(gh release view "$TAG" --json body --jq '.body')

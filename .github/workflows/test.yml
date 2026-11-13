@@ -22,6 +22,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest pymysql PyYAML flask flask-socketio Werkzeug gevent
 
+      - name: Verify PyInstaller hiddenimports
+        # 防止把 PyPI 包名当模块名写进 spec（如 JPype1 / jpype）。
+        # 零第三方依赖，环境未装的传递依赖只 WARN 不阻断。
+        run: python scripts/check_spec_hiddenimports.py
+
       - name: Run test suite
         run: |
           if [ -d tests ] && ls tests/test_*.py >/dev/null 2>&1; then

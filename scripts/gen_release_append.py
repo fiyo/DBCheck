@@ -2,7 +2,7 @@
 # Copyright 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
 """发版时从 CHANGELOG.md 动态生成 GitHub Release 追加说明。
 
-用法: python3 gen_release_append.py <tag>   # 如 v26.11.13.0
+用法: python3 gen_release_append.py <tag>   # 如 v26.11.13.1
 
 输出（stdout）:
   --- + ✨ 主要更新（CHANGELOG 中该版本段落） + 🐳 Docker 镜像（tag 动态注入）
@@ -19,10 +19,10 @@ ROOT = Path(__file__).resolve().parent.parent
 INSTALL_NOTES = """## ⚠️ 安装注意事项
 - **macOS**：当前分发包**未做 Apple 公证（二进制未签名）**。首次打开若被 Gatekeeper 拦截，请右键点击 App / 可执行文件 →「打开」并在弹窗中确认即可运行；如需彻底消除提示，后续可接入 Apple 开发者证书做正式公证。
 - **Windows**：解压后双击 `start.bat` 启动，浏览器访问 http://localhost:5003 。
-- **Linux**：`RaccoonX-Linux-x86_64-*.tar.gz` 基于 manylinux_2_28 构建，需 glibc >= 2.28 的 x86_64 系统（RHEL 8 / 银河麒麟 V10 SP3 / 统信 UOS 等）；解压后执行 `bash start.sh`，浏览器访问 http://localhost:5003 。arm64 服务器与 glibc 2.17 的旧系统请使用上方 Docker 多架构镜像。
+- **Linux**：提供 x86_64 与 aarch64 两个原生包（`RaccoonX-Linux-x86_64-*.tar.gz` / `RaccoonX-Linux-aarch64-*.tar.gz`），均基于 manylinux_2_28 构建，需 glibc >= 2.28（RHEL 8 / 银河麒麟 V10 SP3 / 统信 UOS 等）；按 `uname -m` 选包，解压后执行 `bash start.sh`，浏览器访问 http://localhost:5003 。glibc 2.17 的旧系统请使用上方 Docker 多架构镜像。
 
 ## 📦 二进制包
-下方 Assets 提供 Windows / Linux x86_64 / macOS 客户端压缩包；需要源码编译的请下载 `Source code`。
+下方 Assets 提供 Windows / Linux（x86_64 与 aarch64）/ macOS 客户端压缩包；需要源码编译的请下载 `Source code`。
 """
 
 

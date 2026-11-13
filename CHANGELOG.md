@@ -1,5 +1,29 @@
 # Changelog
 
+## v26.11.13.1 (2026-11-13)
+
+### 新增 Linux aarch64 二进制包（鲲鹏 920 / 飞腾）
+
+- **先试跑再并入**：新增独立 `workflow_dispatch` 试跑通道 `try-linux-arm64.yml`（不挂 Release），在 GitHub 原生 arm64 runner `ubuntu-24.04-arm` 中跑 `quay.io/pypa/manylinux_2_28_aarch64` 容器。试跑 run `43355009624` 全绿，日志实测 PyInstaller bootloader `Linux-64bit-arm`（x86_64 为 `Linux-64bit-intel`）、产物 `RaccoonX-Linux-aarch64-*.tar.gz`，确认 EL8 aarch64 软件源能装齐 Python 3.11 共享解释器（`libpython3.11.so.1.0`）、JDK 11 与 unixODBC，无需 QEMU。
+- `build/build_linux.sh` 的 `RELEASE_NAME` 由硬编码 `x86_64` 改为按容器 `uname -m` 生成（`amd64→x86_64`、`arm64→aarch64`），x86_64 产物名保持不变；`build-release.yml` 新增 `build-linux-arm64` job，并同步 `release.needs` 与资产收集，每次 tag 出 5 个客户端包。
+- 中英 README、构建文档、Release 安装说明与官网下载中心改为双架构口径。边界不变：Oracle thick / GBase 原生驱动仍仅 x86_64，glibc 2.17 的旧系统仍走 Docker 多架构镜像。
+
+### 修复：PyInstaller spec 把 pip 包名当成模块名（JPype1 → jpype）
+
+- `JPype1` 是 PyPI 包名，Python 导入名是 `jpype`。`dbcheck_linux.spec` / `dbcheck_windows.spec` 的 `hiddenimports` 写成包名后，PyInstaller 打印 `ERROR: Hidden import 'JPype1' not found` 并**静默跳过该项**。本机 PyInstaller CLI 对照实验证实：该写法下 JPype 自带 hook 不触发，`org.jpype.jar` 与 `_jpype` 扩展都不进包；写成 `jpype` 后两者齐全且无报错。
+- 已发行包未受影响（`modules/jdbc_connector.py` 等函数内的 `import jpype` 仍被静态扫描到，本地 `dist_verify` 副本里 jar / 扩展俱在），但 JDBC 插件是动态加载的，这条显式保险失效后一旦扫描路径变化就可能真缺件。
+- 三个平台 spec 统一改为 `'jpype', 'jpype.imports'`；`dbcheck_macos.spec` 原先连 `jaydebeapi` / `jpype` 都未声明，一并补齐。`deploy/requirements*.txt` 里的 `JPype1>=1.5.0,<1.6` 是 pip 包名，属正确写法，保持不变。
+
+### 新增：spec hiddenimports 防回归检查
+
+- `scripts/check_spec_hiddenimports.py` 用纯标准库 AST 解析三个 spec，检查「包名 ≠ 导入名」误用与非法模块路径，并强制三个平台都显式声明 JDBC 后端；环境未装的传递依赖只 WARN 不阻断，`--strict` 可升级为失败。已接入 `Tests` workflow 的 `Verify PyInstaller hiddenimports` step，每次 push / PR 自动运行。
+
+### 验证
+
+- 三步验证：`compileall -q modules web_templates scripts` EXIT=0；`import modules.web.app` OK；`discover_plugins()` = 12。
+- 防回归检查正例通过；注入负例（把 spec 写回 `JPype1`、删掉 `jpype` 声明）均按预期 FAIL。
+- 6 个 workflow YAML 解析通过，容器内 shell 片段 `bash -n` 通过；`gen_release_append.py v26.11.13.1` 输出含本段更新说明。
+
 ## v26.11.13.0 (2026-11-13)
 
 ### 恢复 Linux x86_64 二进制包出包（兼容麒麟 V10 SP3）

@@ -41,17 +41,18 @@ Extract and run `start.bat` or `dbcheck.exe`.
 ### Prerequisites / 前置条件
 
 **IMPORTANT: binaries are bound to the glibc of the build host.**
-The official CI builds inside `quay.io/pypa/manylinux_2_28_x86_64`, so the
-published package runs on RHEL 8 / AlmaLinux 8 / 银河麒麟 V10 SP3 / 统信 UOS /
-Ubuntu 20.04+ — any x86_64 distro with glibc >= 2.28. Building locally on a
-newer glibc (e.g. Ubuntu 22.04, glibc 2.35) produces a binary that fails on
-glibc 2.28 with `GLIBC_2.34 not found`. Use the container for portable builds.
+The official CI builds inside `quay.io/pypa/manylinux_2_28_x86_64` and
+`manylinux_2_28_aarch64`, so the published packages run on RHEL 8 / AlmaLinux 8 /
+银河麒麟 V10 SP3 / 统信 UOS / Ubuntu 20.04+ — any x86_64 or aarch64 distro with
+glibc >= 2.28. Building locally on a newer glibc (e.g. Ubuntu 22.04, glibc 2.35)
+produces a binary that fails on glibc 2.28 with `GLIBC_2.34 not found`. Use the
+container for portable builds.
 
 **重要：产物与构建机的 glibc 绑定。**
-官方 CI 在 `manylinux_2_28_x86_64` 容器内构建，产物可运行于 glibc >= 2.28 的
-x86_64 系统（RHEL 8 / 银河麒麟 V10 SP3 / 统信 UOS 等）。若在更高版本 glibc 的机器上
-本地打包，产物在麒麟 V10 SP3 上会报 `GLIBC_2.34 not found`。
-arm64 服务器与 glibc 2.17 的旧系统请使用 Docker 多架构镜像。
+官方 CI 分别在 `manylinux_2_28_x86_64` / `manylinux_2_28_aarch64` 容器内构建，
+产物可运行于 glibc >= 2.28 的 x86_64 / aarch64 系统（RHEL 8 / 银河麒麟 V10 SP3 /
+统信 UOS 等），按 `uname -m` 选包。若在更高版本 glibc 的机器上本地打包，产物在
+麒麟 V10 SP3 上会报 `GLIBC_2.34 not found`。glibc 2.17 的旧系统请使用 Docker 多架构镜像。
 
 #### Install Python 3.10+ / 安装 Python 3.10+
 ```bash
@@ -78,13 +79,13 @@ The script will:
 
 ### Output / 输出
 ```
-dist/RaccoonX-Linux-x86_64-v26.11.13.0.tar.gz
+dist/RaccoonX-Linux-x86_64-v26.11.13.1.tar.gz
 ```
 
 ### Deploy / 部署
 ```bash
 ldd --version | head -1          # 确认 glibc >= 2.28
-tar xzvf RaccoonX-Linux-x86_64-v26.11.13.0.tar.gz
+tar xzvf RaccoonX-Linux-x86_64-v26.11.13.1.tar.gz
 cd RaccoonX-Linux
 bash start.sh
 # or: ./dbcheck

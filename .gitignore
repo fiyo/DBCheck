@@ -124,6 +124,8 @@ tests/
 # AGENTS.md = 给 AI 编码助手的强制署名约束；scripts/check_license_headers.py = CI 检测脚本
 !AGENTS.md
 !scripts/check_license_headers.py
+# CI 防回归检查：每次 push / PR 校验 PyInstaller spec 的 hiddenimports
+!scripts/check_spec_hiddenimports.py
 
 # 目录结构重构：data 统一收口
 data/reports/

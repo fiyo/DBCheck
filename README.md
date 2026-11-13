@@ -8,7 +8,7 @@
 >
 > Formerly known as **DBCheck**.
 
-[![Version](https://img.shields.io/badge/Version-v26.11.13.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/Version-v26.11.13.1-blue.svg)]()
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)]()
 [![AI](https://img.shields.io/badge/AI-Ollama%20%7C%20OpenAI-orange.svg)]()
@@ -260,7 +260,7 @@ so the host only needs **kernel ≥ 4.x** — Galaxy Kylin V10 SP3 ships kernel 
 ```bash
 uname -m                                      # expect aarch64
 # Version list: https://github.com/fiyo/DBCheck/releases
-VERSION=26.11.13.0
+VERSION=26.11.13.1
 docker pull jackge12345/dbcheck:$VERSION     # pin an explicit version
 docker run -d -p 5003:5003 \
   --memory=2g --memory-swap=2g \
@@ -290,11 +290,14 @@ docker run -d -p 5003:5003 \
 
 > **Pick the right install method for Kylin / ARM64 servers**
 >
-> The Linux binary is **x86_64, glibc >= 2.28** (built in `manylinux_2_28`), so it runs
-> directly on the x86_64 edition of Galaxy Kylin V10 SP3: download
-> `RaccoonX-Linux-x86_64-*.tar.gz` from Releases and run `bash start.sh`.
-> On **arm64** servers (Kunpeng 920 / Phytium) use the multi-arch image above — no arm64
-> binary is published. Older glibc 2.17 systems (CentOS 7) also need the container.
+> Linux binaries are published for **x86_64 and aarch64**, both built in
+> `manylinux_2_28` containers and requiring glibc >= 2.28. Pick by `uname -m`:
+>
+> - `x86_64` -> `RaccoonX-Linux-x86_64-*.tar.gz` (Galaxy Kylin V10 SP3 x86_64)
+> - `aarch64` -> `RaccoonX-Linux-aarch64-*.tar.gz` (Kunpeng 920 / Phytium, Kylin V10 arm64)
+>
+> Unpack and run `bash start.sh`. Older glibc 2.17 systems (CentOS 7) still need the
+> multi-arch image above; Oracle thick / GBase native drivers remain x86_64-only.
 > Do not build on a newer glibc host and copy the binary over: `GLIBC_2.34 not found`.
 
 ---

@@ -69,6 +69,11 @@ a = Analysis(
         'psycopg2', 'psycopg2._psycopg',
         'oracledb',
         'pyodbc',
+        'jaydebeapi',       # DM8 / GBase 8s JDBC 连接（DM8 巡检与测试连接现已走 jaydebeapi）
+        # PyPI 包名是 JPype1，Python 导入名是 jpype。写成包名会让 PyInstaller 报
+        # "Hidden import 'JPype1' not found"，该 hiddenimport 完全失效；JPype 自带的
+        # hook 随之可能不触发，org.jpype.jar 与 _jpype 扩展漏收，冻结版 JDBC 后端缺件。
+        'jpype', 'jpype.imports',  # jaydebeapi 的 JVM 后端；SQL Server/DB2/HGDB/DM8 JDBC 驱动均依赖
         'redis',  # Redis / Redis Cluster 插件动态 import，需显式 hiddenimport 才能打进冻结版
         'paramiko', 'paramiko.transport', 'paramiko.auth_handler',
         'jinja2', 'jinja2.ext',
