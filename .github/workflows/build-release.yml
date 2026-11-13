@@ -182,17 +182,28 @@ jobs:
             -e DBCHECK_CI_LENIENT=1 \
             quay.io/pypa/manylinux_2_28_x86_64 bash -c '
             set -e
-            PYBIN=$(ls -d /opt/python/cp311-cp311 2>/dev/null || ls -d /opt/python/cp310-cp310 2>/dev/null || ls -d /opt/python/cp3*-cp3* 2>/dev/null | sort | tail -1)
-            echo "Using manylinux Python: $PYBIN"
-            ln -sf "$PYBIN/bin/python3" /usr/local/bin/python3
-            ln -sf "$PYBIN/bin/pip" /usr/local/bin/pip
-            # manylinux 的 Python 是 shared build，PyInstaller / venv 需要能找到 libpython
-            export LD_LIBRARY_PATH="$PYBIN/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-            python3 -m pip install --upgrade pip setuptools wheel --timeout 120 --retries 10
-            # 必需组：JVM 后端（JPype1 运行时）+ 基础编译链。均为 EL8 BaseOS/AppStream 的基础包。
+            # manylinux 自带的 /opt/python/cp3xx 是 --disable-shared 编译
+            # （pypa/manylinux build-cpython.sh: CONFIGURE_ARGS=(--disable-shared ...)），
+            # 没有 libpython.so；PyInstaller 在 Linux 上必须嵌入共享解释器，直接用会报
+            # "Python was built without a shared library"。改用 EL8 系统 Python 3.11
+            # （shared build，libpython3.11.so.1.0 在 /usr/lib64），glibc 2.28 基线不变。
             dnf install -y --setopt=install_weak_deps=False \
                 java-11-openjdk-headless java-11-openjdk-devel \
-                gcc gcc-c++ make libffi-devel openssl-devel
+                gcc gcc-c++ make libffi-devel openssl-devel \
+                python3.11 python3.11-devel \
+              || dnf --enablerepo="*" install -y --setopt=install_weak_deps=False \
+                java-11-openjdk-headless java-11-openjdk-devel \
+                gcc gcc-c++ make libffi-devel openssl-devel \
+                python3.11 python3.11-devel
+            dnf install -y python3.11-pip 2>&1 || echo "[warn] python3.11-pip unavailable; venv ensurepip will be used"
+            ln -sf /usr/bin/python3.11 /usr/local/bin/python3
+            export LD_LIBRARY_PATH="/usr/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+            python3 --version
+            python3 -m sysconfig | grep -E "LIBDIR|LDLIBRARY|Py_ENABLE_SHARED" || true
+            ls -l /usr/lib64/libpython3.11.so* || echo "[warn] libpython3.11.so not found"
+            # 系统 Python 不一定带 pip；venv 自带 ensurepip，失败不影响 build_linux.sh
+            python3 -m pip install --upgrade pip setuptools wheel --timeout 120 --retries 10 \
+              2>&1 || echo "[warn] system pip unavailable, venv will bootstrap pip"
             # 可选兜底：仅当个别包意外退回源码编译 Pillow 时才需要；装不上不影响预编译 wheel 主路径。
             dnf install -y libjpeg-turbo-devel zlib-devel libpng-devel freetype-devel \
                 2>&1 || echo "[warn] optional image devel libs unavailable"

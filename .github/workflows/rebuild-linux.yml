@@ -35,15 +35,23 @@ jobs:
             -e DBCHECK_CI_LENIENT=1 \
             quay.io/pypa/manylinux_2_28_x86_64 bash -c '
             set -e
-            PYBIN=$(ls -d /opt/python/cp311-cp311 2>/dev/null || ls -d /opt/python/cp310-cp310 2>/dev/null || ls -d /opt/python/cp3*-cp3* 2>/dev/null | sort | tail -1)
-            echo "Using manylinux Python: $PYBIN"
-            ln -sf "$PYBIN/bin/python3" /usr/local/bin/python3
-            ln -sf "$PYBIN/bin/pip" /usr/local/bin/pip
-            export LD_LIBRARY_PATH="$PYBIN/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-            python3 -m pip install --upgrade pip setuptools wheel --timeout 120 --retries 10
+            # 与 build-release.yml 一致：manylinux 自带 CPython 是 --disable-shared，
+            # PyInstaller 需要 libpython.so，改用 EL8 系统 Python 3.11（shared build）。
             dnf install -y --setopt=install_weak_deps=False \
                 java-11-openjdk-headless java-11-openjdk-devel \
-                gcc gcc-c++ make libffi-devel openssl-devel
+                gcc gcc-c++ make libffi-devel openssl-devel \
+                python3.11 python3.11-devel \
+              || dnf --enablerepo="*" install -y --setopt=install_weak_deps=False \
+                java-11-openjdk-headless java-11-openjdk-devel \
+                gcc gcc-c++ make libffi-devel openssl-devel \
+                python3.11 python3.11-devel
+            dnf install -y python3.11-pip 2>&1 || echo "[warn] python3.11-pip unavailable; venv ensurepip will be used"
+            ln -sf /usr/bin/python3.11 /usr/local/bin/python3
+            export LD_LIBRARY_PATH="/usr/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+            python3 --version
+            ls -l /usr/lib64/libpython3.11.so* || echo "[warn] libpython3.11.so not found"
+            python3 -m pip install --upgrade pip setuptools wheel --timeout 120 --retries 10 \
+              2>&1 || echo "[warn] system pip unavailable, venv will bootstrap pip"
             dnf install -y libjpeg-turbo-devel zlib-devel libpng-devel freetype-devel \
                 2>&1 || echo "[warn] optional image devel libs unavailable"
             export JAVA_HOME=/usr/lib/jvm/java-11-openjdk
