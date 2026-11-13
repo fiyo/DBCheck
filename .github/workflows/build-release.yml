@@ -166,50 +166,41 @@ jobs:
         continue-on-error: true
 
   build-linux:
-    # 临时屏蔽：manylinux2014 容器内 Pillow/JPype1 源码编译缺 jpeg 等系统库持续失败，
-    # 先仅出 Windows / macOS 包。恢复方法：删除下面这行 `if: false` 即可重新启用。
-    if: false
-    name: Build Linux (manylinux2014 / glibc 2.17)
+    name: Build Linux x86_64 (manylinux_2_28 / glibc 2.28)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
 
-      # 在 manylinux2014 容器内构建，产物兼容 CentOS 7 / RHEL 7 (glibc 2.17)
-      - name: Build in manylinux2014 container
+      # 在 manylinux_2_28（AlmaLinux 8 系 / glibc 2.28）容器内构建，产物兼容
+      # RHEL 8 / 银河麒麟 V10 SP3 / 统信 UOS 等 glibc >= 2.28 的 x86_64 发行版。
+      # 旧 manylinux2014（glibc 2.17）基座太老，Pillow/numpy/pandas/JPype1 命中不了
+      # 预编译 wheel，退回源码编译又缺 jpeg/JDK11，2026-09-04 连续失败后被临时屏蔽。
+      - name: Build in manylinux_2_28 container
         run: |
-          docker run --rm -v "$PWD":/src -w /src quay.io/pypa/manylinux2014_x86_64 bash -c '
+          docker run --rm -v "$PWD":/src -w /src \
+            -e DBCHECK_CI_LENIENT=1 \
+            quay.io/pypa/manylinux_2_28_x86_64 bash -c '
             set -e
             PYBIN=$(ls -d /opt/python/cp311-cp311 2>/dev/null || ls -d /opt/python/cp310-cp310 2>/dev/null || ls -d /opt/python/cp3*-cp3* 2>/dev/null | sort | tail -1)
             echo "Using manylinux Python: $PYBIN"
             ln -sf "$PYBIN/bin/python3" /usr/local/bin/python3
             ln -sf "$PYBIN/bin/pip" /usr/local/bin/pip
-            # 升级 pip/setuptools/wheel：manylinux2014 自带 pip 较旧，升级可提高
-            # 预编译 wheel 命中率，避免 JPype1/Pillow 等被迫从源码编译
+            # manylinux 的 Python 是 shared build，PyInstaller / venv 需要能找到 libpython
+            export LD_LIBRARY_PATH="$PYBIN/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
             python3 -m pip install --upgrade pip setuptools wheel --timeout 120 --retries 10
-            # Pillow/JPype1/Pandas 源码编译需要的系统库（即使能命中 wheel 也装齐，作为兜底）
-            # Pillow 需要：libjpeg-turbo-devel zlib-devel libpng-devel freetype-devel
-            #              libtiff-devel lcms2-devel libwebp-devel openjpeg2-devel
-            # JPype1 需要 JDK 11+ (Java 8 编译会失败: javac: invalid target release: 9)
-            # PyInstaller 需要 Python 共享库 (python-libs)
-            # Pandas/Cython 编译需要 cython 和开发工具
-            # 注意：CentOS 7 里 Pillow 真正要的是 libjpeg-turbo-devel（libjpeg-devel 是 6b 老版本，不匹配）
-            # 重试循环确保网络抖动时也能装齐；Pillow 源码编译兜底必须有 jpeg 等开发库。
-            # 注意：CentOS 7 里 Pillow 真正要的是 libjpeg-turbo-devel（libjpeg-devel 是 6b 老版本，不匹配）
-            for i in 1 2 3; do
-              yum install -y libffi-devel openssl-devel postgresql-devel \
-                  libjpeg-turbo-devel zlib-devel libpng-devel freetype-devel \
-                  libtiff-devel lcms2-devel libwebp-devel openjpeg2-devel \
-                  java-11-openjdk java-11-openjdk-devel ant \
-                  python3-libs python3-devel \
-                  gcc gcc-c++ make cmake ninja-build cython pkgconfig && break
-              echo "[warn] yum install attempt $i failed, retrying in 5s..."
-              sleep 5
-            done
-            # 设置 JAVA_HOME 让所有 Java 工具都使用 Java 11
+            # 必需组：JVM 后端（JPype1 运行时）+ 基础编译链。均为 EL8 BaseOS/AppStream 的基础包。
+            dnf install -y --setopt=install_weak_deps=False \
+                java-11-openjdk-headless java-11-openjdk-devel \
+                gcc gcc-c++ make libffi-devel openssl-devel
+            # 可选兜底：仅当个别包意外退回源码编译 Pillow 时才需要；装不上不影响预编译 wheel 主路径。
+            dnf install -y libjpeg-turbo-devel zlib-devel libpng-devel freetype-devel \
+                2>&1 || echo "[warn] optional image devel libs unavailable"
             export JAVA_HOME=/usr/lib/jvm/java-11-openjdk
             export PATH=$JAVA_HOME/bin:$PATH
-            # 补齐干净 checkout 缺失的输入物（运行时目录 + 默认配置）
+            # -e DBCHECK_CI_LENIENT=1 必须显式传入容器：workflow 顶层 env 不会自动进 docker run。
+            # 之前漏传，build_linux.sh 走的是 pip install -r 整条硬失败分支，而 Win/Mac 走宽松安装，
+            # 这是 Linux 构建反复失败的真正主因之一。
             python3 build/ci_prepare.py
             bash build/build_linux.sh 2>&1 | tee build-linux.log
             RC=${PIPESTATUS[0]}
@@ -226,6 +217,15 @@ jobs:
             | tail -3 | tr -d '\r' | tr '\n' '|' | tr -c 'a-zA-Z0-9 |._-' ' ' | cut -c1-160)
           echo "ERR_SNIPPET=$SNIP" >> "$GITHUB_ENV"
           echo "snippet: $SNIP"
+          # 匿名访问 job 日志会返回 403，关键日志行以 annotation 输出，无需登录即可定位首因。
+          if [ -n "$SNIP" ]; then echo "::error::Linux build failed: $SNIP"; fi
+          if [ -f build-linux.log ]; then
+            grep -aiE "error|fail|traceback|exception|No matching|Could not|Missing" build-linux.log 2>/dev/null \
+              | tail -20 | cut -c1-200 | while IFS= read -r line; do
+                s=$(printf '%s' "$line" | tr -c 'a-zA-Z0-9 |._\-/:()=<>' ' ')
+                echo "::error::LOG: $s"
+              done
+          fi
           {
             echo "## 构建失败摘要"
             echo ""
@@ -373,7 +373,7 @@ jobs:
 
   release:
     name: Attach to Release
-    needs: [build-windows, build-macos]
+    needs: [build-windows, build-linux, build-macos]
     # 部分构建失败时也尝试运行（有 artifact 就上传，没有则跳过）
     if: always()
     runs-on: ubuntu-latest
@@ -398,7 +398,7 @@ jobs:
       - name: Collect release assets
         run: |
           mkdir -p release_assets
-          for pattern in artifacts/windows/*.zip artifacts/macos-arm64/*.tar.gz artifacts/macos-x86_64/*.tar.gz; do
+          for pattern in artifacts/windows/*.zip artifacts/linux/*.tar.gz artifacts/macos-arm64/*.tar.gz artifacts/macos-x86_64/*.tar.gz; do
             for f in $pattern; do
               if [ -f "$f" ]; then
                 cp "$f" release_assets/
@@ -427,7 +427,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ ! -s release_append.md ]; then
-            NOTE=$'\n---\n\n## ⚠️ 安装注意事项\n\n- **macOS**：当前分发包**未做 Apple 公证（二进制未签名）**。首次打开若被 Gatekeeper 拦截，请右键点击 App / 可执行文件 →「打开」并在弹窗中确认即可运行；如需彻底消除提示，后续可接入 Apple 开发者证书做正式公证。\n- **Windows**：解压后双击 `start.bat` 启动，浏览器访问 http://localhost:5003 。（注：Linux 客户端暂未发布，当前仅提供 Windows / macOS 安装包。）'
+            NOTE=$'\n---\n\n## ⚠️ 安装注意事项\n\n- **macOS**：当前分发包**未做 Apple 公证（二进制未签名）**。首次打开若被 Gatekeeper 拦截，请右键点击 App / 可执行文件 →「打开」并在弹窗中确认即可运行；如需彻底消除提示，后续可接入 Apple 开发者证书做正式公证。\n- **Windows**：解压后双击 `start.bat` 启动，浏览器访问 http://localhost:5003 。\n- **Linux**：`RaccoonX-Linux-x86_64-*.tar.gz` 基于 manylinux_2_28 构建，需 glibc >= 2.28 的 x86_64 系统（RHEL 8 / 银河麒麟 V10 SP3 / 统信 UOS 等）；解压后执行 `bash start.sh`。arm64 服务器与 glibc 2.17 的旧系统请使用 Docker 多架构镜像。'
             printf '%s\n' "$NOTE" > release_append.md
           fi
           BODY=$(gh release view "$TAG" --json body --jq '.body')

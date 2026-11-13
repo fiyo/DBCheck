@@ -19,10 +19,10 @@ ROOT = Path(__file__).resolve().parent.parent
 INSTALL_NOTES = """## ⚠️ 安装注意事项
 - **macOS**：当前分发包**未做 Apple 公证（二进制未签名）**。首次打开若被 Gatekeeper 拦截，请右键点击 App / 可执行文件 →「打开」并在弹窗中确认即可运行；如需彻底消除提示，后续可接入 Apple 开发者证书做正式公证。
 - **Windows**：解压后双击 `start.bat` 启动，浏览器访问 http://localhost:5003 。
-- **Linux**：客户端安装包暂未发布，当前仅提供 Windows / macOS 安装包；Linux 用户请直接使用上方 Docker 镜像。
+- **Linux**：`RaccoonX-Linux-x86_64-*.tar.gz` 基于 manylinux_2_28 构建，需 glibc >= 2.28 的 x86_64 系统（RHEL 8 / 银河麒麟 V10 SP3 / 统信 UOS 等）；解压后执行 `bash start.sh`，浏览器访问 http://localhost:5003 。arm64 服务器与 glibc 2.17 的旧系统请使用上方 Docker 多架构镜像。
 
 ## 📦 二进制包
-下方 Assets 提供 Windows / macOS 客户端压缩包；需要源码编译的请下载 `Source code`。
+下方 Assets 提供 Windows / Linux x86_64 / macOS 客户端压缩包；需要源码编译的请下载 `Source code`。
 """
 
 

@@ -36,27 +36,30 @@ Extract and run `start.bat` or `dbcheck.exe`.
 
 ---
 
-## Linux Build / Linux 打包 (CentOS 7.9)
+## Linux Build / Linux 打包 (glibc >= 2.28, x86_64)
 
 ### Prerequisites / 前置条件
 
-**IMPORTANT: You must build on the target OS.**
-Windows cannot cross-compile Linux binaries.
+**IMPORTANT: binaries are bound to the glibc of the build host.**
+The official CI builds inside `quay.io/pypa/manylinux_2_28_x86_64`, so the
+published package runs on RHEL 8 / AlmaLinux 8 / 银河麒麟 V10 SP3 / 统信 UOS /
+Ubuntu 20.04+ — any x86_64 distro with glibc >= 2.28. Building locally on a
+newer glibc (e.g. Ubuntu 22.04, glibc 2.35) produces a binary that fails on
+glibc 2.28 with `GLIBC_2.34 not found`. Use the container for portable builds.
 
-**重要：必须在目标系统上打包。**
-Windows 无法交叉编译 Linux 二进制文件。
+**重要：产物与构建机的 glibc 绑定。**
+官方 CI 在 `manylinux_2_28_x86_64` 容器内构建，产物可运行于 glibc >= 2.28 的
+x86_64 系统（RHEL 8 / 银河麒麟 V10 SP3 / 统信 UOS 等）。若在更高版本 glibc 的机器上
+本地打包，产物在麒麟 V10 SP3 上会报 `GLIBC_2.34 not found`。
+arm64 服务器与 glibc 2.17 的旧系统请使用 Docker 多架构镜像。
 
-#### Install Python 3.10+ on CentOS 7.9 / 安装 Python 3.10+
+#### Install Python 3.10+ / 安装 Python 3.10+
 ```bash
-# Add IUS repository
-sudo yum install -y https://repo.ius.io/ius-release-el7.rpm
-sudo yum install -y epel-release
+# RHEL 8 / 麒麟 V10 SP3
+sudo dnf install -y python3.11 python3.11-devel gcc gcc-c++ make
 
-# Install Python 3.10
-sudo yum install -y python310 python310-pip python310-devel
-
-# Install build tools
-sudo yum install -y gcc gcc-c++ make
+# Debian / Ubuntu
+sudo apt install -y python3.11 python3.11-venv python3.11-dev gcc g++ make
 ```
 
 ### Steps / 步骤
@@ -69,19 +72,20 @@ bash build/build_linux.sh
 The script will:
 1. Check Python version (>= 3.10)
 2. Create a virtual environment
-3. Install dependencies from `requirements.txt`
+3. Install dependencies from `deploy/requirements.txt`
 4. Run PyInstaller with `build/dbcheck_linux.spec`
-5. Create release package `dist/DBCheck-Linux-x86_64.tar.gz`
+5. Create release package `dist/RaccoonX-Linux-x86_64-<version>.tar.gz`
 
 ### Output / 输出
 ```
-dist/DBCheck-Linux-x86_64.tar.gz
+dist/RaccoonX-Linux-x86_64-v26.11.13.0.tar.gz
 ```
 
 ### Deploy / 部署
 ```bash
-tar xzvf DBCheck-Linux-x86_64.tar.gz
-cd DBCheck-Linux
+ldd --version | head -1          # 确认 glibc >= 2.28
+tar xzvf RaccoonX-Linux-x86_64-v26.11.13.0.tar.gz
+cd RaccoonX-Linux
 bash start.sh
 # or: ./dbcheck
 ```

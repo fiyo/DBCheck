@@ -1,7 +1,9 @@
 #!/bin/bash
 # ============================================================
 # RaccoonX Linux Build Script
-# Target: CentOS 7.9 / RHEL 7+
+# Target: glibc >= 2.28 的 x86_64 发行版
+#   （RHEL 8 / AlmaLinux 8 / 银河麒麟 V10 SP3 / 统信 UOS / Ubuntu 20.04+ 等）
+#   CI 在 quay.io/pypa/manylinux_2_28_x86_64 容器内构建，产物即以此为最低 glibc 基线。
 # Requires: Python >= 3.10, pip, gcc
 # ============================================================
 set -e
@@ -39,9 +41,9 @@ MINOR=$($PYTHON_CMD -c "import sys; print(sys.version_info.minor)")
 
 if [ "$MAJOR" -lt 3 ] || { [ "$MAJOR" -eq 3 ] && [ "$MINOR" -lt 10 ]; }; then
     echo "[ERROR] Python >= 3.10 required (current: $PYTHON_VER)"
-    echo "  Install Python 3.10+ on CentOS 7.9:"
-    echo "    sudo yum install -y https://repo.ius.io/ius-release-el7.rpm"
-    echo "    sudo yum install -y python310 python310-pip python310-devel"
+    echo "  请在目标发行版上安装 Python 3.10+（含 -devel / venv 组件），例如："
+    echo "    RHEL 8 / 麒麟 V10 SP3: sudo dnf install -y python3.11 python3.11-devel"
+    echo "    Debian / Ubuntu:      sudo apt install -y python3.11 python3.11-venv python3.11-dev"
     exit 1
 fi
 
@@ -56,8 +58,8 @@ fi
 
 source "$VENV_DIR/bin/activate"
 
-# 升级 pip/setuptools/wheel：manylinux2014 自带 pip 较旧，升级可提高预编译
-# wheel 命中率，避免 JPype1/Pillow 等被迫从源码编译（缺 jpeg 等系统库）
+# 升级 pip/setuptools/wheel：提高 manylinux_2_28 预编译 wheel 命中率，
+# 避免 JPype1/Pillow 等被迫从源码编译（缺 jpeg 等系统库）
 # --timeout/--retries 防御 CI 网络抖动导致大 wheel 下载超时 fallback 源码编译
 pip install --upgrade pip setuptools wheel --timeout 120 --retries 10
 
@@ -106,6 +108,8 @@ echo "  Build complete!"
 echo "  Release: dist/$RELEASE_NAME.tar.gz ($RELEASE_SIZE)"
 echo "========================================"
 echo ""
-echo "Deploy to CentOS:"
+echo "Deploy (x86_64, glibc >= 2.28):"
+echo "  ldd --version | head -1     # 确认 glibc 版本 >= 2.28"
 echo "  tar xzvf $RELEASE_NAME.tar.gz"
 echo "  cd RaccoonX-Linux && bash start.sh"
+echo "Note: arm64 服务器与 glibc 2.17 的旧系统请使用 Docker 多架构镜像。"

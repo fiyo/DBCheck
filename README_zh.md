@@ -277,10 +277,13 @@ docker run -d -p 5003:5003 \
 | Oracle | ⚠️ | thick 模式依赖 x86_64 Instant Client，arm64 不可用；thin 模式与 oracle_jdbc 路径可用 |
 | GBase 8s | ⚠️ | 原生 Python 驱动需 GBase SDK，arm64 建议走 JDBC 方式 |
 
-> **不要在麒麟上裸机运行二进制包**
+> **麒麟 / ARM64 服务器请按架构选安装方式**
 >
-> 官方仅发布 Windows / macOS 客户端；Linux 侧请使用容器或源码方式。
-> Debian 构建的二进制在 glibc 2.28 的麒麟系统上会报 `GLIBC_2.34 not found`。
+> Linux 二进制包为 **x86_64 / glibc ≥ 2.28**（在 `manylinux_2_28` 容器内构建），
+> 银河麒麟 V10 SP3 的 **x86_64** 版可直接下载 `RaccoonX-Linux-x86_64-*.tar.gz` 解压运行；
+> **arm64（鲲鹏 920 / 飞腾）服务器请使用上方多架构镜像**，二进制包暂不提供 arm64。
+> glibc 2.17 的旧系统（CentOS 7 等）同样只能用容器。
+> 切勿在更高 glibc 的机器上自行编译后拷到麒麟运行，会报 `GLIBC_2.34 not found`。
 
 ---
 

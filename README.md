@@ -288,10 +288,14 @@ docker run -d -p 5003:5003 \
 | Oracle | ⚠️ | Thick mode needs the x86_64 Instant Client and is unavailable on arm64; thin mode and the oracle_jdbc path work |
 | GBase 8s | ⚠️ | The native Python driver needs the GBase SDK — use the JDBC path on arm64 |
 
-> **Do not run the binary package directly on Kylin**
+> **Pick the right install method for Kylin / ARM64 servers**
 >
-> Only Windows / macOS clients are published; on Linux use the container or build from source.
-> Debian-built binaries fail with `GLIBC_2.34 not found` on Kylin's glibc 2.28.
+> The Linux binary is **x86_64, glibc >= 2.28** (built in `manylinux_2_28`), so it runs
+> directly on the x86_64 edition of Galaxy Kylin V10 SP3: download
+> `RaccoonX-Linux-x86_64-*.tar.gz` from Releases and run `bash start.sh`.
+> On **arm64** servers (Kunpeng 920 / Phytium) use the multi-arch image above — no arm64
+> binary is published. Older glibc 2.17 systems (CentOS 7) also need the container.
+> Do not build on a newer glibc host and copy the binary over: `GLIBC_2.34 not found`.
 
 ---
 

@@ -1,5 +1,20 @@
 # Changelog
 
+## v26.11.13.0 (2026-11-13)
+
+### 恢复 Linux x86_64 二进制包出包（兼容麒麟 V10 SP3）
+
+- **背景**：`build-release.yml` 的 `build-linux` 自 2026-09-04（`0dd0827`）起被 `if: false` 屏蔽，Release 只出 Windows / macOS 包；`rebuild-linux.yml` 与旧 `docker.yml` 同样被屏蔽，每次 tag 都多出 skipped job。Docker 多架构镜像（`docker-multiarch.yml`）自 `d3cf0f3` 起一直正常构建，与二进制包是两条独立链路。
+- **根因（两条，此前只处理了第一条）**：① `manylinux2014`（CentOS 7 / glibc 2.17）基座过老，Python 3.11 下 Pillow / numpy / pandas / JPype1 命中不了预编译 wheel，退回源码编译又缺 jpeg / JDK 11 / libpython，2026-09-04 一天内十余次 `Build in manylinux2014 container` 失败后被屏蔽；② `DBCHECK_CI_LENIENT=1` 是 workflow 顶层 env，**不会自动传入 `docker run` 容器**，`build_linux.sh` 在容器内实际走的是 `pip install -r deploy/requirements.txt` 整条硬失败分支，而 Windows / macOS 走 `ci_install_deps.py` 宽松安装 + 离线 wheel——这是反复补 yum 依赖仍失败的主因。
+- **修复**：`build-release.yml` / `rebuild-linux.yml` 的 Linux job 改用 `quay.io/pypa/manylinux_2_28_x86_64`（glibc 2.28），`yum` 一大堆 devel 包收敛为 `dnf` 必需组（JDK 11 + 基础编译链）+ 可选图像库兜底；显式 `-e DBCHECK_CI_LENIENT=1` 传入容器；补 `LD_LIBRARY_PATH` 让 PyInstaller 找到 `libpython`。产物 `RaccoonX-Linux-x86_64-<版本>.tar.gz` 兼容 glibc ≥ 2.28 的 x86_64 系统（RHEL 8 / 银河麒麟 V10 SP3 / 统信 UOS 等）。
+- **恢复 Release 挂载**：`release.needs` 加回 `build-linux`、`Collect release assets` 加回 `artifacts/linux/*.tar.gz`；`build-release.yml` 的兜底安装说明与 `scripts/gen_release_append.py` 的「Linux 客户端暂未发布」文案一并更正。
+- **清理（P1）**：删除与 `docker-multiarch.yml` 镜像名 / 平台完全重叠、且自带一套重复 Release 逻辑的旧单架构 `docker.yml`；去掉 3 处 `if: false` 及「临时屏蔽」注释。`build/build_linux.sh`、`build/README.md`、中英 README 的麒麟部署说明同步；产物命名不变，CI glob 兼容。
+- **已知边界**：二进制包仅 x86_64；arm64（鲲鹏 / 飞腾）麒麟与 glibc 2.17 的 CentOS 7 仍使用 Docker 多架构镜像。产物与构建机 glibc 绑定，勿在更高 glibc 的机器上本地打包后拷到麒麟运行。
+
+### 其它
+
+- 首页吉祥物改为透明底 GIF 动画，三态改用 CSS 光晕表达（`98b2e0d`）；版本号 29 处引用点统一升至 `v26.11.13.0`（`afc4e1c`）。
+
 ## v26.11.11.0 (2026-11-11)
 
 ### 修复：监控大屏侧栏榜单结构性错配（issue #65）
