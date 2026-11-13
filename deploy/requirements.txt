@@ -50,7 +50,7 @@ paramiko>=2.10.0
 
 # ── Batch Inspection & Data Processing ───────────────────────────────────────
 openpyxl>=3.0.0
-pandas>=1.3.0
+pandas>=1.3.0,<3          # pandas 3.x 强制 numpy>=2.0.2，与下方 numpy<2 冲突；CI 宽松逐个安装会「先升后降」，导致 import pandas 抛 ImportError
 
 # ── RAG & Document Processing ───────────────────────────────────────
 numpy>=1.26,<2           # rag/vector_store.py 向量检索直接 import numpy；<2 避免 numpy 2.x 轮子要求 AVX2(X86_V2)，缺 AVX2 的 CPU/虚拟机上 import 即崩

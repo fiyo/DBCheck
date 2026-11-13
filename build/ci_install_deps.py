@@ -33,6 +33,16 @@ import importlib
 import os
 import subprocess
 import sys
+from importlib import metadata as _pkg_metadata
+
+
+def _pkg_version(name: str) -> str:
+    """已安装包版本；构建失败时用它定位版本 / ABI 错配。"""
+    try:
+        return _pkg_metadata.version(name)
+    except Exception:  # noqa: BLE001
+        return "not-installed"
+
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -170,12 +180,17 @@ def main() -> int:
             print(f"[ci_deps]   - {spec}")
 
     # 核心模块 import 校验
+    # 打印关键包实际版本：逐个 pip install 会被后续约束降级（例如 pandas 3.x 要求
+    # numpy>=2，而 requirements pin numpy<2），只看异常类型定位不了这类版本错配。
+    print(f"[ci_deps] key versions: numpy={_pkg_version('numpy')} "
+          f"pandas={_pkg_version('pandas')}", flush=True)
     missing: list[str] = []
     for mod in CORE_MODULES:
         try:
             importlib.import_module(mod)
         except Exception as exc:  # noqa: BLE001 - 只关心能否导入
-            missing.append(f"{mod} ({type(exc).__name__})")
+            detail = str(exc).replace("\n", " ")[:300]
+            missing.append(f"{mod} ({type(exc).__name__}: {detail})")
 
     if missing:
         print("[ci_deps] ERROR: core modules missing:")

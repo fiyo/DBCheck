@@ -431,5 +431,11 @@ jobs:
             printf '%s\n' "$NOTE" > release_append.md
           fi
           BODY=$(gh release view "$TAG" --json body --jq '.body')
+          # 幂等：tag 重指后重跑 CI 时，Release 已存在且正文已含本次 CHANGELOG appendix，
+          # 再 append 一次会出现多份「✨ 主要更新」（历史踩过）。已存在则直接跳过。
+          if printf '%s' "$BODY" | grep -qF '主要更新'; then
+            echo "appendix already present, skip (idempotent re-run)"
+            exit 0
+          fi
           printf '%s\n%s\n' "$BODY" "$(cat release_append.md)" > release_notes.md
           gh release edit "$TAG" --notes-file release_notes.md

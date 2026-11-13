@@ -10,6 +10,7 @@
 - **恢复 Release 挂载**：`release.needs` 加回 `build-linux`、`Collect release assets` 加回 `artifacts/linux/*.tar.gz`；`build-release.yml` 的兜底安装说明与 `scripts/gen_release_append.py` 的「Linux 客户端暂未发布」文案一并更正。
 - **清理（P1）**：删除与 `docker-multiarch.yml` 镜像名 / 平台完全重叠、且自带一套重复 Release 逻辑的旧单架构 `docker.yml`；去掉 3 处 `if: false` 及「临时屏蔽」注释。`build/build_linux.sh`、`build/README.md`、中英 README 的麒麟部署说明同步；产物命名不变，CI glob 兼容。
 - **已知边界**：二进制包仅 x86_64；arm64（鲲鹏 / 飞腾）麒麟与 glibc 2.17 的 CentOS 7 仍使用 Docker 多架构镜像。产物与构建机 glibc 绑定，勿在更高 glibc 的机器上本地打包后拷到麒麟运行。
+- **首次 CI 验证与依赖修复**：tag `v26.11.13.0` 首次运行 `build-linux` 已真正启动（不再 skipped），但核心模块校验报 `pandas (ImportError)`——`deploy/requirements.txt` 的 `pandas>=1.3.0` 无上限，PyPI 最新 pandas 3.1.1 强制 `numpy>=2.0.2`，而项目 pin 了 `numpy>=1.26,<2`；`ci_install_deps.py` 逐个 `pip install` 时先装 pandas 把 numpy 顶到 2.x、再装 `numpy<2` 压回 1.26，最终 `import pandas` 失败（Windows / macOS 走离线 wheel 联合解析，未触发）。已给 pandas 加上限 `<3`；核心校验失败时改为输出异常详情与 numpy / pandas 实际版本；Release 追加说明改为幂等，避免 tag 重跑产生重复正文。
 
 ### 其它
 
