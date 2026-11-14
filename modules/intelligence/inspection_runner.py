@@ -362,8 +362,18 @@ def _run_target_inspection_inline(
         db_info = _build_db_info(db_type, instance)
         engine_db_type = _ENGINE_DB_TYPE.get(db_type, db_type)
 
+        # issue #64：从实例提取 SSH 字段（含 ssh_tunnel 隧道开关）传给巡检引擎。
+        # run_* 系列只用传入的 ssh_info 参数（不读 db_info 的 ssh 字段），故必须在此提取，
+        # 否则开启隧道的数据源在此路径下会直连原始 host 而连不通。
+        ssh_info = {}
+        if instance.get('ssh_host'):
+            ssh_info = {k: instance[k] for k in ('ssh_host', 'ssh_port', 'ssh_user',
+                                                 'ssh_password', 'ssh_key_file',
+                                                 'ssh_key_password', 'ssh_ebpf', 'ssh_tunnel')
+                        if k in instance}
+
         try:
-            result = runner(db_info, inspector_name, None)
+            result = runner(db_info, inspector_name, ssh_info)
             # result 形如 (report_file, report_name, context)
             if not isinstance(result, tuple) or len(result) < 3:
                 return {"ok": False, "error": "巡检引擎未返回上下文", "auto_analyze": []}

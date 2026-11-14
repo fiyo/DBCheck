@@ -444,35 +444,70 @@ def connect_instance(db_info: Dict[str, Any]):
     与 :func:`execute_instance_query` 共用同一套按 db_type 的连接分支，
     但本函数返回**未关闭**的连接，供巡检/分析器（slow_query / index_health /
     config_baseline / lock_tree 等）复用。调用方必须调用
-    :func:`close_instance` 关闭。
+    :func:`close_instance` 关闭（含 SSH 隧道关闭）。
+
+    issue #64：若实例显式开启 ``ssh_tunnel`` 且配了 ``ssh_host``，建 SSH 本地端口
+    转发，把 host/port 改写为 127.0.0.1:local_port 后透传给各 ``_connect_*``，
+    隧道对象挂到返回的 conn（``conn._ssh_tunnel``）由 :func:`close_instance` 关闭。
     """
     db_type = (db_info.get("db_type", "") or "").lower().replace("oracle_full", "oracle")
     kind, plugin = _resolve(db_type)
     if kind is None:
         raise ValueError(f"不支持的数据库类型: {db_type}")
+
+    # issue #64：数据库经 SSH 隧道连接（与巡检基类同口径：显式开启 + 配 ssh_host）
+    from modules.ssh.tunnel_helper import should_use_db_tunnel, build_db_ssh_tunnel
+    _ssh_info = {k: db_info.get(k) for k in ('ssh_host', 'ssh_port', 'ssh_user',
+                                             'ssh_password', 'ssh_key_file',
+                                             'ssh_key_password', 'ssh_ebpf', 'ssh_tunnel')}
+    _host = db_info.get("host")
+    _port = db_info.get("port")
+    _tunnel = None
+    if should_use_db_tunnel(_ssh_info):
+        _tunnel, _host, _port = build_db_ssh_tunnel(_ssh_info, _host, _port)
+    _db_info = dict(db_info)
+    _db_info["host"] = _host
+    _db_info["port"] = int(_port)
+
+    def _mk(conn):
+        if _tunnel is not None:
+            try:
+                conn._ssh_tunnel = _tunnel
+            except Exception:
+                pass
+        return conn
+
     if kind == "oracledb":
-        return _connect_oracledb(db_info)
+        return _mk(_connect_oracledb(_db_info))
     if kind == "pymysql":
-        return _connect_pymysql(db_info)
+        return _mk(_connect_pymysql(_db_info))
     if kind == "psycopg":
-        return _connect_psycopg(db_info)
+        return _mk(_connect_psycopg(_db_info))
     if kind == "pyodbc":
-        return _connect_pyodbc(db_info, database=db_info.get("database", ""))
+        return _mk(_connect_pyodbc(_db_info, database=_db_info.get("database", "")))
     if kind == "dm":
-        return _connect_dm(db_info)
+        return _mk(_connect_dm(_db_info))
     if kind == "yasdb":
-        return _connect_yasdb(db_info)
+        return _mk(_connect_yasdb(_db_info))
     if kind == "plugin":
-        return _connect_plugin(db_info, plugin)
+        return _mk(_connect_plugin(_db_info, plugin))
     raise ValueError(f"未实现的连接类型: {kind}")
 
 
 def close_instance(conn) -> None:
-    """安全关闭 :func:`connect_instance` 返回的连接。"""
+    """安全关闭 :func:`connect_instance` 返回的连接（含其 SSH 隧道）。"""
     try:
-        conn.close()
-    except Exception:
-        pass
+        _t = getattr(conn, "_ssh_tunnel", None)
+        if _t is not None:
+            try:
+                _t.__exit__(None, None, None)
+            except Exception:
+                pass
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 # ── 获取视图/表的列信息（供自然语言探查专员预检） ────────────────────────────

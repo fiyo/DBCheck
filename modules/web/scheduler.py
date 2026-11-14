@@ -306,7 +306,8 @@ def _run_plugin_inspection_subprocess(db_info, inspector_name, handle=None):
     }
     for _k in ('connection_mode', 'jdbc_url', 'instance_name',
                'encrypt', 'trust_server_certificate',
-               'ssh_host', 'ssh_port', 'ssh_user', 'ssh_password', 'ssh_key_file'):
+               'ssh_host', 'ssh_port', 'ssh_user', 'ssh_password', 'ssh_key_file',
+               'ssh_key_password', 'ssh_tunnel'):
         if _k in db_info and db_info[_k] is not None:
             mapped[_k] = db_info[_k]
 
@@ -560,6 +561,10 @@ def _run_inspection_core(job_id, db_info, inspector_name, notify_on_done, handle
                 'ssh_password': db_info.get('ssh_password', ''),
                 'ssh_key_file': db_info.get('ssh_key_file', ''),
                 'ssh_key_password': db_info.get('ssh_key_password', ''),
+                # 数据库经 SSH 隧道连接开关：与「仅采集服务器信息」的 ssh_enabled 解耦，
+                # 必须显式开启 ssh_tunnel 且配了 ssh_host 才走隧道（见
+                # modules.ssh.tunnel_helper.should_use_db_tunnel）。
+                'ssh_tunnel': db_info.get('ssh_tunnel'),
             }
 
         # Build runner map for built-in db_types (oracle_full -> oracle_full, oracle -> oracle_full)

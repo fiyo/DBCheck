@@ -118,12 +118,13 @@ class SSHTunnel:
 
     def __init__(self, ssh_host: str, ssh_port: int, ssh_user: str,
                  ssh_password: str = '', ssh_key: str = '',
-                 remote_host: str = '', remote_port: int = 0):
+                 ssh_key_password: str = '', remote_host: str = '', remote_port: int = 0):
         self.ssh_host = ssh_host
         self.ssh_port = ssh_port
         self.ssh_user = ssh_user
         self.ssh_password = ssh_password
         self.ssh_key = ssh_key
+        self.ssh_key_password = ssh_key_password
         self.remote_host = remote_host
         self.remote_port = remote_port
 
@@ -151,6 +152,9 @@ class SSHTunnel:
 
         if self.ssh_key:
             connect_kwargs['key_filename'] = self.ssh_key
+            # 加密私钥：口令通过 password= 与 key_filename 一同交给 paramiko
+            if self.ssh_key_password:
+                connect_kwargs['password'] = self.ssh_key_password
         else:
             connect_kwargs['password'] = self.ssh_password or ''
 

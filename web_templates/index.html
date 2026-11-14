@@ -7200,6 +7200,10 @@ function formatBytes(bytes) {
                 '<div class="toggle" id="ds-ssh-toggle"></div>' +
               '</div>' +
               '<div id="ds-ssh-section" style="display:none">' +
+                '<div class="toggle-row" onclick="toggleDsSshTunnel()" style="margin-bottom:10px;">' +
+                  '<span style="font-size:13px;font-weight:500;color:var(--text)">🌉 通过 SSH 隧道连接数据库<span style="font-size:11px;font-weight:normal;color:var(--text-muted);margin-left:6px;">（数据库流量经跳板机本地端口转发）</span></span>' +
+                  '<div class="toggle" id="ds-ssh-tunnel-toggle"></div>' +
+                '</div>' +
                 '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px;">' +
                   '<div><label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">SSH 主机地址</label>' +
                     '<input id="ds-ssh-host" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="与数据库主机相同"></div>' +
@@ -7433,6 +7437,12 @@ function formatBytes(bytes) {
         s.style.display = isVisible ? 'none' : '';
         t.className = 'toggle' + (isVisible ? '' : ' on');
       }
+      function toggleDsSshTunnel() {
+        var t = document.getElementById('ds-ssh-tunnel-toggle');
+        if (!t) return;
+        var on = t.classList.contains('on');
+        t.className = 'toggle' + (on ? '' : ' on');
+      }
       function onDsSshAuthChange() {
         const auth = document.getElementById('ds-ssh-auth').value;
         document.getElementById('ds-ssh-password-wrap').style.display = auth === 'password' ? '' : 'none';
@@ -7480,6 +7490,9 @@ function formatBytes(bytes) {
         const sshUser = document.getElementById('ds-ssh-user')?.value || '';
         let sshPass = document.getElementById('ds-ssh-password')?.value || '';
         if (!sshPass) sshPass = _editSshPassword;
+        const sshKeyFile = document.getElementById('ds-ssh-key')?.value.trim() || '';
+        const sshKeyPassword = document.getElementById('ds-ssh-key-password')?.value.trim() || '';
+        const sshTunnel = document.getElementById('ds-ssh-tunnel-toggle')?.classList.contains('on') ? 1 : 0;
         if (!host) { msgEl.style.color = 'var(--danger)'; msgEl.textContent = '❌ 请输入主机地址'; return; }
         // Redis 传统模式无用户名，仅 ACL 场景需要，允许留空
         if (!user && dbType !== 'redis' && dbType !== 'redis-cluster') { msgEl.style.color = 'var(--danger)'; msgEl.textContent = '❌ 请输入用户名'; return; }
@@ -7489,7 +7502,7 @@ function formatBytes(bytes) {
           const res = await fetch('/api/pro/datasources/test-connection', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ db_type: dbType, host, port: parseInt(port), user, password, service_name: svcName, database: dbName, tenant: tenant, sysdba, use_sid: useSid, jdbc_url: jdbcUrl, connection_mode: connectionMode, encrypt, trust_server_certificate: trustServerCertificate, gbase_server_name: gbaseServer, ssh_host: sshHost, ssh_port: parseInt(sshPort), ssh_user: sshUser, ssh_password: sshPass, connect_mode: mongoConnectMode, auth_source: mongoAuthSource, auth_mechanism: mongoAuthMechanism, replica_set: mongoReplicaSet, tls: mongoTls, tls_ca_file: mongoTlsCaFile, tls_cert_key_file: mongoTlsCertKeyFile, tls_allow_invalid_certs: mongoTlsAllowInvalid, seed_nodes: redisSeedNodes, driver_version: driverVersion })
+            body: JSON.stringify({ db_type: dbType, host, port: parseInt(port), user, password, service_name: svcName, database: dbName, tenant: tenant, sysdba, use_sid: useSid, jdbc_url: jdbcUrl, connection_mode: connectionMode, encrypt, trust_server_certificate: trustServerCertificate, gbase_server_name: gbaseServer, ssh_host: sshHost, ssh_port: parseInt(sshPort), ssh_user: sshUser, ssh_password: sshPass, ssh_key_file: sshKeyFile, ssh_key_password: sshKeyPassword, ssh_tunnel: sshTunnel, connect_mode: mongoConnectMode, auth_source: mongoAuthSource, auth_mechanism: mongoAuthMechanism, replica_set: mongoReplicaSet, tls: mongoTls, tls_ca_file: mongoTlsCaFile, tls_cert_key_file: mongoTlsCertKeyFile, tls_allow_invalid_certs: mongoTlsAllowInvalid, seed_nodes: redisSeedNodes, driver_version: driverVersion })
           });
           const data = await res.json();
           msgEl.style.color = data.ok ? 'var(--success)' : 'var(--danger)';
@@ -7520,6 +7533,8 @@ function formatBytes(bytes) {
         payload.ssh_password = sshOn ? (document.getElementById('ds-ssh-password').value || undefined) : '';
         payload.ssh_key_file = sshOn ? document.getElementById('ds-ssh-key').value.trim() : '';
         payload.ssh_key_password = sshOn ? document.getElementById('ds-ssh-key-password').value.trim() : '';
+        // 数据库是否经 SSH 隧道连接（与「仅采集服务器信息」解耦，需显式开启）
+        payload.ssh_tunnel = document.getElementById('ds-ssh-tunnel-toggle')?.classList.contains('on') ? 1 : 0;
         if (payload.db_type === 'pg' || payload.db_type === 'ivorysql' || payload.db_type === 'kingbase' || payload.db_type === 'mysql' || payload.db_type === 'mariadb' || payload.db_type === 'tidb' || payload.db_type === 'tdsqlc_mysql') payload.database = document.getElementById('ds-database').value.trim();
         if (payload.db_type === 'oracle' || payload.db_type === 'oracle_jdbc') {
           payload.service_name = document.getElementById('ds-service-name').value.trim();
@@ -7687,6 +7702,7 @@ function formatBytes(bytes) {
                 if (ds.ssh_key_file && !ds.ssh_password) {
                   document.getElementById('ds-ssh-auth').value = 'key';
                 }
+                document.getElementById('ds-ssh-tunnel-toggle').className = ds.ssh_tunnel ? 'toggle on' : 'toggle';
                 onDsSshAuthChange();
               }
               // 端口放在 onDsDbTypeChange 之后，避免被默认值覆盖
@@ -7740,6 +7756,9 @@ function formatBytes(bytes) {
               ssh_port: ds.ssh_port || 22,
               ssh_user: ds.ssh_user || '',
               ssh_password: ds.ssh_password || '',
+              ssh_key_file: ds.ssh_key_file || '',
+              ssh_key_password: ds.ssh_key_password || '',
+              ssh_tunnel: ds.ssh_tunnel || 0,
               driver_version: ds.driver_version || '',
             })
           });

@@ -1,5 +1,32 @@
 # Changelog
 
+## v26.11.14.2 (2026-11-14)
+
+### 新增：数据库经 SSH 隧道连接（GitHub Issue #64）
+
+此前 SSH 仅用于服务器信息采集，数据库直连不经过隧道。本版本打通**所有**数据库连库入口，开启「🌉 通过 SSH 隧道连接数据库」开关后，数据库流量经由 SSH 隧道转发，源头数据库无需暴露端口到公网。
+
+- **实例持久化**：`modules/pro/instance_manager.py` 新增 `ssh_tunnel` 字段（`instances` 表 `ALTER TABLE ... ADD COLUMN` 兼容存量库），保存数据源时落库；`api_pro_datasource_add` 写入开关。
+- **WebUI 开始巡检**：修复数据源路径与手动路径之前漏透传 `ssh_tunnel`，导致 `ssh_info` 缺失、`should_use_db_tunnel()` 返回 False、JDBC URL 仍直连原始 host 的 bug（根因：`run_inspection_task` 提取 `ssh_info` 时实例 `db_info` 未带 `ssh_tunnel`）。
+- **WebUI 测试连接**：`_conn_test_with_timeout` 建隧道改写 `host/port` 并 `finally` 关闭。
+- **定时巡检**：`modules/web/scheduler.py` 从实例透传 `ssh_tunnel` 进 `ssh_info` + JVM/JDBC 子进程 payload。
+- **首页实时监控 / 监控大屏**：`modules/monitor/engine.py` 与 `modules/monitor/jdbc_collect_cli.py` 调 `build_db_ssh_tunnel` 改写端点、`finally` 关隧道。
+- **智能诊断中心**：①聊天路径两处构造 `db_info` 补拷 SSH 字段含 `ssh_tunnel`；②「深度巡检」专员 / 自治 DBA 闭环复检 / MCP `run_inspection` 走 `modules/intelligence/inspection_runner.py`，修复 `runner(db_info, inspector_name, None)` 把 `ssh_info` 写死 None 的问题——改为从实例提取 `ssh_info`（含 `ssh_tunnel` 等 8 键，与 `app.py:1544` 同口径）传入。
+- **工作流编排 `inspect` 步骤**：`modules/sqlaudit/plan_analyzer/__init__.py` 的 `connect_instance` 原本直连原始 host，改为判 `should_use_db_tunnel` 后 `build_db_ssh_tunnel` 改写 `host/port`，隧道挂 `conn._ssh_tunnel`，`inspect_components.run_component` 的 `finally` 一并关闭防泄漏。
+- **自治 DBA 分析器**：`modules/intelligence/db_executor.py` 的 `connect_instance`（slow_query / index_health / lock_tree / config_baseline 等）原本直连无隧道，改为入口建隧道、构造改写 `host/port` 的 `_db_info` 副本透传各 `_connect_*`，`conn._ssh_tunnel` 绑定，`close_instance` 一并关闭。
+- **隧道底座**：`modules/ssh/tunnel_helper.py`（新建）提供 `should_use_db_tunnel` / `build_db_ssh_tunnel`；`modules/inspection/engine.py` 的 `BaseInspectionEngine.__init__` 统一改写 `self.host/self.port` 为 `127.0.0.1:local_port`，所有子类 connect 自动受益；`disconnect()` + `_close_ssh_tunnel()` 幂等关闭。**防双重隧道**：入口层建一次、不向下透传 `ssh_info`。
+- **SSHTunnel 增强**：`modules/ssh/__init__.py` 支持 `ssh_key_password`（与 `key_filename` 同传 paramiko）。
+
+### 说明：DM8 的 JDBC(Java) 驱动与本机 JVM 版本
+
+隧道与 JDBC URL 是否走隧道无关 Java 版本。本机若 JVM 为 Java 8 而 `DmJdbcDriver11.jar` 是 Java 11 编译，会报 `UnsupportedClassVersionError`，此时 DBCheck 自动回退 `dmPython` 经隧道连成功、报告正常生成。要让 JDBC(Java) 路径本身成功，需装 JDK 11+ 或换 `DmJdbcDriver8.jar`。
+
+### 验证
+
+- 三步验证：`compileall -q modules web_templates` EXIT=0；`import modules.web.app` OK；`discover_plugins()` = 12。
+- `app.py` 逻辑证伪：模拟保存实例 `db_info`，修复后 `ssh_info` 含 `ssh_tunnel=1` 且 `should_use_db_tunnel=True`，修复前为 `False`。
+- 系统 Python mock 验证：`plan_analyzer.connect_instance` 与 `db_executor.connect_instance` 隧道场景改写 `host=127.0.0.1:local_port` 且绑定 `conn._ssh_tunnel`、非隧道场景保持原 host；`inspection_runner` inline 把 `ssh_tunnel=1` 传入 runner。ALL VERIFY PASSED。
+
 ## v26.11.14.1 (2026-11-14)
 
 ### 修复：OceanBase 巡检日志占位符未替换

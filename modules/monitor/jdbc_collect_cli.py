@@ -85,10 +85,36 @@ def _collect(payload):
     queries = payload.get('queries') or []
     out = {}
 
+    # ── SSH 隧道（数据库经隧道连接）──
+    # 子进程非 gevent 环境，paramiko 安全。仅在显式开启 ssh_tunnel 且配了 ssh_host
+    # 时建隧道，并把 host/port 改写为隧道本地端点（127.0.0.1:local_port），JDBC 驱动
+    # 直连本地端点即可透明穿透；不把 ssh_info 透传给 open_jdbc_connection，避免与
+    # 上层（如 BaseInspectionEngine）已建隧道形成嵌套双重隧道。
+    _tunnel = None
+    _host = payload.get('host')
+    _port = int(payload.get('port') or 0)
+    _ssh_info = {
+        'ssh_tunnel': payload.get('ssh_tunnel'),
+        'ssh_host':   payload.get('ssh_host') or '',
+        'ssh_port':   int(payload.get('ssh_port') or 22),
+        'ssh_user':   payload.get('ssh_user') or '',
+        'ssh_password': payload.get('ssh_password') or '',
+        'ssh_key_file':  payload.get('ssh_key_file') or '',
+        'ssh_key_password': payload.get('ssh_key_password') or '',
+    }
+    try:
+        from modules.ssh.tunnel_helper import (
+            should_use_db_tunnel, build_db_ssh_tunnel)
+        if should_use_db_tunnel(_ssh_info):
+            _tunnel, _host, _port = build_db_ssh_tunnel(_ssh_info, _host, _port)
+    except Exception as _te:
+        _err = 'SSH 隧道建立失败：%s' % str(_te)[:300]
+        return {'q%d' % i: {'rows': [], 'error': _err} for i in range(len(queries))}
+
     conn, meta = open_jdbc_connection(
         db_type,
-        payload.get('host'),
-        int(payload.get('port') or 0),
+        _host,
+        _port,
         payload.get('user') or '',
         payload.get('password') or '',
         driver_version=payload.get('driver_version') or '',
@@ -146,6 +172,12 @@ def _collect(payload):
             conn.close()
         except Exception:
             pass
+        # 关闭 SSH 隧道（与主连接同生命周期，避免泄漏 paramiko 转发线程）
+        if _tunnel is not None:
+            try:
+                _tunnel.close()
+            except Exception:
+                pass
     return out
 
 

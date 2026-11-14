@@ -274,6 +274,13 @@ def run_component(comp_id: str = "", instance_id: str = "",
                 context[q["key"]] = {"columns": [], "data": [], "_error": str(e)}
                 metrics[q["key"]] = {"rows": 0, "error": str(e)}
     finally:
+        # issue #64：关闭工作流 inspect 步骤经 SSH 隧道建立的连接时一并关闭隧道
+        try:
+            _t = getattr(conn, '_ssh_tunnel', None)
+            if _t is not None:
+                _t.__exit__(None, None, None)
+        except Exception:
+            pass
         try:
             conn.close()
         except Exception:

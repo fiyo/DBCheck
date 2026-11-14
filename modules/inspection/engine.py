@@ -659,6 +659,28 @@ class BaseInspectionEngine:
         except Exception:
             self._lang = 'zh'
             self._t = lambda x, **kw: x  # 备用：直接返回键名
+
+        # ── SSH 隧道（数据库连接经跳板机本地端口转发）────────────────────
+        # 若实例显式开启 ssh_tunnel 开关且配置了 ssh_host，在本地开 127.0.0.1:local_port
+        # 转发到数据库真实地址；所有子类 connect() 使用 self.host/self.port 连库，
+        # 因此自动经由隧道（对 JDBC / psycopg2 / pymysql 等完全透明）。
+        self._ssh_tunnel = None
+        self._db_orig_host = self.host
+        self._db_orig_port = self.port
+        try:
+            from modules.ssh.tunnel_helper import build_db_ssh_tunnel
+            _tunnel, _ch, _cp = build_db_ssh_tunnel(self.ssh_info, self.host, self.port)
+            if _tunnel is not None:
+                self._ssh_tunnel = _tunnel
+                self.host = _ch
+                self.port = int(_cp)
+                print(f"  🔗 数据库将通过 SSH 隧道连接：本地 127.0.0.1:{_cp} → "
+                      f"{self._db_orig_host}:{self._db_orig_port}")
+        except Exception as _te:  # noqa: BLE001 - 隧道失败需转成清晰报错
+            raise RuntimeError(
+                f"SSH 隧道建立失败（数据库 {self._db_orig_host}:{self._db_orig_port} "
+                f"经 {self.ssh_info.get('ssh_host')}）：{_te}"
+            )
     
     @staticmethod
     def _classify_sql_error(item_name, err_str):
@@ -691,6 +713,42 @@ class BaseInspectionEngine:
     def connect(self):
         """连接数据库 - 子类必须实现！"""
         raise NotImplementedError("子类必须实现 connect() 方法")
+
+    def _close_ssh_tunnel(self):
+        """关闭 SSH 隧道（如有）。幂等，可安全重复调用。"""
+        _tunnel = getattr(self, '_ssh_tunnel', None)
+        if _tunnel is not None:
+            try:
+                _tunnel.close()
+            except Exception:
+                pass
+            self._ssh_tunnel = None
+
+    def disconnect(self):
+        """关闭数据库连接与 SSH 隧道（如有）。
+
+        子类若有自己的 disconnect（如显式关闭游标/连接），应在末尾调用
+        ``self._close_ssh_tunnel()`` 以复用隧道关闭逻辑。
+        """
+        try:
+            _cur = getattr(self, 'cursor', None)
+            if _cur is not None:
+                try:
+                    _cur.close()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        try:
+            _conn = getattr(self, 'conn', None)
+            if _conn is not None:
+                try:
+                    _conn.close()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        self._close_ssh_tunnel()
     
     def get_template_id(self):
         """获取模板 ID - 优先使用用户显式指定的 _template_id，否则根据 db_type 自动查询"""

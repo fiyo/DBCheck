@@ -1541,7 +1541,7 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None, chap
         # SSH
         ssh_info = {}
         if db_info.get('ssh_host'):
-            ssh_info = {k: db_info[k] for k in ('ssh_host', 'ssh_port', 'ssh_user', 'ssh_password', 'ssh_key_file', 'ssh_key_password', 'ssh_ebpf') if k in db_info}
+            ssh_info = {k: db_info[k] for k in ('ssh_host', 'ssh_port', 'ssh_user', 'ssh_password', 'ssh_key_file', 'ssh_key_password', 'ssh_ebpf', 'ssh_tunnel') if k in db_info}
 
         # MongoDB 专用参数透传到 ssh_info（供插件 getData → MongoConnectionConfig 使用）
         if db_type == 'mongodb':
@@ -3359,7 +3359,31 @@ def _conn_test_with_timeout(db_type, data, flavor, timeout=None):
         timeout: 兜底超时秒数。缺省按类型自适应——JDBC 子进程类型需要覆盖
             JVM 冷启动，故留出比 JDBC_TEST_TIMEOUT 更宽的余量，确保内层
             子进程超时（可给出精确原因）先于外层线程超时触发。
+
+    SSH 隧道：若请求携带 ``ssh_info``（或扁平 ssh_* 字段）且显式开启 ``ssh_tunnel``
+    并配置了 ``ssh_host``，则先在本地开 ``127.0.0.1:local_port`` 转发到数据库真实
+    地址，并把 ``data['host']/data['port']`` 改写为隧道端点。下游 regular(JDBC 子
+    进程) 与 pro(原生驱动) 两条链路都从 ``data`` 读取 host/port，因此自动经由隧道，
+    无需各自改造——与 ``BaseInspectionEngine`` 保持一致。
     """
+    # ── SSH 隧道（数据库连接经跳板机本地端口转发）──────────────────────────
+    _tunnel = None
+    try:
+        from modules.ssh.tunnel_helper import build_db_ssh_tunnel
+        _ssh_info = data.get('ssh_info') or {}
+        if not _ssh_info:
+            # 兼容前端扁平 ssh_* 字段（数据源模态框测试连接走这里）
+            _ssh_info = {k: data[k] for k in ('ssh_host', 'ssh_port', 'ssh_user',
+                                             'ssh_password', 'ssh_key_file',
+                                             'ssh_key_password', 'ssh_tunnel') if k in data}
+        _tunnel, _ch, _cp = build_db_ssh_tunnel(
+            _ssh_info, data.get('host'), data.get('port'))
+        if _tunnel is not None:
+            data['host'] = _ch
+            data['port'] = int(_cp)
+    except Exception as _te:  # noqa: BLE001 - 隧道失败需转成清晰报错，不静默回退
+        return {'ok': False, 'error': f'SSH 隧道建立失败：{_te}'}
+
     if timeout is None:
         timeout = (JDBC_TEST_TIMEOUT + 10) if db_type in JDBC_SUBPROCESS_DB_TYPES else 20
     result = {}
@@ -3382,13 +3406,22 @@ def _conn_test_with_timeout(db_type, data, flavor, timeout=None):
     # OS 级阻塞，会把 gevent hub 钉死整整 timeout 秒——期间所有请求（含其它页面、
     # WebSocket 心跳）全部停摆，用户看到的就是「整个界面卡死」。
     # 改为轮询 + 主动让出执行权后，等待期间界面保持可用。
-    _deadline = time.monotonic() + timeout
-    while not done.is_set():
-        if time.monotonic() >= _deadline:
-            return {'ok': False,
-                    'error': f'连接测试超时（已超过 {timeout} 秒），请检查主机地址、端口与网络连通性'}
-        _cooperative_sleep(0.05)
-    return result.get('value', {'ok': False, 'error': '连接测试未返回结果'})
+    try:
+        _deadline = time.monotonic() + timeout
+        while not done.is_set():
+            if time.monotonic() >= _deadline:
+                return {'ok': False,
+                        'error': f'连接测试超时（已超过 {timeout} 秒），请检查主机地址、端口与网络连通性'}
+            _cooperative_sleep(0.05)
+        return result.get('value', {'ok': False, 'error': '连接测试未返回结果'})
+    finally:
+        # 隧道在父进程常驻转发线程，必须与本次测试请求同生命周期：无论成功/失败/
+        # 超时都关闭，避免本地端口与 paramiko 连接泄漏。
+        if _tunnel is not None:
+            try:
+                _tunnel.close()
+            except Exception:
+                pass
 
 
 # 注册内置类型与已知特殊插件的连接测试处理器
@@ -4841,6 +4874,20 @@ def api_start_inspection():
                     db_info['driver_version'] = instance.get('driver_version')
                 if db_type == 'oracle_jdbc':
                     db_info['use_sid'] = bool(instance.get('use_sid', False))
+            # SSH 字段从保存的数据源实例透传（含 ssh_tunnel 隧道开关，issue #64）。
+            # 必须与手动输入分支、run_inspection_task 的 ssh_info 提取保持一致，
+            # 否则开启隧道开关后实际巡检仍直连数据库（不建隧道）。
+            if instance.get('ssh_host'):
+                db_info.update({
+                    'ssh_host':         instance.get('ssh_host', ''),
+                    'ssh_port':         int(instance.get('ssh_port', 22)),
+                    'ssh_user':         instance.get('ssh_user', 'root'),
+                    'ssh_password':     instance.get('ssh_password', ''),
+                    'ssh_key_file':     instance.get('ssh_key_file', ''),
+                    'ssh_key_password': instance.get('ssh_key_password', ''),
+                    'ssh_ebpf':         instance.get('ssh_ebpf', True),
+                    'ssh_tunnel':       bool(instance.get('ssh_tunnel', False)),
+                })
         else:
             # 原有逻辑：使用手动输入的连接信息
             _meta = get_db_meta(db_type)
@@ -4903,6 +4950,7 @@ def api_start_inspection():
                 'ssh_key_file': data.get('ssh_key_file', ''),
                 'ssh_key_password': data.get('ssh_key_password',''),
                 'ssh_ebpf':     data.get('ssh_ebpf', True),
+                'ssh_tunnel':   bool(data.get('ssh_tunnel', False)),
             })
 
         task_id = str(uuid.uuid4())
@@ -7391,6 +7439,7 @@ def api_pro_datasource_add():
             ssh_password=data.get('ssh_password', ''),
             ssh_key_file=data.get('ssh_key_file', ''),
             ssh_enabled=bool(data.get('ssh_enabled', False)),
+            ssh_tunnel=bool(data.get('ssh_tunnel', False)),
             gbase_server_name=data.get('gbase_server_name', ''),
             tenant=data.get('tenant', ''),
             seed_nodes=data.get('seed_nodes', ''),
@@ -10935,6 +10984,19 @@ def _stream_inspection_response(data, message, session_id, chat_context):
         db_info['jdbc_url'] = ds.get('jdbc_url') or ''
         db_info['encrypt'] = bool(ds.get('encrypt', False))
         db_info['trust_server_certificate'] = bool(ds.get('trust_server_certificate', True))
+    # SSH 字段从数据源实例透传（含 ssh_tunnel 隧道开关，issue #64）。
+    # 否则开启隧道开关后智能诊断中心巡检仍直连数据库（不建隧道）。
+    if ds.get('ssh_host'):
+        db_info.update({
+            'ssh_host':         ds.get('ssh_host', ''),
+            'ssh_port':         int(ds.get('ssh_port', 22)),
+            'ssh_user':         ds.get('ssh_user', 'root'),
+            'ssh_password':     ds.get('ssh_password', ''),
+            'ssh_key_file':     ds.get('ssh_key_file', ''),
+            'ssh_key_password': ds.get('ssh_key_password', ''),
+            'ssh_ebpf':         ds.get('ssh_ebpf', True),
+            'ssh_tunnel':       bool(ds.get('ssh_tunnel', False)),
+        })
 
     inspector_name = data.get('inspector_name', 'Jack')
     tasks[task_id] = {

@@ -190,6 +190,7 @@ class GBaseInspector(BaseInspectionEngine):
                 self.conn.close()
         except Exception:
             pass
+        self._close_ssh_tunnel()
 
 
 # ── 供 web_ui.py 调用的连接测试函数 ────────────────────────────────────

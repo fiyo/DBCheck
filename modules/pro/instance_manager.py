@@ -237,6 +237,7 @@ class DatabaseInstance:
     seed_nodes: str = ""    # 集群种子节点（逗号分隔 host:port，或 JSON 数组）
     # SQL Server (JDBC) 专用
     connection_mode: str = "odbc"  # 'odbc' / 'jdbc' / 'auto'，控制 SQL Server JDBC 双轨路由，默认 odbc 向后兼容
+    ssh_tunnel: int = 0     # 是否经 SSH 隧道连接数据库（0/1），与 ssh_enabled（服务器采集）解耦
     encrypt: bool = False  # JDBC 是否启用 TLS 加密（mssql-jdbc 13.x 默认 true，DBCheck 默认 false 兼容内网）
     trust_server_certificate: bool = True  # 是否信任服务器证书
     driver_version: str = ""  # JDBC 驱动版本（驱动管理登记；空=用激活驱动）
@@ -332,7 +333,7 @@ class InstanceManager:
                         except Exception:
                             d['tags'] = []
                     # sysdba / ssh_enabled / enabled / encrypt / trust_server_certificate / use_sid 从 INTEGER 还原为 bool
-                    for bool_field in ('sysdba', 'ssh_enabled', 'enabled', 'encrypt', 'trust_server_certificate', 'use_sid'):
+                    for bool_field in ('sysdba', 'ssh_enabled', 'ssh_tunnel', 'enabled', 'encrypt', 'trust_server_certificate', 'use_sid'):
                         d[bool_field] = bool(d.get(bool_field, False))
                     # 存量行 connection_mode 可能为 NULL/''，按类型归一化：
                     # sqlserver_jdbc 语义即 JDBC，缺省必须归 'jdbc'，否则会被固化成
@@ -532,6 +533,11 @@ class InstanceManager:
                 c.execute('ALTER TABLE instances ADD COLUMN "jdbc_url" TEXT DEFAULT \'\'')
             except Exception:
                 pass
+            # 迁移：为旧表添加 ssh_tunnel 列（经 SSH 隧道连接数据库开关，issue #64）
+            try:
+                c.execute('ALTER TABLE instances ADD COLUMN "ssh_tunnel" INTEGER DEFAULT 0')
+            except Exception:
+                pass
             # 确保表存在
             c.execute("""
                 CREATE TABLE IF NOT EXISTS instances (
@@ -545,6 +551,7 @@ class InstanceManager:
                     ssh_host TEXT DEFAULT '', ssh_port INTEGER DEFAULT 22,
                     ssh_user TEXT DEFAULT '', ssh_password TEXT DEFAULT '',
                     ssh_key_file TEXT DEFAULT '', ssh_key_password TEXT DEFAULT '', ssh_enabled INTEGER DEFAULT 0,
+                    ssh_tunnel INTEGER DEFAULT 0,
                     tags TEXT DEFAULT '[]', "group" TEXT DEFAULT 'default',
                     enabled INTEGER DEFAULT 1, description TEXT DEFAULT '',
                     created_at TEXT DEFAULT '', updated_at TEXT DEFAULT '',
@@ -562,10 +569,10 @@ class InstanceManager:
                     INSERT OR REPLACE INTO instances
                     (id, name, db_type, host, port, "user", password, "database", service_name, gbase_server_name, tenant, sysdba,
                      connect_mode, auth_source, auth_mechanism, replica_set, tls, tls_ca_file, tls_cert_key_file, tls_allow_invalid_certs,
-                     ssh_host, ssh_port, ssh_user, ssh_password, ssh_key_file, ssh_key_password, ssh_enabled,
+                     ssh_host, ssh_port, ssh_user, ssh_password, ssh_key_file, ssh_key_password, ssh_enabled, ssh_tunnel,
                      tags, "group", enabled, description, created_at, updated_at, connection_mode,
                      encrypt, trust_server_certificate, use_sid, driver_version, jdbc_url)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     d.get("id", ""), d.get("name", ""), d.get("db_type", ""),
                     d.get("host", ""), d.get("port", 0), d.get("user", ""),
@@ -583,6 +590,7 @@ class InstanceManager:
                     d.get("ssh_host", ""), d.get("ssh_port", 22),
                     d.get("ssh_user", ""), d.get("ssh_password", ""),
                     d.get("ssh_key_file", ""), d.get("ssh_key_password", ""), 1 if d.get("ssh_enabled") else 0,
+                    1 if d.get("ssh_tunnel") else 0,
                     json.dumps(d.get("tags", []), ensure_ascii=False),
                     d.get("group", "default"), 1 if d.get("enabled", True) else 0,
                     d.get("description", ""), d.get("created_at", ""), d.get("updated_at", ""),

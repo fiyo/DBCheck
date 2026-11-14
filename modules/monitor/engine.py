@@ -485,6 +485,17 @@ class MonitorEngine:
             'ssl': bool(inst.get('ssl', False)),
             'driver_version': inst.get('driver_version') or '',
             'gbase_server_name': inst.get('gbase_server_name') or '',
+            # SSH 隧道（数据库经隧道连接）：与巡检/实时监控同口径，仅显式开启
+            # ssh_tunnel 且配了 ssh_host 才在采集子进程内建隧道（子进程非 gevent
+            # 环境，paramiko 安全）。jdbc_collect_cli 据此把 host/port 改写为
+            # 隧道本地端点，JDBC 驱动直连本地端点透明穿透。
+            'ssh_tunnel': bool(inst.get('ssh_tunnel', False)),
+            'ssh_host':   inst.get('ssh_host') or '',
+            'ssh_port':   int(inst.get('ssh_port', 22) or 22),
+            'ssh_user':   inst.get('ssh_user') or '',
+            'ssh_password': inst.get('ssh_password') or '',
+            'ssh_key_file':  inst.get('ssh_key_file') or '',
+            'ssh_key_password': inst.get('ssh_key_password') or '',
             'queries': sqls,
         }
 
@@ -591,12 +602,33 @@ class MonitorEngine:
         if db_type in JDBC_BATCH_DB_TYPES:
             return self._jdbc_query(inst, db_type, sql, timeout=timeout)
 
+        # ── SSH 隧道（数据库经隧道连接）──
+        # 与巡检基类 BaseInspectionEngine 同口径：仅当显式开启 ssh_tunnel 且配了
+        # ssh_host 才建隧道；否则直连原 host:port。隧道随本次连接一起关闭。
+        _tunnel = None
+        _conn_host = inst.get('host', '')
+        _conn_port = int(inst['port'])
+        _ssh_fields = ('ssh_host', 'ssh_port', 'ssh_user', 'ssh_password',
+                       'ssh_key_file', 'ssh_key_password', 'ssh_tunnel')
+        _ssh_info = {k: inst[k] for k in _ssh_fields if inst.get(k) is not None}
+        try:
+            from modules.ssh.tunnel_helper import (
+                should_use_db_tunnel, build_db_ssh_tunnel)
+            if should_use_db_tunnel(_ssh_info):
+                _tunnel, _conn_host, _conn_port = build_db_ssh_tunnel(
+                    _ssh_info, _conn_host, _conn_port)
+        except Exception as _te:
+            raise RuntimeError(
+                f"SSH 隧道建立失败（数据库 {inst.get('host')}:{inst['port']} "
+                f"经 {inst.get('ssh_host')}）：{_te}")
+
         password = inst['password']
         conn = None
         cursor = None
 
         try:
-            conn = self._create_connection(inst, password, db_type, timeout)
+            conn = self._create_connection(inst, password, db_type, timeout,
+                                          host=_conn_host, port=_conn_port)
             cursor = conn.cursor()
             cursor.execute(sql)
             columns = [col[0] for col in cursor.description]
@@ -627,13 +659,27 @@ class MonitorEngine:
                     conn.close()
             except Exception:
                 pass
+            # 关闭 SSH 隧道（与主连接同生命周期，避免泄漏 paramiko 转发线程）
+            if _tunnel is not None:
+                try:
+                    _tunnel.close()
+                except Exception:
+                    pass
 
-    def _create_connection(self, inst, password, db_type, timeout):
-        """根据 db_type 创建数据库连接"""
-        host = inst.get('host', '')
+    def _create_connection(self, inst, password, db_type, timeout, host=None, port=None):
+        """根据 db_type 创建数据库连接。
+
+        ``host``/``port`` 可被调用方覆盖：当数据库经 SSH 隧道连接时，由
+        ``_connect_and_query`` 改写为隧道本地端点（127.0.0.1:local_port），
+        原生驱动（pymysql/psycopg2/oracledb/pyodbc/dmPython/yasdb）直连本地
+        端点即可透明穿透到远端数据库，连接层无需感知隧道存在。
+        """
+        if host is None:
+            host = inst.get('host', '')
+        if port is None:
+            port = int(inst['port'])
         if not host:
             raise ValueError('主机地址不能为空')
-        port = int(inst['port'])
         user = inst['user']
 
         if db_type in ('mysql', 'mariadb', 'oceanbase', 'starrocks', 'doris'):

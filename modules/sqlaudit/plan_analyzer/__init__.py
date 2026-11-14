@@ -58,22 +58,45 @@ def get_analyzer(db_type):
 
 
 def connect_instance(instance: dict):
-    """按实例信息建立 DB-API 连接（惰性 import 驱动）。不支持的库型抛 ValueError。"""
+    """按实例信息建立 DB-API 连接（惰性 import 驱动）。不支持的库型抛 ValueError。
+
+    issue #64：若实例显式开启 ``ssh_tunnel`` 且配置了 ``ssh_host``，先在本地开
+    ``127.0.0.1:local_port`` 经 SSH 跳板转发到真实数据库，并把 host/port 改写为本地
+    端点（对所有驱动透明）。隧道对象挂到返回的 conn 上（``conn._ssh_tunnel``），
+    由调用方在关闭 conn 时一并关闭。
+    """
     dt = normalize_db_type(instance.get("db_type"))
     password = instance.get("password") or ""
     host = instance.get("host")
     port = instance.get("port")
     user = instance.get("user")
 
+    # issue #64：数据库经 SSH 隧道连接（与巡检基类同口径：显式开启 + 配 ssh_host）
+    from modules.ssh.tunnel_helper import should_use_db_tunnel, build_db_ssh_tunnel
+    _ssh_info = {k: instance.get(k) for k in ('ssh_host', 'ssh_port', 'ssh_user',
+                                              'ssh_password', 'ssh_key_file',
+                                              'ssh_key_password', 'ssh_ebpf', 'ssh_tunnel')}
+    _tunnel = None
+    if should_use_db_tunnel(_ssh_info):
+        _tunnel, host, port = build_db_ssh_tunnel(_ssh_info, host, port)
+
+    def _mk(conn):
+        if _tunnel is not None:
+            try:
+                conn._ssh_tunnel = _tunnel
+            except Exception:
+                pass
+        return conn
+
     if dt in ("mysql", "mariadb", "tidb", "oceanbase", "gbase"):
         import pymysql
         import pymysql.cursors
-        return pymysql.connect(
+        return _mk(pymysql.connect(
             host=host, port=port, user=user, password=password,
             database=instance.get("database") or None,
             connect_timeout=10,
             cursorclass=pymysql.cursors.DictCursor,
-        )
+        ))
     if dt in ("postgresql", "ivorysql", "kingbase", "hgdb"):
         import psycopg2
         import psycopg2.extras
@@ -84,18 +107,18 @@ def connect_instance(instance: dict):
             "hgdb": "highgo",
             "ivorysql": "ivorysql",
         }.get(raw_db, "postgres")
-        return psycopg2.connect(
+        return _mk(psycopg2.connect(
             host=host, port=port, user=user, password=password,
             dbname=instance.get("database") or _pg_default_db,
             connect_timeout=10,
             cursor_factory=psycopg2.extras.RealDictCursor,
-        )
+        ))
     if dt == "oracle":
         import oracledb
         dsn = instance.get("service_name") or f"{host}:{port}/orcl"
         mode = oracledb.SYSDBA if instance.get("sysdba") else oracledb.AUTH_MODE_DEFAULT
         try:
-            return oracledb.connect(user=user, password=password, dsn=dsn, mode=mode)
+            return _mk(oracledb.connect(user=user, password=password, dsn=dsn, mode=mode))
         except Exception as e:  # noqa: BLE001
             err_str = str(e)
             # 老版本 Oracle（11g 等）thin 模式不支持老密码验证器，需切换厚模式 + Instant Client
@@ -118,7 +141,7 @@ def connect_instance(instance: dict):
                             except Exception:
                                 pass
                 if _ok:
-                    return oracledb.connect(user=user, password=password, dsn=dsn, mode=mode)
+                    return _mk(oracledb.connect(user=user, password=password, dsn=dsn, mode=mode))
             raise
     if dt == "sqlserver":
         import pyodbc
@@ -131,9 +154,9 @@ def connect_instance(instance: dict):
         )
         if instance.get("database"):
             conn_str += f"Database={instance['database']};"
-        return pyodbc.connect(conn_str)
+        return _mk(pyodbc.connect(conn_str))
     if dt == "dm":
         import dmPython
         dsn = f"{host}:{port}"
-        return dmPython.connect(user=user, password=password, server=dsn)
+        return _mk(dmPython.connect(user=user, password=password, server=dsn))
     raise ValueError(f"不支持的执行计划分析数据库类型: {dt}")
