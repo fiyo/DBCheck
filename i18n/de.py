@@ -3414,3 +3414,11 @@ DE.update({
     "webui.screen_hm_risk": "Probleme",
     "webui.screen_hm_tip": "Zeile anklicken für Details",
 })
+
+
+# OceanBase 慢查询分析日志键（2026-11-14 补，覆盖缺失的 oceanbase_* 前缀）
+DE.update({
+    "oceanbase_slow_query_analyzing": "Tiefenanalyse langsamer Abfragen wird ausgeführt...",
+    "oceanbase_slow_query_unavailable": "Keine Daten zu langsamen Abfragen, Tiefenanalyse übersprungen",
+    "oceanbase_slow_query_ok": "Tiefenanalyse langsamer Abfragen abgeschlossen, {count} Top-SQL erfasst",
+})

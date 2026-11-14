@@ -3789,3 +3789,11 @@ EN.update({
     "webui.screen_hm_risk": "Issues",
     "webui.screen_hm_tip": "Click a row for instance details",
 })
+
+
+# OceanBase 慢查询分析日志键（2026-11-14 补，覆盖缺失的 oceanbase_* 前缀）
+EN.update({
+    "oceanbase_slow_query_analyzing": "Performing deep slow-query analysis...",
+    "oceanbase_slow_query_unavailable": "No slow-query data, skipping deep analysis",
+    "oceanbase_slow_query_ok": "Slow-query deep analysis completed, collected {count} Top SQL",
+})

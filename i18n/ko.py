@@ -3412,3 +3412,11 @@ KO.update({
     "webui.screen_hm_risk": "이상",
     "webui.screen_hm_tip": "행을 클릭하여 상세 정보 보기",
 })
+
+
+# OceanBase 慢查询分析日志键（2026-11-14 补，覆盖缺失的 oceanbase_* 前缀）
+KO.update({
+    "oceanbase_slow_query_analyzing": "슬로우 쿼리 심층 분석 중...",
+    "oceanbase_slow_query_unavailable": "슬로우 쿼리 데이터 없음, 심층 분석 건너뜀",
+    "oceanbase_slow_query_ok": "슬로우 쿼리 심층 분석 완료, {count}개 Top SQL 수집",
+})

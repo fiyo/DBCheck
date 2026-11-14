@@ -1052,7 +1052,7 @@ class BaseInspectionEngine:
                 if result.is_empty():
                     print("  \u2139\uFE0F " + self._t(f'{self.db_type}_slow_query_unavailable', default='无慢查询数据，跳过深度分析'))
                 else:
-                    print("  \u2705 " + self._t(f'{self.db_type}_slow_query_ok', default='慢查询深度分析完成，采集到 {{count}} 条 Top SQL').format(
+                    print("  \u2705 " + self._t(f'{self.db_type}_slow_query_ok', default='慢查询深度分析完成，采集到 {count} 条 Top SQL').format(
                         count=len(result.top_sql_by_latency)))
         except ValueError:
             pass  # 不支持的数据库类型，跳过

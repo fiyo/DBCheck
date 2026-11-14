@@ -1,5 +1,29 @@
 # Changelog
 
+## v26.11.14.1 (2026-11-14)
+
+### 修复：OceanBase 巡检日志占位符未替换
+
+- `modules/inspection/engine.py` 慢查询分析完成日志的 default 串误写为双花括号 `{{count}}`，导致 OceanBase 等未登记 `oceanbase_slow_query_ok` i18n 键的库，日志直接打印字面量 `{count}` 而非实际条数。改为单花括号 `{count}`，与 MySQL / Oracle 等现有键格式一致。此修复同时覆盖所有未登记该键的库（OceanBase / YashanDB / Vastbase / haloDB / UXDB / Kingbase / ClickHouse / MongoDB / Redis / DB2 / GBase 等）。
+
+### 修复：Docker / Linux 下 Oracle 测试连接找不到 JVM
+
+- `modules/jdbc_connector.py` 的 `_is_java_home()` 此前沿用 Windows 的 `bin/server/libjvm.so` 路径判定，而 Linux 上 `libjvm.so` 真实路径为 `lib/server/libjvm.so`（JDK8 在 `jre/lib/<arch>/server`）。后果是所有 Linux JVM（含 Docker 内 Debian `default-jre-headless` 的 `java-17-openjdk-amd64`）一律被判非法，Oracle 纯 JDBC 连接失败。`_is_java_home()` 改为平台相关路径，并扩展 `detect_java_home()` 的 glob 扫描覆盖非标准 JDK（Kona / Dragonwell / Bisheng / Oracle 等）。
+
+### 改善：内置巡检模块缺失时给出清晰报错
+
+- `modules/web/app.py` 在 `modules.entrypoints.<module>` 导入失败时，返回明确提示「巡检模块缺失…请确认 DBCheck 安装完整」，便于排障。
+
+### i18n
+
+- 补齐 9 语言（zh / en / zh_tw / ja / ko / es / fr / de / ru）的 `oceanbase_slow_query_analyzing` / `oceanbase_slow_query_unavailable` / `oceanbase_slow_query_ok` 键，OceanBase 等非中文 locale 下慢查询日志显示对应译文而非回退中文。
+
+### 验证
+
+- 三步验证：`compileall -q modules web_templates scripts` EXIT=0；`import modules.web.app` OK；`discover_plugins()` = 12。
+- `_is_java_home` 模拟 Debian JRE17 / JDK8 布局均识别为 True，非 JVM 目录正确返回 False。
+- `engine.py` 慢查询日志 `.format(count=5)` 输出 `慢查询深度分析完成，采集到 5 条 Top SQL`，无字面量残留。
+
 ## v26.11.14.0 (2026-11-14)
 
 ### 生日彩蛋（每年 11 月生日月专属）

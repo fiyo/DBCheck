@@ -3413,3 +3413,11 @@ ES.update({
     "webui.screen_hm_risk": "Alertas",
     "webui.screen_hm_tip": "Clic en una fila para ver detalles",
 })
+
+
+# OceanBase 慢查询分析日志键（2026-11-14 补，覆盖缺失的 oceanbase_* 前缀）
+ES.update({
+    "oceanbase_slow_query_analyzing": "Realizando análisis profundo de consultas lentas...",
+    "oceanbase_slow_query_unavailable": "Sin datos de consultas lentas, omitiendo análisis profundo",
+    "oceanbase_slow_query_ok": "Análisis profundo de consultas lentas completado, {count} Top SQL recopiladas",
+})

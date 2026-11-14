@@ -166,16 +166,33 @@ JDBC_DB_TYPES: Tuple[str, ...] = tuple(JDBC_PROFILES.keys())
 def _is_java_home(path: str) -> bool:
     """判断目录是否为含可用 JVM 的 JDK/JRE 根。
 
-    布局差异：JDK 9+ 的 jvm.dll 在 ``bin/server/``；JDK 8（含
-    jdk1.8.0_xxx 默认命名）在 ``jre/bin/server/``。Windows 查 jvm.dll，
-    Linux 查 libjvm.so。
+    布局差异（平台相关，务必分别处理，否则会认不出合法 JVM）：
+      - Windows：jvm.dll 在 ``bin/server/``（JDK）或 ``jre/bin/server/``（JRE 8）；
+      - Linux：  libjvm.so 在 ``lib/server/``（JDK9+/JRE 通用），JDK8 另见于
+                 ``jre/lib/<arch>/server`` / ``lib/<arch>/server``；
+      - macOS：  libjvm.dylib 在 ``lib/server/``。
+    历史坑：旧实现 Linux 分支误用 Windows 的 ``bin/server`` 相对路径查 libjvm.so，
+    导致所有 Linux JVM（含 Docker 内 Debian ``default-jre``）均被判为非法 →
+    Oracle 在 Linux/Docker 上永远找不到 JVM。本条为根治。
     """
     if not os.path.isdir(path):
         return False
-    for _rel in (os.path.join('bin', 'server'), os.path.join('jre', 'bin', 'server')):
-        _jvm = os.path.join(path, _rel)
-        if os.path.isfile(os.path.join(_jvm, 'jvm.dll')) or \
-           os.path.isfile(os.path.join(_jvm, 'libjvm.so')):
+    if sys.platform == 'win32':
+        _cands = (
+            os.path.join('bin', 'server', 'jvm.dll'),
+            os.path.join('jre', 'bin', 'server', 'jvm.dll'),
+        )
+    else:
+        _cands = (
+            os.path.join('lib', 'server', 'libjvm.so'),
+            os.path.join('jre', 'lib', 'server', 'libjvm.so'),
+            os.path.join('jre', 'lib', 'amd64', 'server', 'libjvm.so'),
+            os.path.join('lib', 'amd64', 'server', 'libjvm.so'),
+        )
+        if sys.platform == 'darwin':
+            _cands = _cands + (os.path.join('lib', 'server', 'libjvm.dylib'),)
+    for _rel in _cands:
+        if os.path.isfile(os.path.join(path, _rel)):
             return True
     return False
 
@@ -240,6 +257,16 @@ def detect_java_home() -> Optional[str]:
                       '/usr/lib/jvm/java-8-openjdk', '/usr/lib/jvm/default-java'):
             if os.path.isdir(_cand):
                 return _cand
+        # Linux：常见非标准安装路径通配扫描（openjdk 之外的场景——
+        # 国产 JDK 如 Tencent Kona / Alibaba Dragonwell / Huawei Bisheng、
+        # Oracle JDK，以及 /opt、/usr/java 等自定义安装根；这些在服务器
+        # 部署场景下非常普遍，只查固定 4 路径会漏掉，导致 libjvm.so 找不到）
+        _hit = _glob_scan_java([
+            '/usr/lib/jvm', '/opt', '/usr/java', '/usr/local', '/usr/local/java',
+            '/srv', '/root',
+        ])
+        if _hit:
+            return _hit
 
     if sys.platform != 'win32':
         # Linux 上 PATH 反推兜底

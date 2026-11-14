@@ -1520,7 +1520,15 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None, chap
             mod = cfg['module']
         else:
             # 内置类型：常规导入（entrypoints 包下的 main_* 模块，绝对导入）
-            mod = __import__('modules.entrypoints.' + cfg['module_name'], fromlist=['_'])
+            try:
+                mod = __import__('modules.entrypoints.' + cfg['module_name'], fromlist=['_'])
+            except ModuleNotFoundError as _e:
+                raise RuntimeError(
+                    '巡检模块缺失：modules.entrypoints.%s（%s）。请确认 DBCheck 安装完整——'
+                    '此错误通常是因为部署目录未完整更新（app.py 已含该数据库支持，但 '
+                    'modules/entrypoints/ 下对应入口文件缺失），请完整替换安装目录或升级到 '
+                    '包含该数据库支持的最新版本。' % (cfg['module_name'], _e)
+                )
         
         _emit('log', {'msg': _t('webui.log_connecting').format(ts=_ts(), host=db_info['ip'], port=db_info['port'])})
 

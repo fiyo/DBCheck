@@ -3842,3 +3842,11 @@ ZH_TW.update({
     "webui.screen_hm_risk": "異常",
     "webui.screen_hm_tip": "點擊列查看詳情",
 })
+
+
+# OceanBase 慢查询分析日志键（2026-11-14 补，覆盖缺失的 oceanbase_* 前缀）
+ZH_TW.update({
+    "oceanbase_slow_query_analyzing": "正在進行慢查詢深度分析...",
+    "oceanbase_slow_query_unavailable": "無慢查詢資料，跳過深度分析",
+    "oceanbase_slow_query_ok": "慢查詢深度分析完成，採集到 {count} 條 Top SQL",
+})

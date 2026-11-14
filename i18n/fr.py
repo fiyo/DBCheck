@@ -3414,3 +3414,11 @@ FR.update({
     "webui.screen_hm_risk": "Anomalies",
     "webui.screen_hm_tip": "Cliquer sur une ligne pour les détails",
 })
+
+
+# OceanBase 慢查询分析日志键（2026-11-14 补，覆盖缺失的 oceanbase_* 前缀）
+FR.update({
+    "oceanbase_slow_query_analyzing": "Analyse approfondie des requêtes lentes en cours...",
+    "oceanbase_slow_query_unavailable": "Aucune donnée de requête lente, analyse approfondie ignorée",
+    "oceanbase_slow_query_ok": "Analyse approfondie des requêtes lentes terminée, {count} Top SQL collectées",
+})

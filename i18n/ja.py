@@ -3464,3 +3464,11 @@ JA.update({
     "webui.screen_hm_risk": "異常",
     "webui.screen_hm_tip": "行をクリックして詳細を表示",
 })
+
+
+# OceanBase 慢查询分析日志键（2026-11-14 补，覆盖缺失的 oceanbase_* 前缀）
+JA.update({
+    "oceanbase_slow_query_analyzing": "スロークエリの詳細分析を実行中...",
+    "oceanbase_slow_query_unavailable": "スロークエリデータがないため、詳細分析をスキップします",
+    "oceanbase_slow_query_ok": "スロークエリの詳細分析が完了し、{count} 件の Top SQL を収集しました",
+})

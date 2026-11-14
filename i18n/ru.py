@@ -3414,3 +3414,11 @@ RU.update({
     "webui.screen_hm_risk": "Проблемы",
     "webui.screen_hm_tip": "Нажмите на строку для подробностей",
 })
+
+
+# OceanBase 慢查询分析日志键（2026-11-14 补，覆盖缺失的 oceanbase_* 前缀）
+RU.update({
+    "oceanbase_slow_query_analyzing": "Выполняется углубленный анализ медленных запросов...",
+    "oceanbase_slow_query_unavailable": "Нет данных о медленных запросах, пропускаем углубленный анализ",
+    "oceanbase_slow_query_ok": "Углубленный анализ медленных запросов завершён, собрано {count} Top SQL",
+})

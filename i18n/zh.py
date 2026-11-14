@@ -3790,3 +3790,11 @@ ZI.update({
     "webui.screen_hm_risk": "异常",
     "webui.screen_hm_tip": "点击行查看实例详情",
 })
+
+
+# OceanBase 慢查询分析日志键（2026-11-14 补，覆盖缺失的 oceanbase_* 前缀）
+ZI.update({
+    "oceanbase_slow_query_analyzing": "正在进行慢查询深度分析...",
+    "oceanbase_slow_query_unavailable": "无慢查询数据，跳过深度分析",
+    "oceanbase_slow_query_ok": "慢查询深度分析完成，采集到 {count} 条 Top SQL",
+})
