@@ -3472,3 +3472,13 @@ JA.update({
     "oceanbase_slow_query_unavailable": "スロークエリデータがないため、詳細分析をスキップします",
     "oceanbase_slow_query_ok": "スロークエリの詳細分析が完了し、{count} 件の Top SQL を収集しました",
 })
+
+# 支持开发合规口径同步（官网 / 程序内一致；追加覆盖，不动原字典）
+JA.update({
+    "webui.donate_note": "注記：コミュニティ版は Apache License 2.0 のもと永続無料で、issue 追跡・自己責任で運用しています。商用・技術サポートは提供しません。",
+    "webui.donate_qr_disclaimer": "個人の受取口座です。ソフトウェアの機能やサポート対応とは関係なく、完全に任意で、サービスや特典の見返りはありません。",
+    "webui.donate_wall_note": "ニックネームのみで、金額・順位・日付は記載しません。掲載を希望しない場合は issue またはメールでお知らせください。削除します。",
+    "webui.donate_cloud_core": "すべての支援者に感謝を",
+    "webui.donate_support_note": "支援について：完全に任意で金額は自由です。サービスや特典の見返りはなく、issue の対応順にも影響しません。公益募金ではなく、寄付領収書の発行や税制上の優遇もありません。",
+    "webui.donate_support_use": "すべての支援はプロジェクトの継続に使われます：ドメイン、CI のビルド時間、国産データベースの検証環境。返金は決済プラットフォームの明細から申請するか、sdfiyon@gmail.com までご連絡ください。",
+})

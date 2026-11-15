@@ -3420,3 +3420,13 @@ KO.update({
     "oceanbase_slow_query_unavailable": "슬로우 쿼리 데이터 없음, 심층 분석 건너뜀",
     "oceanbase_slow_query_ok": "슬로우 쿼리 심층 분석 완료, {count}개 Top SQL 수집",
 })
+
+# 支持开发合规口径同步（官网 / 程序内一致；追加覆盖，不动原字典）
+KO.update({
+    "webui.donate_note": "안내: 커뮤니티 판은 Apache License 2.0 하에 영구 무료이며, issue 추적과 자기 책임 하에 유지보수됩니다. 상업·기술 지원은 제공하지 않습니다.",
+    "webui.donate_qr_disclaimer": "개인 수신 계정이며, 소프트웨어 기능이나 지원 응답과 관련이 없습니다. 전적으로 자발적이며 서비스나 혜택의 대가가 없습니다.",
+    "webui.donate_wall_note": "닉네임만 기록하며 금액·순위·날짜는 표시하지 않습니다. 이름을 올리고 싶지 않다면 issue 나 메일로 알려 주세요. 삭제하겠습니다.",
+    "webui.donate_cloud_core": "모든 지원자분께 감사드립니다",
+    "webui.donate_support_note": "지원 안내: 전적으로 자발적이며 금액은 자유입니다. 서비스나 혜택의 대가가 없고 issue 처리 순서에도 영향을 주지 않습니다. 공익 모금이 아니며 기부 영수증을 발급하지 않고 세제 혜택도 없습니다.",
+    "webui.donate_support_use": "모든 지원은 프로젝트를 계속 업데이트하는 데 쓰입니다: 도메인, CI 빌드 시간, 국산 데이터베이스 테스트 환경. 환불은 결제 플랫폼의 청구 내역에서 신청하거나 sdfiyon@gmail.com 으로 연락해 주세요.",
+})

@@ -3604,6 +3604,7 @@ async function executeFixSql(taskId, sql) {
   background: var(--surface2); border: 1px solid var(--border);
   font-size: 12px; line-height: 1.8; color: var(--text-muted);
 }
+.dn-note + .dn-note { margin-top: 10px; }
 .dn-section { margin-top: 18px; animation: dnFadeUp .5s ease both; }
 /* 文字云：常驻不折叠，心形氛围里只记名，不排名、不计数、不引导 */
 .dn-cloud-card[hidden] { display: none; }
@@ -12973,7 +12974,9 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
                   <div class="dn-free-item" data-i18n="webui.donate_free4">在社区里回答别人的问题</div>
                 </div>
               </section>
-              <p class="dn-note" data-i18n="webui.donate_note">说明：社区版永久免费并以 Apache License 2.0 开源，按 issue 跟踪、自担风险的方式维护，不提供技术支持承诺。</p>
+              <p class="dn-note" data-i18n="webui.donate_note">说明：社区版永久免费并以 Apache License 2.0 开源，按 issue 跟踪、自担风险的方式维护，不提供商业技术支持或技术支持承诺。</p>
+              <p class="dn-note dn-note-compliance" data-i18n="webui.donate_support_note">关于支持：完全自愿、金额自定，不附带任何服务或权益回报，也不影响 issue 处理顺序；这不是公益募捐，不提供捐赠票据，也不享受税收优惠。</p>
+              <p class="dn-note dn-note-compliance" data-i18n="webui.donate_support_use">每一笔都用于让项目持续更新：域名、CI 构建分钟数、测试用的国产数据库环境。如需退款，请通过支付平台账单申请或邮件联系 sdfiyon@gmail.com。</p>
 
             </div>
 
@@ -12998,9 +13001,9 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
                     <path d="M50 88C20 66 3 48 3 29 3 14 15 3 30 3c9 0 16 5 20 13 4-8 11-13 20-13 15 0 27 11 27 26 0 19-17 37-47 59z" fill="#5fd0bd"/>
                   </svg>
                   <span class="dn-cloud-deco" aria-hidden="true"><i>♥</i><i>♥</i><i>♥</i><i>♥</i><i>♥</i><i>♥</i><i>♥</i><i>♥</i></span>
-                  <span class="dn-cloud-core" data-i18n="webui.donate_cloud_core">感谢您的支持</span>
+                  <span class="dn-cloud-core" data-i18n="webui.donate_cloud_core">感谢每一位支持者</span>
                 </div>
-                <p class="dn-cloud-note" data-i18n="webui.donate_wall_note">如果不想显示名字，提个 issue 告诉我，我删掉。</p>
+                <p class="dn-cloud-note" data-i18n="webui.donate_wall_note">只记昵称，不记金额、排名与日期；不想显示名字，提个 issue 或来信，我删掉。</p>
               </section>
 
               <details class="dn-tip" id="dn-tip" ontoggle="var s=this.closest('.dn-side'); if(s) s.classList.toggle('has-open-tip', this.open)">
@@ -13022,7 +13025,7 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
                     </div>
                     <div class="dn-qr-payee" id="dn-qr-payee" data-i18n="webui.donate_qr_payee">收款方：程序猿水果摊</div>
                     <div class="dn-qr-note"><span class="dn-qr-badge" id="dn-qr-badge" data-i18n="webui.donate_qr_badge">微信支付</span><br><span id="dn-qr-note" data-i18n="webui.donate_qr_note">长按图片识别，或保存到相册后用微信打开。</span></div>
-                    <div class="dn-qr-fine" data-i18n="webui.donate_qr_disclaimer">个人收款，与软件功能、服务响应无关。</div>
+                    <div class="dn-qr-fine" data-i18n="webui.donate_qr_disclaimer">个人收款，与软件功能、服务响应无关；纯自愿支持，无任何服务或权益回报。</div>
                   </div>
                 </div>
               </details>
@@ -13238,7 +13241,7 @@ function initDonatePay() {
   setDonatePay(saved === 'alipay' ? 'alipay' : 'wechat');
 }
 
-// ── 作者手记：捐赠者名字云（/api/donors，后端 30 分钟同步官网名单）──
+// ── 作者手记：支持者名字云（/api/donors，后端 30 分钟同步官网名单）──
 // 只记名、不排名、不计数；远程内容一律 textContent 渲染，绝不拼 innerHTML
 var _donorsSig = null;
 function _cloudHash(i, salt) { return ((i * 9301 + salt) % 233280) / 233280; }

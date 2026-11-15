@@ -3797,3 +3797,13 @@ EN.update({
     "oceanbase_slow_query_unavailable": "No slow-query data, skipping deep analysis",
     "oceanbase_slow_query_ok": "Slow-query deep analysis completed, collected {count} Top SQL",
 })
+
+# 支持开发合规口径同步（官网 / 程序内一致；追加覆盖，不动原字典）
+EN.update({
+    "webui.donate_note": "Note: the community edition is free forever under Apache License 2.0 and maintained through issue tracking at your own risk. No commercial or technical support is offered.",
+    "webui.donate_qr_disclaimer": "A personal receiving account, unrelated to software features or support; entirely voluntary, with no service or benefits in return.",
+    "webui.donate_wall_note": "Nicknames only — no amounts, rankings or dates. If you'd rather not be listed, open an issue or email me and I'll remove your name.",
+    "webui.donate_cloud_core": "Thank you to every supporter",
+    "webui.donate_support_note": "About support: entirely voluntary, any amount, with no service or benefits in return and no effect on issue priority. This is not charitable fundraising; no donation receipts are issued and no tax benefits apply.",
+    "webui.donate_support_use": "Every contribution keeps the project moving: domain, CI build minutes and test environments for domestic databases. For a refund, use your payment platform billing page or email sdfiyon@gmail.com.",
+})

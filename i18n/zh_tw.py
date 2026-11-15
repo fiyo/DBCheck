@@ -3850,3 +3850,13 @@ ZH_TW.update({
     "oceanbase_slow_query_unavailable": "無慢查詢資料，跳過深度分析",
     "oceanbase_slow_query_ok": "慢查詢深度分析完成，採集到 {count} 條 Top SQL",
 })
+
+# 支持开发合规口径同步（官网 / 程序内一致；追加覆盖，不动原字典）
+ZH_TW.update({
+    "webui.donate_note": "說明：社群版永久免費並以 Apache License 2.0 開源，按 issue 追蹤、自擔風險的方式維護，不提供商業技術支援，也不承諾技術支援。",
+    "webui.donate_qr_disclaimer": "個人收款，與軟體功能、服務回應無關；純自願支持，無任何服務或權益回報。",
+    "webui.donate_wall_note": "只記暱稱，不記金額、排名與日期；不想顯示名字，提個 issue 或來信，我刪掉。",
+    "webui.donate_cloud_core": "感謝每一位支持者",
+    "webui.donate_support_note": "關於支持：完全自願、金額自定，不附帶任何服務或權益回報，也不影響 issue 處理順序；這不是公益募款，不開立捐贈收據，也不享稅務優惠。",
+    "webui.donate_support_use": "每一筆都用於讓專案持續更新：網域、CI 建置分鐘數、測試用的國產資料庫環境。如需退款，請透過支付平台帳單申請，或郵件聯繫 sdfiyon@gmail.com。",
+})

@@ -3798,3 +3798,13 @@ ZI.update({
     "oceanbase_slow_query_unavailable": "无慢查询数据，跳过深度分析",
     "oceanbase_slow_query_ok": "慢查询深度分析完成，采集到 {count} 条 Top SQL",
 })
+
+# 支持开发合规口径同步（官网 / 程序内一致；追加覆盖，不动原字典）
+ZI.update({
+    "webui.donate_note": "说明：社区版永久免费并以 Apache License 2.0 开源，按 issue 跟踪、自担风险的方式维护，不提供商业技术支持或技术支持承诺。",
+    "webui.donate_qr_disclaimer": "个人收款，与软件功能、服务响应无关；纯自愿支持，无任何服务或权益回报。",
+    "webui.donate_wall_note": "只记昵称，不记金额、排名与日期；不想显示名字，提个 issue 或来信，我删掉。",
+    "webui.donate_cloud_core": "感谢每一位支持者",
+    "webui.donate_support_note": "关于支持：完全自愿、金额自定，不附带任何服务或权益回报，也不影响 issue 处理顺序；这不是公益募捐，不提供捐赠票据，也不享受税收优惠。",
+    "webui.donate_support_use": "每一笔都用于让项目持续更新：域名、CI 构建分钟数、测试用的国产数据库环境。如需退款，请通过支付平台账单申请或邮件联系 sdfiyon@gmail.com。",
+})

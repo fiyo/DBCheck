@@ -3422,3 +3422,13 @@ FR.update({
     "oceanbase_slow_query_unavailable": "Aucune donnée de requête lente, analyse approfondie ignorée",
     "oceanbase_slow_query_ok": "Analyse approfondie des requêtes lentes terminée, {count} Top SQL collectées",
 })
+
+# 支持开发合规口径同步（官网 / 程序内一致；追加覆盖，不动原字典）
+FR.update({
+    "webui.donate_note": "Note : l'édition communautaire est gratuite à perpétuité sous Apache License 2.0 et maintenue via le suivi des tickets, à vos risques. Aucun support commercial ou technique n'est proposé.",
+    "webui.donate_qr_disclaimer": "Compte personnel, sans lien avec les fonctionnalités ni le support ; entièrement libre, sans service ni contrepartie.",
+    "webui.donate_wall_note": "Pseudonymes uniquement, sans montants, classement ni dates. Si vous préférez ne pas figurer, ouvrez un ticket ou écrivez-moi et je retire votre nom.",
+    "webui.donate_cloud_core": "Merci à toutes les personnes qui soutiennent",
+    "webui.donate_support_note": "À propos du soutien : entièrement volontaire, montant libre, sans service ni contrepartie, et sans effet sur l'ordre de traitement des tickets. Ce n'est pas une collecte caritative ; aucun reçu de don n'est délivré et aucun avantage fiscal ne s'applique.",
+    "webui.donate_support_use": "Chaque contribution fait vivre le projet : nom de domaine, minutes de CI et environnements de test de bases de données nationales. Pour un remboursement, utilisez la facturation de votre plateforme de paiement ou écrivez à sdfiyon@gmail.com.",
+})
