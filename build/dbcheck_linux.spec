@@ -14,7 +14,7 @@ PROJECT_DIR = os.getcwd()
 # Directories to include as data
 # NOTE: 'data' is a runtime directory (SQLite DBs), not packaged.
 data_dirs = [
-    'web_templates', 'i18n', 'templates',
+    'web_templates', 'i18n',
     'assets',           # 静态资源(web/品牌logo/db_logos)随包复制，static_folder 依赖
     'modules/rag', 'modules/pro', 'data/pro_data',
     'drivers',

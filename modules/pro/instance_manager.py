@@ -12,6 +12,7 @@ DBCheck Pro Instance Manager
 import json
 import os
 import platform
+import re
 import shutil
 import sqlite3
 from datetime import datetime
@@ -242,6 +243,10 @@ class DatabaseInstance:
     trust_server_certificate: bool = True  # 是否信任服务器证书
     driver_version: str = ""  # JDBC 驱动版本（驱动管理登记；空=用激活驱动）
     use_sid: bool = False  # Oracle 连接串使用 SID 格式（jdbc:oracle:thin:@host:port:SID）而非服务名格式
+    # 宿主采集通道（远端 Windows PowerShell 分流）。host_os 只影响「服务器信息采集」，
+    # 与 ssh_tunnel（数据库流量是否经隧道）完全解耦。
+    host_os: str = "auto"          # auto / linux / windows
+    monitor_services: str = ""     # 关心的 Windows 服务名，逗号分隔，支持 * 通配；空=自动识别数据库服务
 
     def __post_init__(self):
         if self.tags is None:
@@ -282,6 +287,78 @@ class InstanceGroup:
         }
 
 
+# instances 表的唯一 schema 出口：CREATE TABLE 与存量库自动补列共用这份 DDL。
+# 新增字段只改这里即可，_load_data / _save_data 会按 PRAGMA 对比后自动补齐，
+# 不再需要为新列逐条手写 ALTER。漏写 ALTER 会让 DELETE + 全字段 INSERT 整表抛
+# "table instances has no column named ..."，导致数据源完全无法保存。
+_INSTANCES_TABLE_SQL = """
+    CREATE TABLE IF NOT EXISTS instances (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL, db_type TEXT NOT NULL, host TEXT NOT NULL,
+        port INTEGER NOT NULL, "user" TEXT NOT NULL, password TEXT DEFAULT '',
+        "database" TEXT DEFAULT '',
+        service_name TEXT DEFAULT '', gbase_server_name TEXT DEFAULT '', tenant TEXT DEFAULT '', sysdba INTEGER DEFAULT 0,
+        connect_mode TEXT DEFAULT '', auth_source TEXT DEFAULT '', auth_mechanism TEXT DEFAULT '', replica_set TEXT DEFAULT '',
+        tls INTEGER DEFAULT 0, tls_ca_file TEXT DEFAULT '', tls_cert_key_file TEXT DEFAULT '', tls_allow_invalid_certs INTEGER DEFAULT 0,
+        ssh_host TEXT DEFAULT '', ssh_port INTEGER DEFAULT 22,
+        ssh_user TEXT DEFAULT '', ssh_password TEXT DEFAULT '',
+        ssh_key_file TEXT DEFAULT '', ssh_key_password TEXT DEFAULT '', ssh_enabled INTEGER DEFAULT 0,
+        ssh_tunnel INTEGER DEFAULT 0,
+        tags TEXT DEFAULT '[]', "group" TEXT DEFAULT 'default',
+        enabled INTEGER DEFAULT 1, description TEXT DEFAULT '',
+        created_at TEXT DEFAULT '', updated_at TEXT DEFAULT '',
+        connection_mode TEXT DEFAULT 'odbc',
+        encrypt INTEGER DEFAULT 0,
+        trust_server_certificate INTEGER DEFAULT 1,
+        driver_version TEXT DEFAULT '', use_sid INTEGER DEFAULT 0,
+        jdbc_url TEXT DEFAULT '',
+        host_os TEXT DEFAULT 'auto', monitor_services TEXT DEFAULT ''
+    )
+"""
+
+
+def _instance_column_defs():
+    """解析建表 DDL，返回 [(列名, 类型, DEFAULT 字面量)]，供自动补列复用。"""
+    body = _INSTANCES_TABLE_SQL.split('(', 1)[1].rsplit(')', 1)[0]
+    defs = []
+    for line in body.split(','):
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+        name = parts[0].strip('"')
+        coltype = parts[1].upper()
+        match = re.search(r'DEFAULT\s+(.+?)\s*$', line, re.I)
+        default = match.group(1).strip() if match else ("''" if coltype == 'TEXT' else '0')
+        defs.append((name, coltype, default))
+    return defs
+
+
+def _ensure_instances_columns(conn):
+    """补齐 instances 表所有缺失列；表不存在时直接建全列表。
+
+    读写两条路径都要调用：读路径避免 `SELECT ... ORDER BY created_at` 因缺列
+    报错被静默吞掉（整表数据源读不出来），写路径避免 DELETE + 全字段 INSERT
+    整表失败。SQLite 的 ADD COLUMN 只改元数据，代价可忽略。
+    """
+    c = conn.cursor()
+    existing = {row[1] for row in c.execute('PRAGMA table_info(instances)').fetchall()}
+    if not existing:
+        c.execute(_INSTANCES_TABLE_SQL)
+        conn.commit()
+        return
+    if 'id' not in existing:
+        raise RuntimeError('instances.db 表结构异常：缺少主键列 id，无法自动迁移')
+    changed = False
+    for name, coltype, default in _instance_column_defs():
+        if name in existing:
+            continue
+        c.execute('ALTER TABLE instances ADD COLUMN "%s" %s DEFAULT %s'
+                  % (name, coltype, default))
+        changed = True
+    if changed:
+        conn.commit()
+
+
 class InstanceManager:
     """实例管理器"""
 
@@ -319,6 +396,9 @@ class InstanceManager:
                 conn = sqlite3.connect(self.instances_db)
                 conn.row_factory = sqlite3.Row
                 c = conn.cursor()
+                # 先补齐存量库缺失列：否则 ORDER BY created_at 会因缺列报错被
+                # 下方 except 静默吞掉，整表数据源一行都加载不出来。
+                _ensure_instances_columns(conn)
                 c.execute("SELECT * FROM instances ORDER BY created_at")
                 loaded = {}
                 for row in c.fetchall():
@@ -538,30 +618,20 @@ class InstanceManager:
                 c.execute('ALTER TABLE instances ADD COLUMN "ssh_tunnel" INTEGER DEFAULT 0')
             except Exception:
                 pass
-            # 确保表存在
-            c.execute("""
-                CREATE TABLE IF NOT EXISTS instances (
-                    id TEXT PRIMARY KEY,
-                    name TEXT NOT NULL, db_type TEXT NOT NULL, host TEXT NOT NULL,
-                    port INTEGER NOT NULL, "user" TEXT NOT NULL,                 password TEXT DEFAULT '',
-                    "database" TEXT DEFAULT '',
-                    service_name TEXT DEFAULT '', gbase_server_name TEXT DEFAULT '', tenant TEXT DEFAULT '', sysdba INTEGER DEFAULT 0,
-                    connect_mode TEXT DEFAULT '', auth_source TEXT DEFAULT '', auth_mechanism TEXT DEFAULT '', replica_set TEXT DEFAULT '',
-                    tls INTEGER DEFAULT 0, tls_ca_file TEXT DEFAULT '', tls_cert_key_file TEXT DEFAULT '', tls_allow_invalid_certs INTEGER DEFAULT 0,
-                    ssh_host TEXT DEFAULT '', ssh_port INTEGER DEFAULT 22,
-                    ssh_user TEXT DEFAULT '', ssh_password TEXT DEFAULT '',
-                    ssh_key_file TEXT DEFAULT '', ssh_key_password TEXT DEFAULT '', ssh_enabled INTEGER DEFAULT 0,
-                    ssh_tunnel INTEGER DEFAULT 0,
-                    tags TEXT DEFAULT '[]', "group" TEXT DEFAULT 'default',
-                    enabled INTEGER DEFAULT 1, description TEXT DEFAULT '',
-                    created_at TEXT DEFAULT '', updated_at TEXT DEFAULT '',
-                    connection_mode TEXT DEFAULT 'odbc',
-                    encrypt INTEGER DEFAULT 0,
-                    trust_server_certificate INTEGER DEFAULT 1,
-                    driver_version TEXT DEFAULT '', use_sid INTEGER DEFAULT 0,
-                    jdbc_url TEXT DEFAULT ''
-                )
-            """)
+            # 迁移：宿主采集 OS 分流 + Windows 服务名单（远端 PowerShell 通道）
+            try:
+                c.execute('ALTER TABLE instances ADD COLUMN "host_os" TEXT DEFAULT \'auto\'')
+            except Exception:
+                pass
+            try:
+                c.execute('ALTER TABLE instances ADD COLUMN "monitor_services" TEXT DEFAULT \'\'')
+            except Exception:
+                pass
+            # 确保表存在，并按统一 DDL 补齐所有仍缺失的列。
+            # 上面的逐列迁移只覆盖历史上新增过的扩展列；这里兜住 CREATE TABLE
+            # 里的基础列（password 等）以及未来新增但漏写 ALTER 的列，避免
+            # DELETE + 全字段 INSERT 整表抛异常。
+            _ensure_instances_columns(conn)
             c.execute("DELETE FROM instances")
             for inst in self._instances.values():
                 d = inst.to_dict() if not isinstance(inst, dict) else inst
@@ -571,8 +641,9 @@ class InstanceManager:
                      connect_mode, auth_source, auth_mechanism, replica_set, tls, tls_ca_file, tls_cert_key_file, tls_allow_invalid_certs,
                      ssh_host, ssh_port, ssh_user, ssh_password, ssh_key_file, ssh_key_password, ssh_enabled, ssh_tunnel,
                      tags, "group", enabled, description, created_at, updated_at, connection_mode,
-                     encrypt, trust_server_certificate, use_sid, driver_version, jdbc_url)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     encrypt, trust_server_certificate, use_sid, driver_version, jdbc_url,
+                     host_os, monitor_services)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     d.get("id", ""), d.get("name", ""), d.get("db_type", ""),
                     d.get("host", ""), d.get("port", 0), d.get("user", ""),
@@ -603,7 +674,10 @@ class InstanceManager:
                     1 if d.get("trust_server_certificate") else 0,
                     1 if d.get("use_sid") else 0,
                     d.get("driver_version", ""),
-                    d.get("jdbc_url", "")
+                    d.get("jdbc_url", ""),
+                    # 宿主采集 OS 分流；存量行/缺省一律 auto（Linux 优先，失败回退 Windows）
+                    (d.get("host_os") or "auto"),
+                    d.get("monitor_services", "") or ""
                 ))
             conn.commit()
         except Exception as e:
@@ -1113,10 +1187,12 @@ class InstanceManager:
         instance = self._instances[instance_id]
         for key, value in updates.items():
             if hasattr(instance, key):
-                # 空值跳过，保留原值（密码字段除外：空密码不保存）
+                # 空值跳过，保留原值（密码字段除外：空密码不保存）。
+                # monitor_services 必须允许清空：清空即回到「自动识别数据库服务」。
                 if value is None:
                     continue
-                if isinstance(value, str) and value == '' and key not in ('ssh_host', 'ssh_user', 'ssh_key_file'):
+                if isinstance(value, str) and value == '' and key not in (
+                        'ssh_host', 'ssh_user', 'ssh_key_file', 'monitor_services'):
                     continue
                 # 密码字段自动加密
                 if key in ('password', 'ssh_password', 'ssh_key_password') and value:

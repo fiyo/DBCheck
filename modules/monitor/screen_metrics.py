@@ -853,6 +853,18 @@ class ScreenCollector:
             d[wk] = getattr(self, wk.upper())
             if ck is not None:
                 d[ck] = getattr(self, ck.upper())
+        # 同一份 JSON 还承载「Windows 服务告警」等扩展阈值（不属于大屏
+        # THRESHOLD_MAP）。保存时原样带回，避免用户在设置页改一次大屏阈值
+        # 就把扩展配置整份覆盖丢失。
+        try:
+            with open(self._threshold_path(), 'r', encoding='utf-8') as f:
+                raw = json.load(f)
+            if isinstance(raw, dict):
+                for k, v in raw.items():
+                    if k not in d:
+                        d[k] = v
+        except Exception:
+            pass
         return d
 
     def _load_thresholds(self):
@@ -1324,6 +1336,11 @@ def _topn(items, key, n=10):
 _HOST_KEYS = ('host_cpu', 'host_cpu_iowait', 'host_mem', 'host_swap_pct',
               'host_load1', 'host_load5', 'host_load15',
               'host_disk_read_mb_s', 'host_disk_write_mb_s', 'host_disk_await_ms',
+              # Windows PowerShell 通道：服务级 CPU / 内存与服务告警
+              'host_os', 'host_services', 'host_services_count',
+              'host_services_running', 'host_services_abnormal',
+              'host_services_cpu_pct', 'host_services_mem_mb',
+              'host_service_alerts', 'host_service_alert_count',
               'host_collector_source', 'host_error')
 
 

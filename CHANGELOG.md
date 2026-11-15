@@ -1,5 +1,37 @@
 # Changelog
 
+## v26.11.15.0 (2026-11-15)
+
+### 新增：远端 Windows 服务 CPU / 内存采集（完整 PowerShell 通道）
+
+此前宿主采集只能得到整机指标或 Linux 进程指标，Windows 服务仅能看运行状态。本版本新增独立的远端 Windows PowerShell 采集通道，可按服务维度查看 CPU 与内存占用。
+
+- **采集脚本**：新增 `modules/pro/remote_host_windows.ps1`（纯 ASCII，PowerShell 3.0+ / 5.1 兼容），经 SSH stdin 喂给远端 PowerShell 执行；CIM 优先、无 CIM 时回退 `Get-WmiObject`；`Win32_Service` → PID → `Get-Process`，两帧 `TotalProcessorTime` 差分算 CPU 百分比，`WorkingSet64` 取工作集内存。配置通过 base64 UTF-8 JSON 注入，避免非 ASCII 在 stdin 按 ANSI 解码时乱码。
+- **服务筛选与 OS 分流**：数据源新增 `host_os`（`auto` / `linux` / `windows`）与 `monitor_services`（逗号 / 分号 / JSON 数组 / 通配）；`auto` 先试 Linux `/proc` 采集，无有效输出时在同一 SSH 连接内回退 Windows PowerShell；留空服务名时自动识别常见数据库服务，显式点名时 Manual 停止也计入异常。
+- **告警与展示**：`metrics_collector.py` 新增 `service_stopped` / `service_mem_high` 两条规则，阈值复用 `modules/monitor/monitor_thresholds.json`；指标来自实时监控快照、不进巡检 context，因此不新增 YAML 规则以免产生永不触发的死规则。首页宿主面板新增服务表格与告警区，监控大屏行标题追加服务汇总。
+- **口径限制**：Windows 没有原生「按服务」CPU 计数器，采集值为服务对应进程的 CPU / 工作集；`svchost.exe` 等共享宿主进程在结果中标注 `shared_process`，不可精确拆分到单个服务。
+
+### 修复：存量实例库缺列时数据源整表不可读写
+
+- `modules/pro/instance_manager.py` 把建表 DDL 收敛为模块级唯一出口，新增按 `PRAGMA table_info` 自动补齐所有缺失列的通用迁移，读库与写库双路径生效。此前迁移仅逐列手写 `ALTER` 覆盖历史新增列，而写库是 `DELETE` + 42 列全量 `INSERT`，一旦缺任何一列（如基础列 `password`）就整表抛异常；读库的 `ORDER BY created_at` 缺列报错又被静默吞掉，导致数据源一行都读不出来。
+- 顺带修复 `MetricsCollector._last_host` 从未初始化，导致 `_compute_host_rates()` 抛异常被静默吞掉、磁盘速率不产出的问题。
+
+### 改善：巡检报告封面启用 RaccoonX 品牌 logo
+
+- 报告封面此前取 `assets/brand/` 下的旧盾牌图，与 Web 端已启用的 RaccoonX 新 logo 不一致。统一品牌目录与 skill 脚本目录下的两份 logo 副本为新图，所有封面引用自动生效（零代码改动）。
+
+### 清理：移除从未使用的 Word 报告模板资产
+
+- 核查确认根目录 `templates/` 与各插件 `templates/` 下的 42 个 `.docx` 全是死资产：代码只把路径赋给 `self.template_file` 后从未消费（无 `DocxTemplate` 调用），实际封面与章节由 `_fallback_render()` 用 python-docx 动态生成；模板文件本身只有静态封面骨架、零占位符。且旧逻辑在文件缺失时会自动重建目录和 docx，只删文件不删代码等于白删。
+- 本次删除 42 个 docx 与 5 个空目录，清理 `engine.py` / oracle_jdbc / clickhouse_jdbc 的模板死代码、3 个打包 spec 的 `templates` 项、`.gitignore` 中为这批文件开的白名单例外，以及诊断脚本里的路径引用。报告行为零变化（见下方 A/B 验证）。
+
+### 验证
+
+- 三步验证：`compileall -q modules web_templates` EXIT=0；`import modules.web.app` OK；`discover_plugins()` = 12。
+- 报告零变化 A/B：动态加载上一版 `engine.py`，与当前版对同一份 mock 数据各生成一份 docx，两份均 242 段 / 3 表 / 内嵌图片一致，正文与表格文本差异 0；旧版会重建模板 docx，新版不再重建，封面嵌入的是新品牌 logo。
+- 迁移：真实 40 列存量库 / 极简 6 列库 / 全新空目录三种形态，补列 → 新增 → 重启加载全通过；JSON 全量导出导入自动透传新字段。
+- 远端采集：PowerShell 脚本语法 0 错误、真实执行输出单行合法 JSON；七组核心逻辑 mock 单测与「采集 → 告警 → 快照」端到端回归通过；脚本非 ASCII 字节为 0。
+
 ## v26.11.14.2 (2026-11-14)
 
 ### 新增：数据库经 SSH 隧道连接（GitHub Issue #64）

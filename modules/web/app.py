@@ -7440,6 +7440,10 @@ def api_pro_datasource_add():
             ssh_key_file=data.get('ssh_key_file', ''),
             ssh_enabled=bool(data.get('ssh_enabled', False)),
             ssh_tunnel=bool(data.get('ssh_tunnel', False)),
+            # 宿主采集 OS 分流（auto/linux/windows）与 Windows 服务名单。
+            # 与数据库连接方式无关，仅决定 SSH 服务器信息采集走哪份远端脚本。
+            host_os=(data.get('host_os') or 'auto'),
+            monitor_services=data.get('monitor_services', '') or '',
             gbase_server_name=data.get('gbase_server_name', ''),
             tenant=data.get('tenant', ''),
             seed_nodes=data.get('seed_nodes', ''),

@@ -28,6 +28,7 @@ import sys
 import time
 import socket
 import sqlite3
+import base64
 import threading
 import concurrent.futures as cf
 from datetime import datetime
@@ -363,6 +364,110 @@ def _host_unavailable(reason: str) -> dict:
     """构造“宿主资源不可用”的结果 dict，携带原因，便于前端直接展示。"""
     return {'host_collector_source': 'unavailable', 'host_error': str(reason or '未知原因')}
 
+
+# ── Windows 服务告警规则（实时监控快照口径）──────────────────────────
+# 说明：规则引擎的 YAML 规则只对「巡检 context」求值（见 analyzer.py →
+# rule_engine.analyze），而 Windows 服务指标来自实时监控快照，不进巡检 context。
+# 若把服务规则写进 YAML，规则会被加载却永远拿不到参数，成为永不触发的死规则。
+# 因此这两条规则落在采集器侧，对每轮 host_services 直接求值，阈值复用
+# modules/monitor/monitor_thresholds.json（与大屏阈值同一份配置）。
+_SERVICE_THRESHOLDS_DEFAULT = {
+    'warn_service_mem_mb': 1024.0,
+    'crit_service_mem_mb': 4096.0,
+    'service_stop_level': 'crit',
+}
+_service_thresholds_cache = {'ts': 0.0, 'cfg': None}
+
+
+def _service_thresholds() -> dict:
+    """读取服务告警阈值（60s 缓存）。文件缺失/损坏时回退默认，绝不影响采集。"""
+    now = time.time()
+    cached = _service_thresholds_cache.get('cfg')
+    if cached and now - _service_thresholds_cache['ts'] < 60:
+        return cached
+    cfg = dict(_SERVICE_THRESHOLDS_DEFAULT)
+    try:
+        p = os.path.normpath(os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            '..', 'monitor', 'monitor_thresholds.json'))
+        with open(p, 'r', encoding='utf-8') as f:
+            raw = json.load(f)
+        if isinstance(raw, dict):
+            for key in cfg:
+                if key not in raw:
+                    continue
+                if key == 'service_stop_level':
+                    val = str(raw[key]).lower()
+                    cfg[key] = val if val in ('warn', 'crit') else cfg[key]
+                else:
+                    try:
+                        cfg[key] = max(0.0, float(raw[key]))
+                    except (TypeError, ValueError):
+                        pass
+    except Exception:
+        pass
+    _service_thresholds_cache['cfg'] = cfg
+    _service_thresholds_cache['ts'] = now
+    return cfg
+
+
+def evaluate_host_service_alerts(services, thresholds: dict = None) -> list:
+    """两条服务规则求值，返回结构化告警列表（最多 50 条）。
+
+    规则 1 service_stopped：自动启动（Auto）的服务未运行即告警；手动启动
+      （Manual）的服务停止属正常，仅当用户显式点名该服务时才告警；
+      Disabled 永不告警。
+    规则 2 service_mem_high：工作集内存超过 warn/crit 阈值。共享宿主进程
+      （svchost.exe 承载多服务）无法精确拆分，告警文案会明确标注该口径。
+
+    注意：服务指标是「进程」口径而非 Windows 原生「服务」计数器——Windows
+    没有按服务统计 CPU 的计数器，本实现取服务对应进程的两帧 CPU 时间差分。
+    """
+    th = thresholds or _service_thresholds()
+    warn_mem = float(th.get('warn_service_mem_mb', 1024))
+    crit_mem = float(th.get('crit_service_mem_mb', 4096))
+    stop_level = str(th.get('service_stop_level', 'crit')).lower()
+    if stop_level not in ('warn', 'crit'):
+        stop_level = 'crit'
+    alerts = []
+    for svc in services or []:
+        if not isinstance(svc, dict):
+            continue
+        name = str(svc.get('name') or svc.get('display_name') or '?')
+        status = str(svc.get('status') or '')
+        start_mode = str(svc.get('start_mode') or '')
+        explicit = bool(svc.get('explicit'))
+        if (status.lower() != 'running'
+                and start_mode.lower() != 'disabled'
+                and (start_mode.lower() == 'auto' or explicit)):
+            alerts.append({
+                'level': stop_level,
+                'rule': 'service_stopped',
+                'service': name,
+                'message': '服务 %s 未运行（状态 %s，启动方式 %s）'
+                           % (name, status or '未知', start_mode or '未知'),
+            })
+        mem = _to_num(svc.get('mem_mb'))
+        if mem >= crit_mem:
+            level, lim = 'crit', crit_mem
+        elif mem >= warn_mem:
+            level, lim = 'warn', warn_mem
+        else:
+            continue
+        note = ''
+        if svc.get('shared_process'):
+            note = '（共享宿主进程，%s 个服务共用，不可精确拆分）' % (
+                svc.get('shared_services') or '?')
+        alerts.append({
+            'level': level,
+            'rule': 'service_mem_high',
+            'service': name,
+            'message': '服务 %s 内存 %.1f MB 超过 %.0f MB 阈值%s'
+                       % (name, mem, lim, note),
+        })
+    return alerts[:50]
+
+
 class MetricsCollector:
     def __init__(self, socketio=None, db_path: str = None, interval: int = DEFAULT_INTERVAL):
         if db_path is None:
@@ -373,6 +478,7 @@ class MetricsCollector:
         self.interval = interval
         self.running = False
         self._last = {}        # instance_id -> (prev_counter_metrics, prev_ts)
+        self._last_host = {}   # instance_id -> (prev_host_metrics, prev_ts)；宿主磁盘速率差分
         self._fail = {}        # instance_id -> 连续失败计数
         self._cooldown = {}    # instance_id -> 退避截止时间戳
         self._lock = threading.Lock()
@@ -1190,6 +1296,16 @@ class MetricsCollector:
             if host:
                 snapshot.update(host)
                 self._compute_host_rates(inst_id, snapshot, host)
+                # Windows 服务告警（服务停止 / 内存超阈值）。
+                # PowerShell 对单元素数组可能序列化成对象，这里统一归一为 list。
+                services = host.get('host_services')
+                if isinstance(services, dict):
+                    services = [services]
+                    snapshot['host_services'] = services
+                if isinstance(services, list):
+                    alerts = evaluate_host_service_alerts(services)
+                    snapshot['host_service_alerts'] = alerts
+                    snapshot['host_service_alert_count'] = len(alerts)
         except Exception:
             pass
 
@@ -1267,6 +1383,9 @@ class MetricsCollector:
             'password': inst.get('ssh_password') or '',
             'key_file': inst.get('ssh_key_file') or '',
             'key_password': inst.get('ssh_key_password') or '',
+            # 宿主采集 OS 分流（auto/linux/windows）与 Windows 服务名单
+            'host_os': str(inst.get('host_os') or 'auto').strip().lower(),
+            'monitor_services': str(inst.get('monitor_services') or ''),
         }
 
     def _remote_script_src(self) -> str:
@@ -1297,11 +1416,103 @@ class MetricsCollector:
             self._rhs_sh_src = src
         return src
 
+    def _remote_windows_src(self) -> str:
+        """读取 Windows PowerShell 采集脚本源码（缓存），经 SSH stdin 喂给 powershell.exe。"""
+        src = getattr(self, '_rh_win_src', None)
+        if src is None:
+            p = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                             'remote_host_windows.ps1')
+            try:
+                with open(p, 'r', encoding='utf-8') as f:
+                    src = f.read()
+            except Exception:
+                src = ''
+            self._rh_win_src = src
+        return src
+
+    @staticmethod
+    def _windows_script_with_config(ps1: str, monitor_services: str) -> str:
+        """把实例的服务名单注入 PowerShell 脚本首行。
+
+        用 base64(UTF-8 JSON) 传参：服务名可能含引号、通配符、空格或中文，
+        直接拼命令行会在 cmd.exe 与 PowerShell 两层解析里被转义破坏，且
+        Windows PowerShell 5.1 从管道读脚本时按 ANSI 解码，非 ASCII 源码会乱码。
+        base64 纯 ASCII，脚本内再自行解码，两种编码环境都安全。
+        """
+        raw = (monitor_services or '').strip()
+        patterns = []
+        if raw.startswith('['):
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, list):
+                    patterns = [str(x).strip() for x in parsed if str(x).strip()]
+            except (ValueError, TypeError):
+                patterns = []
+        if not patterns and raw:
+            patterns = [p.strip() for p in re.split(r'[,;\n]+', raw) if p.strip()]
+        cfg = {
+            'service_patterns': patterns,
+            'sample_ms': 900,
+            'explicit': bool(patterns),   # 用户显式点名时，Manual 服务停止也告警
+        }
+        b64 = base64.b64encode(
+            json.dumps(cfg, ensure_ascii=True).encode('utf-8')).decode('ascii')
+        return "$RxConfigB64 = '%s'\n%s" % (b64, ps1)
+
+    @staticmethod
+    def _ssh_run_script(client, bootstrap: str, script_src: str,
+                        read_timeout: int = 12):
+        """经 stdin 把整份脚本喂给远端解释器，返回 (stdout, stderr) 文本。
+
+        两处历史硬约束（勿改）：
+          - 必须 shutdown_write()，远端解释器才会读到 EOF 并结束；
+          - stdout / stderr 是独立通道，都要读，否则远端报错完全不可见。
+        """
+        stdin, stdout, stderr = client.exec_command(bootstrap, timeout=20)
+        try:
+            stdin.write(script_src)
+        except Exception:
+            pass
+        try:
+            stdin.channel.shutdown_write()
+        except Exception:
+            pass
+        raw, err = b'', b''
+        try:
+            stdout.channel.settimeout(read_timeout)
+        except Exception:
+            pass
+        try:
+            while True:
+                chunk = stdout.channel.recv(4096)
+                if not chunk:
+                    break
+                raw += chunk
+        except Exception:
+            pass
+        try:
+            stderr.channel.settimeout(5)
+            while True:
+                e = stderr.channel.recv(4096)
+                if not e:
+                    break
+                err += e
+        except Exception:
+            pass
+        # Windows PowerShell 的 UTF8 输出可能带 BOM，去掉才能 json.loads
+        out = raw.decode('utf-8', errors='ignore').strip().lstrip('\ufeff').strip()
+        return out, err.decode('utf-8', errors='ignore').strip()
+
     def _collect_host_via_ssh(self, ssh: dict, inst: dict = None, max_retries: int = 2) -> dict:
         """SSH 到目标机，内联执行远端采集脚本，解析 JSON 返回。
 
-        目标机默认零依赖（纯 Shell 读 /proc，无需 Python/psutil）；仅 eBPF 内核级
-        路径才需要 python3 + bcc。脚本整份经 stdin 喂给远端解释器，避免目标机落地文件。
+        按实例的 host_os 分流采集通道：
+          - linux/auto → 纯 Shell 读 /proc，目标机零依赖；仅 host_ebpf=True
+            时才需要 python3 + bcc；
+          - windows → powershell.exe 跑 CIM/Get-Process 脚本，额外产出
+            host_services（服务级 CPU / 工作集内存）；
+          - auto → Linux 通道无有效输出时，在同一 SSH 连接内回退 Windows。
+        脚本整份经 stdin 喂给远端解释器，避免目标机落地文件。
 
         健壮性（修复「后端崩溃后目标机 sshd 被半开连接撑满 / Connection closed /
         Error reading SSH protocol banner / EOFError」）：
@@ -1339,12 +1550,51 @@ class MetricsCollector:
                     pass
         if 'pkey' not in kwargs and ssh['password']:
             kwargs['password'] = ssh['password']
-        # 默认走纯 Shell(/proc) 采集：目标机零依赖（无需 Python/psutil）。
-        # 仅当实例显式 host_ebpf=True 且目标机装有 Python 时，才走 Python+eBPF 路径。
+        # 按目标机 OS 选择远端采集通道：
+        #   Linux/POSIX → 纯 Shell(/proc) 零依赖；仅 host_ebpf=True 时改走 Python+eBPF；
+        #   Windows     → PowerShell(CIM/Get-Process)，含 Windows 服务级 CPU / 内存；
+        #   auto        → Linux 优先，失败在同一 SSH 连接内回退 Windows（存量实例零改动）。
         enable_ebpf = bool(inst.get('host_ebpf')) if inst else False
         py_src = self._remote_script_src()
         sh_src = self._remote_shell_src()
+        win_src = self._remote_windows_src()
         ebpf_flag = '1' if enable_ebpf else '0'
+        os_kind = str(ssh.get('host_os') or 'auto').strip().lower()
+        if os_kind not in ('auto', 'linux', 'unix', 'posix', 'windows', 'win'):
+            os_kind = 'auto'
+
+        # bootstrap（纯 POSIX、无 heredoc）：只做解释器探测与转发。
+        # 整份脚本经 stdin 喂给 "$SHBIN" -s / python -，避免不同登录 shell 下
+        # 内嵌 heredoc 行为脆弱；脚本正文自带 %，故用字符串相加而非 % 拼接。
+        bootstrap_linux = (
+            "SHBIN=$(command -v bash 2>/dev/null || command -v sh 2>/dev/null || true); "
+            "PYBIN=$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true); "
+            "if [ -n \"$PYBIN\" ] && [ \"" + ebpf_flag + "\" = \"1\" ]; then "
+            "  \"$PYBIN\" - --window 0.5 --max-time 8; "
+            "elif [ -n \"$SHBIN\" ]; then "
+            "  \"$SHBIN\" -s; "
+            "else "
+            "  echo 'RaccoonX: no bash/sh/python interpreter found on target'; exit 3; "
+            "fi"
+        )
+        linux_script = py_src if (ebpf_flag == '1') else sh_src
+        # Windows OpenSSH 默认 shell 可能是 cmd.exe 也可能是 PowerShell；显式拉起
+        # powershell.exe 子进程，两种默认 shell 下都成立。-Command - 表示从 stdin
+        # 读取整份脚本，正好复用现有 SSH stdin 通道，目标机不落地任何文件。
+        win_bootstrap = ('powershell.exe -NoProfile -NonInteractive '
+                         '-ExecutionPolicy Bypass -Command -')
+        win_script = self._windows_script_with_config(
+            win_src, ssh.get('monitor_services', ''))
+        if os_kind in ('windows', 'win'):
+            plan = [('windows', win_bootstrap, win_script, 30)]
+        elif os_kind in ('linux', 'unix', 'posix'):
+            plan = [('linux', bootstrap_linux, linux_script, 12)]
+        else:
+            plan = [('linux', bootstrap_linux, linux_script, 12),
+                    ('windows', win_bootstrap, win_script, 30)]
+        if not win_src and any(p[0] == 'windows' for p in plan):
+            print('[metrics] remote_host_windows.ps1 缺失，Windows 通道不可用', flush=True)
+            plan = [p for p in plan if p[0] != 'windows']
 
         last_err = None
         for attempt in range(max_retries):
@@ -1358,79 +1608,48 @@ class MetricsCollector:
                         tp.set_keepalive(15)
                     except Exception:
                         pass
-                # bootstrap（纯 POSIX、无 heredoc）：只做解释器探测与转发。
-                # 原实现把整份远端脚本作为「内嵌 heredoc」塞进一条长 cmd，在不同登录
-                # shell（bash/dash/tcsh）下行为脆弱、脚本常整段不执行 → 无 stdout；
-                # 且从不读 stderr，远端真实报错完全不可见。现改为「bootstrap 探解释器 +
-                # 经 stdin 喂脚本」（这正是 "$SHBIN" -s / python - 已期望的：从 stdin 读脚本），
-                # 并同时读取 stderr 以拿到真实诊断信息。脚本正文自带 %（如 shell 的 printf
-                # '%s'），仍用字符串相加而非 % 拼接，避免误当格式化符。
-                bootstrap = (
-                    "SHBIN=$(command -v bash 2>/dev/null || command -v sh 2>/dev/null || true); "
-                    "PYBIN=$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true); "
-                    "if [ -n \"$PYBIN\" ] && [ \"" + ebpf_flag + "\" = \"1\" ]; then "
-                    "  \"$PYBIN\" - --window 0.5 --max-time 8; "
-                    "elif [ -n \"$SHBIN\" ]; then "
-                    "  \"$SHBIN\" -s; "
-                    "else "
-                    "  echo 'DBCheck: no bash/sh/python interpreter found on target'; exit 3; "
-                    "fi"
-                )
-                # 按 ebpf_flag 选择要经 stdin 喂给远端的脚本（bootstrap 已按同标志选解释器）。
-                script_to_run = py_src if (ebpf_flag == '1') else sh_src
-                stdin, stdout, stderr = client.exec_command(bootstrap, timeout=20)
-                try:
-                    stdin.write(script_to_run)
-                except Exception:
-                    pass
-                try:
-                    # 关键：关闭写端，远端脚本才会读到 EOF 并结束。
-                    # 不要用 stdin.close()——部分 paramiko 版本 close() 不会 shutdown_write，
-                    # 导致远端 sh -s 永远读不到 EOF 而挂起 / 无输出（本 bug 的真实诱因之一）。
-                    stdin.channel.shutdown_write()
-                except Exception:
-                    pass
-                raw = b''
-                err = b''
-                ch = stdout.channel
-                try:
-                    ch.settimeout(12)
-                except Exception:
-                    pass
-                # 先收 stdout（直到 EOF）
-                try:
-                    while True:
-                        chunk = ch.recv(4096)
-                        if not chunk:
-                            break
-                        raw += chunk
-                except Exception:
-                    pass
-                # 再收 stderr（独立通道，带超时），拿到远端真实报错而非瞎猜
-                try:
-                    stderr.channel.settimeout(5)
-                    while True:
-                        e = stderr.channel.recv(4096)
-                        if not e:
-                            break
-                        err += e
-                except Exception:
-                    pass
-                raw = raw.decode('utf-8', errors='ignore').strip()
-                err_txt = err.decode('utf-8', errors='ignore').strip()
-                if not raw:
-                    print(f"[metrics] SSH 远端 {ssh['host']} 无任何 stdout 输出（远端脚本未产出 JSON）", flush=True)
-                    if err_txt:
-                        return _host_unavailable('远端脚本执行失败: ' + err_txt[:200])
-                    return _host_unavailable('远端脚本未产出任何 JSON（bash/sh 缺失或脚本未执行）')
-                try:
-                    data = json.loads(raw)
-                except Exception:
-                    detail = raw[:80]
-                    if err_txt:
-                        detail += ' | stderr: ' + err_txt[:80]
-                    return _host_unavailable('远端输出非合法 JSON: %s' % detail)
-                return data if isinstance(data, dict) else _host_unavailable('远端输出非 JSON 对象')
+                # 按 plan 依次尝试采集通道。auto 模式下 Windows 目标机上 Linux
+                # bootstrap 会无 stdout（cmd 不认识 command -v / sh -s），随即在同一
+                # SSH 连接内回退 PowerShell，不会多建连接、也不会压垮 sshd。
+                data = None
+                last_detail = '远端脚本未产出任何 JSON'
+                for channel, boot, script, rtimeout in plan:
+                    raw, err_txt = self._ssh_run_script(client, boot, script, rtimeout)
+                    if not raw:
+                        last_detail = ('远端脚本执行失败: ' + err_txt[:200]) if err_txt \
+                            else '远端脚本未产出任何 JSON（解释器缺失或脚本未执行）'
+                        if len(plan) > 1:
+                            print(f"[metrics] SSH {ssh['host']} {channel} 通道无输出，尝试下一条", flush=True)
+                        continue
+                    try:
+                        cand = json.loads(raw)
+                    except (ValueError, TypeError):
+                        last_detail = '远端输出非合法 JSON: %s' % raw[:80]
+                        if err_txt:
+                            last_detail += ' | stderr: ' + err_txt[:80]
+                        if len(plan) > 1:
+                            continue
+                        return _host_unavailable(last_detail)
+                    if (isinstance(cand, dict)
+                            and cand.get('host_collector_source') != 'unavailable'):
+                        data = cand
+                        break
+                    reason = cand.get('host_error') if isinstance(cand, dict) else ''
+                    last_detail = '远端采集器返回 unavailable: %s' % (reason or '无数据')
+                    if len(plan) > 1:
+                        continue
+                if data is None:
+                    print(f"[metrics] SSH 远端 {ssh['host']} 所有通道均无有效数据（{last_detail}）",
+                          flush=True)
+                    return _host_unavailable(last_detail)
+                # PowerShell 对单元素数组可能序列化成对象，统一归一为 list，
+                # 避免前端与告警评估拿到 dict 时遍历出错。
+                svcs = data.get('host_services')
+                if isinstance(svcs, dict):
+                    data['host_services'] = [svcs]
+                elif svcs is None:
+                    data['host_services'] = []
+                return data
             except Exception as e:
                 last_err = e
                 msg = str(e)

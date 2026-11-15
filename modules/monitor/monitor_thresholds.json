@@ -5,5 +5,8 @@
   "crit_tbs_free": 15.0,
   "warn_repl_lag": 30.0,
   "crit_repl_lag": 300.0,
-  "warn_locks": 10.0
+  "warn_locks": 10.0,
+  "warn_service_mem_mb": 1024.0,
+  "crit_service_mem_mb": 4096.0,
+  "service_stop_level": "crit"
 }

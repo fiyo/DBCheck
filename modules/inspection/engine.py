@@ -648,7 +648,6 @@ class BaseInspectionEngine:
         self._lang = 'zh'
         self.db_type = None  # 子类必须设置！
         self.output_file = None
-        self.template_file = None
         self._safe_errors = []  # 记录安全跳过的章节及原因
         self._query_errors = {}  # {q_key: 友好错误描述}，渲染时使用
         
@@ -1176,13 +1175,10 @@ class BaseInspectionEngine:
                 print(f"[Report] 内存监控初始化失败: {e}")
         
         try:
-            # 1. 加载 Word 模板（根据 db_type）
-            self.template_file = self._load_word_template(inspector_name)
-            
-            # 2. 渲染上下文
+            # 1. 渲染上下文（报告封面与章节由 python-docx 动态生成，不依赖独立 .docx 模板文件）
             success = self._render_context(output_file, inspector_name)
             
-            # 3. 追加章节（success 为 True 或 'fallback' 时都追加）
+            # 2. 追加章节（success 为 True 或 'fallback' 时都追加）
             if success:
                 self._append_chapters(output_file)
             
@@ -1201,7 +1197,7 @@ class BaseInspectionEngine:
             if not os.path.exists(output_file):
                 raise RuntimeError(
                     f"[generate_report] 报告文件未生成: {output_file} "
-                    f"(success={success}, template={getattr(self, 'template_file', 'N/A')})"
+                    f"(success={success})"
                 )
             return output_file
         except MemoryError as e:
@@ -1214,7 +1210,6 @@ class BaseInspectionEngine:
             # 打印更多诊断信息
             print(f"[ERROR] output_file: {output_file}")
             print(f"[ERROR] inspector_name: {inspector_name}")
-            print(f"[ERROR] template_file: {getattr(self, 'template_file', 'N/A')}")
             print(f"[ERROR] context keys: {list(self.context.keys()) if hasattr(self, 'context') else 'N/A'}")
             return None
     
@@ -1562,86 +1557,6 @@ class BaseInspectionEngine:
         print(f'\r{prefix} |{bar}| {percent}% {suffix}', end='\r')
         if iteration == total:
             print()
-    
-    def _load_word_template(self, inspector_name="Jack"):
-        """加载 Word 模板（创建中文封面模板，支持 docxtpl 渲染）"""
-        # 延迟导入 docx 相关模块
-        from docx import Document
-        from docx.shared import Pt, RGBColor, Inches, Cm
-        from docx.enum.text import WD_ALIGN_PARAGRAPH
-        from docx.enum.table import WD_TABLE_ALIGNMENT
-        from docx.oxml.ns import qn
-        from docx.oxml import parse_xml
-        
-        template_path = os.path.join(str(PROJECT_ROOT), "templates")
-        tpl_file = os.path.join(template_path, f"{self.db_type}_wordtemplates_v1.0.docx")
-        
-        if os.path.exists(tpl_file):
-            return tpl_file
-        
-        # 创建模板（中文封面）
-        doc = Document()
-        
-        db_type_display = {
-            'dm8': 'DM8', 'mysql': 'MySQL', 'mariadb': 'MariaDB', 'postgresql': 'PostgreSQL',
-            'oracle': 'Oracle', 'sqlserver': 'SQL Server',
-            'tidb': 'TiDB', 'ivorysql': 'IvorySQL', 'halodb': 'HaloDB',
-            'mongodb': 'MongoDB'
-        }.get(self.db_type, self.db_type.upper())
-        
-        # Logo
-        logo_path = str(paths.LOGO_PATH)
-        if os.path.exists(logo_path):
-            logo_para = doc.add_paragraph()
-            logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            logo_run = logo_para.add_run()
-            logo_run.add_picture(logo_path, width=Cm(3.5))
-        
-        # 主标题（中文）
-        title_para = doc.add_paragraph()
-        title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        title_run = title_para.add_run(f'{db_type_display} 数据库健康巡检报告')
-        title_run.font.size = Pt(28)
-        title_run.font.bold = True
-        title_run.font.color.rgb = RGBColor(15, 75, 135)
-        title_run.font.name = '微软雅黑'
-        title_run._element.rPr.rFonts.set(qn('w:eastAsia'), '微软雅黑')
-        
-        # 副标题（英文）
-        sub_para = doc.add_paragraph()
-        sub_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        sub_run = sub_para.add_run('Database Health Inspection Report')
-        sub_run.font.size = Pt(14)
-        sub_run.font.italic = True
-        sub_run.font.color.rgb = RGBColor(100, 100, 100)
-        sub_run.font.name = 'Times New Roman'
-        
-        doc.add_paragraph()
-        
-        # 封面信息表格
-        info_table = doc.add_table(rows=5, cols=2, style='Table Grid')
-        info_table.autofit = True  # 根据窗口自动调整表格宽度
-        info_labels = ['服务器地址', '实例启动时间', '巡检结果', '巡检人员', '报告生成时间']
-        for i, label in enumerate(info_labels):
-            row = info_table.rows[i]
-            row.cells[0].text = label
-            row.cells[1].text = ''  # 空值，由渲染时填充
-            for cell in row.cells:
-                cell.paragraphs[0].runs[0].font.name = '微软雅黑'
-                cell.paragraphs[0].runs[0]._element.rPr.rFonts.set(qn('w:eastAsia'), '微软雅黑')
-                cell.paragraphs[0].runs[0].font.size = Pt(10.5)
-                if cell == row.cells[0]:
-                    from docx.oxml.ns import nsdecls
-                    shading = parse_xml(f'<w:shd {nsdecls("w")} w:fill="336699"/>')
-                    cell._tc.get_or_add_tcPr().append(shading)
-                    cell.paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
-                    cell.paragraphs[0].runs[0].font.bold = True
-        
-        doc.add_page_break()
-        
-        os.makedirs(template_path, exist_ok=True)
-        doc.save(tpl_file)
-        return tpl_file
     
     def _render_context(self, output_file, inspector_name="Jack"):
         """从数据库加载模板配置，渲染 _chapters 到 context"""

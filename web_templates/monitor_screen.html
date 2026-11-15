@@ -1944,6 +1944,7 @@ function hostSrcMeta(src){
   if (src === 'ebpf')        return { txt: S.host_src_ebpf,        fg: '#00C8A0' };
   if (src === 'psutil')      return { txt: S.host_src_psutil,      fg: '#38BDF8' };
   if (src === 'shell')       return { txt: S.host_src_shell,       fg: '#38BDF8' };
+  if (src === 'powershell')  return { txt: 'PowerShell 远端',      fg: '#38BDF8' };
   if (src === 'local')       return { txt: S.host_src_local,       fg: '#F59E0B' };
   if (src === 'unavailable') return { txt: S.host_src_unavailable, fg: '#94A3B8' };
   return { txt: S.host_src_none, fg: '#94A3B8' };
@@ -2202,6 +2203,14 @@ function renderHostList(nodes){
     // unavailable 时把具体原因放进悬浮提示（如「未配置 SSH：实例主机 X 非本机…」）
     var title = (h.host_collector_source === 'unavailable' && h.host_error)
       ? (S.host_src_unavailable + '：' + h.host_error) : m.txt;
+    // Windows 服务级指标：大屏行保持紧凑，汇总放悬停提示（完整表格在首页宿主资源面板）
+    if (h.host_services_count) {
+      title += '｜Windows 服务 ' + h.host_services_count + ' 个，异常 ' +
+               (h.host_services_abnormal || 0) + ' 个，CPU ' +
+               (h.host_services_cpu_pct || 0) + '%，内存 ' +
+               (h.host_services_mem_mb || 0) + ' MB';
+    }
+    if (h.host_service_alert_count) title += '｜服务告警 ' + h.host_service_alert_count + ' 条';
     if (slot.badgeEl){
       slot.badgeEl.textContent = m.txt;
       slot.badgeEl.style.color = m.fg;

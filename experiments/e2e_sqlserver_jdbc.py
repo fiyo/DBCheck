@@ -236,9 +236,7 @@ def _run_mock_mode(report_path: str) -> int:
         # 国际化 / 报告渲染所需属性
         insp._lang = "zh"
         insp._t = lambda x, **kw: x  # 键名直返
-        # 模板相关
         insp.output_file = None
-        insp.template_file = None
         insp.context = mock_ctx
 
         os.makedirs(os.path.dirname(report_path) or ".", exist_ok=True)

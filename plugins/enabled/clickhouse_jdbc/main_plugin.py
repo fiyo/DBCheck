@@ -696,19 +696,6 @@ class ClickHouseJdbcInspector(BaseInspectionEngine):
                 except Exception as e:
                     self.context[key] = [{'ERROR': str(e)[:200]}]
 
-    def _load_word_template(self, inspector_name="Jack"):
-        """加载 Word 模板：优先使用插件自带列式 OLAP 定制模板，否则回退基类逻辑。
-
-        定制模板路径：plugins/available/clickhouse_jdbc/templates/
-        clickhouse_jdbc_wordtemplates_v1.0.docx。
-        """
-        template_path = os.path.join(_PLUGIN_DIR, "templates")
-        tpl_file = os.path.join(template_path, "clickhouse_jdbc_wordtemplates_v1.0.docx")
-        if os.path.exists(tpl_file):
-            return tpl_file
-        # 回退到基类（会按 db_type 在 <root>/templates/ 下查找或生成默认模板）
-        return super()._load_word_template(inspector_name)
-
     # ════════════════════════════════════════════════
     # 主采集入口
     # ════════════════════════════════════════════════

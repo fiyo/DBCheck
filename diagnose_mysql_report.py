@@ -24,10 +24,6 @@ def main():
     print(f"PROJECT_ROOT : {PROJECT_ROOT}")
     print(f"REPORTS_DIR  : {REPORTS_DIR}")
 
-    tpl = os.path.join(str(PROJECT_ROOT), "templates", "mysql_wordtemplates_v1.0.docx")
-    print(f"模板路径     : {tpl}")
-    print(f"模板是否存在 : {os.path.exists(tpl)}")
-
     # 连接参数（按需修改此处或运行时输入）
     ip = input("MySQL IP [127.0.0.1]: ").strip() or "127.0.0.1"
     port = int(input("MySQL Port [3306]: ").strip() or "3306")

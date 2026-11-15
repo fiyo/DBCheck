@@ -7227,6 +7227,20 @@ function formatBytes(bytes) {
                     '</div>' +
                   '</div>' +
                 '</div>' +
+                '<div style="margin-top:10px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);">' +
+                  '<div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;">🪟 宿主采集通道（Windows 服务 CPU / 内存）</div>' +
+                  '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">' +
+                    '<div><label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">目标机系统</label>' +
+                      '<select id="ds-host-os" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px">' +
+                        '<option value="auto">自动识别（Linux 优先，失败转 Windows）</option>' +
+                        '<option value="linux">Linux / Unix（Shell /proc）</option>' +
+                        '<option value="windows">Windows（PowerShell）</option>' +
+                      '</select></div>' +
+                    '<div><label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">关心的服务名</label>' +
+                      '<input id="ds-monitor-services" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="留空自动识别数据库服务；支持 * 通配、逗号分隔"></div>' +
+                  '</div>' +
+                  '<div style="font-size:11px;color:var(--text-muted);margin-top:6px;line-height:1.5;">仅影响服务器信息采集，与数据库连接方式无关。Windows 没有按服务统计 CPU 的原生计数器，此处取服务对应进程的两帧 CPU 时间差分；svchost.exe 等共享宿主进程无法精确拆分，表格会标注「共享」。</div>' +
+                '</div>' +
               '</div>' +
             '</div>' +
             '<div id="ds-save-msg" style="margin-top:10px;font-size:12px"></div>' +
@@ -7535,6 +7549,9 @@ function formatBytes(bytes) {
         payload.ssh_key_password = sshOn ? document.getElementById('ds-ssh-key-password').value.trim() : '';
         // 数据库是否经 SSH 隧道连接（与「仅采集服务器信息」解耦，需显式开启）
         payload.ssh_tunnel = document.getElementById('ds-ssh-tunnel-toggle')?.classList.contains('on') ? 1 : 0;
+        // 宿主采集 OS 分流 + Windows 服务名单（留空即自动识别数据库服务）
+        payload.host_os = document.getElementById('ds-host-os')?.value || 'auto';
+        payload.monitor_services = document.getElementById('ds-monitor-services')?.value.trim() || '';
         if (payload.db_type === 'pg' || payload.db_type === 'ivorysql' || payload.db_type === 'kingbase' || payload.db_type === 'mysql' || payload.db_type === 'mariadb' || payload.db_type === 'tidb' || payload.db_type === 'tdsqlc_mysql') payload.database = document.getElementById('ds-database').value.trim();
         if (payload.db_type === 'oracle' || payload.db_type === 'oracle_jdbc') {
           payload.service_name = document.getElementById('ds-service-name').value.trim();
@@ -7705,6 +7722,9 @@ function formatBytes(bytes) {
                 document.getElementById('ds-ssh-tunnel-toggle').className = ds.ssh_tunnel ? 'toggle on' : 'toggle';
                 onDsSshAuthChange();
               }
+              // 宿主采集 OS 分流 / Windows 服务名（与 SSH 开关无关，始终回填）
+              if (document.getElementById('ds-host-os')) document.getElementById('ds-host-os').value = ds.host_os || 'auto';
+              if (document.getElementById('ds-monitor-services')) document.getElementById('ds-monitor-services').value = ds.monitor_services || '';
               // 端口放在 onDsDbTypeChange 之后，避免被默认值覆盖
               document.getElementById('ds-port').value = ds.port ?? 3306;
               // 回填 JDBC 驱动版本（延迟到类型切换拉取列表之后，确保选中项生效）
@@ -8523,6 +8543,14 @@ function wfCloseRunDrawer() {
                 <div class="health-chart-title" id="host-ebpf-title" data-i18n="monitor.host_ebpf_title" data-page-node-id="hO6in8q6In4RnAuyVYRaGv">⚡ eBPF 内核级指标</div>
                 <div class="health-chart-box" id="echart-host-ebpf" style="height:210px;" data-page-node-id="gJUr40gtJUCBcZrwqeWdhz"></div>
                 <div class="host-top-procs" id="host-top-procs" data-page-node-id="qLuqUdlEn8s70qYYLTm1NQ"></div>
+              </div>
+              <div class="health-chart-card host-chart-card" id="host-services-card" style="flex:1 1 100%;min-width:320px;display:none;" data-page-node-id="rxHostServicesCard">
+                <div class="health-chart-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">🪟 Windows 服务资源
+                  <span id="host-services-summary" style="font-size:11px;font-weight:normal;color:var(--text-muted);"></span>
+                </div>
+                <div id="host-service-alerts" style="font-size:11px;margin:4px 0 2px;"></div>
+                <div id="host-services-table" style="max-height:260px;overflow:auto;"></div>
+                <div style="font-size:10px;color:var(--text-muted);margin-top:6px;line-height:1.5;">CPU 为服务对应进程两帧 CPU 时间差分（占单核百分比，多线程可超过 100%）；内存为进程工作集。标注「共享」的进程承载多个服务，指标是整进程口径，无法精确拆分到单个服务。</div>
               </div>
             </div>
           </div>
@@ -23053,6 +23081,7 @@ function renderHostPanel() {
     else if (src === 'psutil') { txt = i18n('monitor.host_src_psutil') || 'psutil 用户态'; bg = 'rgba(59,130,246,.18)'; fg = isLight ? '#0A2A6E' : '#60A5FA'; }
     else if (src === 'shell') { txt = i18n('monitor.host_src_shell') || 'Shell /proc 零依赖'; bg = 'rgba(59,130,246,.18)'; fg = isLight ? '#0A2A6E' : '#60A5FA'; }
     else if (src === 'local') { txt = i18n('monitor.host_src_local') || '中心机本机采集'; bg = 'rgba(245,158,11,.18)'; fg = isLight ? '#92400E' : '#FBBF24'; }
+    else if (src === 'powershell') { txt = 'Windows PowerShell 远端'; bg = 'rgba(59,130,246,.18)'; fg = isLight ? '#0A2A6E' : '#60A5FA'; }
     else if (src === 'unavailable') { txt = i18n('monitor.host_src_unavailable') || '宿主资源不可用'; bg = 'rgba(139,148,158,.18)'; fg = isLight ? '#64748B' : '#94A3B8'; }
     else { txt = i18n('monitor.host_src_none') || '暂无宿主数据'; bg = 'rgba(139,148,158,.12)'; fg = isLight ? '#64748B' : '#94A3B8'; }
     badge.textContent = txt;
@@ -23142,6 +23171,58 @@ function renderHostPanel() {
     const tp = document.getElementById('host-top-procs');
     if (tp) tp.innerHTML = '';
   }
+  renderHostServices(latest);
+}
+
+// 渲染远端 Windows 服务级 CPU / 内存表格（PowerShell 通道）
+function renderHostServices(latest) {
+  const card = document.getElementById('host-services-card');
+  if (!card) return;
+  let svcs = latest.host_services;
+  if (svcs && !Array.isArray(svcs)) svcs = [svcs];   // 单元素被序列化成对象时兜底
+  if (!svcs || !svcs.length) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  const isLight = getTheme() === 'light';
+  const running = svcs.filter(function (s) { return String(s.status).toLowerCase() === 'running'; }).length;
+  const alerts = Array.isArray(latest.host_service_alerts) ? latest.host_service_alerts : [];
+  const summary = document.getElementById('host-services-summary');
+  if (summary) {
+    summary.textContent = '共 ' + svcs.length + ' 个 · 运行 ' + running + ' 个 · 聚合 CPU ' +
+      (Number(latest.host_services_cpu_pct) || 0).toFixed(1) + '% · 内存 ' +
+      (Number(latest.host_services_mem_mb) || 0).toFixed(1) + ' MB' +
+      (alerts.length ? ' · ⚠ ' + alerts.length + ' 条告警' : '');
+  }
+  const alertBox = document.getElementById('host-service-alerts');
+  if (alertBox) {
+    alertBox.innerHTML = alerts.length
+      ? alerts.slice(0, 4).map(function (a) {
+          const color = a.level === 'crit' ? 'var(--danger, #EF4444)' : 'var(--warning, #d29922)';
+          return '<div style="color:' + color + ';line-height:1.5;">⚠ ' + escapeHtml(a.message || a.service || '') + '</div>';
+        }).join('')
+      : '';
+  }
+  const box = document.getElementById('host-services-table');
+  if (!box) return;
+  let html = '<table style="width:100%;border-collapse:collapse;font-size:11px;color:var(--text);">'
+    + '<thead><tr style="color:var(--text-muted);text-align:left;position:sticky;top:0;background:var(--surface, transparent);">'
+    + '<th style="padding:4px 6px;">服务</th><th style="padding:4px 6px;">状态</th>'
+    + '<th style="padding:4px 6px;">PID / 进程</th><th style="padding:4px 6px;text-align:right;">CPU %</th>'
+    + '<th style="padding:4px 6px;text-align:right;">内存 MB</th></tr></thead><tbody>';
+  svcs.forEach(function (s) {
+    const ok = String(s.status).toLowerCase() === 'running';
+    const stColor = ok ? (isLight ? '#047857' : '#00C8A0') : (isLight ? '#B91C1C' : '#EF4444');
+    const shared = s.shared_process
+      ? ' <span title="该进程承载 ' + (s.shared_services || '?') + ' 个服务，指标为整进程口径" style="font-size:10px;color:var(--warning, #d29922);">共享×' + (s.shared_services || '?') + '</span>'
+      : '';
+    html += '<tr style="border-top:1px solid var(--border);">'
+      + '<td style="padding:3px 6px;"><b>' + escapeHtml(s.name || '-') + '</b>'
+      + '<div style="font-size:10px;color:var(--text-muted);">' + escapeHtml(s.display_name || s.start_mode || '') + '</div></td>'
+      + '<td style="padding:3px 6px;color:' + stColor + ';">' + escapeHtml(s.status || '-') + '</td>'
+      + '<td style="padding:3px 6px;">' + (s.pid || '-') + ' <span style="color:var(--text-muted);">' + escapeHtml(s.process_name || '') + '</span></td>'
+      + '<td style="padding:3px 6px;text-align:right;">' + (Number(s.cpu_pct) || 0).toFixed(1) + '</td>'
+      + '<td style="padding:3px 6px;text-align:right;">' + (Number(s.mem_mb) || 0).toFixed(1) + shared + '</td></tr>';
+  });
+  box.innerHTML = html + '</tbody></table>';
 }
 
 // 渲染 eBPF 的按进程资源归因表（磁盘 IO / CPU）
