@@ -3432,3 +3432,19 @@ FR.update({
     "webui.donate_support_note": "À propos du soutien : entièrement volontaire, montant libre, sans service ni contrepartie, et sans effet sur l'ordre de traitement des tickets. Ce n'est pas une collecte caritative ; aucun reçu de don n'est délivré et aucun avantage fiscal ne s'applique.",
     "webui.donate_support_use": "Chaque contribution fait vivre le projet : nom de domaine, minutes de CI et environnements de test de bases de données nationales. Pour un remboursement, utilisez la facturation de votre plateforme de paiement ou écrivez à sdfiyon@gmail.com.",
 })
+
+
+# 巡检历史日期过滤 / 首页日历跳转（追加覆盖，不动原字典）
+FR.update({
+    "webui.reports_date_label": "Date d'inspection",
+    "webui.reports_date_today": "Aujourd'hui",
+    "webui.reports_date_7d": "7 derniers jours",
+    "webui.reports_date_30d": "30 derniers jours",
+    "webui.reports_date_all": "Toutes les dates",
+    "webui.reports_date_hint_day": "Filtré sur {0} · {1} rapports",
+    "webui.reports_date_hint_range": "Filtré du {0} au {1} · {2} rapports",
+    "webui.reports_date_empty": "Aucun rapport d'inspection sur cette période",
+    "webui.reports_date_jump_toast": "Affichage des inspections du {0}",
+    "webui.home_cal_click_hint": "Cliquez sur un jour pour voir ses rapports",
+    "webui.home_cal_tip_click": "Cliquez pour voir les rapports de ce jour",
+})

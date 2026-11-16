@@ -3482,3 +3482,19 @@ JA.update({
     "webui.donate_support_note": "支援について：完全に任意で金額は自由です。サービスや特典の見返りはなく、issue の対応順にも影響しません。公益募金ではなく、寄付領収書の発行や税制上の優遇もありません。",
     "webui.donate_support_use": "すべての支援はプロジェクトの継続に使われます：ドメイン、CI のビルド時間、国産データベースの検証環境。返金は決済プラットフォームの明細から申請するか、sdfiyon@gmail.com までご連絡ください。",
 })
+
+
+# 巡检历史日期过滤 / 首页日历跳转（追加覆盖，不动原字典）
+JA.update({
+    "webui.reports_date_label": "巡检日",
+    "webui.reports_date_today": "今日",
+    "webui.reports_date_7d": "直近 7 日",
+    "webui.reports_date_30d": "直近 30 日",
+    "webui.reports_date_all": "全期間",
+    "webui.reports_date_hint_day": "{0} で絞り込み · {1} 件",
+    "webui.reports_date_hint_range": "{0} 〜 {1} で絞り込み · {2} 件",
+    "webui.reports_date_empty": "この期間に巡检レポートはありません",
+    "webui.reports_date_jump_toast": "{0} の巡检記録を表示しました",
+    "webui.home_cal_click_hint": "マスをクリックすると当日のレポートを表示",
+    "webui.home_cal_tip_click": "クリックして当日のレポートを表示",
+})

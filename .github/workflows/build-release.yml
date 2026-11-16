@@ -12,7 +12,7 @@ on:
       version:
         description: "Release tag, e.g. v26.11.13.1"
         required: true
-        default: "v26.11.15.0"
+        default: "v26.11.16.0"
 
 permissions:
   contents: write

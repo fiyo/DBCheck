@@ -1006,6 +1006,29 @@ def get_reports():
     except Exception:
         pass
 
+    # 报告归属的巡检日期：与首页「近一年巡检」日历同源（评分历史 inspect_time），
+    # 保证从日历点某一天跳过来时，筛选结果与色块统计口径一致。
+    # 老库可能没有 report_path / inspect_time 列，独立 try 兜底，不影响原有风险统计。
+    report_date_map = {}
+    try:
+        import sqlite3 as _sqlite3
+        _pro_db = str(paths.PRO_DATA_DIR / 'pro_history.db')
+        if os.path.isfile(_pro_db):
+            _conn = _sqlite3.connect(_pro_db, timeout=5)
+            try:
+                _cols = {r[1] for r in _conn.execute("PRAGMA table_info(inspection_history)")}
+                if {'report_path', 'inspect_time'} <= _cols:
+                    for _rp, _it in _conn.execute(
+                            "SELECT report_path, inspect_time FROM inspection_history "
+                            "WHERE report_path IS NOT NULL AND inspect_time IS NOT NULL"):
+                        _day = str(_it)[:10]
+                        if len(_day) == 10 and _day[4] == '-' and _day[7] == '-':
+                            report_date_map[os.path.basename(_rp)] = _day
+            finally:
+                _conn.close()
+    except Exception:
+        pass
+
     if os.path.isdir(reports_dir):
         try:
             files = [f for f in os.listdir(reports_dir)
@@ -1024,8 +1047,25 @@ def get_reports():
                       'Oracle' if 'Oracle' in f else \
                       'PostgreSQL' if 'PG' in f or 'PostgreSQL' in f else 'MySQL'
             stats = risk_map.get(f, {})
+            # 日期优先级：评分历史 inspect_time > 文件名内时间戳 > 文件 mtime
+            inspect_date = report_date_map.get(f, '')
+            if not inspect_date:
+                # 报告名常见两种写法：20261114_224918 与 20261114224918
+                _ts = re.search(r'(20\d{2})(\d{2})(\d{2})[_-]?\d{6}', f)
+                if _ts:
+                    inspect_date = '%s-%s-%s' % (_ts.group(1), _ts.group(2), _ts.group(3))
+                else:
+                    _ts2 = re.search(r'(20\d{2}-\d{2}-\d{2})', f)
+                    if _ts2:
+                        inspect_date = _ts2.group(1)
+            if not inspect_date:
+                try:
+                    inspect_date = datetime.datetime.fromtimestamp(mtime).strftime('%Y-%m-%d')
+                except Exception:
+                    inspect_date = ''
             reports.append({
                 'name': f, 'size': size, 'mtime': mtime, 'db_type': db_type,
+                'date': inspect_date,
                 'high': stats.get('high', 0),
                 'mid': stats.get('mid', 0),
                 'low': stats.get('low', 0),

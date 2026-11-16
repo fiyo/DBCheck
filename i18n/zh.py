@@ -3808,3 +3808,19 @@ ZI.update({
     "webui.donate_support_note": "关于支持：完全自愿、金额自定，不附带任何服务或权益回报，也不影响 issue 处理顺序；这不是公益募捐，不提供捐赠票据，也不享受税收优惠。",
     "webui.donate_support_use": "每一笔都用于让项目持续更新：域名、CI 构建分钟数、测试用的国产数据库环境。如需退款，请通过支付平台账单申请或邮件联系 sdfiyon@gmail.com。",
 })
+
+
+# 巡检历史日期过滤 / 首页日历跳转（追加覆盖，不动原字典）
+ZI.update({
+    "webui.reports_date_label": "巡检日期",
+    "webui.reports_date_today": "今天",
+    "webui.reports_date_7d": "近 7 天",
+    "webui.reports_date_30d": "近 30 天",
+    "webui.reports_date_all": "全部日期",
+    "webui.reports_date_hint_day": "按 {0} 筛选 · 共 {1} 份报告",
+    "webui.reports_date_hint_range": "按 {0} 至 {1} 筛选 · 共 {2} 份报告",
+    "webui.reports_date_empty": "该日期范围内没有巡检报告",
+    "webui.reports_date_jump_toast": "已跳转到 {0} 的巡检记录",
+    "webui.home_cal_click_hint": "点击格子查看当天巡检报告",
+    "webui.home_cal_tip_click": "点击查看当天报告",
+})

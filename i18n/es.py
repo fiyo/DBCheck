@@ -3431,3 +3431,19 @@ ES.update({
     "webui.donate_support_note": "Sobre el apoyo: totalmente voluntario, cantidad libre, sin servicios ni beneficios a cambio y sin alterar el orden de las incidencias. No es una captación benéfica; no se emiten recibos de donación ni hay ventajas fiscales.",
     "webui.donate_support_use": "Cada aportación mantiene el proyecto en marcha: dominio, minutos de CI y entornos de prueba de bases de datos nacionales. Para reembolsos, usa la facturación de tu plataforma de pago o escribe a sdfiyon@gmail.com.",
 })
+
+
+# 巡检历史日期过滤 / 首页日历跳转（追加覆盖，不动原字典）
+ES.update({
+    "webui.reports_date_label": "Fecha de inspección",
+    "webui.reports_date_today": "Hoy",
+    "webui.reports_date_7d": "Últimos 7 días",
+    "webui.reports_date_30d": "Últimos 30 días",
+    "webui.reports_date_all": "Todas las fechas",
+    "webui.reports_date_hint_day": "Filtrado por {0} · {1} informes",
+    "webui.reports_date_hint_range": "Filtrado {0} a {1} · {2} informes",
+    "webui.reports_date_empty": "No hay informes de inspección en este rango de fechas",
+    "webui.reports_date_jump_toast": "Mostrando los registros de inspección del {0}",
+    "webui.home_cal_click_hint": "Haz clic en un día para ver sus informes",
+    "webui.home_cal_tip_click": "Clic para ver los informes de este día",
+})

@@ -3860,3 +3860,19 @@ ZH_TW.update({
     "webui.donate_support_note": "關於支持：完全自願、金額自定，不附帶任何服務或權益回報，也不影響 issue 處理順序；這不是公益募款，不開立捐贈收據，也不享稅務優惠。",
     "webui.donate_support_use": "每一筆都用於讓專案持續更新：網域、CI 建置分鐘數、測試用的國產資料庫環境。如需退款，請透過支付平台帳單申請，或郵件聯繫 sdfiyon@gmail.com。",
 })
+
+
+# 巡检历史日期过滤 / 首页日历跳转（追加覆盖，不动原字典）
+ZH_TW.update({
+    "webui.reports_date_label": "巡檢日期",
+    "webui.reports_date_today": "今天",
+    "webui.reports_date_7d": "近 7 天",
+    "webui.reports_date_30d": "近 30 天",
+    "webui.reports_date_all": "全部日期",
+    "webui.reports_date_hint_day": "按 {0} 篩選 · 共 {1} 份報告",
+    "webui.reports_date_hint_range": "按 {0} 至 {1} 篩選 · 共 {2} 份報告",
+    "webui.reports_date_empty": "此日期範圍內沒有巡檢報告",
+    "webui.reports_date_jump_toast": "已跳轉到 {0} 的巡檢記錄",
+    "webui.home_cal_click_hint": "點擊格子查看當天巡檢報告",
+    "webui.home_cal_tip_click": "點擊查看當天報告",
+})

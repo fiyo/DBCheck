@@ -3430,3 +3430,19 @@ KO.update({
     "webui.donate_support_note": "지원 안내: 전적으로 자발적이며 금액은 자유입니다. 서비스나 혜택의 대가가 없고 issue 처리 순서에도 영향을 주지 않습니다. 공익 모금이 아니며 기부 영수증을 발급하지 않고 세제 혜택도 없습니다.",
     "webui.donate_support_use": "모든 지원은 프로젝트를 계속 업데이트하는 데 쓰입니다: 도메인, CI 빌드 시간, 국산 데이터베이스 테스트 환경. 환불은 결제 플랫폼의 청구 내역에서 신청하거나 sdfiyon@gmail.com 으로 연락해 주세요.",
 })
+
+
+# 巡检历史日期过滤 / 首页日历跳转（追加覆盖，不动原字典）
+KO.update({
+    "webui.reports_date_label": "점검 날짜",
+    "webui.reports_date_today": "오늘",
+    "webui.reports_date_7d": "최근 7일",
+    "webui.reports_date_30d": "최근 30일",
+    "webui.reports_date_all": "전체 기간",
+    "webui.reports_date_hint_day": "{0} 기준 필터 · 보고서 {1}건",
+    "webui.reports_date_hint_range": "{0} ~ {1} 필터 · 보고서 {2}건",
+    "webui.reports_date_empty": "해당 기간에 점검 보고서가 없습니다",
+    "webui.reports_date_jump_toast": "{0}의 점검 기록으로 이동했습니다",
+    "webui.home_cal_click_hint": "칸을 클릭하면 해당 날짜의 보고서를 봅니다",
+    "webui.home_cal_tip_click": "클릭하여 해당 날짜 보고서 보기",
+})

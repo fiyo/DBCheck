@@ -3432,3 +3432,19 @@ DE.update({
     "webui.donate_support_note": "Zur Unterstützung: völlig freiwillig, Betrag frei wählbar, ohne Dienstleistung oder Gegenleistung und ohne Einfluss auf die Reihenfolge der Issues. Keine gemeinnützige Sammlung; keine Spendenquittung und kein steuerlicher Vorteil.",
     "webui.donate_support_use": "Jeder Beitrag hält das Projekt in Bewegung: Domain, CI-Bauminuten und Testumgebungen für heimische Datenbanken. Rückerstattungen bitte über die Abrechnung deiner Zahlungsplattform oder per E-Mail an sdfiyon@gmail.com.",
 })
+
+
+# 巡检历史日期过滤 / 首页日历跳转（追加覆盖，不动原字典）
+DE.update({
+    "webui.reports_date_label": "Prüfdatum",
+    "webui.reports_date_today": "Heute",
+    "webui.reports_date_7d": "Letzte 7 Tage",
+    "webui.reports_date_30d": "Letzte 30 Tage",
+    "webui.reports_date_all": "Alle Daten",
+    "webui.reports_date_hint_day": "Gefiltert auf {0} · {1} Berichte",
+    "webui.reports_date_hint_range": "Gefiltert {0} bis {1} · {2} Berichte",
+    "webui.reports_date_empty": "Keine Prüfberichte in diesem Zeitraum",
+    "webui.reports_date_jump_toast": "Prüfprotokolle für {0} angezeigt",
+    "webui.home_cal_click_hint": "Auf einen Tag klicken, um seine Berichte zu sehen",
+    "webui.home_cal_tip_click": "Klicken für die Berichte dieses Tages",
+})

@@ -592,6 +592,28 @@ async function executeFixSql(taskId, sql) {
   max-width: 1400px;
 }
 
+/* 数据库巡检历史：日期范围过滤栏（与数据库类型过滤叠加） */
+.report-date-bar {
+  display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  margin:0 4px 12px; padding:8px 10px;
+  background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+}
+.report-date-bar .rd-label { font-size:12px; font-weight:600; color:var(--text); }
+.report-date-bar .rd-sep { font-size:12px; color:var(--text-muted); }
+.report-date-bar input[type=date] {
+  background:var(--surface); border:1px solid var(--border); border-radius:6px;
+  color:var(--text); font-size:12px; padding:4px 8px; color-scheme:dark light;
+}
+.report-date-bar .rd-btn {
+  padding:4px 10px; font-size:12px; border-radius:16px; cursor:pointer;
+  background:transparent; border:1px solid var(--border); color:var(--text-muted);
+}
+.report-date-bar .rd-btn:hover { border-color:var(--accent2); color:var(--text); }
+.report-date-bar .rd-btn.rd-active { background:var(--accent2); border-color:var(--accent2); color:#fff; }
+.report-date-bar .rd-hint { margin-left:auto; font-size:12px; color:var(--text-muted); }
+.cal-head-right { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
+.cal-hint-link { color:var(--accent2); }
+
 /* ─── Cards ─── */
 .card {
   background: var(--surface);
@@ -3919,7 +3941,8 @@ async function executeFixSql(taskId, sql) {
 .cal-cell--2 { background: #8FD36B; }
 .cal-cell--3 { background: #3FBF8F; }
 .cal-cell--4 { background: #00A884; }
-.cal-grid .cal-cell[data-date] { cursor: help; }
+.cal-grid .cal-cell[data-date] { cursor: pointer; }
+.cal-grid .cal-cell[data-date]:hover { outline:1.5px solid var(--accent2); outline-offset:1px; }
 .cal-foot {
   display: flex; align-items: center; justify-content: space-between;
   gap: 12px; flex-wrap: wrap; margin-top: 10px;
@@ -8426,7 +8449,10 @@ function wfCloseRunDrawer() {
               <span class="cal-title" data-i18n="webui.home_cal_title">近一年巡检</span>
               <span class="cal-summary" id="cal-summary">--</span>
             </div>
-            <span class="cal-hint" data-i18n="webui.home_cal_hint">按当日最差健康评分着色</span>
+            <div class="cal-head-right">
+              <span class="cal-hint" data-i18n="webui.home_cal_hint">按当日最差健康评分着色</span>
+              <span class="cal-hint cal-hint-link" data-i18n="webui.home_cal_click_hint">点击格子查看当天巡检报告</span>
+            </div>
           </div>
           <div class="cal-body">
             <div class="cal-left">
@@ -9166,6 +9192,18 @@ function wfCloseRunDrawer() {
           <div id="report-filter-bar" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;padding:0 4px" data-page-node-id="s5iWHPszTheIhT20S2JFX3">
             <button class="filter-btn filter-active" data-type="" onclick="filterReports('')" style="padding:5px 14px;font-size:12px;border-radius:20px;cursor:pointer" data-page-node-id="CtaIEsG10W7B0q4YXkgrFR">全部</button>
             <!-- 动态数据库类型过滤按钮将由JS生成 -->
+          </div>
+          <!-- 巡检日期范围过滤（与上方数据库类型过滤叠加） -->
+          <div id="report-date-bar" class="report-date-bar">
+            <span class="rd-label" data-i18n="webui.reports_date_label">巡检日期</span>
+            <input type="date" id="report-date-from" onchange="onReportDateChange()" aria-label="起始日期">
+            <span class="rd-sep">—</span>
+            <input type="date" id="report-date-to" onchange="onReportDateChange()" aria-label="结束日期">
+            <button class="rd-btn" onclick="setReportDateQuick('today')" data-rd-quick="today" data-i18n="webui.reports_date_today">今天</button>
+            <button class="rd-btn" onclick="setReportDateQuick('7d')" data-rd-quick="7d" data-i18n="webui.reports_date_7d">近 7 天</button>
+            <button class="rd-btn" onclick="setReportDateQuick('30d')" data-rd-quick="30d" data-i18n="webui.reports_date_30d">近 30 天</button>
+            <button class="rd-btn" onclick="clearReportDate()" data-i18n="webui.reports_date_all">全部日期</button>
+            <span class="rd-hint" id="report-date-hint" style="display:none"></span>
           </div>
           <!-- 批量操作栏（默认隐藏） -->
           <div id="batch-bar" style="display:none;align-items:center;gap:10px;margin-bottom:10px;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px" data-page-node-id="DZstWyNX019yc2GspYHF9z">
@@ -15625,6 +15663,111 @@ async function downloadReportPdf(taskId) {
 // ─── Reports ───
 let currentReportFilter = '';   // 当前数据库类型过滤
 let allReportFiles = [];        // 缓存原始文件列表
+let currentReportDateFrom = ''; // 巡检日期过滤（起，YYYY-MM-DD）
+let currentReportDateTo = '';   // 巡检日期过滤（止，YYYY-MM-DD）
+
+function reportDateKey(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+// 后端优先给 date（与首页巡检日历同源），老数据回退文件 mtime 的本地日期
+function reportDateOf(f) {
+  if (f && f.date) return String(f.date).slice(0, 10);
+  if (f && f.mtime) {
+    try { return reportDateKey(new Date(Number(f.mtime) * 1000)); } catch (e) {}
+  }
+  return '';
+}
+
+function fillReportDateFmt(key, args) {
+  let s = i18n(key) || '';
+  if (!s) return '';
+  for (let i = 0; i < args.length; i++) s = s.split('{' + i + '}').join(String(args[i]));
+  return s;
+}
+
+function setReportDateRange(from, to, needRender) {
+  currentReportDateFrom = from || '';
+  currentReportDateTo = to || '';
+  const fi = document.getElementById('report-date-from');
+  const ti = document.getElementById('report-date-to');
+  if (fi) fi.value = currentReportDateFrom;
+  if (ti) ti.value = currentReportDateTo;
+  syncReportDateButtons();
+  if (needRender) renderReports();
+}
+
+function syncReportDateButtons() {
+  const today = reportDateKey(new Date());
+  const map = { today: [today, today] };
+  const d7 = new Date(); d7.setDate(d7.getDate() - 6);
+  const d30 = new Date(); d30.setDate(d30.getDate() - 29);
+  map['7d'] = [reportDateKey(d7), today];
+  map['30d'] = [reportDateKey(d30), today];
+  document.querySelectorAll('#report-date-bar .rd-btn').forEach(function(btn) {
+    const kind = btn.getAttribute('data-rd-quick');
+    if (!kind) return;
+    const r = map[kind];
+    btn.classList.toggle('rd-active', !!r && currentReportDateFrom === r[0] && currentReportDateTo === r[1]);
+  });
+}
+
+function onReportDateChange() {
+  const fi = document.getElementById('report-date-from');
+  const ti = document.getElementById('report-date-to');
+  let from = fi ? fi.value : '';
+  let to = ti ? ti.value : '';
+  // 起始晚于结束时自动收敛到单日，避免出现永远为空的区间
+  if (from && to && from > to) { to = from; if (ti) ti.value = to; }
+  currentReportDateFrom = from;
+  currentReportDateTo = to;
+  syncReportDateButtons();
+  renderReports();
+}
+
+function setReportDateQuick(kind) {
+  const today = new Date();
+  const end = reportDateKey(today);
+  let from = end;
+  if (kind === '7d') { const d = new Date(today); d.setDate(d.getDate() - 6); from = reportDateKey(d); }
+  if (kind === '30d') { const d = new Date(today); d.setDate(d.getDate() - 29); from = reportDateKey(d); }
+  setReportDateRange(from, end, true);
+}
+
+function clearReportDate() {
+  setReportDateRange('', '', true);
+}
+
+function updateReportDateHint(count) {
+  const el = document.getElementById('report-date-hint');
+  if (!el) return;
+  if (!currentReportDateFrom && !currentReportDateTo) {
+    el.textContent = ''; el.style.display = 'none'; return;
+  }
+  let txt;
+  if (currentReportDateFrom && currentReportDateTo && currentReportDateFrom !== currentReportDateTo) {
+    txt = fillReportDateFmt('webui.reports_date_hint_range',
+      [currentReportDateFrom, currentReportDateTo, count]) ||
+      '按 ' + currentReportDateFrom + ' 至 ' + currentReportDateTo + ' 筛选 · 共 ' + count + ' 份报告';
+  } else {
+    const d = currentReportDateFrom || currentReportDateTo;
+    txt = fillReportDateFmt('webui.reports_date_hint_day', [d, count]) ||
+      '按 ' + d + ' 筛选 · 共 ' + count + ' 份报告';
+  }
+  el.textContent = txt;
+  el.style.display = '';
+}
+
+// 首页「近一年巡检」日历点击某一天：切到巡检历史并按该日期筛选
+function jumpToReportsDate(key) {
+  if (!key) return;
+  setReportDateRange(key, key, false);
+  showPage('reports');
+  try {
+    const msg = fillReportDateFmt('webui.reports_date_jump_toast', [key]) || ('已跳转到 ' + key + ' 的巡检记录');
+    toastSuccess(msg);
+  } catch (e) {}
+}
 
 async function loadReports() {
   const list = document.getElementById('reports-list');
@@ -15655,8 +15798,22 @@ function renderReports() {
       return true;
     });
   }
+  // 日期范围过滤：date 由后端按评分历史 inspect_time 生成，与首页巡检日历同源
+  if (currentReportDateFrom || currentReportDateTo) {
+    files = files.filter(f => {
+      const d = reportDateOf(f);
+      if (!d) return false;
+      if (currentReportDateFrom && d < currentReportDateFrom) return false;
+      if (currentReportDateTo && d > currentReportDateTo) return false;
+      return true;
+    });
+  }
   if (files.length === 0) {
-    list.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:48px">' + i18n('webui.reports_empty') + '</div>';
+    const emptyMsg = (currentReportDateFrom || currentReportDateTo)
+      ? (i18n('webui.reports_date_empty') || '该日期范围内没有巡检报告')
+      : i18n('webui.reports_empty');
+    list.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:48px">' + emptyMsg + '</div>';
+    updateReportDateHint(0);
     updateBatchBar();
     return;
   }
@@ -15699,6 +15856,7 @@ function renderReports() {
         </div>
       </div>`;
   }).join('');
+  updateReportDateHint(files.length);
   updateBatchBar();
 }
 
@@ -22512,6 +22670,7 @@ function renderInspectionCalendar(data) {
         }
         if (it.worst_instance) html += '<br>' + calEsc(it.worst_instance);
       }
+      html += '<br><span style="opacity:.72">' + calEsc(calText('webui.home_cal_tip_click')) + '</span>';
       tooltipEl.innerHTML = html;
       tooltipEl.style.display = 'block';
       const cr = cardEl.getBoundingClientRect();
@@ -22525,6 +22684,13 @@ function renderInspectionCalendar(data) {
       tooltipEl.style.top = top + 'px';
     };
     grid.onmouseout = function() { tooltipEl.style.display = 'none'; };
+    // 点击某一天：切到「数据库巡检历史」并按该日期筛选，与日历色块同源
+    grid.onclick = function(e) {
+      const cell = (e.target && e.target.closest) ? e.target.closest('.cal-cell[data-date]') : null;
+      if (!cell) return;
+      const key = cell.getAttribute('data-date');
+      if (key && typeof jumpToReportsDate === 'function') jumpToReportsDate(key);
+    };
   }
 }
 
