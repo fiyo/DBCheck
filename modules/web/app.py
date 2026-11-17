@@ -23,10 +23,22 @@ from pathlib import Path
 # 重启后旧 Flask 会话 cookie 与 JWT 均失效 → 必须重新登录。
 # 生产环境可设环境变量 DBCheck_SECRET_KEY / JWT_SECRET 固定密钥
 # （多实例/集群部署时必须一致，否则互不相认）。
+_auto_secret_keys = []
 if not os.environ.get('DBCheck_SECRET_KEY'):
     os.environ['DBCheck_SECRET_KEY'] = secrets.token_hex(32)
+    _auto_secret_keys.append('DBCheck_SECRET_KEY')
 if not os.environ.get('JWT_SECRET'):
     os.environ['JWT_SECRET'] = secrets.token_hex(32)
+    _auto_secret_keys.append('JWT_SECRET')
+if _auto_secret_keys:
+    # 反向代理/容器场景的登录掉线高频根因：未固定密钥 → 重启即失效。
+    # 这里只在自动生成时提示，显式设置后完全静默，不改变任何行为语义。
+    print(
+        '[SECURITY] 未设置 ' + ' / '.join(_auto_secret_keys) +
+        '，已自动生成随机值：进程重启后所有会话与 JWT 将失效（需重新登录）。'
+        ' 生产/集群部署请在环境变量中固定这两个值，且各实例保持一致。',
+        flush=True,
+    )
 
 # 全局基础目录（开发模式用 __file__，PyInstaller 打包后用 exe 目录）
 if getattr(sys, "frozen", False):
@@ -605,6 +617,18 @@ app = Flask(__name__, template_folder=str(PROJECT_ROOT / 'web_templates'), stati
 # 会话密钥取自环境变量 DBCheck_SECRET_KEY（已在启动时为未设置的情况种入进程级随机值）。
 # 重启后旧会话 cookie 失效，需重新登录；生产可固定该环境变量保持登录态。
 app.config['SECRET_KEY'] = os.environ['DBCheck_SECRET_KEY']
+# ── 反向代理感知（双层 Nginx / LB 场景）────────────────────────────
+# 未启用时 Flask 只能看到直连 socket 的 http + 127.0.0.1，代理后的 scheme/host
+# 全部失真：X-Forwarded-Proto 不参与 cookie / 重定向判定，双层代理下极易掉登录。
+# DBCHECK_PROXY_TRUST = 信任的代理层数（默认 1，双层 Nginx 设 2；直连暴露设 0 关闭）。
+# 只接管 x_for / x_proto：Host 头本身已是真实域名，不启用 x_host 以免被伪造污染。
+try:
+    _proxy_trust = int(os.environ.get('DBCHECK_PROXY_TRUST', '1') or 1)
+except (TypeError, ValueError):
+    _proxy_trust = 1
+if _proxy_trust > 0:
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=_proxy_trust, x_proto=_proxy_trust, x_host=0, x_port=0, x_prefix=0)
 # 模板自动重载：开发/迭代阶段避免 Flask 缓存旧版 index.html，修改前端后无需重启进程即可生效
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.config['EXPLAIN_TEMPLATE_LOADING'] = False

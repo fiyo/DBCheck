@@ -788,7 +788,7 @@
 
                 <!-- 底部版本 -->
                 <div class="login-footer">
-                    <span id="login-version">v26.11.17.1</span> · <span data-i18n="login.copyright">{{ product_name }} © 2026</span>
+                    <span id="login-version">v26.11.17.2</span> · <span data-i18n="login.copyright">{{ product_name }} © 2026</span>
                 </div>
             </div>
         </div>
@@ -835,6 +835,25 @@
 
         function i18n(key) {
             return I18N[key] !== undefined ? I18N[key] : undefined;
+        }
+
+        /* 登录失败文案白名单：仅放行登录接口自身会返回的契约文案。
+           后端 auth_routes.login 返回固定中文（'请输入用户名和密码' / '用户名或密码错误'
+           / '登录成功'）；前端 i18n 另有对应多语言值。两者都纳入白名单，既覆盖后端
+           契约，也兼容多语言界面，同时把反向代理 / 网关 / SSO 注入的自定义 msg
+           （如「用户凭证已过期」）降级为通用「登录失败」，避免中间层文案误导排查。*/
+        function safeLoginMsg(rawMsg) {
+            const fallback = i18n('login.error_failed') || '登录失败';
+            if (typeof rawMsg !== 'string' || !rawMsg) return fallback;
+            // 1) 后端固定中文契约文案
+            const backendMsgs = ['请输入用户名和密码', '用户名或密码错误', '登录成功'];
+            // 2) 当前语言的等价 i18n 文案（多语言友好）
+            const i18nMsgs = ['login.error_empty', 'login.error_failed', 'login.error_network',
+                              'login.success']
+                .map(k => i18n(k))
+                .filter(Boolean);
+            const allowed = backendMsgs.concat(i18nMsgs);
+            return allowed.indexOf(rawMsg) !== -1 ? rawMsg : fallback;
         }
 
         function applyI18N() {
@@ -993,7 +1012,10 @@
                     // 携带 JWT 跳转，服务端 index() 一次性建立会话（兼容 Cookie 未发送的场景）
                     window.location.href = '/?token=' + encodeURIComponent(data.data.token);
                 } else {
-                    errorEl.textContent = data.msg || (i18n('login.error_failed') || '登录失败');
+                    // 只展示登录接口自身的已知文案；反向代理/网关/SSO 若拦截本请求并返回
+                    // 自定义 msg（如「用户凭证已过期」），一律降级为通用文案，避免中间层
+                    // 错误文案污染登录页、误导排查方向。
+                    errorEl.textContent = safeLoginMsg(data.msg);
                     errorEl.classList.add('show');
                     shakeCard();
                 }
