@@ -33,8 +33,10 @@ modules/monitor/jdbc_collect_cli.py — 监控大屏 JDBC 批量采集子进程
 
     Oracle（oracle_jdbc）必须透传 service_name / sid / use_sid / sysdba：
     缺 service_name 时 build_jdbc_url 会回落到 database 字段（监控路径把真实
-    服务名放在此处），再回落硬编码默认 ORCLCDB；sys 用户需 sysdba=true 触发
-    internal_logon=sysdba，否则 ORA-28009。
+    服务名放在此处），再回落硬编码默认 ORCLCDB；use_sid=True 走旧格式
+    @host:port:SID，SID 优先取 sid 字段、再回落 service_name。sys 用户需
+    sysdba=true 触发 internal_logon=sysdba（经统一层 Properties 透传），
+    否则 ORA-28009。
 
 出参 JSON 结构（qN 与 queries 下标一一对应）::
 
@@ -124,8 +126,10 @@ def _collect(payload):
         sid=payload.get('sid') or None,
         use_sid=bool(payload.get('use_sid', False)),
         gbase_server_name=payload.get('gbase_server_name') or None,
-        # sys 用户必须以 SYSDBA 身份登录（与插件 connect 行为一致），
-        # 漏传 internal_logon 会导致 ORA-28009 / 连不上。
+        # sys 用户必须以 SYSDBA 身份登录（与插件 connect 行为一致）。
+        # 本路径走 open_jdbc_connection 默认的 jaydebeapi 模式，统一层会把
+        # properties 转成 java.util.Properties 形态的 driver_args；漏传或
+        # 被丢弃都会让 Oracle 11g 以 SYS 普通登录报 ORA-28009 → 大屏连接失败。
         properties={'internal_logon': 'sysdba'} if payload.get('sysdba') else None,
     )
     if conn is None:

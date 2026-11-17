@@ -61,6 +61,18 @@ JDBC_ONLY_TYPES = {
 # an exception set"）对用户无意义，按常见根因归类成可操作的提示；
 # 完整异常始终由调用方写入服务端日志，此处只负责面向用户的文案。
 _ERROR_PATTERNS = [
+    # Oracle：JDBC 子进程把原始 ORA 错误透传上来，按可操作根因归类，
+    # 避免一律退化成「请查看服务端日志」让用户无法自助定位。
+    (('ora-28009', 'ora-28007'),
+     '以 SYS 登录必须勾选 SYSDBA（数据源高级配置）'),
+    (('ora-12514', 'ora-12505', 'ora-12504', 'ora-12541', 'ora-12154'),
+     '服务名/SID 或监听配置不正确，请检查服务名、SID 模式与端口'),
+    (('ora-01031', 'insufficient privileges'),
+     '数据库账号权限不足，请授予监控所需视图的查询权限'),
+    (('ora-00942', 'ora-00904'),
+     '对象不存在或无权限，请检查监控账号权限与数据库版本'),
+    (('no suitable driver', 'classnotfoundexception', 'noclassdeffounderror'),
+     'JDBC 驱动未正确加载，请到「数据库驱动管理」检查驱动版本'),
     (('returned a result with an exception set',),
      '连接失败，请检查地址、端口、用户名密码及登录配置'),
     (('connection refused', '拒绝连接', '10061', 'cannot connect'),
@@ -82,11 +94,20 @@ _ERROR_PATTERNS = [
 
 
 def _friendly_db_error(e):
-    """把驱动异常翻译成用户可读的提示；未命中已知模式时给通用提示。"""
+    """把驱动异常翻译成用户可读的提示；未命中已知模式时给通用提示。
+
+    未命中时附带原始异常首行摘要：大屏「连接/会话」下钻 tab 的 conn_err
+    展示的就是本函数结果，若只给「请查看服务端日志」，用户无法自助定位
+    具体 ORA / JDBC 错误码（服务端日志里才有）。摘要截断 160 字符，避免
+    撑破卡片布局；完整异常仍由调用方写服务端日志。
+    """
     low = str(e).lower()
     for keys, msg in _ERROR_PATTERNS:
         if any(k in low for k in keys):
             return msg
+    raw = ' '.join(str(e).split())[:160]
+    if raw:
+        return '数据库连接或查询异常：%s' % raw
     return '数据库连接或查询异常，请检查实例配置或查看服务端日志'
 
 

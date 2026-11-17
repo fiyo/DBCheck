@@ -360,6 +360,7 @@ def build_jdbc_url(
     port: Optional[int] = None,
     database: Optional[str] = None,
     service_name: Optional[str] = None,
+    sid: Optional[str] = None,
     use_sid: bool = False,
     gbase_server_name: Optional[str] = None,
     encrypt: Optional[bool] = None,
@@ -372,6 +373,7 @@ def build_jdbc_url(
     - jdbc_url 非空 → 原样透传（支持用户自定义/多主机/故障转移，调用方自行保证格式）
     - 否则按 JDBC_PROFILES[db_type].url 模板填充；未知类型回退
       ``jdbc:<db_type>://host:port`` 最简格式（仍可连，报错信息友好）。
+    - sid：Oracle 旧格式 SID 的独立字段（use_sid=True 时优先于 service_name）。
     """
     if jdbc_url and str(jdbc_url).strip():
         _u = str(jdbc_url).strip()
@@ -390,9 +392,14 @@ def build_jdbc_url(
     if not _db:
         _tpl = _tpl.replace('/{db}', '')
 
-    # Oracle：use_sid 走 @host:port:SID 旧格式（service_name 字段承载 SID 值）
+    # Oracle：use_sid 走 @host:port:SID 旧格式（11g 常见）。
+    # SID 取值优先级：独立 sid 字段 → service_name（插件路径把 SID 放在这里）
+    # → database → 注册表默认。历史实现只认 service_name，实例若只填了
+    # sid/service_name 为空，会静默连到默认 ORCLCDB → ORA-12505/12514，
+    # 与数据源/巡检（能连）表现不一致。
     if db_type == 'oracle_jdbc' and use_sid:
-        _sid = service_name or _prof.get('service_default') or 'ORCL'
+        _sid = (sid or service_name or _db
+                or _prof.get('service_default') or 'ORCL')
         return f'jdbc:oracle:thin:@{host}:{_port}:{_sid}'
 
     # SQL Server：encrypt=false 时省略 trustServerCertificate（部分驱动/服务器在
@@ -423,9 +430,12 @@ def build_jdbc_url(
         return _url
 
     # Oracle：service_name 缺失时优先回落到 database（监控子进程把真实服务名
-    # 经 database 字段带入），再回落硬编码默认（ORCLCDB）。此前顺序是
-    # service_name or 默认 or _db，导致真实服务名被默认覆盖 → 连错服务 ORA-12514。
-    _svc = service_name or _db or _prof.get('service_default')
+    # 经 database 字段带入），再回落 sid（数据源测试连接把 sid 当服务名用，
+    # 见 app.py 的 service_name/sid 回落），最后才回落硬编码默认 ORCLCDB。
+    # 大屏此前不认 sid，只填 SID 的实例会静默连到默认服务 → ORA-12514，
+    # 而同一实例的数据源测试却能连上。历史顺序是 service_name or 默认 or _db，
+    # 曾导致真实服务名被默认覆盖 → 连错服务，已修。
+    _svc = service_name or _db or sid or _prof.get('service_default')
     _server = gbase_server_name or _prof.get('server_default') or 'gbase01'
 
     # HGDB：追加 PG 系超时参数段（connectTimeout/loginTimeout/socketTimeout），
@@ -763,6 +773,7 @@ def open_jdbc_connection(
     jdbc_url: Optional[str] = None,
     database: Optional[str] = None,
     service_name: Optional[str] = None,
+    sid: Optional[str] = None,
     use_sid: bool = False,
     gbase_server_name: Optional[str] = None,
     encrypt: Optional[bool] = None,
@@ -787,6 +798,10 @@ def open_jdbc_connection(
         mode: 'jaydebeapi' | 'jpype'。
         driver_class: 覆盖注册表默认驱动类（一般不需要，注册表已对齐 jar 内真实类）。
         properties: JPype 模式附加 JDBC 属性 dict（user/password 自动注入，显式键覆盖）。
+                    jaydebeapi 模式同样生效：改为 Properties 形态的 driver_args
+                    （user/password 自动补齐），否则 Oracle SYSDBA 的
+                    internal_logon 会被丢弃导致 ORA-28009。
+        sid: Oracle use_sid=True 时的 SID（优先于 service_name）。
         on_error: JPype 模式建连失败回调，签名 on_error(e, ctx) -> (new_url,
             new_props) | None；返回非 None 则用新参数重试一次（如 SQL Server
             SSL 回退）。
@@ -801,7 +816,7 @@ def open_jdbc_connection(
     _prof = JDBC_PROFILES.get(db_type) or {}
     _url = build_jdbc_url(
         db_type, host, port,
-        database=database, service_name=service_name, use_sid=use_sid,
+        database=database, service_name=service_name, sid=sid, use_sid=use_sid,
         gbase_server_name=gbase_server_name, encrypt=encrypt,
         trust_server_certificate=trust_server_certificate, jdbc_url=jdbc_url,
         **extra,
@@ -815,7 +830,7 @@ def open_jdbc_connection(
         _prof = JDBC_PROFILES['pg']
         _url = build_jdbc_url(
             'pg', host, port,
-            database=database, service_name=service_name, use_sid=use_sid,
+            database=database, service_name=service_name, sid=sid, use_sid=use_sid,
             gbase_server_name=gbase_server_name, encrypt=encrypt,
             trust_server_certificate=trust_server_certificate, jdbc_url=jdbc_url,
             **extra,
@@ -856,12 +871,35 @@ def open_jdbc_connection(
             'driver': _basename, 'url': _url, 'driver_class': _driver_class, 'mode': mode,
         }
 
+    # 与 jpype 分支对齐：显式把驱动类注册进 DriverManager。jaydebeapi 内部
+    # 只做 JClass(...) 依赖静态自注册块，对不带静态注册的驱动会偶发
+    # "No suitable driver"；registerDriver 幂等，失败也不阻断（真实错误仍由
+    # jaydebeapi 抛出）。
+    try:
+        import jpype
+        _dm = jpype.JClass('java.sql.DriverManager')
+        _dm.registerDriver(jpype.JClass(_driver_class)())
+    except Exception:  # noqa: BLE001
+        pass
+
+    # driver_args 默认保持历史的 [user, password] 序列；有附加 JDBC 属性时
+    # 改用 dict —— jaydebeapi 把 dict 转成 java.util.Properties 再调
+    # DriverManager.getConnection(url, props)，是唯一能承载
+    # internal_logon=sysdba 等非位置属性的形态。此前本分支无条件写死序列、
+    # 丢弃 properties，导致「数据源/巡检/首页实时监控都走 jpype 正常，
+    # 只有大屏（jaydebeapi）以 SYS 连 Oracle 11g 报 ORA-28009」。
+    _driver_args: Any = [user, password]
+    if properties:
+        _driver_args = {'user': str(user), 'password': str(password)}
+        _driver_args.update({str(k): str(v) for k, v in properties.items()})
+
     try:
         conn = jaydebeapi.connect(
-            _driver_class, _url, [user, password], _jars,
+            _driver_class, _url, _driver_args, _jars,
         )
         return conn, {'driver': _basename, 'url': _url,
-                      'driver_class': _driver_class, 'mode': mode}
+                      'driver_class': _driver_class, 'mode': mode,
+                      'properties': dict(properties or {})}
     except Exception as e:  # noqa: BLE001
         return _jdbc_error_result(db_type, e, _url, _basename, _driver_class, mode)
 
