@@ -1469,6 +1469,7 @@ Thank you to everyone who has supported RaccoonX through donations, Stars, Issue
 | 2026-09-24 | James.Yao          | No.000014 |
 | 2026-10-10 | acdante-zhang          | No.000015 |
 | 2026-11-13 | yunlong          | No.000016 |
+| 2026-11-17 | 东西南北          | No.000017 |
 ---
 
 # 📜 License
