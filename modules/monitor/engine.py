@@ -111,6 +111,38 @@ def _friendly_db_error(e):
     return '数据库连接或查询异常，请检查实例配置或查看服务端日志'
 
 
+class MonitorQueryError(RuntimeError):
+    """带阶段标记的采集异常。
+
+    stage='connect'：建连阶段失败，实例真不可达 → 大屏应判 down。
+    stage='query'  ：连接已建立，SQL 执行阶段失败（视图权限不足、
+                     对象/列不存在、版本差异等）→ 实例可达，不得判
+                     down 触发误告警，只标「采集不完整」。
+    """
+
+    def __init__(self, stage, message):
+        super().__init__(message)
+        self.stage = stage
+
+
+def _error_stage(e, default='connect'):
+    """推断采集失败阶段；无结构化标记时按已知 SQL 层错误兜底分类。
+
+    用于 JDBC 子进程、SSH 隧道、外层兜底 catch 等无法直接区分阶段的路径。
+    """
+    stage = getattr(e, 'stage', None)
+    if stage in ('connect', 'query'):
+        return stage
+    low = str(e).lower()
+    _query_only = ('ora-00942', 'ora-00904', 'ora-01031', 'ora-00933',
+                   'ora-00911', 'ora-00907', 'ora-01756',
+                   'permission denied', 'must be owner of', 'unknown column',
+                   'syntax error', 'relation "')
+    if any(k in low for k in _query_only):
+        return 'query'
+    return default
+
+
 class MonitorEngine:
     """实时监控引擎 — 全局单例"""
 
@@ -261,6 +293,7 @@ class MonitorEngine:
                     _log.warning("慢查询采集失败 %s: %s", label, e)
                     new_slow[iid] = {
                         'data': [], 'error': _friendly_db_error(e),
+                        'err_kind': _error_stage(e),
                         'ts': time.time(), 'db_type': db_type, 'label': label,
                     }
 
@@ -279,6 +312,7 @@ class MonitorEngine:
                     _log.warning("连接采集失败 %s: %s", label, e)
                     new_conn[iid] = {
                         'data': [], 'error': _friendly_db_error(e),
+                        'err_kind': _error_stage(e),
                         'ts': time.time(), 'total': 0, 'max_conn': 0,
                         'db_type': db_type, 'label': label,
                     }
@@ -326,6 +360,7 @@ class MonitorEngine:
                     _log.warning("慢查询 SQL 失败 %s: %s", label, e)
                 if not fallback_sql:
                     return {'data': [], 'error': _friendly_db_error(e),
+                            'err_kind': _error_stage(e),
                             'ts': time.time(), 'db_type': db_type, 'label': label}
         if rows is None:
             # fallback：主 SQL 失败降级，或已记忆依赖缺失直接走此路（静默）
@@ -336,6 +371,7 @@ class MonitorEngine:
             except Exception as fb:
                 _log.warning("慢查询 fallback 亦失败 %s: %s", label, fb)
                 return {'data': [], 'error': _friendly_db_error(fb),
+                        'err_kind': _error_stage(fb),
                         'ts': time.time(), 'db_type': db_type, 'label': label}
 
         result = {
@@ -360,6 +396,7 @@ class MonitorEngine:
         except Exception as e:
             _log.warning("连接 SQL 失败 %s: %s", label, e)
             return {'data': [], 'error': _friendly_db_error(e),
+                    'err_kind': _error_stage(e),
                     'ts': time.time(), 'total': 0, 'max_conn': mq.MAX_CONNECTION_DEFAULTS.get(db_type, 100),
                     'connections': {'active': 0, 'idle': 0, 'blocked': 0}, 'usage_pct': 0,
                     'db_type': db_type, 'label': label}
@@ -460,12 +497,18 @@ class MonitorEngine:
 
     @staticmethod
     def _jdbc_pick(res, sql):
-        """从批量结果中取单条 SQL 的行；错误标记转成异常（沿用友好文案链路）。"""
+        """从批量结果中取单条 SQL 的行；错误标记转成带阶段的异常。
+
+        错误 tuple 形如 ('__err__', msg) 或 ('__err__', msg, stage)，
+        stage 由 JDBC 采集子进程在结果里标注（建连失败 / 单条 SQL 失败）。
+        """
         entry = res.get(sql)
         if entry is None:
-            raise RuntimeError('该类型批量采集未覆盖此 SQL: %s' % sql[:60])
+            raise MonitorQueryError(
+                'query', '该类型批量采集未覆盖此 SQL: %s' % sql[:60])
         if isinstance(entry, tuple):
-            raise RuntimeError(entry[1])
+            raise MonitorQueryError(
+                entry[2] if len(entry) > 2 else 'connect', entry[1])
         return entry
 
     def _jdbc_run_batch(self, inst, db_type, timeout=None, template_key=None):
@@ -575,9 +618,11 @@ class MonitorEngine:
             for i, s in enumerate(sqls):
                 entry = (data or {}).get('q%d' % i)
                 if fatal:
-                    res[s] = ('__err__', fatal)
+                    res[s] = ('__err__', fatal, 'connect')
                 elif entry is None or entry.get('error'):
-                    res[s] = ('__err__', (entry or {}).get('error') or '采集失败')
+                    res[s] = ('__err__',
+                              (entry or {}).get('error') or '采集失败',
+                              (entry or {}).get('stage') or 'connect')
                 else:
                     res[s] = entry.get('rows') or []
             return res
@@ -648,27 +693,35 @@ class MonitorEngine:
         cursor = None
 
         try:
-            conn = self._create_connection(inst, password, db_type, timeout,
-                                          host=_conn_host, port=_conn_port)
-            cursor = conn.cursor()
-            cursor.execute(sql)
-            columns = [col[0] for col in cursor.description]
-            rows = []
-            for row in cursor.fetchall():
-                row_dict = {}
-                for i, col in enumerate(columns):
-                    val = row[i]
-                    # 序列化非标准类型
-                    if val is not None and not isinstance(val, (int, float, str, bool)):
-                        try:
-                            val = str(val)
-                        except Exception:
-                            val = None
-                    # 列名统一小写：dmPython/oracledb 等驱动返回大写标识符，
-                    # 下游消费者（screen_metrics/前端模板）一律按小写键取值
-                    row_dict[col.lower() if isinstance(col, str) else col] = val
-                rows.append(row_dict)
-            return rows
+            # 建连与查询分阶段标记：权限不足 / 视图不存在（ORA-00942 等）
+            # 是「已连上但 SQL 失败」，实例可达，大屏不能据此判宕机。
+            try:
+                conn = self._create_connection(inst, password, db_type, timeout,
+                                              host=_conn_host, port=_conn_port)
+            except Exception as e:
+                raise MonitorQueryError('connect', str(e)) from e
+            try:
+                cursor = conn.cursor()
+                cursor.execute(sql)
+                columns = [col[0] for col in cursor.description]
+                rows = []
+                for row in cursor.fetchall():
+                    row_dict = {}
+                    for i, col in enumerate(columns):
+                        val = row[i]
+                        # 序列化非标准类型
+                        if val is not None and not isinstance(val, (int, float, str, bool)):
+                            try:
+                                val = str(val)
+                            except Exception:
+                                val = None
+                        # 列名统一小写：dmPython/oracledb 等驱动返回大写标识符，
+                        # 下游消费者（screen_metrics/前端模板）一律按小写键取值
+                        row_dict[col.lower() if isinstance(col, str) else col] = val
+                    rows.append(row_dict)
+                return rows
+            except Exception as e:
+                raise MonitorQueryError('query', str(e)) from e
         finally:
             try:
                 if cursor:
@@ -758,7 +811,22 @@ class MonitorEngine:
             else:
                 dsn = f"{host}:{port}/orcl"
             mode = oracledb.SYSDBA if inst.get('sysdba') else oracledb.AUTH_MODE_DEFAULT
-            return oracledb.connect(user=user, password=password, dsn=dsn, mode=mode)
+            _params = dict(user=user, password=password, dsn=dsn, mode=mode)
+            try:
+                return oracledb.connect(**_params)
+            except Exception as e:  # noqa: BLE001
+                # 11g 及更低版本超出 thin 支持范围（12.1+）→ 一次性切 thick。
+                # 与数据源测试 _ct_oracle_pro 同口径；init_oracle_client 是
+                # 进程级全局且只能成功一次，状态缓存在 oracle_conn_test 模块，
+                # 避免大屏每轮采集都重复加载 OCI。
+                from modules.oracle_conn_test import (
+                    ensure_oracle_thick, thin_error_needs_thick)
+                if not thin_error_needs_thick(e):
+                    raise
+                _ok, _hint = ensure_oracle_thick()
+                if not _ok:
+                    raise RuntimeError(_hint) from e
+                return oracledb.connect(**_params)
 
         elif db_type in ('sqlserver', 'sqlserver_jdbc', 'mssql'):
             # sqlserver_jdbc（插件标识）与 sqlserver 同为 SQL Server 线协议，

@@ -327,3 +327,107 @@ def _ct_oracle_pro(data):
     finally:
         if _tunnel:
             _tunnel.close()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  thick 客户端一次性初始化（供监控大屏等非「连接测试」路径复用）
+# ═══════════════════════════════════════════════════════════════════════════
+#  oracledb.init_oracle_client() 是进程级全局、只能成功一次；大屏每 15~30s
+#  采集一轮，绝不能每轮都去尝试。这里用进程级状态 + 锁做幂等与结果缓存，
+#  并用 _attempt_with_cap 给本地 DLL 加载加硬超时（gevent 主进程里加载
+#  OCI 若挂起会拖死整个界面）。
+
+_THICK_STATE = {'tried': False, 'ok': False, 'err': ''}
+_THICK_LOCK = threading.Lock()
+
+_THICK_MISSING_HINT = (
+    'Oracle 11g 及以下版本超出 oracledb thin 模式支持范围（12.1+），'
+    'thick 回退需要 Oracle Instant Client 但未检测到'
+    '（查找目录 drivers/oracle_client，或配置 oracle_client_lib_dir）。'
+    '推荐：改用数据源类型「Oracle (JDBC)」连接 11g——在「数据库驱动管理」页'
+    '上传 ojdbc6/ojdbc8 驱动 jar 即可，无需 Instant Client。'
+)
+
+
+def thin_error_needs_thick(e):
+    """thin 连接异常是否属于「该走 thick 回退」的 11g 特征。
+
+    与 _ct_oracle_pro 的判定口径一致（DPY-3010/3015、版本不支持、
+    口令验证器不兼容）。连接测试额外处理「握手挂起」，这里不引入
+    线程上限包裹 connect，故不判挂起。
+    """
+    msg = str(e)
+    low = msg.lower()
+    return ('DPY-3010' in msg or 'DPY-3015' in msg
+            or ('version' in low and 'supported' in low)
+            or 'password verifier' in low)
+
+
+def _already_thick(oracledb):
+    """oracledb 是否已被本进程其它路径初始化为 thick。"""
+    try:
+        return bool(hasattr(oracledb, 'is_thin_mode')
+                    and not oracledb.is_thin_mode())
+    except Exception:
+        return False
+
+
+def ensure_oracle_thick(force=False):
+    """确保 Oracle thick 客户端就绪，返回 (ok, err)。进程级一次性、幂等。
+
+    搜索顺序：已是 thick → PATH 默认 → drivers/oracle_client/<platform> →
+    dbc_config.json 的 oracle_client_lib_dir。失败结果缓存，避免每轮采集
+    重复加载 DLL 或反复挂起线程。``force=True`` 仅供单元验证重置状态。
+    """
+    global _THICK_STATE
+    with _THICK_LOCK:
+        if _THICK_STATE['tried'] and not force:
+            # 极端情况：上次加载超时后后台线程最终成功，仍应认出 thick 已就绪
+            if not _THICK_STATE['ok']:
+                try:
+                    import oracledb as _odb
+                    if _already_thick(_odb):
+                        _THICK_STATE = {'tried': True, 'ok': True, 'err': ''}
+                except Exception:
+                    pass
+            return _THICK_STATE['ok'], _THICK_STATE['err']
+
+        try:
+            import oracledb
+        except Exception as imp_e:  # noqa: BLE001
+            _THICK_STATE = {'tried': True, 'ok': False,
+                            'err': 'oracledb 未安装：%s' % imp_e}
+            return False, _THICK_STATE['err']
+
+        if _already_thick(oracledb):
+            _THICK_STATE = {'tried': True, 'ok': True, 'err': ''}
+            return True, ''
+
+        candidates = [('PATH', lambda: oracledb.init_oracle_client())]
+        lib_dir = _find_oracle_client_lib_dir()
+        if lib_dir:
+            candidates.append(
+                (lib_dir,
+                 lambda d=lib_dir: oracledb.init_oracle_client(lib_dir=d)))
+        try:
+            with open(DBC_CONFIG_PATH) as f:
+                cfg_dir = (json.load(f) or {}).get('oracle_client_lib_dir', '')
+            if cfg_dir and os.path.isdir(cfg_dir) and cfg_dir != lib_dir:
+                candidates.append(
+                    (cfg_dir,
+                     lambda d=cfg_dir: oracledb.init_oracle_client(lib_dir=d)))
+        except Exception:  # noqa: BLE001 — 配置文件缺失/加密均按未配置处理
+            pass
+
+        for _where, _fn in candidates:
+            try:
+                _attempt_with_cap(_fn, 6)
+            except Exception:  # noqa: BLE001 — 单个候选失败继续下一个
+                pass
+            if _already_thick(oracledb):
+                print('[oracle-thick] 客户端就绪: %s' % _where, flush=True)
+                _THICK_STATE = {'tried': True, 'ok': True, 'err': ''}
+                return True, ''
+
+        _THICK_STATE = {'tried': True, 'ok': False, 'err': _THICK_MISSING_HINT}
+        return False, _THICK_MISSING_HINT

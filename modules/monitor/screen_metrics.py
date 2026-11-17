@@ -1083,7 +1083,7 @@ class ScreenCollector:
             'instance_name': None, 'instance_number': None, 'dests': None,
             'transport_lag_s': None, 'apply_lag_s': None,
             'tbs': None, 'err': None, 'status': 'ok', 'counters': {},
-            'stat_hint': None,
+            'stat_hint': None, 'degraded': False,
             # 下钻明细：连接/会话 与 慢查询 逐行（截顶脱敏，详见 _sanitize_rows）
             'conn_rows': [], 'slow_rows': [],
             # SSH 跳板信息：用于大屏主机节点展示"经由此网关/跳板可达该实例"
@@ -1125,6 +1125,14 @@ class ScreenCollector:
             # conn 留空（卡片连接显示 –，第 4 行回落显示 host:port）。
             if '不支持的类型' in str(cd['error']):
                 snap['status'] = 'unsupported'
+            elif cd.get('err_kind') == 'query':
+                # 连接已建立、仅 SQL 失败（ORA-00942 视图权限不足、
+                # ORA-00904 11gR1 无该列等）：实例真实可达，绝不能判 down
+                # 触发宕机告警。标 warn（采集不完整）+ 保留错误供下钻定位；
+                # degraded 阻止末尾 _derive_status 用空指标把它派生成 ok 假绿。
+                snap['err'] = cd['error']
+                snap['status'] = 'warn'
+                snap['degraded'] = True
             else:
                 snap['err'] = cd['error']
                 snap['status'] = 'down'
@@ -1160,11 +1168,17 @@ class ScreenCollector:
         if cd and not cd.get('error') and not cd.get('data'):
             snap['conn_no_sessions'] = True
         if sd and sd.get('error') and not snap['err']:
-            # 慢查询模板缺失同属能力缺失，不得作为 err 标红；
-            # 但真实 SQL 失败仍要判 down（即便连接采集不支持、慢查失败是实打实的探活失败）。
+            # 慢查询模板缺失同属能力缺失，不得作为 err 标红。
+            # 按阶段区分：query = 已连上但 SQL 失败 → warn（采集不完整）；
+            # connect = 真连不上 → 仅把 unsupported 升级为 down，避免把
+            # 「该类型无连接模板」误判成实例故障。
             if '不支持的类型' not in str(sd['error']):
                 snap['err'] = sd['error']
-                if snap['status'] == 'unsupported':
+                if sd.get('err_kind') == 'query':
+                    if snap['status'] == 'ok':
+                        snap['status'] = 'warn'
+                        snap['degraded'] = True
+                elif snap['status'] == 'unsupported':
                     snap['status'] = 'down'
 
         # 2) 增量与容量指标（best effort）
@@ -1190,7 +1204,9 @@ class ScreenCollector:
         # 3) 状态判定（pending = 本轮未探活成功，不参与阈值派生，留给下一轮落定）
         # unsupported（无采集模板的能力缺失）同样不得进入阈值派生——
         # conn/tbs 全空会被 _derive_status 派生成 ok 假绿（OB 漏注册模板期间实测）。
-        if snap['status'] not in ('down', 'pending', 'unsupported'):
+        # degraded（已连上但 SQL/权限失败）同理：已标 warn，不得被空指标改回 ok。
+        if (snap['status'] not in ('down', 'pending', 'unsupported')
+                and not snap.get('degraded')):
             snap['status'] = self._derive_status(snap)
         return snap
 

@@ -113,22 +113,38 @@
   .tbs-list::-webkit-scrollbar { width: 4px; }
   .tbs-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
   /* ── 宿主资源「小倍数」：每实例一「块」= 数值行（实例名|CPU%|内存%|Swap%|Load1|来源徽标）
-        + 下方 46px 迷你折线。左轴 0-100 承载 CPU/内存/Swap，右轴独立自适应承载 Load1
-        （Load1 是绝对值、与百分比量纲不同，必须分轴否则会被压成一条贴底的直线）。 ── */
-  .host-list { flex: 1; min-height: 0; overflow-y: auto; padding: 9px 12px 10px;
-               display: flex; flex-direction: column; gap: 6px; }
-  .host-list::-webkit-scrollbar { width: 4px; }
-  .host-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-  .hhead, .hline { display: grid; grid-template-columns: minmax(0,1fr) 44px 44px 42px 40px auto;
+        + 下方迷你折线。左轴 0-100 承载 CPU/内存/Swap，右轴独立自适应承载 Load1
+        （Load1 是绝对值、与百分比量纲不同，必须分轴否则会被压成一条贴底的直线）。
+        列表本身可滚动：滚动条必须足够显眼（原先 4px + --border 深蓝几乎隐形，
+        用户看不出条数多时能滚），表头 sticky 吸顶，否则滚下去后 4 个数值列
+        就没有列标签了。 ── */
+  .host-list { flex: 1; min-height: 0; overflow-y: auto; padding: 0 12px 10px;
+               display: flex; flex-direction: column; gap: 6px;
+               scrollbar-width: thin; scrollbar-color: rgba(143,163,192,.55) transparent; }
+  .host-list::-webkit-scrollbar { width: 6px; }
+  .host-list::-webkit-scrollbar-thumb { background: rgba(143,163,192,.55); border-radius: 3px; }
+  .host-list::-webkit-scrollbar-thumb:hover { background: rgba(143,163,192,.85); }
+  .host-list::-webkit-scrollbar-track { background: rgba(255,255,255,.04); }
+  /* 末列必须定宽：原来用 auto，表头「采集来源」比数据行的来源徽标窄 23px，
+     1fr 首列吃掉的剩余空间就不同，导致后面 4 个数值列整体错位约半列。
+     表头吸顶后这个错位会一直挂在顶部，必须让两行用同一套列宽。 */
+  .hhead, .hline { display: grid; grid-template-columns: minmax(0,1fr) 44px 44px 42px 40px 60px;
                    align-items: center; gap: 6px; padding: 2px 4px; }
-  .hhead { flex: none; font-size: 9px; color: var(--tx2); padding-bottom: 2px; }
+  /* 顶部内边距从 .host-list 挪到表头自身：sticky 元素要能完整遮住从它下面
+     滚过的行，容器留 padding-top 会在表头上方漏出一条内容。 */
+  .hhead { flex: none; position: sticky; top: 0; z-index: 3;
+           font-size: 9px; color: var(--tx2); background: var(--panel);
+           padding: 9px 4px 4px; border-bottom: 1px solid var(--border); }
   .hhead div + div { text-align: right; }
-  /* 行数少时每行均分剩余高度 → 迷你折线变大，右栏底部不再留一大片空白；
-     行数多时 min-height 兜底、列表整体滚动。
+  /* 行高在 68~150px 之间弹性：实例适中时每行均分剩余高度（迷你折线适度放大，
+     右栏不留大片空白）；但必须封顶——1~2 个实例时纯 grow 会把单条撑到
+     400~800px，折线被纵向拉成严重变形的巨幅曲线。封顶的代价是实例极少时
+     列表底部留白，换来折线尺寸稳定在 46~127px、ECharts 每轮 resize 幅度也小得多。
+     行数多时 min-height 兜底到 68px、列表整体滚动，绝不会互相挤压。
      basis 必须是 0 且允许收缩：ECharts 会在容器里插入一个带固定高度的内部 div，
      若用 basis:auto，这个内部高度会参与内容尺寸计算，每轮 refresh 后把行越撑越高
      （一个不可用行就能吃掉整个面板，把其它实例挤出可视区）。 */
-  .hrow { flex: 1 1 0; min-height: 68px; display: flex; flex-direction: column;
+  .hrow { flex: 1 1 0; min-height: 68px; max-height: 150px; display: flex; flex-direction: column;
           border-radius: 6px; cursor: pointer; padding: 2px 0 3px; }
   .hrow .hline { flex: none; }
   .hrow:hover { background: rgba(255,255,255,.045); }
@@ -145,7 +161,7 @@
   .hbadge { font-size: 9px; padding: 1px 6px; border-radius: 8px; border: 1px solid var(--border);
             color: var(--tx2); background: rgba(139,148,158,.12); white-space: nowrap;
             overflow: hidden; text-overflow: ellipsis; }
-  .host-empty { font-size: 11px; color: var(--tx2); padding: 6px 4px; }
+  .host-empty { font-size: 11px; color: var(--tx2); padding: 9px 4px 6px; }
   .trow { display: grid; grid-template-columns: 16px minmax(0,1fr) 108px 42px;
           align-items: center; gap: 8px; padding: 1px 4px; border-radius: 6px; cursor: pointer; }
   .trow:hover { background: rgba(255,255,255,.045); }

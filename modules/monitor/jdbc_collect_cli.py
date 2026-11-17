@@ -40,8 +40,13 @@ modules/monitor/jdbc_collect_cli.py — 监控大屏 JDBC 批量采集子进程
 
 出参 JSON 结构（qN 与 queries 下标一一对应）::
 
-    {"q0": {"rows": [{...}], "error": null}, "q1": {"rows": [], "error": "SQL失败..."}}
-    {"fatal": "连接失败原因"}        # 建连失败时全部查询共用该错误
+    {"q0": {"rows": [{...}], "error": null},
+     "q1": {"rows": [], "error": "SQL失败...", "stage": "query"}}
+    {"fatal": "连接失败原因"}        # 子进程级异常
+
+``stage``：'connect' = 建连/SSH 隧道失败（实例真不可达，大屏判 down）；
+'query' = 已建连仅本条 SQL 失败（权限/对象/版本差异，大屏只标采集不完整）。
+成功项不带 stage。
 """
 
 import sys
@@ -111,7 +116,8 @@ def _collect(payload):
             _tunnel, _host, _port = build_db_ssh_tunnel(_ssh_info, _host, _port)
     except Exception as _te:
         _err = 'SSH 隧道建立失败：%s' % str(_te)[:300]
-        return {'q%d' % i: {'rows': [], 'error': _err} for i in range(len(queries))}
+        return {'q%d' % i: {'rows': [], 'error': _err, 'stage': 'connect'}
+                for i in range(len(queries))}
 
     conn, meta = open_jdbc_connection(
         db_type,
@@ -134,7 +140,8 @@ def _collect(payload):
     )
     if conn is None:
         err = (meta or {}).get('error') or 'JDBC 连接失败'
-        return {'q%d' % i: {'rows': [], 'error': err} for i in range(len(queries))}
+        return {'q%d' % i: {'rows': [], 'error': err, 'stage': 'connect'}
+                for i in range(len(queries))}
 
     try:
         for i, sql in enumerate(queries):
@@ -170,7 +177,10 @@ def _collect(payload):
                     })
                 out['q%d' % i] = {'rows': rows, 'error': None}
             except Exception as e:  # noqa: BLE001 — 单条 SQL 失败只降级该项
-                out['q%d' % i] = {'rows': [], 'error': str(e)[:300]}
+                # stage='query'：连接已成功，仅本条 SQL 失败（视图权限不足 /
+                # 对象或列不存在）。大屏据此不得把实例判成 down。
+                out['q%d' % i] = {'rows': [], 'error': str(e)[:300],
+                                  'stage': 'query'}
     finally:
         try:
             conn.close()

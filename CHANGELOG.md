@@ -1,5 +1,35 @@
 # Changelog
 
+## v26.11.17.0 (2026-11-17)
+
+### 修复：监控大屏连接 Oracle 11g 失败（SYSDBA 属性被丢弃）
+
+- 数据源测试连接、巡检、首页实时监控与监控大屏走的是两套 JDBC 建连实现：前三者的 `internal_logon=sysdba` 经 `java.util.Properties` 送达驱动，而大屏采集子进程落 `jaydebeapi` 分支时把 `properties` 整个丢弃，SYS 账号退化为普通登录 → `ORA-28009`，再被吞成「数据库连接或查询异常」的通用提示。
+- `modules/jdbc_connector.py` 在有 `properties` 时改用 dict 形态 `driver_args`（自动补 user/password），并补显式 `registerDriver`；无 `properties` 时保持原 `[user, password]` 序列，其它数据库零影响。`build_jdbc_url` / `open_jdbc_connection` 新增 `sid` 形参，`use_sid` 时按 `sid → service_name → database` 取值，EZConnect 服务名回落也认 `sid`，与数据源测试口径对齐。
+- 补充 `ORA-28009` / `12514` 系 / `01031` / `00942` / `No suitable driver` 等错误映射；未命中已知模式时通用文案附带原始异常首行（160 字截断），大屏卡片可直接看到具体 ORA 码，不必翻服务端日志。
+
+### 修复：大屏不再把 SQL / 权限错误误判为实例宕机
+
+- 采集异常新增「阶段标记」：`connect`（真连不上）与 `query`（已连上但 SQL 执行失败）。引擎把建连与执行拆开包装，JDBC 子进程每条 SQL 的结果透传 `stage`。
+- 大屏快照对 `err_kind='query'` 判 `warn` + `degraded`（不判 `down`、不触发宕机告警），错误仍保留在 `err` / `conn_err` 供下钻；`connect` 维持原 `down`；旧数据无标记时保守按 `down`。末尾跳过阈值派生，避免空指标把状态改回 `ok` 假绿。因此监控账号缺 `SELECT_CATALOG_ROLE` 导致的 `ORA-00942` 不再显示成连接失败。
+
+### 修复：原生 oracle 类型大屏补 11g thick 回退
+
+- `modules/oracle_conn_test.py` 新增 `thin_error_needs_thick()` 与 `ensure_oracle_thick()`：进程级状态 + 锁 + 结果缓存，客户端库按「已 thick → PATH → `drivers/oracle_client/<平台>` → 配置项」顺序探测，每次初始化带 6s 硬超时防 DLL 加载挂死，失败给出「改用 Oracle (JDBC)」引导。
+- 大屏 `oracle` 分支 thin 连接失败且命中 11g 特征时初始化一次 thick 并重试。`init_oracle_client()` 是进程级全局，初始化后本进程所有 `oracledb` 连接都会走 thick（对 12c+ 兼容）；生产环境连 11g 仍首选 `oracle_jdbc`。
+
+### 改善：大屏「宿主资源」面板行高与滚动体验
+
+- 每行高度收敛到 **68~150px**：实例数量适中时仍均分剩余空间，但封顶避免 1~2 个实例时迷你折线被纵向拉到 400~800px 的变形巨幅曲线；条数多时保留 68px 下限并在列表内滚动，实测 40 条无重叠。
+- 表头改为 sticky 吸顶（滚动后 CPU% / 内存% / Swap% / Load1 列标签不消失），滚动条由 4px 深蓝加宽提亮到 6px，并补 Firefox `scrollbar-color`。
+- 顺带修复历史列错位：来源列由 `auto` 改为定宽 60px，表头与数据行四个数值列此前整体偏移 23px。
+
+### 验证
+
+- 三步验证：`compileall -q modules web_templates` EXIT=0；`import modules.web.app` OK；`discover_plugins()` = 12。
+- Oracle 链路专项 19 项断言全过（URL 5 场景、`internal_logon` 透传、无 properties 回归、ORA 文案、真实入口参数链路）；大屏状态与 thick 回退专项 36 项断言全过（阶段分类、stage 透传、状态 5 场景、幂等 / 失败降级、oracle 分支 3 场景）。**无真实 Oracle 11g 环境，未做实连**。
+- 大屏布局用 Chrome 无头浏览器实测 1/2/5/8/12/20/40 条、三种分辨率、混合不可用行：行高 68~150px、相邻行重叠 0、滚动后表头偏移 0、列对齐偏移 0。
+
 ## v26.11.16.0 (2026-11-16)
 
 ### 新增：数据库巡检历史支持按日期过滤
