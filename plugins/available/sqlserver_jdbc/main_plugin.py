@@ -851,7 +851,9 @@ class MssqlJdbcInspector(BaseInspectionEngine):
         """从 inspection.db 加载本插件模板章节，并把每个 query_sql 执行结果
         存入 context[query_key]（与 _collect_* 同键时跳过，避免重复执行）。
         """
-        db_path = os.path.join(_PROJECT_ROOT, 'data', 'inspection.db')
+        # 统一路径：frozen 下 INSPECTION_DB 在包外 <exe>/data，PROJECT_ROOT 指向 _internal
+        from modules.core import paths
+        db_path = str(paths.resolve(paths.INSPECTION_DB, Path(_PROJECT_ROOT) / 'data' / 'inspection.db'))
         if not os.path.exists(db_path):
             self.context['_chapters'] = []
             return

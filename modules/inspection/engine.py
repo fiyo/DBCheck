@@ -55,6 +55,17 @@ except ImportError:
 # ── 巡检「章节可选」共享过滤 helper（逻辑单点）────────────────────────────
 from modules.inspection.chapter_filter import build_chapter_filter_sql
 
+
+class InspectionTemplateUnavailableError(RuntimeError):
+    """巡检模板库缺失或 SQL 模板加载失败。
+
+    采集阶段拿不到模板 SQL 时，若只打印一行再 ``return self.context``，
+    上层（Web 任务 / 调度器 / CLI）会继续 generate_report，产出一份只有
+    版本号的空报告并把任务标记为成功——这比直接失败更危险。故这里显式
+    抛异常，让所有调用方统一走既有的失败处理路径。
+    """
+
+
 # ── 健康检查评分阈值 ─────────────────────────────
 HEALTH_THRESHOLD = {'excellent': 90, 'good': 75, 'fair': 60, 'poor': 0}
 
@@ -756,7 +767,7 @@ class BaseInspectionEngine:
             return self._template_id
         # 2. 否则根据 db_type 从数据库自动查询默认模板
         try:
-            _db_path = os.path.join(str(PROJECT_ROOT), 'data', 'inspection.db')
+            _db_path = str(paths.resolve(paths.INSPECTION_DB, PROJECT_ROOT / 'data' / 'inspection.db'))
             if not os.path.exists(_db_path):
                 return None
             _conn = sqlite3.connect(_db_path)
@@ -797,10 +808,18 @@ class BaseInspectionEngine:
         try:
             if not sql_templates or sql_templates == '':
                 # 从 inspection.db 加载查询，直接用 dict 存储，避免 configparser 解析问题
-                _db_path = os.path.join(str(PROJECT_ROOT), 'data', 'inspection.db')
+                # 打包版 PROJECT_ROOT=<exe>/_internal、INSPECTION_DB=<exe>/data（#66 路径分离）；
+                # 旧的 PROJECT_ROOT/data 拼法在 frozen 下不存在，统一走 resolve 并兼容历史残留。
+                _db_path = str(paths.resolve(paths.INSPECTION_DB, PROJECT_ROOT / 'data' / 'inspection.db'))
                 if not os.path.exists(_db_path):
-                    print(self._t(f'{self.db_type}_sql_template_fail', default='dm8_sql_template_fail').format(e="inspection.db 不存在"))
-                    return self.context
+                    _msg = (
+                        f"巡检模板库不存在: {_db_path}"
+                        "（打包版应位于 <exe>/data/inspection.db，升级不会覆盖；"
+                        "请确认安装包完整，或重启程序以完成建库）"
+                    )
+                    print(self._t(f'{self.db_type}_sql_template_fail', default='dm8_sql_template_fail').format(e=_msg))
+                    # 严禁静默返回：否则上层会在空 context 上生成"成功"的空报告。
+                    raise InspectionTemplateUnavailableError(_msg)
 
                 import sqlite3
                 conn_db = sqlite3.connect(_db_path)
@@ -859,10 +878,13 @@ class BaseInspectionEngine:
                 # 兼容模式：外部传入 INI 字符串时用 configparser
                 cfg = configparser.RawConfigParser()
                 cfg.read_string(sql_templates)
+        except InspectionTemplateUnavailableError:
+            raise
         except Exception as e:
             print(self._t(f'{self.db_type}_sql_template_fail', default='dm8_sql_template_fail').format(e=e))
             import traceback; traceback.print_exc()
-            return self.context
+            # 与缺库同语义：模板不可用必须让任务失败，不能产出空报告。
+            raise InspectionTemplateUnavailableError(f"加载巡检 SQL 模板失败: {e}") from e
 
         # 2.5 子类 SQL 定制钩子（如 TiDB 覆盖 MySQL 不兼容的查询）
         self._customize_queries(sql_dict)
@@ -1218,7 +1240,7 @@ class BaseInspectionEngine:
     def _load_chapters_from_db(self):
         """从 inspection.db 加载章节结构"""
         try:
-            _db_path = os.path.join(str(PROJECT_ROOT), 'data', 'inspection.db')
+            _db_path = str(paths.resolve(paths.INSPECTION_DB, PROJECT_ROOT / 'data' / 'inspection.db'))
             if not os.path.exists(_db_path):
                 return []
             

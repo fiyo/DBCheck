@@ -1,5 +1,28 @@
 # Changelog
 
+## v26.11.17.1 (2026-11-17)
+
+### 修复：打包版多库型巡检找不到巡检模板库 inspection.db
+
+- 根因是 #66 数据路径分离后同一进程存在两套路径：`paths.py` 定义 `INSPECTION_DB=<exe>/data/inspection.db`（包外持久、升级不覆盖），而核心引擎与 12 个 JDBC 插件沿用的 `PROJECT_ROOT/data/inspection.db` 在 frozen 下指向 `<exe>/_internal/data/`（只读资源包内、发布时不含该目录）。源码环境两套路径重合，故只有 tar / zip 包用户复现「inspection.db 不存在」。
+- 统一改走路径单一真源 `paths.resolve(paths.INSPECTION_DB, <旧路径>)`，保留旧路径作回退以兼容升级前残留的自定义模板：
+  - 核心 `modules/inspection/engine.py` 3 处（get_template_id / collect_data / _load_chapters_from_db）；
+  - `oracle_jdbc` 两份历史引擎各 3 处（零引用拷贝，一并对齐防后续启用踩坑）；
+  - 6 类 × enabled/available 共 12 个插件 `main_plugin.py` 的章节加载（函数内局部 import，规避动态加载的 sys.path 时序）；
+  - `main_oracle_full.py` 2 处、`server/inspect.py` 阈值默认路径与相对路径锚定、验证脚本 `verify_oceanbase_log_disk.py`。
+- 未改 spec / 启动复制方案：#66 明确用户数据与分发包分离，把 data 塞回包内会导致升级覆盖用户数据（密码 / 数据源 / 巡检历史），属倒退。
+
+### 修复：缺库不再静默产出「成功」的空报告
+
+- `collect_data` 正常返回 `(True, version)`、连接失败返回 `(False, version)`，但模板库缺失或加载异常时原先只打印一行再 `return self.context`——此时 context 只有 `version` 一个键，返回类型还与两条正常路径相反。`CompatWrapper.checkdb` 忽略返回值直接读 context，CLI / 定时任务因此照常生成空报告并标记成功，AI 还在空数据上给出通用建议。
+- 新增 `InspectionTemplateUnavailableError(RuntimeError)`：缺库与模板加载异常统一抛错，消息带**实际解析路径**与打包版修复提示；加载异常用 `raise ... from e` 保留原始异常链。Web 巡检任务的既有 try 会捕获并标 error + emit 前端，CLI / 调度器走失败路径，不再产出误导性空报告。
+
+### 验证
+
+- 三步验证：`compileall -q modules web_templates` EXIT=0；`import modules.web.app` OK；`discover_plugins()` = 12。
+- 路径专项四套全过：核心引擎 9 项（模拟 frozen 下包外库优先命中、旧残留回退、缺库安全返回）、oracle_jdbc 引擎 8 项、12 插件批量 18 项（模拟 `_internal` 指向下仍命中包外库）、大屏 Oracle 19 项、分级 P2 36 项。
+- 模板失败语义专项 9 项全过：异常类型、缺库抛错含路径提示、损坏库抛错保留异常链、正常库仍返回 `(True, version)` 且采到模板 SQL。验证脚本 `verify_oceanbase_log_disk.py` 实跑 87 PASS / 0 FAIL。
+
 ## v26.11.17.0 (2026-11-17)
 
 ### 修复：监控大屏连接 Oracle 11g 失败（SYSDBA 属性被丢弃）

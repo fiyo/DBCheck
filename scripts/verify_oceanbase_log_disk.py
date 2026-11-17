@@ -33,6 +33,8 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
+from modules.core import paths
+
 PASS = []
 FAIL = []
 
@@ -239,7 +241,9 @@ def test_migration():
     # 用真实库的副本模拟「存量老库」：dal 的播种把 init_default_templates 的
     # db_path 硬编码成了默认库，空库根本拿不到模板，只能复制现有库再删章。
     from modules.core.paths import PROJECT_ROOT
-    src_db = os.path.join(str(PROJECT_ROOT), 'data', 'inspection.db')
+    # 与采集链路共用同一路径真源：打包版数据在 <exe>/data（包外持久），
+    # 旧的 PROJECT_ROOT/data 在 frozen 下指向 _internal 副本，必然找不到。
+    src_db = str(paths.resolve(paths.INSPECTION_DB, PROJECT_ROOT / 'data' / 'inspection.db'))
     if not os.path.exists(src_db):
         print(f'  SKIP  未找到 {src_db}，跳过存量库补齐验证')
         return

@@ -692,7 +692,8 @@ def load_server_thresholds(db_path=None):
     """
     import os, sqlite3
     if db_path is None:
-        db_path = os.path.join(str(PROJECT_ROOT), 'data', 'inspection.db')
+        # 统一路径：frozen 下 INSPECTION_DB 在包外 <exe>/data，PROJECT_ROOT 指向 _internal
+        db_path = str(paths.resolve(paths.INSPECTION_DB, PROJECT_ROOT / 'data' / 'inspection.db'))
     defaults = {
         'cpu_warning_pct': 70,      'cpu_critical_pct': 90,
         'cpu_warning_penalty': 10,  'cpu_critical_penalty': 20,
@@ -711,7 +712,8 @@ def load_server_thresholds(db_path=None):
         'zombie_warning_penalty': 5, 'zombie_critical_penalty': 15,
     }
     try:
-        path = db_path if os.path.isabs(db_path) else os.path.join(str(PROJECT_ROOT), db_path)
+        # 相对路径锚定可写数据根（frozen 下 PROJECT_ROOT=_internal 会找错位置）
+        path = db_path if os.path.isabs(db_path) else str(paths.DATA_ROOT / db_path)
         conn = sqlite3.connect(path)
         cur = conn.cursor()
         cur.execute('SELECT key, value FROM server_thresholds')
