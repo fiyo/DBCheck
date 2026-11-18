@@ -3505,3 +3505,11 @@ JA.update({
     "webui.donate_qr_nickname_title": 'ヒント',
     "webui.donate_qr_nickname": 'よければ決済の備考にニックネームやお名前を残してください。感謝リストに掲載します。記入しなくても全く問題ありません。プライバシー第一です。',
 })
+
+
+# ── 宿主资源数据新鲜度提示（主机宕机/采集中断时标识历史数据）──
+JA.update({
+    "webui.screen_host_stale": "履歴データ",
+    "webui.screen_host_stale_tip": "ホスト収集が中断しました。最後に成功した採取データを表示中",
+    "webui.screen_host_spark_stale": "収集停止 · 折れ線は最後の採取点まで",
+})

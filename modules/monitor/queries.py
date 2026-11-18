@@ -471,8 +471,8 @@ _DB_TYPE_ALIASES = {
 def normalize_db_type(db_type):
     """归一 db_type 为 monitor 模板键（oracle_jdbc→oracle 等）。
 
-    模板/指标 family 查找与监控引擎的连接分派（_create_connection 的
-    python 驱动分支）均使用归一后的键。
+    模板/指标 family 查找与统一连接工厂（connection_factory 的原生驱动
+    分派）均使用归一后的键。
     """
     dt = (db_type or '').strip().lower()
     if dt in _DB_TYPE_ALIASES:

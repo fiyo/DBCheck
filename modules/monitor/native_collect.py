@@ -20,6 +20,17 @@ JDBC/DBAPI 通道覆盖不了的 NoSQL 类型（mongodb / redis / redis-cluster�
 
 注：主进程内 pymongo/redis-py 均为纯 socket 客户端，不涉及 JVM，
 与 gevent 兼容性风险低；连接超时统一压到 5s，避免拖慢 15s 采样轮。
+
+SSH 隧道：显式开启 ``ssh_tunnel`` + ``ssh_host`` 时，MongoDB 由
+:func:`open_mongo_connection`、Redis 由 :func:`open_redis_connection`
+建本地端口转发并把 host/port 改写为 ``127.0.0.1:local_port``（与巡检
+BaseInspectionEngine、数据源测试连接同口径），隧道与客户端同生命周期关闭。
+
+Redis Cluster 额外处理：redis-py 会按 CLUSTER SLOTS 拓扑发现结果直连各成员
+真实地址，只转发种子节点会绕过隧道。这里用官方 ``address_remap`` 回调把
+每个成员地址映射到**各自**的本地转发端口（懒建隧道），由 :class:`TunnelGroup`
+统一关闭，保证集群全部流量都经隧道；``mongodb+srv`` / replicaSet 与隧道互斥，
+MongoDB 侧已在建隧道前拦截。
 """
 
 import importlib.util
@@ -40,19 +51,60 @@ def _dead(err):
             'conn_rows': [], 'slow_rows': []}
 
 
-def collect_native(inst):
+class TunnelGroup:
+    """一组 SSH 隧道（Redis Cluster 每个成员一条），实现 ``close()``。
+
+    直接挂到 ``ManagedConnection.tunnel`` 上即可与客户端连接同生命周期关闭；
+    重复 close 安全，单条隧道关闭失败不影响其它隧道。
+    """
+
+    def __init__(self, tunnels=None):
+        self.tunnels = list(tunnels or [])
+
+    def add(self, tunnel):
+        if tunnel is not None:
+            self.tunnels.append(tunnel)
+        return tunnel
+
+    def close(self):
+        for t in self.tunnels:
+            try:
+                t.close()
+            except Exception:
+                pass
+        self.tunnels = []
+
+
+def collect_native(inst, shared=None):
     """原生通道采集入口。返回结构化 dict（见 _dead 字段），不抛异常。
+
+    ``shared``：统一采集器在本轮已建好的唯一连接，两种形式：
+
+      - ``(kind, client, cfg)``：``kind`` ∈ ``{'mongo', 'redis'}``（推荐）；
+      - ``(client, cfg)``：旧版 MongoDB 二元组，按 mongo 解释（向后兼容）。
+
+    传入时本函数 **不负责关闭** 连接（生命周期归统一采集器，含 SSH 隧道）；
+    独立调用传 None，自行建连并在结束时关闭连接与隧道，行为与旧版一致。
 
     counters 约定：QPS 差值统一挂在 'questions' 键上（与 mysql family 的
     SHOW GLOBAL STATUS Questions 命名对齐，_rate 的 (('questions',),) 组合命中）。
     """
     db_type = (inst.get('db_type') or '').lower()
     label = "%s (%s:%s)" % (inst.get('name', ''), inst.get('host', '?'), inst.get('port', '?'))
+    shared_client = None
+    if shared is not None:
+        try:
+            if len(shared) == 3 and isinstance(shared[0], str):
+                shared_client = (shared[1], shared[2])
+            else:
+                shared_client = (shared[0], shared[1])
+        except Exception:
+            shared_client = None
     try:
         if db_type == 'mongodb':
-            return _collect_mongo(inst)
+            return _collect_mongo(inst, shared=shared_client)
         if db_type in ('redis', 'redis-cluster'):
-            return _collect_redis(inst)
+            return _collect_redis(inst, shared=shared_client)
         return _dead('不支持的类型: %s' % db_type)
     except Exception as e:
         # 原始异常进服务端日志，面向大屏只给友好文案
@@ -68,24 +120,75 @@ def collect_native(inst):
 #  MongoDB
 # ═══════════════════════════════════════════════════════════
 
-def _mongo_client(inst):
-    """复用 mongodb 插件的连接配置构建器（与 app.py 数据源浏览同源）。"""
+def _mongo_client(inst, host=None, port=None, direct=False):
+    """复用 mongodb 插件的连接配置构建器（与 app.py 数据源浏览同源）。
+
+    ``host``/``port`` 可由调用方覆盖为 SSH 隧道的本地转发端点；
+    ``direct=True`` 时追加 ``directConnection=true``，把 pymongo 固定在
+    该端点上，避免拓扑发现拿到成员真实地址后绕过隧道直连。
+    """
     from pymongo import MongoClient
     _plugin = os.path.join(_PROJECT_ROOT, 'plugins', 'available', 'mongodb', 'connection_config.py')
     spec = importlib.util.spec_from_file_location('screen_mongo_cc', _plugin)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     cfg = mod.MongoConnectionConfig.from_ssh_info(inst)
-    cfg.host = inst.get('host')
-    cfg.port = int(inst.get('port') or 27017)
+    cfg.host = host if host is not None else inst.get('host')
+    cfg.port = int(port if port is not None else (inst.get('port') or 27017))
     cfg.user = inst.get('user') or ''
     cfg.password = inst.get('password') or ''
     cfg.database = inst.get('database') or 'admin'
-    return MongoClient(cfg.build_uri(), **cfg.build_client_kwargs()), cfg
+    uri = cfg.build_uri()
+    kwargs = cfg.build_client_kwargs()
+    if direct:
+        # srv / replicaSet 的冲突已由 validate_mongo_tunnel_mode 在建隧道前
+        # 拦下，此处不会与 directConnection 互斥。
+        uri += ('&' if '?' in uri else '?') + 'directConnection=true'
+    return MongoClient(uri, **kwargs), cfg
 
 
-def _collect_mongo(inst):
-    client, cfg = _mongo_client(inst)
+def open_mongo_connection(inst):
+    """按统一口径建立 MongoDB 连接，返回 ``(ManagedConnection, cfg)``。
+
+    与巡检 ``BaseInspectionEngine``、数据源测试连接（app.py）同口径：
+    显式开启 ``ssh_tunnel`` 且配了 ``ssh_host`` 时先建本地端口转发，
+    再把 ``host``/``port`` 改写为 ``127.0.0.1:local_port`` 交给 pymongo；
+    隧道挂在 ``ManagedConnection`` 上，与 MongoClient 同生命周期关闭，
+    避免 paramiko 转发线程泄漏。建隧道失败直接抛错，绝不静默回退直连。
+    """
+    from modules.monitor.connection_factory import (
+        ManagedConnection, uses_db_tunnel, resolve_endpoint,
+        validate_mongo_tunnel_mode)
+
+    tunnel = None
+    host = inst.get('host')
+    port = int(inst.get('port') or 27017)
+    direct = False
+    if uses_db_tunnel(inst):
+        validate_mongo_tunnel_mode(inst)
+        tunnel, host, port = resolve_endpoint(inst, host, port)
+        direct = True
+    try:
+        client, cfg = _mongo_client(inst, host=host, port=port, direct=direct)
+    except Exception:
+        if tunnel is not None:
+            try:
+                tunnel.close()
+            except Exception:
+                pass
+        raise
+    return ManagedConnection(client, tunnel), cfg
+
+
+def _collect_mongo(inst, shared=None):
+    if shared is not None:
+        client, cfg = shared
+        managed = None
+    else:
+        # 独立调用路径同样支持 SSH 隧道；统一采集器走 shared，复用它在本轮
+        # 建好的唯一一条连接（隧道生命周期归统一采集器）。
+        managed, cfg = open_mongo_connection(inst)
+        client = managed.conn
     try:
         s = client.admin.command('serverStatus')
 
@@ -148,20 +251,26 @@ def _collect_mongo(inst):
                 'tbs': tbs, 'repl_lag_s': lag, 'lock_waits': None, 'slowq': slowq,
                 'conn_rows': [], 'slow_rows': []}
     finally:
-        try:
-            client.close()
-        except Exception:
-            pass
+        if managed is not None:
+            # 同时关闭 MongoClient 与 SSH 隧道（独立调用路径）
+            managed.close()
 
 
 # ═══════════════════════════════════════════════════════════
 #  Redis（单机 / 集群）
 # ═══════════════════════════════════════════════════════════
 
-def _redis_client(inst):
+def _redis_client(inst, host=None, port=None, address_remap=None):
+    """构建 redis-py 客户端。
+
+    ``host``/``port`` 可由 :func:`open_redis_connection` 覆盖为 SSH 隧道的
+    本地转发端点；``address_remap`` 仅用于 redis-cluster + 隧道（把拓扑发现
+    出的每个成员地址映射到各自的本地端口）。
+    """
     import redis
     db_type = (inst.get('db_type') or '').lower()
-    kw = dict(host=inst.get('host'), port=int(inst.get('port') or 6379),
+    kw = dict(host=host if host is not None else inst.get('host'),
+              port=int(port if port is not None else (inst.get('port') or 6379)),
               password=inst.get('password') or None,
               socket_timeout=_REQ_TIMEOUT, socket_connect_timeout=_REQ_TIMEOUT,
               decode_responses=True, encoding_errors='replace', protocol=2)
@@ -169,19 +278,82 @@ def _redis_client(inst):
         kw['username'] = inst.get('user')
     if db_type == 'redis-cluster':
         from redis.cluster import RedisCluster
-        # seed_nodes（"host:port,host:port,..."）优先，取首个种子做发现入口
+        # seed_nodes（"host:port,host:port,..."）优先，取首个种子做发现入口。
+        # 隧道下忽略 seed_nodes：本地端点才是唯一的发现入口，其余成员由
+        # address_remap 按拓扑发现结果懒建隧道。
         seeds = inst.get('seed_nodes')
-        if seeds:
+        if seeds and address_remap is None:
             first = str(seeds).split(',')[0].strip()
             h, _, p = first.partition(':')
             kw['host'] = h or kw['host']
             if p.isdigit():
                 kw['port'] = int(p)
         kw.pop('db', None)
+        if address_remap is not None:
+            import inspect
+            if 'address_remap' not in inspect.signature(RedisCluster.__init__).parameters:
+                raise RuntimeError(
+                    '当前 redis-py 版本不支持 address_remap，无法让 Redis Cluster '
+                    '经 SSH 隧道连接（拓扑发现会直连成员真实地址绕过隧道）；'
+                    '请升级 redis>=5.0.0。')
+            kw['address_remap'] = address_remap
         return RedisCluster(**kw)
     db_raw = str(inst.get('database') or '0')
     kw['db'] = int(db_raw) if db_raw.isdigit() else 0
     return redis.Redis(**kw)
+
+
+def open_redis_connection(inst):
+    """按统一口径建立 Redis 连接，返回 ``(ManagedConnection, None)``。
+
+    与巡检 / 数据源测试 / MongoDB 通道同口径：显式 ``ssh_tunnel`` +
+    ``ssh_host`` 时先建本地端口转发，再把 host/port 改写为
+    ``127.0.0.1:local_port`` 交给 redis-py；建隧道失败直接抛错，绝不静默
+    回退直连。隧道与客户端连接同生命周期关闭（ManagedConnection）。
+
+    Redis Cluster：种子节点走上述本地端点；CLUSTER SLOTS 发现的每个成员
+    由 ``address_remap`` 回调懒建一条独立隧道并映射到各自的本地端口，
+    全部挂到 :class:`TunnelGroup`，保证没有任何一条流量绕过隧道。
+    """
+    from modules.monitor.connection_factory import (
+        ManagedConnection, uses_db_tunnel, resolve_endpoint)
+
+    raw_type = (inst.get('db_type') or '').lower()
+    orig_host = inst.get('host')
+    orig_port = int(inst.get('port') or 6379)
+    host, port = orig_host, orig_port
+    group = None
+    remap = None
+
+    if uses_db_tunnel(inst):
+        seed_tunnel, host, port = resolve_endpoint(inst, orig_host, orig_port)
+        group = TunnelGroup([seed_tunnel])
+        if raw_type == 'redis-cluster':
+            # 种子节点已在上面映射好；后续成员按 (host, port) 懒建并缓存，
+            # 避免 redis-py 每次重定向都重复开 SSH 连接。
+            cache = {(str(orig_host), orig_port): (host, port)}
+
+            def remap(addr):
+                rhost, rport = str(addr[0]), int(addr[1])
+                key = (rhost, rport)
+                if key in cache:
+                    return cache[key]
+                tunnel, lhost, lport = resolve_endpoint(inst, rhost, rport)
+                if tunnel is None:
+                    raise RuntimeError(
+                        'Redis Cluster 节点 %s:%s 未能建立 SSH 隧道，拒绝直连绕过隧道'
+                        % (rhost, rport))
+                group.add(tunnel)
+                cache[key] = (lhost, lport)
+                return (lhost, lport)
+
+    try:
+        client = _redis_client(inst, host=host, port=port, address_remap=remap)
+    except Exception:
+        if group is not None:
+            group.close()
+        raise
+    return ManagedConnection(client, group), None
 
 
 def _info_nodes(r):
@@ -196,8 +368,15 @@ def _info_nodes(r):
     return [v for v in info.values() if isinstance(v, dict)]
 
 
-def _collect_redis(inst):
-    r = _redis_client(inst)
+def _collect_redis(inst, shared=None):
+    if shared is not None:
+        r, _cfg = shared
+        managed = None
+    else:
+        # 独立调用路径同样支持 SSH 隧道；统一采集器走 shared，复用它在本轮
+        # 建好的唯一一条连接（隧道生命周期归统一采集器）。
+        managed, _cfg = open_redis_connection(inst)
+        r = managed.conn
     try:
         nodes = _info_nodes(r)
 
@@ -313,7 +492,6 @@ def _collect_redis(inst):
                 'tbs': tbs, 'repl_lag_s': lag, 'lock_waits': None, 'slowq': slowq,
                 'conn_rows': conn_rows, 'slow_rows': slow_rows}
     finally:
-        try:
-            r.close()
-        except Exception:
-            pass
+        if managed is not None:
+            # 同时关闭 redis 客户端与全部 SSH 隧道（独立调用路径）
+            managed.close()

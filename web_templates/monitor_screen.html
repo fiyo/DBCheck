@@ -128,7 +128,9 @@
   /* 末列必须定宽：原来用 auto，表头「采集来源」比数据行的来源徽标窄 23px，
      1fr 首列吃掉的剩余空间就不同，导致后面 4 个数值列整体错位约半列。
      表头吸顶后这个错位会一直挂在顶部，必须让两行用同一套列宽。 */
-  .hhead, .hline { display: grid; grid-template-columns: minmax(0,1fr) 44px 44px 42px 40px 60px;
+  /* 末列 88px：宿主采集中断时徽标要显示「历史数据 20:31」，原 60px 会把
+     时间截掉，只剩「历史数…」，用户依然看不出数据有多旧。 */
+  .hhead, .hline { display: grid; grid-template-columns: minmax(0,1fr) 44px 44px 42px 40px 88px;
                    align-items: center; gap: 6px; padding: 2px 4px; }
   /* 顶部内边距从 .host-list 挪到表头自身：sticky 元素要能完整遮住从它下面
      滚过的行，容器留 padding-top 会在表头上方漏出一条内容。 */
@@ -148,8 +150,17 @@
           border-radius: 6px; cursor: pointer; padding: 2px 0 3px; }
   .hrow .hline { flex: none; }
   .hrow:hover { background: rgba(255,255,255,.045); }
-  .hrow .hname { font-size: 10.5px; color: var(--tx); overflow: hidden;
-                 text-overflow: ellipsis; white-space: nowrap; }
+  /* 实例名 + 数据库状态徽标：数据库容器宕机（本机 Docker 场景）时宿主 CPU/内存
+     照常，必须在名称后单独标出 DB 状态，否则「宿主资源正常」会被误读为 DB 正常。
+     名称过长可省略，状态徽标 flex:0 0 auto 始终完整显示。 */
+  .hrow .hname { font-size: 10.5px; color: var(--tx); min-width: 0;
+                 display: flex; align-items: center; gap: 4px; }
+  .hrow .hname .hname-txt { min-width: 0; overflow: hidden;
+                            text-overflow: ellipsis; white-space: nowrap; }
+  .hdbst { flex: 0 0 auto; font-size: 9px; line-height: 1.25; padding: 0 5px;
+           border-radius: 8px; border: 1px solid currentColor; white-space: nowrap;
+           font-weight: 600; }
+  .hdbst.is-ok { font-weight: 400; opacity: .6; }
   .hrow .hval { font-size: 10.5px; text-align: right; font-variant-numeric: tabular-nums;
                 white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .hspark { flex: 1 1 0; min-height: 46px; height: auto; width: 100%; }
@@ -158,6 +169,15 @@
      overflow 只加在不可用行（只画 graphic 文本），可用行若裁剪会连 tooltip 一起裁掉。 */
   .hrow.hrow-na { flex: 0 0 auto; min-height: 0; }
   .hrow.hrow-na .hspark { flex: 0 0 24px; min-height: 24px; height: 24px; overflow: hidden; }
+  /* 宿主采集中断：仍展示最后一次成功的数值，但必须一眼看出是历史数据 ——
+     左侧警示条 + 数值半透明 + 橙色「历史数据 HH:MM」徽标 + 折线内提示。 */
+  .hrow.hrow-stale { box-shadow: inset 2px 0 0 var(--warn, #F59E0B); }
+  .hrow.hrow-stale .hline { background: rgba(245,158,11,.10); border-radius: 5px; }
+  /* 只淡化名称与数值，数据库状态徽标必须保持醒目（宕机不能被历史数据淡掉）。 */
+  .hrow.hrow-stale .hname-txt, .hrow.hrow-stale .hval { opacity: .6; }
+  .hrow.hrow-stale .hbadge { color: var(--warn, #F59E0B) !important;
+      border-color: var(--warn, #F59E0B) !important;
+      background: rgba(245,158,11,.14); font-weight: 600; }
   .hbadge { font-size: 9px; padding: 1px 6px; border-radius: 8px; border: 1px solid var(--border);
             color: var(--tx2); background: rgba(139,148,158,.12); white-space: nowrap;
             overflow: hidden; text-overflow: ellipsis; }
@@ -1965,6 +1985,19 @@ function hostSrcMeta(src){
   if (src === 'unavailable') return { txt: S.host_src_unavailable, fg: '#94A3B8' };
   return { txt: S.host_src_none, fg: '#94A3B8' };
 }
+/* 数据库状态徽标（与宿主资源状态相互独立）：
+   宿主指标来自主机（本机 Docker 场景即中心机），数据库容器/进程宕机时主机
+   CPU、内存、磁盘照常，仅看宿主资源会误判「一切正常」。这里直接复用大屏
+   overview 每节点已有的 status 五态 + S.st_* 文案，宕机/严重红色加粗置顶。 */
+function dbStatusMeta(status){
+  var txt = { ok: S.st_ok, warn: S.st_warn, crit: S.st_crit,
+              down: S.st_down, pending: S.st_pending,
+              unsupported: S.st_unsupported }[status] || '';
+  var strong = (status === 'down' || status === 'crit');
+  var col = strong ? C.crit : status === 'warn' ? C.warn
+          : status === 'pending' ? C.pending : C.ok;
+  return { txt: txt, col: col, strong: strong, isOk: status === 'ok' };
+}
 function hostPctColor(v){
   if (v === null || v === undefined) return C.tx2;
   if (v >= 90) return C.crit;
@@ -2030,6 +2063,9 @@ function hostTimeLabel(ts){
 function mergeHostPoint(node, ts){
   if (!node || !node.host_res) return;
   var h = node.host_res;
+  // 采集中断期后端保留最后一次成功数值并标 host_stale：这些帧不是新采样，
+  // 绝不能追加进实时序列，否则折线会把同一组旧值沿时间轴平铺成「假实时」。
+  if (h.host_stale) return;
   var realTs = Number(h.host_sample_ts);
   var fallback = !(isFinite(realTs) && realTs > 0);   // 旧后端未透出采样时刻时回退
   if (fallback) realTs = Number(ts);
@@ -2138,6 +2174,10 @@ function renderSpark(iid){
         return p.marker + (names[p.seriesName] || p.seriesName) + ' ' + hostVal(p.data);
       }).join('<br/>');
     } }, TIP_STYLE),
+    // 历史数据：折线本身仍有参考价值（显示中断前的走势），但顶部常驻一行
+    // 提示，避免用户把停在最后采样点的曲线误读成「还在实时更新」。
+    graphic: slot.hostStale ? [{ type: 'text', right: 4, top: 2,
+      style: { text: S.host_spark_stale || '', fill: C.warn, fontSize: 9 } }] : [],
     xAxis: { type: 'category', data: xs, show: false, boundaryGap: false },
     yAxis: [ { type: 'value', min: 0, max: 100, show: false },
              { type: 'value', show: false, scale: true } ],
@@ -2182,7 +2222,7 @@ function renderHostList(nodes){
       row.setAttribute('data-iid', n.id);
       row.onclick = (function(iid){ return function(){ openDetailById(iid); }; })(n.id);
       row.innerHTML = '<div class="hline">' +
-          '<div class="hname"></div>' +
+          '<div class="hname"><span class="hname-txt"></span><span class="hdbst"></span></div>' +
           '<div class="hval hv-cpu"></div><div class="hval hv-mem"></div>' +
           '<div class="hval hv-swap"></div><div class="hval hv-load"></div>' +
           '<div class="hbadge"></div></div>' +
@@ -2191,6 +2231,8 @@ function renderHostList(nodes){
       slot = hostRowEls[n.id] = {
         row: row,
         nameEl: row.querySelector('.hname'),
+        nameTxtEl: row.querySelector('.hname-txt'),
+        dbStEl: row.querySelector('.hdbst'),
         valEls: { cpu: row.querySelector('.hv-cpu'), mem: row.querySelector('.hv-mem'),
                   swap: row.querySelector('.hv-swap'), load1: row.querySelector('.hv-load') },
         badgeEl: row.querySelector('.hbadge'),
@@ -2202,13 +2244,29 @@ function renderHostList(nodes){
     var h = n.host_res || {};
     var m = hostSrcMeta(h.host_collector_source);
     slot.hostAvailable = hostHasValues(h);   // 四项皆空时不显示「趋势序列积累中」
+    // 有数值但采集已中断 = 历史数据：保留数值行（不压成 na），另加醒目警示。
+    var isStale = !!(h.host_stale && slot.hostAvailable);
+    slot.hostStale = isStale;
+    if (slot.staleState !== isStale){
+      slot.staleState = isStale;
+      if (slot.row) slot.row.classList.toggle('hrow-stale', isStale);
+    }
     // 不可用的行压成紧凑单行（.hrow-na），不参与迷你折线的剩余高度分配；
     // 采集恢复/失效时切换 class，renderSpark 会按新容器尺寸重算 ECharts。
     if (slot.naState !== !slot.hostAvailable){
       slot.naState = !slot.hostAvailable;
       if (slot.row) slot.row.classList.toggle('hrow-na', slot.naState);
     }
-    if (slot.nameEl) slot.nameEl.textContent = n.name || n.id;
+    if (slot.nameTxtEl) slot.nameTxtEl.textContent = n.name || n.id;
+    if (slot.dbStEl){
+      var ds = dbStatusMeta(n.status), be = slot.dbStEl;
+      be.textContent = ds.txt;
+      be.style.color = ds.col;
+      be.style.background = ds.strong ? 'rgba(239,68,68,.16)' : 'transparent';
+      be.style.fontWeight = ds.strong ? '700' : '';
+      be.classList.toggle('is-ok', ds.isOk);
+      be.title = (S.d_status || '') + '：' + ds.txt + (n.err ? '｜' + n.err : '');
+    }
     [['cpu', h.host_cpu], ['mem', h.host_mem],
      ['swap', h.host_swap_pct], ['load1', h.host_load1]].forEach(function(p){
       var e = slot.valEls[p[0]];
@@ -2219,6 +2277,13 @@ function renderHostList(nodes){
     // unavailable 时把具体原因放进悬浮提示（如「未配置 SSH：实例主机 X 非本机…」）
     var title = (h.host_collector_source === 'unavailable' && h.host_error)
       ? (S.host_src_unavailable + '：' + h.host_error) : m.txt;
+    // 历史数据：徽标改为「历史数据 HH:MM」，悬浮说明中断原因与最后采样时刻，
+    // 让用户一眼分辨「当前值」与「最后一次成功采集的值」。
+    var staleTs = hostTimeLabel(h.host_sample_ts || h.host_last_ok_ts);
+    if (isStale){
+      title = (S.host_stale_tip || '') + (staleTs ? ' ' + staleTs : '') +
+              (h.host_error ? '（' + h.host_error + '）' : '');
+    }
     // Windows 服务级指标：大屏行保持紧凑，汇总放悬停提示（完整表格在首页宿主资源面板）
     if (h.host_services_count) {
       title += '｜Windows 服务 ' + h.host_services_count + ' 个，异常 ' +
@@ -2228,9 +2293,15 @@ function renderHostList(nodes){
     }
     if (h.host_service_alert_count) title += '｜服务告警 ' + h.host_service_alert_count + ' 条';
     if (slot.badgeEl){
-      slot.badgeEl.textContent = m.txt;
-      slot.badgeEl.style.color = m.fg;
-      slot.badgeEl.style.borderColor = m.fg;
+      if (isStale){
+        slot.badgeEl.textContent = (S.host_stale || '') + (staleTs ? ' ' + staleTs : '');
+        slot.badgeEl.style.color = C.warn;
+        slot.badgeEl.style.borderColor = C.warn;
+      } else {
+        slot.badgeEl.textContent = m.txt;
+        slot.badgeEl.style.color = m.fg;
+        slot.badgeEl.style.borderColor = m.fg;
+      }
     }
     if (slot.row) slot.row.title = title;
     el.appendChild(slot.row);     // 按当前 rows 顺序重排

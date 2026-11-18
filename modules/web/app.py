@@ -365,6 +365,15 @@ def _stop_background_collectors():
             _collector.running = False
     except Exception:
         pass
+    # 5) 统一采集器（唯一采集循环）。前面 2)/3) 经旧类委托调用 stop 是
+    #    幂等的，这里再从模块变量兜一次，保证任何初始化顺序下都能停干净。
+    try:
+        from modules.monitor import unified_collector as _uc_mod
+        _uc = getattr(_uc_mod, '_unified_collector', None)
+        if _uc is not None:
+            _uc.stop()
+    except Exception:
+        pass
 
 
 def _request_shutdown(sig=None, frame=None):
@@ -634,38 +643,35 @@ app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.config['EXPLAIN_TEMPLATE_LOADING'] = False
 socketio.init_app(app)
 
-# ── 实时监控采集器（v2.10）────────────────────────────────────
-# 采集器与 web_ui 同进程运行，复用同一 socketio 实时推流。
+# ── 统一监控采集器：单一循环 + 统一时序存储 ───────────────────
+# 改造前这里会拉起三条互不相干的常驻循环：
+#   MetricsCollector.tick（APScheduler 30s）/ MonitorEngine（10s）/
+#   ScreenCollector（15s），三套存储互不相通，且 MonitorEngine 每条 SQL
+#   各建一条连接 → 单实例 30s 内 10~20 次握手。
+# 现在全系统只有 UnifiedCollector 一条 15s 循环：每实例一次建连（或一次
+# JDBC 批量子进程），四组 SQL 共用同一条连接，一次写帧到 UnifiedStore。
+# 三个旧类降级为只读投影适配器，所有 API / 前端 / socketio 契约不变。
 _monitor_started = False
+_monitor_sched = None       # 关停段读取该变量；已不再有 APScheduler
 try:
-    from modules.pro.metrics_collector import MetricsCollector, get_collector, set_collector
-    _collector = MetricsCollector(socketio=socketio)
+    from modules.monitor.unified_collector import (
+        UnifiedCollector, set_unified_collector)
+    # get_collector 是模块级全局名，被 /api/pro/metrics/* 与
+    # screen_metrics._read_host_series 等读取方直接使用，必须继续导入。
+    from modules.pro.metrics_collector import (
+        MetricsCollector, get_collector, set_collector)
+    _uc = UnifiedCollector(socketio=socketio)
+    set_unified_collector(_uc)
+    # 首页 / 大屏宿主读取方拿到的仍是 MetricsCollector，但它的 store 直接
+    # 指向统一存储，且不再自行调度或建连。
+    _collector = MetricsCollector(socketio=None, store=_uc.store)
     set_collector(_collector)
-    from apscheduler.schedulers.background import BackgroundScheduler
-    from apscheduler.triggers.interval import IntervalTrigger
-    # signal=False: 不让 APScheduler 注册自己的 SIGINT/SIGTERM 处理器（否则会覆盖本程序的
-    #   强制退出入口，且它只优雅停调度、不退出进程，导致 Ctrl+C 无反应）。
-    # daemon=True: 允许进程在主线程强杀时不被其后台线程阻塞。
-    _monitor_sched = BackgroundScheduler(signal=False, daemon=True)
-    _monitor_sched.add_job(_collector.tick, IntervalTrigger(seconds=30))
-    _monitor_sched.start()
-    _collector.running = True
+    _uc.start()
     _monitor_started = True
-    print('[monitor] 实时监控采集器已启动（间隔 30s）', flush=True)
+    print('[monitor] 统一监控采集器已启动（间隔 %ds，单一循环）'
+          % _uc.interval, flush=True)
 except Exception as _mon_e:
     print('[monitor] 采集器启动失败: %s' % _mon_e, flush=True)
-
-# ── 监控大屏采样器（六大域指标 → /api/dashboard/overview）──────
-# 大屏的连接数/慢查询指标复用 MonitorEngine，故未启动时顺带拉起（幂等）。
-try:
-    from modules.monitor.engine import get_monitor_engine as _get_me
-    from modules.monitor.screen_metrics import get_screen_collector as _get_sc
-    _me = _get_me()
-    if not _me.is_running:
-        _me.start()
-    _get_sc().start()
-except Exception as _sc_e:
-    print('[screen] 大屏采样器启动失败: %s' % _sc_e, flush=True)
 
 
 @app.route('/api/pro/metrics/summary')
@@ -6375,7 +6381,9 @@ def monitor_screen_page():
              'host_title', 'host_no_data', 'host_col_inst', 'host_col_cpu', 'host_col_mem',
              'host_col_swap', 'host_col_load', 'host_col_src',
              'host_src_ebpf', 'host_src_psutil', 'host_src_shell', 'host_src_local',
-             'host_src_unavailable', 'host_src_none', 'host_spark_wait']
+             'host_src_unavailable', 'host_src_none', 'host_spark_wait',
+             # 宿主采集中断时显示「历史数据 · 最后采样时刻」，不再把旧值当实时值
+             'host_stale', 'host_stale_tip', 'host_spark_stale']
     S = {k: _t('webui.screen_' + k) for k in _keys}
     return render_template('monitor_screen.html', version=__version__, S=S)
 

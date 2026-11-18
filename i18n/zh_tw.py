@@ -3883,3 +3883,11 @@ ZH_TW.update({
     "webui.donate_qr_nickname_title": '小提示',
     "webui.donate_qr_nickname": '願意的話，可在付款備註留下暱稱或姓名，我會把它寫進鳴謝名單；不留也沒關係，隱私第一。',
 })
+
+
+# ── 宿主资源数据新鲜度提示（主机宕机/采集中断时标识历史数据）──
+ZH_TW.update({
+    "webui.screen_host_stale": "歷史資料",
+    "webui.screen_host_stale_tip": "宿主採集中斷，目前顯示最後一次成功採集的資料",
+    "webui.screen_host_spark_stale": "採集已中斷 · 折線停在最後採樣點",
+})

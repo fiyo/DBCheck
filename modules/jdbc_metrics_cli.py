@@ -89,6 +89,15 @@ def main() -> int:
         'service_name': inst.get('service_name') or inst.get('database') or '',
         'sysdba': bool(inst.get('sysdba', False)),
         'jdbc_url': inst.get('jdbc_url') or None,
+        # 数据库经 SSH 隧道时，子进程内的统一连接工厂据此改写为本地端点；
+        # 与 jdbc_collect_cli / MonitorEngine 的 JDBC 通道保持同口径。
+        'ssh_tunnel': bool(inst.get('ssh_tunnel', False)),
+        'ssh_host': inst.get('ssh_host') or '',
+        'ssh_port': int(inst.get('ssh_port') or 22),
+        'ssh_user': inst.get('ssh_user') or '',
+        'ssh_password': inst.get('ssh_password') or '',
+        'ssh_key_file': inst.get('ssh_key_file') or '',
+        'ssh_key_password': inst.get('ssh_key_password') or '',
     }
 
     try:

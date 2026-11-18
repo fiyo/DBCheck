@@ -3453,3 +3453,11 @@ KO.update({
     "webui.donate_qr_nickname_title": '팁',
     "webui.donate_qr_nickname": '원하시면 결제 메모에 닉네임이나 이름을 남겨 주세요. 감사 목록에 올려 드립니다. 남기지 않아도 전혀 문제없습니다. 개인정보가 최우선입니다.',
 })
+
+
+# ── 宿主资源数据新鲜度提示（主机宕机/采集中断时标识历史数据）──
+KO.update({
+    "webui.screen_host_stale": "과거 데이터",
+    "webui.screen_host_stale_tip": "호스트 수집이 중단되어 마지막 성공 데이터를 표시 중",
+    "webui.screen_host_spark_stale": "수집 중단 · 마지막 샘플까지 표시",
+})

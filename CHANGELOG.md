@@ -1,5 +1,39 @@
 # Changelog
 
+## v26.11.19.0 (2026-11-18)
+
+### 重构：监控采集收敛为「单一采集器 + 统一时序存储」
+
+- 先厘清事实：改造前首页实时监控、`MonitorEngine`、监控大屏各有独立常驻循环（APScheduler 30s / 10s / 15s），三套存储互不相通，首页并不能直接复用大屏数据；且 `MonitorEngine` 每条 SQL 各建一次连接，同一实例 30s 内被重复握手 10~20 次。属于确实存在的三重重复采集，不是改个读取接口能解决的。
+- 新增 `modules/monitor/unified_collector.py` 作为**唯一**后台循环（15s），配套 `unified_store.py`（内存最新帧 + `metrics_snapshot` 时序表）、`connection_scope.py`（每实例每轮一次 `bind/borrow`）、`connection_factory.py`（统一建连与错误分级）。首页深采 / 连接数 / 慢查询 / 大屏四组 SQL 共用一条连接，一次写入同一帧 `{home, screen, conn, slow}`，首页与大屏读同一份数据。
+- `MonitorEngine` / `ScreenCollector` / `MetricsCollector` 降级为**只读投影适配器**：删除各自后台线程与内存缓冲，`start()` 幂等委托统一采集器，所有 API / socketio / 前端契约不变。`modules/web/app.py` 三个启动点收敛为一个 `UnifiedCollector.start()`，关停路径同步兜底。
+- 速率口径不变：`ScreenCollector._apply_rates()` 改为纯函数，仍使用 15s 原始 counter 差值与 `DT_MIN_RATIO`，计数器重置 / 尖峰防护保持原语义；`DEEP_METRIC_SQLS` 与深采 SQL 字面严格一致。
+- 效果：常驻循环 3→1、存储 3→1、单实例单轮建连 10~20→1（JDBC 为一次批量子进程）。
+
+### 补全：所有数据库类型的 SSH 隧道采集覆盖
+
+- 统一连接工厂按 `ssh_tunnel + ssh_host` 建 `build_db_ssh_tunnel()` 并把端点改写为 `127.0.0.1:local_port`，`ManagedConnection` 保证连接与隧道同生命周期关闭；Oracle / PG / SQLServer 的 query-only 错误纳入 `_error_stage` 白名单，不再把 SQL / 权限错误误判成实例宕机。
+- **MongoDB**：补 `directConnection=true` 与隧道 URI，首页深采与大屏共用同一条客户端连接。此前 Mongo 的两条采集链路历来未走隧道，工厂里甚至存在「隧道白建但 URI 仍用原 host」的缺陷。
+- **Redis / redis-cluster**：单机改走隧道端点；集群用 redis-py(>=5.0) 的 `address_remap` 为每个成员懒建隧道，成员共享一个 `TunnelGroup`，异常路径统一关闭。
+- **JDBC 与自定义 `jdbc_url`**：子进程新增 `_rewrite_jdbc_url_for_tunnel()`，覆盖 `//host:port`、`@host:port:SID`、TNS `HOST/PORT`、SQLServer 分号 URL；`jdbc_metrics_cli` 同步透传隧道参数。多主机 / 故障转移 URL 明确报错，不静默直连源库。
+- 已知边界：Mongo `srv` / `replicaSet` 配隧道会明确报错；redis-cluster 需 `redis>=5.0.0`；多主机 JDBC URL 需手工改为单主机。
+
+### 改善：宿主资源「历史数据」标识与数据库状态徽标
+
+- 宿主采集与数据库探测解耦：节流命中缓存时不再用当前帧时间戳覆盖真实采样时刻；新增 `host_stale` / `host_sample_ts` / `host_age_s` / `host_last_ok_ts` / `host_error`，采集中断时显示「历史数据 · 最后采样时刻」，迷你折线停在最后一个真实点，不再追加伪新点。九语言补齐 `webui.screen_host_stale*`。
+- 大屏「宿主资源」与首页「数据源名称」后新增**数据库状态徽标**（ok/warn/crit/down/pending/unsupported 六态）：数据库不可达时一眼可见「宕机」，正常态淡化；tooltip 附带错误详情与 cooldown 信息，宿主 stale 不影响徽标判定。
+- 口径说明：部署在中心机本机 Docker 的实例，宿主资源采中心机本机保持不变——数据库宕机而主机正常时宿主指标依旧有效，本版只让「数据库已宕机」这个事实在图表里可见。
+
+### 其它
+
+- 鸣谢名单新增 C*d；收款码旁增加「可在支付备注留昵称」提示（九语言）。
+
+### 验证
+
+- 三步验证：`compileall -q modules web_templates` EXIT=0；`import modules.web.app` OK；`discover_plugins()` = 12。
+- 进程内常驻采集线程仅 `unified-collector` 一条；9 个监控 API / 页面返回 200；`node --check`、DOM 单元、`verify_issue64_shutdown_cleanup.py` ALL PASS、`git diff --check` 干净。
+- 未做真实多库型 SSH 隧道 / redis-cluster 实连回归（依赖外部环境），升级后建议按各自环境抽测。
+
 ## v26.11.17.2 (2026-11-17)
 
 ### 加固：反向代理部署下的登录稳定性与文案防污染（issue #66）

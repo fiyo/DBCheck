@@ -52,6 +52,7 @@ modules/monitor/jdbc_collect_cli.py — 监控大屏 JDBC 批量采集子进程
 import sys
 import os
 import json
+import re
 
 
 def _ensure_project_root_on_path():
@@ -70,6 +71,43 @@ def _ensure_project_root_on_path():
 _ensure_project_root_on_path()
 
 from modules.jdbc_connector import open_jdbc_connection
+
+
+def _rewrite_jdbc_url_for_tunnel(url, host, port):
+    """SSH 隧道下把自定义 JDBC URL 的主机/端口改写为本地转发端点。
+
+    ``build_jdbc_url`` 对非空 ``jdbc_url`` 原样透传（jdbc_connector.py:378），
+    若不改写，URL 里写死的原地址会让 JDBC 驱动绕过隧道直连，表现为「测试
+    连接正常、监控采集却连不上」。仅接受明确单主机 URL；多主机 / 故障转移
+    格式无法用单条隧道表达，直接抛清晰错误，绝不静默降级。
+    """
+    u = str(url).strip()
+
+    # Oracle TNS 描述符：(DESCRIPTION=(HOST=...)(PORT=...)(CONNECT_DATA=...))
+    if '(description' in u.lower():
+        hosts = re.findall(r'\(HOST\s*=\s*([^)\s]+)\)', u, re.I)
+        if len({h.lower() for h in hosts}) > 1:
+            raise RuntimeError(
+                '自定义 JDBC URL 含多个 HOST（多主机/故障转移），无法经单条 '
+                'SSH 隧道转发；请改用 host/port 字段或单主机 URL。')
+        u = re.sub(r'\(HOST\s*=\s*[^)\s]+\)', '(HOST=%s)' % host, u, flags=re.I)
+        u = re.sub(r'\(PORT\s*=\s*\d+\)', '(PORT=%s)' % port, u, flags=re.I)
+        return u
+
+    # 常规写法：//host:port/... 、@host:port:SID
+    m = re.search(r'(?://|@)(?P<h>\[[^\]]+\]|[^:;/@,\s]+):(?P<pt>\d+)', u)
+    if not m:
+        raise RuntimeError(
+            '自定义 JDBC URL 未能识别主机端口，无法经 SSH 隧道转发：%s'
+            % u[:120])
+    tail = u[m.end():]
+    # 多主机/故障转移：地址段里出现逗号（如 mysql://h1:3306,h2:3306/db）
+    if ',' in tail.split(';')[0].split('/')[0]:
+        raise RuntimeError(
+            '自定义 JDBC URL 含多主机地址，无法经单条 SSH 隧道转发；'
+            '请改用 host/port 字段或单主机 URL。')
+    return (u[:m.start('h')] + host + u[m.end('h'):m.start('pt')]
+            + str(port) + u[m.end('pt'):])
 
 
 def _cell(v):
@@ -119,26 +157,55 @@ def _collect(payload):
         return {'q%d' % i: {'rows': [], 'error': _err, 'stage': 'connect'}
                 for i in range(len(queries))}
 
-    conn, meta = open_jdbc_connection(
-        db_type,
-        _host,
-        _port,
-        payload.get('user') or '',
-        payload.get('password') or '',
-        driver_version=payload.get('driver_version') or '',
-        jdbc_url=payload.get('jdbc_url') or None,
-        database=payload.get('database') or None,
-        service_name=payload.get('service_name') or None,
-        sid=payload.get('sid') or None,
-        use_sid=bool(payload.get('use_sid', False)),
-        gbase_server_name=payload.get('gbase_server_name') or None,
-        # sys 用户必须以 SYSDBA 身份登录（与插件 connect 行为一致）。
-        # 本路径走 open_jdbc_connection 默认的 jaydebeapi 模式，统一层会把
-        # properties 转成 java.util.Properties 形态的 driver_args；漏传或
-        # 被丢弃都会让 Oracle 11g 以 SYS 普通登录报 ORA-28009 → 大屏连接失败。
-        properties={'internal_logon': 'sysdba'} if payload.get('sysdba') else None,
-    )
+    # 自定义 JDBC URL 若写死原 host，隧道下必须改成本地转发端点；改写失败
+    # （多主机/无法识别）按 connect 阶段返回清晰错误，并立即关掉刚建的隧道。
+    jdbc_url = payload.get('jdbc_url') or None
+    if _tunnel is not None and jdbc_url:
+        try:
+            jdbc_url = _rewrite_jdbc_url_for_tunnel(jdbc_url, _host, _port)
+        except Exception as _ue:
+            try:
+                _tunnel.close()
+            except Exception:
+                pass
+            return {'q%d' % i: {'rows': [], 'error': str(_ue)[:300],
+                                'stage': 'connect'} for i in range(len(queries))}
+
+    try:
+        conn, meta = open_jdbc_connection(
+            db_type,
+            _host,
+            _port,
+            payload.get('user') or '',
+            payload.get('password') or '',
+            driver_version=payload.get('driver_version') or '',
+            jdbc_url=jdbc_url,
+            database=payload.get('database') or None,
+            service_name=payload.get('service_name') or None,
+            sid=payload.get('sid') or None,
+            use_sid=bool(payload.get('use_sid', False)),
+            gbase_server_name=payload.get('gbase_server_name') or None,
+            # sys 用户必须以 SYSDBA 身份登录（与插件 connect 行为一致）。
+            # 本路径走 open_jdbc_connection 默认的 jaydebeapi 模式，统一层会把
+            # properties 转成 java.util.Properties 形态的 driver_args；漏传或
+            # 被丢弃都会让 Oracle 11g 以 SYS 普通登录报 ORA-28009 → 大屏连接失败。
+            properties={'internal_logon': 'sysdba'} if payload.get('sysdba') else None,
+        )
+    except Exception as _ce:
+        # 建连异常也在此提前返回，必须自己关隧道（后面的 finally 到不了）
+        if _tunnel is not None:
+            try:
+                _tunnel.close()
+            except Exception:
+                pass
+        return {'q%d' % i: {'rows': [], 'error': 'JDBC 连接失败：%s' % str(_ce)[:260],
+                            'stage': 'connect'} for i in range(len(queries))}
     if conn is None:
+        if _tunnel is not None:
+            try:
+                _tunnel.close()
+            except Exception:
+                pass
         err = (meta or {}).get('error') or 'JDBC 连接失败'
         return {'q%d' % i: {'rows': [], 'error': err, 'stage': 'connect'}
                 for i in range(len(queries))}

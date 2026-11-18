@@ -3454,3 +3454,11 @@ ES.update({
     "webui.donate_qr_nickname_title": 'Consejo',
     "webui.donate_qr_nickname": 'Si quieres, deja un apodo o nombre en la nota del pago y lo añadiré a la lista de agradecimiento. No dejar nada también está bien: la privacidad es lo primero.',
 })
+
+
+# ── 宿主资源数据新鲜度提示（主机宕机/采集中断时标识历史数据）──
+ES.update({
+    "webui.screen_host_stale": "Datos históricos",
+    "webui.screen_host_stale_tip": "Recolección de host interrumpida; se muestran los últimos datos válidos",
+    "webui.screen_host_spark_stale": "Recolección detenida · la curva termina en la última muestra",
+})

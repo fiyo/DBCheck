@@ -4,14 +4,17 @@
 # Author: fiyo (Jack Ge) - https://github.com/fiyo/DBCheck
 
 """
-实时监控引擎 — 多数据源连接、查询执行、后台定时采集、内存缓冲
+实时监控引擎 — 统一采集器的 SQL 执行层与只读投影适配器。
 
-架构：
-- MonitorEngine 单例：管理所有数据源的监控采集
-- _connect_and_query(): 通用连接+查询方法，支持7种数据库类型
-- _collect_slow_queries() / _collect_connections(): 采集单个数据源
-- _background_loop(): 后台定时采集线程
-- 环形缓冲区存储历史连接数数据（最近 72 条，每条记录所有数据源）
+架构（改造后，全系统只有一条采集循环）：
+- UnifiedCollector._loop：唯一 15s 常驻循环，每实例只建一条连接
+- connection_scope：把该连接绑定给本轮所有 SQL 通道复用
+- MonitorEngine：``_collect_slow`` / ``_collect_conn`` / ``run_query``
+  在同一条连接上执行；public 读接口从 UnifiedStore 投影
+- UnifiedStore：唯一时序存储（内存最新帧 + SQLite），首页 / 大屏 /
+  实时慢查询 / 热力图全部读同一份数据
+
+本模块**不再启动后台线程**，也不再维护独立的内存缓冲。
 """
 
 import time
@@ -25,6 +28,7 @@ from modules.pro.instance_manager import get_instance_manager
 from modules.core.paths import PROJECT_ROOT
 import modules.monitor.queries as mq
 from modules.monitor.screen_metrics import SCREEN_SQLS
+from modules.monitor.connection_factory import open_db_connection
 
 # 监控专属 logger：经 loghub 汇聚到「运行日志」页（category=monitor），且默认不写
 # 共享控制台（由 MonitorConsoleFilter 过滤），从根上避免污染巡检 / 控制台输出。
@@ -90,6 +94,8 @@ _ERROR_PATTERNS = [
      '数据库/服务名不存在，请检查库名配置'),
     (('ssl', 'certificate'),
      'SSL/证书校验失败'),
+    (('view server state',),
+     'SQL Server 监控账号缺少 VIEW SERVER STATE 权限，请先授权'),
 ]
 
 
@@ -134,200 +140,112 @@ def _error_stage(e, default='connect'):
     if stage in ('connect', 'query'):
         return stage
     low = str(e).lower()
-    _query_only = ('ora-00942', 'ora-00904', 'ora-01031', 'ora-00933',
-                   'ora-00911', 'ora-00907', 'ora-01756',
-                   'permission denied', 'must be owner of', 'unknown column',
-                   'syntax error', 'relation "')
+    # 建连已成功、仅 SQL/权限/对象/版本差异导致的失败：大屏只能标
+    # "采集不完整"(warn)，不得判 down 触发误告警。白名单按数据库族分组，
+    # 全量错误一律保留在服务端日志与下钻 conn_err 里供定位。
+    _query_only = (
+        # Oracle：视图/列不存在、权限不足、SQL 语法/标识符/类型不兼容
+        'ora-00942', 'ora-00904', 'ora-01031', 'ora-00933',
+        'ora-00911', 'ora-00907', 'ora-01756',
+        'ora-00923', 'ora-00936', 'ora-00921', 'ora-00937',
+        'ora-00979', 'ora-00972', 'ora-01403', 'ora-01422', 'ora-01722',
+        # PostgreSQL 系：视图/函数/列/类型不存在、权限不足
+        'relation "', 'column "', 'function "', 'operator "',
+        'type "', 'schema "', 'extension "',
+        'must be superuser', 'permission denied for',
+        # SQL Server：系统视图权限、对象/列不存在（含中文实例文案）
+        'view server state', 'the select permission was denied',
+        'execute permission denied', 'invalid object name',
+        '对象名', '列名', '权限不足',
+        # 通用 SQL 层错误（JDBC 子进程未带 stage 时的兜底）
+        'permission denied', 'must be owner of', 'unknown column',
+        'syntax error', 'unrecognized configuration parameter',
+        'missing from-clause entry',
+    )
     if any(k in low for k in _query_only):
         return 'query'
     return default
 
 
 class MonitorEngine:
-    """实时监控引擎 — 全局单例"""
+    """实时监控引擎 — 统一采集器的只读投影适配器。
+
+    历史版本本类自带 10s 后台采集循环，与首页 30s、大屏 15s 两条循环
+    三路重复建连；且 ``_connect_and_query`` 每条 SQL 各建一条连接。
+    现在**不再启动任何线程**，只保留两件事：
+      1. SQL 采集能力（``_collect_slow`` / ``_collect_conn`` /
+         ``run_query``），供 UnifiedCollector 在同一条连接上调用；
+      2. public 读接口，统一从 UnifiedStore 投影，返回结构与旧版完全一致。
+    """
 
     # ── 默认配置 ──
-    DEFAULT_INTERVAL = 10  # 采集间隔（秒）
-    MAX_HISTORY = 72       # 历史记录条数（10s 一条 ≈ 2小时）
+    DEFAULT_INTERVAL = 15  # 与统一采集器一致（大屏速率口径）
+    MAX_HISTORY = 72
     QUERY_TIMEOUT = 15     # 单次查询超时（秒）
 
     def __init__(self):
         self._lock = threading.Lock()
-        self._running = False
         self._thread = None
-        self._interval = self.DEFAULT_INTERVAL
-        # 当前慢查询数据: {instance_id: {'data': [...], 'error': str, 'ts': float, 'db_type': str, 'label': str}}
-        self._slow_queries = {}
-        # 当前连接数据: {instance_id: {'data': [...], 'error': str, 'ts': float, 'total': int, 'max_conn': int, 'db_type': str, 'label': str}}
-        self._connections = {}
-        # 连接数历史: deque of {ts, instances: [{id, label, total, max_conn, db_type}]}
-        self._conn_history = deque(maxlen=self.MAX_HISTORY)
-        # 最后一次采集时间
-        self._last_collect_ts = 0
-        # JDBC 批量采集缓存: {iid: {'ts': float, 'res': {sql: rows|('__err__',msg)}, 'lock': Lock}}
+        # JDBC 批量采集缓存: {iid: {'ts', 'res', 'lock'}}；统一采集器一轮
+        # 只触发一次，后续各组 SQL 全部命中缓存，不重复 spawn 子进程。
         self._jdbc_cache = {}
-        # 慢查询主 SQL 依赖缺失记忆（如 pg_stat_statements 扩展未安装）:
-        # 这些实例每轮直接走 fallback，不再重复刷错误日志
+        # 慢查询主 SQL 依赖缺失记忆（pg_stat_statements 未安装等）
         self._slow_prim_skip = set()
 
+    @staticmethod
+    def _store():
+        from modules.monitor.unified_collector import get_unified_collector
+        return get_unified_collector().store
+
+    @staticmethod
+    def _collector():
+        from modules.monitor.unified_collector import get_unified_collector
+        return get_unified_collector()
+
     # ═══════════════════════════════════════════════════════════
-    #  启停控制
+    #  启停控制：全部委托唯一采集器（保持 /api/monitor/config 契约）
     # ═══════════════════════════════════════════════════════════
 
     def start(self, interval=None):
-        """启动后台采集线程"""
-        if interval:
-            self._interval = max(5, min(interval, 60))
-        with self._lock:
-            if self._running:
-                return
-            self._running = True
-            self._thread = threading.Thread(target=self._background_loop, daemon=True, name='MonitorCollector')
-            self._thread.start()
+        self._collector().start(interval=interval)
 
     def stop(self):
-        """停止后台采集"""
-        with self._lock:
-            self._running = False
-            self._thread = None
+        self._collector().stop()
 
     def set_interval(self, interval):
-        """修改采集间隔（秒）"""
-        self._interval = max(5, min(interval, 60))
+        self._collector().set_interval(interval)
 
     @property
     def is_running(self):
-        return self._running
+        return self._collector().is_running
 
     @property
     def interval(self):
-        return self._interval
+        return self._collector().interval
 
     # ═══════════════════════════════════════════════════════════
-    #  数据读取（线程安全）
+    #  数据读取（投影统一存储，返回结构与旧版一致）
     # ═══════════════════════════════════════════════════════════
 
     def get_slow_queries(self):
-        """获取当前慢查询数据"""
-        with self._lock:
-            return dict(self._slow_queries)
+        return self._store().get_slow_queries()
 
     def get_connections(self):
-        """获取当前连接数据"""
-        with self._lock:
-            return dict(self._connections)
+        return self._store().get_connections()
 
     def get_conn_history(self):
-        """获取连接数历史"""
-        with self._lock:
-            return list(self._conn_history)
+        return self._store().get_conn_history()
 
     def get_status(self):
-        """获取监控状态"""
-        with self._lock:
-            return {
-                'running': self._running,
-                'interval': self._interval,
-                'last_collect_ts': self._last_collect_ts,
-                'data_source_count': len(self._slow_queries),
-            }
-
-    # ═══════════════════════════════════════════════════════════
-    #  手动触发采集
-    # ═══════════════════════════════════════════════════════════
+        return self._store().get_status()
 
     def trigger_collect(self):
-        """手动触发一次采集（不阻塞）"""
-        t = threading.Thread(target=self._do_collect, daemon=True)
-        t.start()
+        """手动触发统一采集器的一轮（不阻塞调用方）。"""
+        self._collector().trigger_collect()
 
-    # ═══════════════════════════════════════════════════════════
-    #  后台循环
-    # ═══════════════════════════════════════════════════════════
-
-    def _background_loop(self):
-        while self._running:
-            try:
-                self._do_collect()
-            except Exception:
-                pass
-            # 按 interval 分段 sleep，便于响应 stop
-            for _ in range(self._interval * 2):
-                if not self._running:
-                    break
-                time.sleep(0.5)
-
-    def _do_collect(self):
-        """执行一轮采集"""
-        try:
-            im = get_instance_manager()
-            # 使用解密后的实例：本轮采集会据此建立真实数据库连接。
-            # 虽然 _collect_slow / _collect_conn 内部还会各自调用 get_instance_decrypted()，
-            # 但此处统一取明文，避免后续维护者误以为 mask_password=False 就是明文密码。
-            all_instances = im.get_all_instances_decrypted()
-            instances = [i for i in all_instances if i.get('enabled', True)]
-            # 明确标识：后台监控采集是独立后台任务，遍历全部已保存实例，
-            # 与用户手动发起的巡检无关，避免日志混流被误判为「巡检串库」。
-            _log.info("===== 后台监控采集任务（独立后台线程，遍历 %d 个实例，与手动巡检无关）=====", len(instances))
-            if not instances:
-                return
-
-            # 采集慢查询
-            new_slow = {}
-            new_conn = {}
-            conn_history_items = []
-
-            for inst in instances:
-                iid = inst['id']
-                if not inst.get('host'):
-                    _log.info("跳过空 host 实例: %s", iid)
-                    continue
-                db_type = mq.normalize_db_type(inst.get('db_type', ''))
-                label = f"{inst.get('name', iid)} ({inst.get('host', '?')}:{inst.get('port', '?')})"
-
-                # 慢查询
-                try:
-                    sq = self._collect_slow(iid, db_type, label)
-                    new_slow[iid] = sq
-                except Exception as e:
-                    _log.warning("慢查询采集失败 %s: %s", label, e)
-                    new_slow[iid] = {
-                        'data': [], 'error': _friendly_db_error(e),
-                        'err_kind': _error_stage(e),
-                        'ts': time.time(), 'db_type': db_type, 'label': label,
-                    }
-
-                # 连接
-                try:
-                    cn = self._collect_conn(iid, db_type, label)
-                    new_conn[iid] = cn
-                    conn_history_items.append({
-                        'id': iid,
-                        'label': label,
-                        'total': cn.get('total', 0),
-                        'max_conn': cn.get('max_conn', 0),
-                        'db_type': db_type,
-                    })
-                except Exception as e:
-                    _log.warning("连接采集失败 %s: %s", label, e)
-                    new_conn[iid] = {
-                        'data': [], 'error': _friendly_db_error(e),
-                        'err_kind': _error_stage(e),
-                        'ts': time.time(), 'total': 0, 'max_conn': 0,
-                        'db_type': db_type, 'label': label,
-                    }
-
-            ts = time.time()
-            with self._lock:
-                self._slow_queries = new_slow
-                self._connections = new_conn
-                self._last_collect_ts = ts
-                self._conn_history.append({
-                    'ts': ts,
-                    'instances': conn_history_items,
-                })
-        except Exception as e:
-            _log.error("采集失败: %s", e)
+    # 后台循环已移除：全系统只有 UnifiedCollector._loop 一条采集线程。
+    # 单实例的慢查询 / 连接数采集由统一采集器在同一条借用连接上调用
+    # 下面的 _collect_slow / _collect_conn，采集结果写入 UnifiedStore。
 
     # ═══════════════════════════════════════════════════════════
     #  采集实现
@@ -468,6 +386,15 @@ class MonitorEngine:
         fam_sqls = SCREEN_SQLS.get(db_type) or {}
         for s in fam_sqls.values():
             _add(s)
+        # 首页深采 SQL：让 oracle_jdbc / uxdb_jdbc 的一轮采集只用**一次**
+        # 批量子进程，首页指标由统一采集器从批量结果投影，不再单独 spawn
+        # jdbc_metrics_cli（详见 unified_collector.BatchResultConnection）。
+        try:
+            from modules.pro.metrics_collector import DEEP_METRIC_SQLS
+            for s in DEEP_METRIC_SQLS:
+                _add(s)
+        except Exception:
+            pass
         return sqls
 
     def _jdbc_query(self, inst, db_type, sql, timeout=None, template_key=None):
@@ -641,10 +568,57 @@ class MonitorEngine:
         """公共查询入口：供大屏指标适配层（screen_metrics）等外部复用连接逻辑。"""
         return self._connect_and_query(instance_id, sql, timeout=timeout)
 
+    @staticmethod
+    def _execute_rows(conn, sql):
+        """在已有 DBAPI 连接上执行一条查询，返回 list[dict]（列名统一小写）。
+
+        抽取成独立方法，让「借用统一采集器连接」与「自行建连」两条路径
+        共用完全相同的行序列化口径，避免下游消费者出现大小写差异。
+        """
+        cursor = conn.cursor()
+        try:
+            cursor.execute(sql)
+            columns = [col[0] for col in (cursor.description or [])]
+            rows = []
+            for row in cursor.fetchall():
+                row_dict = {}
+                for i, col in enumerate(columns):
+                    val = row[i]
+                    # 序列化非标准类型
+                    if val is not None and not isinstance(val, (int, float, str, bool)):
+                        try:
+                            val = str(val)
+                        except Exception:
+                            val = None
+                    # 列名统一小写：dmPython/oracledb 等驱动返回大写标识符，
+                    # 下游消费者（screen_metrics/前端模板）一律按小写键取值
+                    row_dict[col.lower() if isinstance(col, str) else col] = val
+                rows.append(row_dict)
+            return rows
+        finally:
+            try:
+                cursor.close()
+            except Exception:
+                pass
+
     def _connect_and_query(self, instance_id, sql, timeout=None):
-        """连接到指定数据源并执行 SQL，返回 list of dicts"""
+        """执行一条 SQL，返回 list of dicts。
+
+        统一采集器在一个实例的一轮采集里只建一条连接，并把它绑定到
+        ``connection_scope``；本方法命中绑定时直接借用（不新建、不关闭），
+        让慢查询 / 连接数 / 大屏增量各组 SQL 共享同一条连接。
+        未命中时（独立调用、脚本、单元测试）按原逻辑自行建连关闭。
+        """
         if timeout is None:
             timeout = self.QUERY_TIMEOUT
+
+        from modules.monitor import connection_scope
+        scoped = connection_scope.current(instance_id)
+        if scoped is not None and getattr(scoped, 'conn', None) is not None:
+            try:
+                return self._execute_rows(scoped.conn, sql)
+            except Exception as e:
+                raise MonitorQueryError('query', str(e)) from e
 
         im = get_instance_manager()
         inst = im.get_instance_decrypted(instance_id)
@@ -652,7 +626,7 @@ class MonitorEngine:
             raise ValueError(f"实例 {instance_id} 不存在")
 
         # 归一到模板键（oracle_jdbc→oracle、tdsqlc_mysql→mysql 等）再分派：
-        # _create_connection 的 python 驱动分支按协议族分派（TDSQL-C 兼容 MySQL
+        # 原生驱动连接按协议族在 connection_factory 中构造（TDSQL-C 兼容 MySQL
         # 协议、oracle_jdbc 实例字段与 oracle 相同），与 jdbc 插件 id 无关。
         raw_type = (inst.get('db_type') or '').strip().lower()
         db_type = mq.normalize_db_type(raw_type)
@@ -668,232 +642,28 @@ class MonitorEngine:
         if db_type in JDBC_BATCH_DB_TYPES:
             return self._jdbc_query(inst, db_type, sql, timeout=timeout)
 
-        # ── SSH 隧道（数据库经隧道连接）──
-        # 与巡检基类 BaseInspectionEngine 同口径：仅当显式开启 ssh_tunnel 且配了
-        # ssh_host 才建隧道；否则直连原 host:port。隧道随本次连接一起关闭。
-        _tunnel = None
-        _conn_host = inst.get('host', '')
-        _conn_port = int(inst['port'])
-        _ssh_fields = ('ssh_host', 'ssh_port', 'ssh_user', 'ssh_password',
-                       'ssh_key_file', 'ssh_key_password', 'ssh_tunnel')
-        _ssh_info = {k: inst[k] for k in _ssh_fields if inst.get(k) is not None}
+        # 独立调用路径（未经统一采集器）：自行建连、执行、关闭。
+        # 建连与查询分阶段标记：权限不足 / 视图不存在（ORA-00942 等）
+        # 是「已连上但 SQL 失败」，实例可达，大屏不能据此判宕机。
+        # SSH 隧道、DSN/ODBC 串、库名回落、Oracle thick 回退统一走连接工厂。
+        managed = None
         try:
-            from modules.ssh.tunnel_helper import (
-                should_use_db_tunnel, build_db_ssh_tunnel)
-            if should_use_db_tunnel(_ssh_info):
-                _tunnel, _conn_host, _conn_port = build_db_ssh_tunnel(
-                    _ssh_info, _conn_host, _conn_port)
-        except Exception as _te:
-            raise RuntimeError(
-                f"SSH 隧道建立失败（数据库 {inst.get('host')}:{inst['port']} "
-                f"经 {inst.get('ssh_host')}）：{_te}")
-
-        password = inst['password']
-        conn = None
-        cursor = None
-
-        try:
-            # 建连与查询分阶段标记：权限不足 / 视图不存在（ORA-00942 等）
-            # 是「已连上但 SQL 失败」，实例可达，大屏不能据此判宕机。
             try:
-                conn = self._create_connection(inst, password, db_type, timeout,
-                                              host=_conn_host, port=_conn_port)
+                managed = open_db_connection(
+                    inst, connect_timeout=timeout, query_timeout=timeout)
             except Exception as e:
                 raise MonitorQueryError('connect', str(e)) from e
+            if managed is None:
+                raise MonitorQueryError(
+                    'connect', f'不支持的数据库类型: {raw_type}')
             try:
-                cursor = conn.cursor()
-                cursor.execute(sql)
-                columns = [col[0] for col in cursor.description]
-                rows = []
-                for row in cursor.fetchall():
-                    row_dict = {}
-                    for i, col in enumerate(columns):
-                        val = row[i]
-                        # 序列化非标准类型
-                        if val is not None and not isinstance(val, (int, float, str, bool)):
-                            try:
-                                val = str(val)
-                            except Exception:
-                                val = None
-                        # 列名统一小写：dmPython/oracledb 等驱动返回大写标识符，
-                        # 下游消费者（screen_metrics/前端模板）一律按小写键取值
-                        row_dict[col.lower() if isinstance(col, str) else col] = val
-                    rows.append(row_dict)
-                return rows
+                return self._execute_rows(managed.conn, sql)
             except Exception as e:
                 raise MonitorQueryError('query', str(e)) from e
         finally:
-            try:
-                if cursor:
-                    cursor.close()
-            except Exception:
-                pass
-            try:
-                if conn:
-                    conn.close()
-            except Exception:
-                pass
-            # 关闭 SSH 隧道（与主连接同生命周期，避免泄漏 paramiko 转发线程）
-            if _tunnel is not None:
-                try:
-                    _tunnel.close()
-                except Exception:
-                    pass
-
-    def _create_connection(self, inst, password, db_type, timeout, host=None, port=None):
-        """根据 db_type 创建数据库连接。
-
-        ``host``/``port`` 可被调用方覆盖：当数据库经 SSH 隧道连接时，由
-        ``_connect_and_query`` 改写为隧道本地端点（127.0.0.1:local_port），
-        原生驱动（pymysql/psycopg2/oracledb/pyodbc/dmPython/yasdb）直连本地
-        端点即可透明穿透到远端数据库，连接层无需感知隧道存在。
-        """
-        if host is None:
-            host = inst.get('host', '')
-        if port is None:
-            port = int(inst['port'])
-        if not host:
-            raise ValueError('主机地址不能为空')
-        user = inst['user']
-
-        if db_type in ('mysql', 'mariadb', 'oceanbase', 'starrocks', 'doris'):
-            # MariaDB / OceanBase MySQL 租户与 MySQL 协议/参数高度兼容，复用同款 pymysql 连接逻辑。
-            # OceanBase MySQL 租户的 database 即租户名，默认 sys。
-            import pymysql
-            db_name = inst.get('database')
-            if db_type == 'oceanbase':
-                db_name = db_name or 'sys'
-            elif db_name is None:
-                db_name = 'mysql'
-            return pymysql.connect(
-                host=host, port=port, user=user, password=password,
-                database=db_name,
-                charset='utf8mb4', connect_timeout=timeout, read_timeout=timeout,
-            )
-
-        elif db_type in ('postgresql', 'pg', 'hgdb', 'kingbase', 'uxdb', 'vastbase',
-                         'highgo', 'halodb', 'opengauss', 'greenplum'):
-            # 国产 PG 线协议系：瀚高/人大金仓/优炫/羲和直连 PG；Vastbase（海量 G100）
-            # 基于 openGauss 内核（openGauss 源自 PG 9.2 分支），仍保留 PG 兼容层，
-            # 故同一 psycopg2 + pg 系统视图路径即可覆盖，无需分叉。
-            # ⚠️ 本分支收到的是归一后 db_type（hgdb/kingbase/vastbase 等已归一为 pg），
-            # default_db 映射必须用实例的原始 db_type 查，否则键全部落空、
-            # 库名空缺时一律回落 postgres（瀚高无 postgres 库 → FATAL 报错）。
-            # 兜底回落「用户名同名库」（PG 惯例：默认库与用户同名，与 JDBC
-            # 数据源测试不指定库名时同口径）。
-            raw_type = (inst.get('db_type') or '').lower()
-            default_db = {'hgdb': 'highgo', 'kingbase': 'kingbase',
-                          'uxdb': 'uxdb',
-                          # Vastbase 基于 openGauss 内核，openGauss/Vastbase 均保留 PG
-                          # 兼容层且默认库为 postgres，故与 opengauss/greenplum 同取 postgres。
-                          'vastbase': 'postgres', 'highgo': 'highgo',
-                          'halodb': 'halo',
-                          'opengauss': 'postgres', 'greenplum': 'postgres'}.get(raw_type)
-            import psycopg2
-            return psycopg2.connect(
-                host=host, port=port, user=user, password=password,
-                dbname=inst.get('database') or default_db or user,
-                client_encoding='UTF8', connect_timeout=timeout,
-            )
-
-        elif db_type == 'oracle':
-            import oracledb
-            # 必须用 makedsn 构造完整 easy-connect 描述符（DESCRIPTION=...），
-            # 不能直接把 service_name 当 dsn 传入：裸服务名会被 oracledb 当作 TNS
-            # net service name 去解析 tnsnames.ora，而无 config_dir 时会抛
-            # DPY-4027: no configuration directory specified。
-            svc = inst.get('service_name', '') or ''
-            sid = inst.get('sid', '') or ''
-            if svc:
-                dsn = oracledb.makedsn(host=host, port=port, service_name=svc)
-            elif sid:
-                dsn = oracledb.makedsn(host=host, port=port, sid=sid)
-            else:
-                dsn = f"{host}:{port}/orcl"
-            mode = oracledb.SYSDBA if inst.get('sysdba') else oracledb.AUTH_MODE_DEFAULT
-            _params = dict(user=user, password=password, dsn=dsn, mode=mode)
-            try:
-                return oracledb.connect(**_params)
-            except Exception as e:  # noqa: BLE001
-                # 11g 及更低版本超出 thin 支持范围（12.1+）→ 一次性切 thick。
-                # 与数据源测试 _ct_oracle_pro 同口径；init_oracle_client 是
-                # 进程级全局且只能成功一次，状态缓存在 oracle_conn_test 模块，
-                # 避免大屏每轮采集都重复加载 OCI。
-                from modules.oracle_conn_test import (
-                    ensure_oracle_thick, thin_error_needs_thick)
-                if not thin_error_needs_thick(e):
-                    raise
-                _ok, _hint = ensure_oracle_thick()
-                if not _ok:
-                    raise RuntimeError(_hint) from e
-                return oracledb.connect(**_params)
-
-        elif db_type in ('sqlserver', 'sqlserver_jdbc', 'mssql'):
-            # sqlserver_jdbc（插件标识）与 sqlserver 同为 SQL Server 线协议，
-            # pyodbc/ODBC 直连（绝不走 JDBC 插件——JPype 进程内启动会与 gevent 死锁）。
-            # 驱动分级探测：优先新版 ODBC Driver 17/18（支持 Encrypt），
-            # 其次 Native Client；仅当只剩旧版 DBNETLIB 驱动时去掉加密参数
-            #（它不认识 TrustServerCertificate/Encrypt，会报"无效的连接字符串属性"+SSL 错误）。
-            import pyodbc
-            drivers = []
-            try:
-                drivers = [d for d in pyodbc.drivers() if 'sql server' in d.lower()]
-            except Exception:
-                pass
-            modern = [d for d in drivers if 'odbc driver' in d.lower()]
-            native = [d for d in drivers if 'native client' in d.lower()]
-            if modern:
-                driver, legacy = '{%s}' % modern[-1], False
-            elif native:
-                driver, legacy = '{%s}' % native[0], False
-            elif drivers:
-                driver, legacy = '{%s}' % drivers[-1], True
-            else:
-                driver, legacy = '{ODBC Driver 17 for SQL Server}', False
-            conn_str = (
-                f"DRIVER={driver};"
-                f"SERVER={host},{port};"
-                f"UID={user};PWD={password};"
-                f"Connect Timeout={timeout};"
-            )
-            if not legacy:
-                conn_str += "TrustServerCertificate=yes;Encrypt=yes;"
-            if inst.get('database'):
-                conn_str += f"Database={inst['database']};"
-            return pyodbc.connect(conn_str)
-
-        elif db_type == 'dm':
-            import dmPython
-            dsn = f"{host}:{port}"
-            return dmPython.connect(user=user, password=password, server=dsn)
-
-        elif db_type == 'tidb':
-            import pymysql
-            return pymysql.connect(
-                host=host, port=port, user=user, password=password,
-                database=inst.get('database') or '',
-                charset='utf8mb4', connect_timeout=timeout, read_timeout=timeout,
-                autocommit=True,
-            )
-
-        elif db_type == 'ivorysql':
-            import psycopg2
-            return psycopg2.connect(
-                host=host, port=port, user=user, password=password,
-                dbname=inst.get('database') or 'ivorysql',
-                client_encoding='UTF8', connect_timeout=timeout,
-            )
-
-        elif db_type == 'yashandb':
-            try:
-                import yasdb
-            except ImportError:
-                raise RuntimeError("YashanDB 驱动未安装，请先安装 yasdb 驱动后再使用崖山数据库监控。")
-            return yasdb.connect(host=host, port=port, user=user, password=password)
-
-        else:
-            raise ValueError(f"不支持的数据库类型: {db_type}")
-
+            # 同时关闭 DBAPI 连接与 SSH 隧道（避免泄漏 paramiko 转发线程）
+            if managed is not None:
+                managed.close()
 
 # ═══════════════════════════════════════════════════════════
 #  全局单例

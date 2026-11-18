@@ -81,12 +81,20 @@ check('实时监控实例取自模块变量', "'_monitor_engine'" in fn)
 check('大屏实例取自模块变量', "'_screen_collector'" in fn)
 
 print('[5] 采集器线程均为 daemon（退出即停，无需运行期开关）')
-for rel, needle in (('modules/monitor/screen_metrics.py', 'daemon=True'),
-                    ('modules/monitor/engine.py', 'daemon=True'),
+# 单一采集器改造后，常驻采集线程只在 unified_collector.py 创建；
+# 旧的两条循环已删除，daemon 断言随之收敛到新文件。
+for rel, needle in (('modules/monitor/unified_collector.py', 'daemon=True'),
                     ('modules/web/app.py', 'daemon=True')):
     p = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), *rel.split('/'))
     s = open(p, encoding='utf-8').read()
     check('%s 含 daemon=True' % rel, needle in s)
+
+print('[5b] 单一采集器：旧类不得再启动自己的后台循环')
+for rel, forbidden in (('modules/monitor/engine.py', 'target=self._background_loop'),
+                       ('modules/monitor/screen_metrics.py', 'target=self._loop')):
+    p = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), *rel.split('/'))
+    s = open(p, encoding='utf-8').read()
+    check('%s 无独立采集线程' % rel, forbidden not in s)
 
 print('')
 if FAILS:

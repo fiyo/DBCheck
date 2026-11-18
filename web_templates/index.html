@@ -8567,6 +8567,8 @@ function wfCloseRunDrawer() {
           <div class="host-resource-block" id="host-resource-block" data-page-node-id="QdAhpH25VMXYKJRggB5zjF">
             <div class="host-resource-head" style="display:flex;align-items:center;gap:10px;margin:16px 0 4px;" data-page-node-id="tiPvrO73qudQW45XAZ8BcF">
               <div class="health-chart-title" id="host-res-title" data-i18n="monitor.host_title" data-page-node-id="7UQvaDMWfoBNGHnoa6ihD9">🖥️ 宿主资源</div>
+              <!-- 数据源名称 + 数据库状态：宿主资源取自主机，DB 宕机时主机照常，需独立标识 -->
+              <span id="host-db-status" style="display:none;font-size:11px;padding:2px 9px;border-radius:10px;border:1px solid #94A3B8;color:#94A3B8;background:rgba(139,148,158,.12);max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">—</span>
               <span class="host-source-badge" id="host-source-badge" style="font-size:11px;padding:2px 9px;border-radius:10px;border:1px solid #94A3B8;color:#94A3B8;background:rgba(139,148,158,.12);" data-page-node-id="0OPIan4v7gmrOUAB3fUQSF">—</span>
             </div>
             <div class="host-resource-body" style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;" data-page-node-id="sC3rSXvdfABYQIvnrNgKAs">
@@ -23248,6 +23250,40 @@ function renderHostPanel() {
   const BORD = cssVar('--border', '#2A3650');
   const times = hist.map(function (h) { return (h.ts || '').slice(11, 19); });
 
+  // ── 数据源名称 + 数据库状态徽标 ──
+  // 宿主资源取自主机（本机 Docker 场景即中心机）：数据库容器/进程宕机时主机
+  // CPU、内存、磁盘照常，只看宿主曲线会误判「一切正常」。这里用实时监控
+  // summary 的 available/error/status 单独标出当前数据源的数据库可达状态。
+  const dbStEl = document.getElementById('host-db-status');
+  if (dbStEl) {
+    const cur = (monitorSummary || []).find(function (i) { return i.instance_id === id; });
+    if (cur) {
+      const _light = getTheme() === 'light';
+      let st, col, bg;
+      // cooldown（连续失败后的退避轮）同样是「数据库不可达」，一律标宕机；
+      // 退避状态与错误原因放进悬浮提示，避免弱化告警或产生不可达分支。
+      if (cur.available === false || cur.error) {
+        st = i18n('webui.screen_st_down') || '宕机';
+        col = _light ? '#B91C1C' : '#EF4444'; bg = 'rgba(239,68,68,.16)';
+      } else if (cur.available === true) {
+        st = i18n('webui.screen_st_ok') || '正常';
+        col = _light ? '#047857' : '#22C55E'; bg = 'rgba(34,197,94,.12)';
+      } else {
+        st = i18n('webui.screen_st_pending') || '连接中';
+        col = _light ? '#64748B' : '#94A3B8'; bg = 'rgba(139,148,158,.12)';
+      }
+      dbStEl.textContent = (cur.name || id) + ' · ' + st;
+      dbStEl.style.color = col;
+      dbStEl.style.background = bg;
+      dbStEl.style.borderColor = col;
+      dbStEl.style.display = '';
+      dbStEl.title = (i18n('webui.screen_d_status') || '状态') + '：' + st +
+        (cur.status ? '（' + cur.status + '）' : '') + (cur.error ? '｜' + cur.error : '');
+    } else {
+      dbStEl.style.display = 'none';
+    }
+  }
+
   // ── 数据源徽标 ──
   const badge = document.getElementById('host-source-badge');
   const src = latest.host_collector_source;
@@ -23261,11 +23297,24 @@ function renderHostPanel() {
     else if (src === 'powershell') { txt = 'Windows PowerShell 远端'; bg = 'rgba(59,130,246,.18)'; fg = isLight ? '#0A2A6E' : '#60A5FA'; }
     else if (src === 'unavailable') { txt = i18n('monitor.host_src_unavailable') || '宿主资源不可用'; bg = 'rgba(139,148,158,.18)'; fg = isLight ? '#64748B' : '#94A3B8'; }
     else { txt = i18n('monitor.host_src_none') || '暂无宿主数据'; bg = 'rgba(139,148,158,.12)'; fg = isLight ? '#64748B' : '#94A3B8'; }
+    // 主机宕机 / SSH 不通时后端保留最后一次成功数值并标 host_stale：
+    // 徽标换成醒目的「历史数据 HH:MM」，悬浮说明中断原因，避免旧值被当成实时值。
+    const staleTs = Number(latest.host_sample_ts || latest.host_last_ok_ts);
+    const staleAt = (isFinite(staleTs) && staleTs > 0)
+      ? new Date(staleTs * 1000).toTimeString().slice(0, 5) : '';
+    const isStale = !!latest.host_stale && (typeof latest.host_cpu === 'number' || typeof latest.host_mem === 'number');
+    if (isStale) {
+      txt = (i18n('webui.screen_host_stale') || '历史数据') + (staleAt ? ' ' + staleAt : '');
+      bg = 'rgba(245,158,11,.18)'; fg = isLight ? '#92400E' : '#FBBF24';
+    }
     badge.textContent = txt;
     badge.style.background = bg; badge.style.color = fg; badge.style.border = '1px solid ' + fg;
-    badge.title = (src === 'unavailable' && latest.host_error)
-      ? (i18n('monitor.host_src_unavailable') || '宿主资源不可用') + '：' + latest.host_error
-      : (txt || '');
+    badge.title = isStale
+      ? (i18n('webui.screen_host_stale_tip') || '宿主采集中断，当前显示最后一次成功采集的数据')
+        + (staleAt ? ' ' + staleAt : '') + (latest.host_error ? '（' + latest.host_error + '）' : '')
+      : ((src === 'unavailable' && latest.host_error)
+        ? (i18n('monitor.host_src_unavailable') || '宿主资源不可用') + '：' + latest.host_error
+        : (txt || ''));
   }
 
   // ── 基础资源图：CPU% / 内存% / Swap% / Load1 ──
@@ -23277,10 +23326,14 @@ function renderHostPanel() {
   ];
   const baseSeries = baseDef.map(function (d) {
     const data = hist.map(function (h) {
-      const v = (h.metrics || {})[d.key];
+      const m = h.metrics || {};
+      // 采集中断期保留的历史值不是新采样点：置 null 让折线在中断处断开，
+      // 不再把同一组旧值平铺成「一直平稳」的假实时曲线。
+      if (m.host_stale) return null;
+      const v = m[d.key];
       return (typeof v === 'number') ? v : null;
     });
-    return { name: d.name, type: 'line', smooth: true, symbol: 'none', connectNulls: true,
+    return { name: d.name, type: 'line', smooth: true, symbol: 'none', connectNulls: false,
              data: data, lineStyle: { width: 2, color: d.color }, itemStyle: { color: d.color } };
   }).filter(function (s) { return s.data.some(function (v) { return v !== null; }); });
 

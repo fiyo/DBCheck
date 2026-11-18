@@ -3831,3 +3831,11 @@ ZI.update({
     "webui.donate_qr_nickname_title": '小提示',
     "webui.donate_qr_nickname": '愿意的话，可在支付备注里留下昵称或姓名，我会把它写进鸣谢名单；不留也没关系，隐私第一。',
 })
+
+
+# ── 宿主资源数据新鲜度提示（主机宕机/采集中断时标识历史数据）──
+ZI.update({
+    "webui.screen_host_stale": "历史数据",
+    "webui.screen_host_stale_tip": "宿主采集中断，当前显示最后一次成功采集的数据",
+    "webui.screen_host_spark_stale": "采集已中断 · 折线停在最后采样点",
+})

@@ -801,9 +801,16 @@ def collect_extra(engine, instance_id, db_type):
 # ═══════════════════════════════════════════════════════════
 
 class ScreenCollector:
-    """大屏采集器：周期采样所有实例 → 内存快照 → /api/dashboard/overview 直接读。"""
+    """监控大屏 — 统一采集器的只读投影适配器 + 阈值配置持有者。
 
-    INTERVAL = 15          # 采样间隔（秒）
+    历史版本本类自带 15s 后台循环与一整套内存快照（``_snap`` / ``_prev``
+    / ``_spark`` / ``_trend``），与首页 30s、MonitorEngine 10s 三路重复建连。
+    现在快照、速率状态、趋势全部收敛到 UnifiedStore；本类只保留
+    阈值配置、速率算法与单实例快照组装能力，供统一采集器调用。
+    ``get_snapshot`` / ``get_trend`` 的返回结构与旧版完全一致。
+    """
+
+    INTERVAL = 15          # 采样间隔（秒，与 UnifiedCollector 一致）
     HISTORY = 60           # 每实例保留采样点数（15s × 60 ≈ 15 分钟）
     TREND_POINTS = 60      # 全库 QPS 趋势点数
     MAX_WORKERS = 8        # 单轮并发采集线程数
@@ -819,13 +826,26 @@ class ScreenCollector:
 
     def __init__(self):
         self._lock = threading.Lock()
-        self._running = False
         self._thread = None
-        self._snap = {}      # iid → 快照 dict
-        self._prev = {}      # iid → {'ts': float, 'counters': {...}}
-        self._spark = {}     # iid → deque(qps)
-        self._trend = deque(maxlen=self.TREND_POINTS)  # {'ts','qps','tps'}
         self._load_thresholds()
+
+    @staticmethod
+    def _store():
+        from modules.monitor.unified_collector import get_unified_collector
+        return get_unified_collector().store
+
+    @staticmethod
+    def _collector():
+        from modules.monitor.unified_collector import get_unified_collector
+        return get_unified_collector()
+
+    @property
+    def running(self):
+        """assemble_overview 读取的 probe_running 开关，取自唯一采集器。"""
+        try:
+            return bool(self._collector().is_running)
+        except Exception:
+            return False
 
     # ── 阈值配置（独立于 dbc_config.json；运行时可调，持久化到 monitor_thresholds.json）──
     # dir: up=越大越糟(warn<crit)  down=越小越糟(crit<warn)  lock=仅告警阈值
@@ -927,116 +947,17 @@ class ScreenCollector:
         self._save_thresholds(self._current_threshold_dict())
         return self.get_thresholds()
 
-    # ── 启停 ──
+    # ── 启停：委托唯一采集器（绝不再启动第二条循环）──
     def start(self):
-        with self._lock:
-            if self._running:
-                return
-            self._running = True
-            self._thread = threading.Thread(target=self._loop, daemon=True,
-                                            name='screen-collector')
-            self._thread.start()
-            print('[screen] 大屏指标采样器已启动（间隔 %ds）' % self.INTERVAL, flush=True)
+        self._collector().start()
 
     def stop(self):
-        with self._lock:
-            self._running = False
+        self._collector().stop()
 
-    @property
-    def running(self):
-        return self._running
-
-    def _loop(self):
-        # 启动先采一轮（首采样只有 counters，无速率），再进入周期循环
-        while True:
-            t0 = time.time()
-            try:
-                self._round()
-            except Exception as e:
-                print('[screen] 采集轮失败: %s' % e, flush=True)
-            dt = self.INTERVAL - (time.time() - t0)
-            end = time.time() + max(dt, 1)
-            while time.time() < end:
-                if not self._running:
-                    return
-                time.sleep(0.5)
-
-    # ── 单轮采集 ──
-    def _round(self):
-        from modules.pro.instance_manager import get_instance_manager
-        from modules.monitor.engine import get_monitor_engine
-
-        engine = get_monitor_engine()
-        im = get_instance_manager()
-        try:
-            instances = [i for i in im.get_all_instances_decrypted()
-                         if i.get('enabled', True) and i.get('host')]
-        except Exception as e:
-            print('[screen] 实例列表获取失败: %s' % e, flush=True)
-            return
-
-        conn_data = {}
-        slow_data = {}
-        try:
-            conn_data = engine.get_connections()
-        except Exception:
-            pass
-        try:
-            slow_data = engine.get_slow_queries()
-        except Exception:
-            pass
-
-        cur_ids = set(i['id'] for i in instances)
-
-        # ── 预置 pending 占位 + 清理已删实例 ──
-        # 让拓扑与 KPI 总数在首轮采集完成前就立即有结构可渲染（打开大屏秒出基础图表）；
-        # 各实例采集完成即增量覆盖为真实快照，前端随轮询渐进填充。
-        with self._lock:
-            for stale_iid in [k for k in self._snap if k not in cur_ids]:
-                self._snap.pop(stale_iid, None)
-                self._prev.pop(stale_iid, None)
-                self._spark.pop(stale_iid, None)
-            ts0 = time.time()
-            for inst in instances:
-                iid = inst['id']
-                if iid not in self._snap:
-                    self._snap[iid] = self._pending_snap(inst, ts0)
-
-        # ── 增量采集：每个实例一完成即写入快照（先快的后慢的，随轮询渐进显现）──
-        def do_one(inst):
-            return self._collect_one(engine, inst, conn_data, slow_data)
-
-        with ThreadPoolExecutor(max_workers=self.MAX_WORKERS) as pool:
-            futures = {pool.submit(do_one, inst): inst for inst in instances}
-            for fut in as_completed(futures):
-                inst = futures[fut]
-                try:
-                    snap = fut.result()
-                except Exception as e:
-                    snap = self._pending_snap(inst, time.time(), err='采集线程异常: %s' % e)
-                self._commit_snap(snap)
-                # 历史回放：白名单投影后异步落库（pending 占位无真实指标，跳过；不阻塞采集热路径）
-                if snap.get('status') != 'pending':
-                    try:
-                        history_store.get_history_store().write_snap(snap)
-                    except Exception as e:
-                        print('[screen] history write failed: %s' % e, flush=True)
-
-        # ── 本轮趋势点（汇总已提交快照）──
-        ts = time.time()
-        with self._lock:
-            total_qps = sum((s.get('qps') or 0) for s in self._snap.values())
-            total_tps = sum((s.get('tps') or 0) for s in self._snap.values())
-            self._trend.append({'ts': ts, 'qps': round(total_qps, 1), 'tps': round(total_tps, 1)})
-
-        # 告警状态机评估（锁外）：状态迁移时经通知配置发邮件/IM（异步发送）
-        try:
-            from modules.monitor.alert_notify import get_alert_tracker
-            with self._lock:
-                snaps = [dict(s) for s in self._snap.values()]
-            get_alert_tracker().update(snaps)
-        except Exception as e:
-            print('[alert] 告警评估失败: %s' % e, flush=True)
+    # 后台循环 _loop / 单轮 _round 已移除：全系统只有 UnifiedCollector._loop
+    # 一条采集线程。本类保留的 _collect_one（单实例快照组装）与 _apply_rates
+    # （速率差值）由统一采集器在同一条借用连接上调用，结果写入 UnifiedStore；
+    # 趋势、历史回放、告警评估也在统一采集器的一轮里各执行一次。
 
     @staticmethod
     def _rate(prev_c, cur_c, dt, kind):
@@ -1065,8 +986,17 @@ class ScreenCollector:
                 return dv / dt
         return None
 
-    def _collect_one(self, engine, inst, conn_data, slow_data):
-        iid = inst['id']
+    def _collect_one(self, engine, inst, conn_data, slow_data, native_data=None):
+        """组装单实例大屏快照。
+
+        ``native_data``：NoSQL（mongodb/redis）原生通道结果。统一采集器
+        已在一轮里建好唯一连接并完成采集，把它传进来复用，避免本方法
+        再调一次 ``collect_native(inst)`` 造成第二条连接。独立调用时
+        传 None，行为与旧版一致。
+        """
+        # 统一用字符串 id：UnifiedStore 的帧键、URL 下钻参数、告警状态机
+        # 全部按 str 归一，避免 int/str 混用导致 conn_data 查不到而大屏空连接。
+        iid = str(inst['id'])
         db_type = (inst.get('db_type') or '').lower()
         snap = {
             'id': iid,  # 告警状态机按 id 跟踪实例（update() 无 id 的快照会被跳过）
@@ -1098,7 +1028,7 @@ class ScreenCollector:
         # 0) MongoDB / Redis 原生驱动通道：SQL 引擎（DBAPI/JDBC）不覆盖的
         #    NoSQL 类型在此直连采集，连通性与指标一并拿到后提前返回。
         if db_type in NATIVE_DB_TYPES:
-            nd = collect_native(inst)
+            nd = native_data if native_data is not None else collect_native(inst)
             if not nd.get('alive'):
                 snap['err'] = nd.get('err')
                 snap['status'] = 'down'
@@ -1232,7 +1162,7 @@ class ScreenCollector:
     def _pending_snap(self, inst, ts, err=None):
         """预置占位快照：首轮采集完成前就给出实例结构与 pending 状态，
         让拓扑与 KPI 总数立即有内容可渲染（打开大屏秒出基础图表）。"""
-        iid = inst['id']
+        iid = str(inst['id'])
         db_type = (inst.get('db_type') or '').lower()
         return {
             'id': iid,
@@ -1259,78 +1189,72 @@ class ScreenCollector:
             },
         }
 
-    def _commit_snap(self, snap):
-        """单实例快照增量提交：计算速率（有 prev 时）+ 写入 _snap/_prev/_spark。
-        由 _round 的 as_completed 循环逐条调用，做到「谁先采完谁先显示」。
+    def _apply_rates(self, snap, prev, interval):
+        """纯速率计算：返回 ``(snap_without_counters, new_prev)``。
 
-        速率防噪三层（#63 Oracle QPS 偶发冲高）：
-        ① 采样身份一致性——计数器是实例级口径，RAC / 负载均衡下两次采样
-           若落在不同实例（instance_number / db_unique_name 变化），做差
-           得到的值毫无意义，本轮直接作废；
-        ② 时间差有效性——实际间隔远小于采样周期说明调度抖动，放大会把
-           正常增量算成尖峰，抖动样本丢弃；
-        ③ 尖峰封顶——超出物理阈值记为采样异常（保留原值供排查），
-           但不进 KPI 与迷你趋势，避免误导。
+        由统一采集器调用（prev 状态存 UnifiedStore），不再写任何本地缓冲。
+        速率防噪三层（#63 Oracle QPS 偶发冲高）保持原逻辑：
+        ① RAC / 负载均衡下采样落到不同实例 → 本轮作废；
+        ② 实际间隔远小于采样周期 → 抖动样本丢弃；
+        ③ 超出物理阈值 → 记为采样异常，不进 KPI 与迷你趋势。
         """
         if not snap or 'id' not in snap:
-            return
-        iid = snap['id']
-        # 宿主资源：只读常驻采集器已产出的结果（不在此处发起 SSH，避免拖慢大屏采样轮）
-        try:
-            snap['host_res'] = _read_host_metrics(iid)
-        except Exception:
-            snap['host_res'] = None
-        ts = snap.get('ts') or time.time()
-        with self._lock:
-            prev = self._prev.get(iid)
-            if prev and snap.get('counters'):
-                cur_id = (snap.get('instance_number'), snap.get('db_unique_name'))
-                prev_id = (prev.get('inum'), prev.get('dbname'))
-                id_mismatch = (cur_id[0] is not None and prev_id[0] is not None
-                               and cur_id[0] != prev_id[0])
-                dt = ts - prev['ts']
-                dt_valid = dt >= self.INTERVAL * self.DT_MIN_RATIO
-                if id_mismatch:
-                    snap['rate_note'] = 'instance_changed'
-                elif not dt_valid:
-                    snap['rate_note'] = 'dt_too_small'
-                else:
-                    dt = max(dt, 0.001)
-                    qps = self._rate(prev['counters'], snap['counters'], dt, 'qps')
-                    tps = self._rate(prev['counters'], snap['counters'], dt, 'tps')
-                    if qps is not None and qps > self.QPS_SPIKE_MAX:
-                        snap['qps_raw'] = round(qps, 1)
-                        snap['rate_note'] = 'spike'
-                        qps = None
-                    snap['qps'] = round(qps, 1) if qps is not None else None
-                    snap['tps'] = round(tps, 1) if tps is not None else None
-                    if qps is None:
-                        snap['rate_note'] = snap.get('rate_note') or 'counter_reset'
-                    if snap.get('counters', {}).get('hit_base'):
-                        h = snap['counters'].get('hit') or 0
-                        b = snap['counters']['hit_base']
-                        snap['cache_hit_pct'] = round(h / b * 100, 1) if b else None
-            self._prev[iid] = {'ts': ts, 'counters': dict(snap.get('counters') or {}),
-                               'inum': snap.get('instance_number'),
-                               'dbname': snap.get('db_unique_name')}
-            self._snap[iid] = {k: v for k, v in snap.items() if k != 'counters'}
-            if snap.get('qps') is not None:
-                sp = self._spark.setdefault(iid, deque(maxlen=self.HISTORY))
-                sp.append(snap['qps'])
+            return snap, prev
+        out = dict(snap)
+        ts = out.get('ts') or time.time()
+        counters = out.get('counters') or {}
+        if prev and counters:
+            cur_id = (out.get('instance_number'), out.get('db_unique_name'))
+            prev_id = (prev.get('inum'), prev.get('dbname'))
+            id_mismatch = (cur_id[0] is not None and prev_id[0] is not None
+                           and cur_id[0] != prev_id[0])
+            dt = ts - prev['ts']
+            dt_valid = dt >= interval * self.DT_MIN_RATIO
+            if id_mismatch:
+                out['rate_note'] = 'instance_changed'
+            elif not dt_valid:
+                out['rate_note'] = 'dt_too_small'
+            else:
+                dt = max(dt, 0.001)
+                qps = self._rate(prev['counters'], counters, dt, 'qps')
+                tps = self._rate(prev['counters'], counters, dt, 'tps')
+                if qps is not None and qps > self.QPS_SPIKE_MAX:
+                    out['qps_raw'] = round(qps, 1)
+                    out['rate_note'] = 'spike'
+                    qps = None
+                out['qps'] = round(qps, 1) if qps is not None else None
+                out['tps'] = round(tps, 1) if tps is not None else None
+                if qps is None:
+                    out['rate_note'] = out.get('rate_note') or 'counter_reset'
+                if counters.get('hit_base'):
+                    h = counters.get('hit') or 0
+                    b = counters['hit_base']
+                    out['cache_hit_pct'] = round(h / b * 100, 1) if b else None
+        new_prev = {'ts': ts, 'counters': dict(counters),
+                    'inum': out.get('instance_number'),
+                    'dbname': out.get('db_unique_name')}
+        # 与旧 _snap 口径一致：counters 是中间量，不进对外快照
+        out.pop('counters', None)
+        return out, new_prev
 
-    # ── 数据读取 ──
+    def _commit_snap(self, snap):
+        """兼容入口：旧代码若直接调用，仍经统一采集器落到 UnifiedStore。"""
+        if not snap or 'id' not in snap:
+            return snap
+        if snap.get('host_res') is None:
+            try:
+                snap['host_res'] = _read_host_metrics(snap['id'])
+            except Exception:
+                snap['host_res'] = None
+        from modules.monitor.unified_collector import get_unified_collector
+        return get_unified_collector().commit_snap(snap)
+
+    # ── 数据读取：投影统一存储 ──
     def get_snapshot(self):
-        with self._lock:
-            out = {}
-            for iid, s in self._snap.items():
-                d = dict(s)
-                d['spark'] = list(self._spark.get(iid) or [])
-                out[iid] = d
-            return out
+        return self._store().get_snapshot()
 
     def get_trend(self):
-        with self._lock:
-            return list(self._trend)
+        return self._store().get_trend()
 
 
 # ═══════════════════════════════════════════════════════════
@@ -1357,7 +1281,9 @@ _HOST_KEYS = ('host_cpu', 'host_cpu_iowait', 'host_mem', 'host_swap_pct',
               'host_services_running', 'host_services_abnormal',
               'host_services_cpu_pct', 'host_services_mem_mb',
               'host_service_alerts', 'host_service_alert_count',
-              'host_collector_source', 'host_error')
+              'host_collector_source', 'host_error',
+              # 数据新鲜度（统一采集器写入）：真实采样时刻 / 陈旧秒数 / 历史标记
+              'host_sample_ts', 'host_last_ok_ts', 'host_age_s', 'host_stale')
 
 
 def _ts_to_epoch(raw):
@@ -1410,7 +1336,10 @@ def _read_host_metrics(iid):
         # 采样时刻（不是 overview 的请求时刻）：前端据此判断两帧是否同一次采集，
         # 否则 2s/15s 轮询会把每个重复帧都当成新采样点或永远卡在末点。
         sample_ts = _ts_to_epoch(latest.get('ts'))
-        if sample_ts:
+        # 统一采集器已在 payload 里写入**真实宿主采样时刻**（采集中断时是
+        # 最后一次成功时刻）；它比帧 ts 更准确，绝不能被帧时间覆盖，否则
+        # 历史数据又会被伪装成本轮新采集。仅旧数据无该字段时才回退帧 ts。
+        if sample_ts and out.get('host_sample_ts') is None:
             out['host_sample_ts'] = sample_ts
         return out
     except Exception:
@@ -1451,6 +1380,11 @@ def _read_host_series(iid, limit=60):
         for r in rows:
             m = r.get('metrics')
             if not isinstance(m, dict):
+                continue
+            # 宿主采集中断期间统一采集器会保留最后一次成功数值并标 stale；
+            # 这些帧不是新采样点，绝不能进历史序列——否则折线会把同一组旧值
+            # 沿时间轴平铺成一条「看似一直在实时更新」的直线。
+            if m.get('host_stale'):
                 continue
             pt = {'cpu': m.get('host_cpu'), 'mem': m.get('host_mem'),
                   'swap': m.get('host_swap_pct'), 'load1': m.get('host_load1')}

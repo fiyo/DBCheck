@@ -33,6 +33,10 @@ import threading
 import concurrent.futures as cf
 from datetime import datetime
 
+from modules.monitor.connection_factory import (
+    open_db_connection, parse_oracle_target, oracle_protocol_probe,
+    uses_db_tunnel)
+
 # ── 配置 ───────────────────────────────────────────────
 DEFAULT_INTERVAL = 30          # 采集间隔（秒）
 DEFAULT_MAX_POINTS = 2000      # 每实例保留的快照数（环形裁剪）
@@ -93,6 +97,27 @@ COUNTER_KEYS = {
     },
     # DM8 计数器名不固定，速率在深采中按 dm_ 前缀动态处理
 }
+
+# ── 首页深采 SQL（供 JDBC 批量子进程一次性带入）──────────────
+# oracle_jdbc / uxdb_jdbc 的首页深采原本要单独 spawn 一个 jdbc_metrics_cli
+# 子进程，与大屏的 jdbc_collect_cli 批量子进程重复。统一采集器现在把这些
+# SQL 一并放进 _jdbc_batch_sqls，用 BatchResultConnection 从同一次批量结果
+# 投影首页指标，每实例每轮只剩一次子进程。
+# ⚠️ 字符串必须与 _collect_oracle / _collect_postgres / _collect_uxdb /
+#    _collect_dm 里的字面量**逐字一致**（批量结果以 SQL 文本为键）。
+DEEP_METRIC_SQLS = (
+    "SELECT * FROM v$sysstat",
+    "SELECT count(*) FROM v$session WHERE type = 'USER'",
+    "SELECT count(*) FROM v$session WHERE username IS NOT NULL",
+    "SELECT count(*) FROM v$session WHERE state = 'ACTIVE'",
+    "SELECT count(*) FROM v$session WHERE state <> 'INACTIVE'",
+    "SELECT count(*) FROM v$session",
+    "SELECT numbackends, xact_commit, xact_rollback, blks_read, blks_hit, "
+    "deadlocks, conflicts FROM pg_stat_database WHERE datname = current_database()",
+    "SELECT numbackends, xact_commit, xact_rollback, blks_read, blks_hit, "
+    "deadlocks, conflicts FROM ux_catalog.ux_stat_database",
+    "SELECT EXTRACT(EPOCH FROM (now() - pg_last_xact_replay_timestamp()))::float",
+)
 
 # ── 统计项名称 → 规范指标键 的跨版本映射 ──────────────────
 # 用于 Oracle / 达梦 等「按名称取计数器」的场景。
@@ -469,11 +494,23 @@ def evaluate_host_service_alerts(services, thresholds: dict = None) -> list:
 
 
 class MetricsCollector:
-    def __init__(self, socketio=None, db_path: str = None, interval: int = DEFAULT_INTERVAL):
-        if db_path is None:
-            from modules.core import paths
-            db_path = os.path.join(str(paths.DATA_DIR), 'pro_metrics.db')
-        self.store = MetricsStore(db_path)
+    """首页实时监控采集器 — 统一采集器的深采能力提供者 / 只读投影适配器。
+
+    历史版本本类由 APScheduler 每 30s 独立 ``tick`` 一轮，自带连接与
+    SQLite 存储；现在**不再调度、不再独立建连**（除非脱离统一采集器
+    被单独调用），只保留按库型的深采函数、速率差分与宿主采集能力，
+    统一由 UnifiedCollector 在同一条连接上调用，结果写 UnifiedStore。
+    ``store`` 直接指向统一存储，``_read_host_metrics`` 等旧读取方零改动。
+    """
+
+    def __init__(self, socketio=None, db_path: str = None,
+                 interval: int = DEFAULT_INTERVAL, store=None):
+        if store is None:
+            if db_path is None:
+                from modules.core import paths
+                db_path = os.path.join(str(paths.DATA_DIR), 'pro_metrics.db')
+            store = MetricsStore(db_path)
+        self.store = store
         self.socketio = socketio
         self.interval = interval
         self.running = False
@@ -483,206 +520,38 @@ class MetricsCollector:
         self._cooldown = {}    # instance_id -> 退避截止时间戳
         self._lock = threading.Lock()
 
+    @property
+    def running(self):
+        """运行状态取自唯一采集器（供首页 / API / 关停逻辑读取）。"""
+        try:
+            from modules.monitor.unified_collector import get_unified_collector
+            return bool(get_unified_collector().is_running)
+        except Exception:
+            return self._running
+
+    @running.setter
+    def running(self, value):
+        # app.py 关停段会写 ``_collector.running = False``；这里只记录标志，
+        # 真正的循环开关在统一采集器上（由关停段显式调用 stop）。
+        self._running = bool(value)
+
     # ── 连接 ──
     def _connect(self, inst: dict):
-        """返回底层 DBAPI 连接；不支持深采的类型返回 None。"""
-        db_type = str(inst.get('db_type') or '').lower()
-        host = inst.get('host')
-        port = int(inst.get('port') or 0)
-        user = inst.get('user')
-        password = inst.get('password')
-        t = self._query_timeout()  # 查询/语句硬超时（秒）
-        if db_type in ('mysql', 'tidb', 'oceanbase'):
-            import pymysql
-            db_name = inst.get('database')
-            if db_type == 'oceanbase':
-                # OceanBase MySQL 租户：database 即租户名（默认 sys）。
-                db_name = db_name or 'sys'
-            return pymysql.connect(host=host, port=port, user=user,
-                                   password=password, database=db_name,
-                                   connect_timeout=CONNECT_TIMEOUT,
-                                   read_timeout=t, write_timeout=t)
-        if db_type in ('postgresql', 'pg', 'ivorysql', 'kingbase', 'halodb', 'vastbase'):
-            import psycopg2
-            dbname = inst.get('database') or (
-                'kingbase' if db_type == 'kingbase'
-                else ('halo' if db_type == 'halodb' else 'postgres'))
-            return psycopg2.connect(host=host, port=port, user=user,
-                                    password=password, dbname=dbname,
-                                    connect_timeout=CONNECT_TIMEOUT,
-                                    options="-c statement_timeout=%d" % (t * 1000))
-        if db_type == 'oracle_jdbc':
-            # oracle_jdbc 数据源一律走插件 JDBC 连接，绝不走 oracledb，
-            # 以避免 Oracle 11g 在无 Oracle 客户端环境下连接失败。
-            return self._connect_oracle_jdbc(inst)
-        if db_type in ('uxdb', 'uxdb_jdbc'):
-            # UXDB（优炫数据库）为 PostgreSQL 兼容库，通过 uxdb_jdbc 插件走 JDBC 连接。
-            return self._connect_uxdb_jdbc(inst)
-        if db_type == 'oracle':
-            import oracledb
-            # 原生 oracle 用 oracledb 直连；端口/协议探测提前暴露典型误配
-            ohost, oport, oservice, ois_sid, oproto = self._parse_oracle_target(inst)
-            if ohost and oport:
-                self._oracle_protocol_probe(ohost, oport, oproto)
-            jdbc_url = (inst.get('jdbc_url') or '').strip()
-            # 纯 TNS 描述符 (DESCRIPTION=...) oracledb 可直接作为 dsn 使用，无需解析后重拼
-            if jdbc_url and jdbc_url.lstrip().upper().startswith('(DESCRIPTION'):
-                dsn = jdbc_url
-            elif oservice:
-                # 服务名用 host:port/service，SID 用 host:port:sid
-                dsn = ('%s:%d/%s' % (ohost, oport, oservice)) if not ois_sid \
-                      else ('%s:%d:%s' % (ohost, oport, oservice))
-            else:
-                dsn = '%s:%d/orcl' % (ohost or host, oport or port)
-            mode = oracledb.SYSDBA if inst.get('sysdba') else oracledb.AUTH_MODE_DEFAULT
-            kw = dict(user=user, password=password, dsn=dsn, mode=mode)
-            # TCPS / SSL：从 jdbc_url 解析到 tcps 时尝试 SSL 连接
-            if oproto == 'tcps':
-                try:
-                    import ssl
-                    ctx = ssl.create_default_context()
-                    ctx.check_hostname = False
-                    ctx.verify_mode = ssl.CERT_NONE
-                    kw['ssl_context'] = ctx
-                except Exception:
-                    pass
-            conn = oracledb.connect(**kw)
-            # 语句级超时（毫秒）：避免慢查询无限期挂起整轮采集。
-            # call_timeout 在部分 oracledb 版本可用，缺失则静默跳过。
-            try:
-                conn.call_timeout = t * 1000
-            except Exception:
-                pass
-            return conn
-        if db_type == 'dm':
-            import dmPython
-            return dmPython.connect(user=user, password=password, server='%s:%d' % (host, port))
-        if db_type in ('sqlserver', 'mssql', 'sqlserver_jdbc'):
-            # sqlserver_jdbc（插件标识）与 sqlserver 同为 TDS 线协议，pyodbc 直连
-            # （与监控大屏 _create_connection 同口径：绝不走 JDBC 插件起 JVM）。
-            import pyodbc
-            # 支持 DSN 或 host/port 直连
-            conn_str = inst.get('connection_string') or ''
-            if not conn_str:
-                database = inst.get('database') or 'master'
-                driver = '{ODBC Driver 17 for SQL Server}'
-                try:
-                    import pyodbc as _pyodbc
-                    drivers = [d for d in _pyodbc.drivers() if 'sql server' in d.lower()]
-                    if drivers:
-                        driver = '{%s}' % drivers[0]
-                except Exception:
-                    pass
-                conn_str = f'DRIVER={driver};SERVER={host},{port};DATABASE={database};UID={user};PWD={password}'
-            return pyodbc.connect(conn_str, timeout=t)
-        if db_type == 'mongodb':
-            # MongoDB 返回 MongoClient（非 DBAPI 连接）。
-            # 为避免 pro/ 与 plugins/available/mongodb/ 的跨目录硬依赖，
-            # 此处内联一个轻量 URI 构建（字段向后兼容 ssh_info）。
-            from pymongo import MongoClient
-            from urllib.parse import quote_plus
-            info = dict(inst)
-            info.update(inst.get('ssh_info') or {})
-            host = info.get('host') or '127.0.0.1'
-            port = int(info.get('port') or 27017)
-            user = info.get('user') or ''
-            password = info.get('password') or ''
-            database = info.get('database') or 'admin'
-            connect_mode = (info.get('connect_mode') or 'standard').lower()
-            auth_source = info.get('auth_source') or 'admin'
-            auth_mechanism = info.get('auth_mechanism') or ''
-            replica_set = info.get('replica_set') or ''
-            tls = bool(info.get('tls', False))
-            tls_ca_file = info.get('tls_ca_file') or ''
-            tls_cert_key_file = info.get('tls_cert_key_file') or ''
-            tls_allow_invalid_certs = bool(info.get('tls_allow_invalid_certs', False))
+        """返回 ``ManagedConnection``（DBAPI 连接 + 可选 SSH 隧道）。
 
-            scheme = 'mongodb+srv://' if connect_mode == 'srv' else 'mongodb://'
-            auth_part = ''
-            if user:
-                eu = quote_plus(user)
-                if password:
-                    auth_part = '%s:%s@' % (eu, quote_plus(password))
-                else:
-                    auth_part = '%s@' % eu
-            host_part = host if connect_mode == 'srv' else '%s:%d' % (host, port)
-            db_part = '/%s' % database if database else '/'
-
-            params = []
-            if auth_source and auth_source != 'admin':
-                params.append('authSource=%s' % quote_plus(auth_source))
-            elif user and auth_source:
-                params.append('authSource=%s' % quote_plus(auth_source))
-            if auth_mechanism:
-                params.append('authMechanism=%s' % quote_plus(auth_mechanism))
-            if replica_set:
-                params.append('replicaSet=%s' % quote_plus(replica_set))
-            query = '?' + '&'.join(params) if params else ''
-            uri = '%s%s%s%s%s' % (scheme, auth_part, host_part, db_part, query)
-
-            kwargs = {
-                'serverSelectionTimeoutMS': 5000,
-                'connectTimeoutMS': 5000,
-                'socketTimeoutMS': 10000,
-            }
-            if tls:
-                kwargs['tls'] = True
-                if tls_ca_file:
-                    kwargs['tlsCAFile'] = tls_ca_file
-                if tls_cert_key_file:
-                    kwargs['tlsCertificateKeyFile'] = tls_cert_key_file
-                if tls_allow_invalid_certs:
-                    kwargs['tlsAllowInvalidCertificates'] = True
-            return MongoClient(uri, **kwargs)
-        return None
-
-    def _connect_oracle_jdbc(self, inst: dict):
-        """oracle_jdbc 类型：一律通过插件走 JDBC 连接（JdbcConnectionWrapper，DB-API 兼容），
-        绝不走 oracledb，以避免 Oracle 11g 在无 Oracle 客户端环境下连接失败。
-        插件在内部用 JPype 启动 JVM + ojdbc8.jar 建立连接，深采逻辑复用 _collect_oracle()。
+        统一采集器在一轮开始时已为当前实例建好唯一连接并绑定到
+        ``connection_scope``；命中绑定时返回借用视图（``close()`` 为
+        no-op），本轮所有采集通道共用这一条连接。未命中时按原逻辑
+        由 connection_factory 自行建连（兼容独立调用 / 脚本 / 测试）。
         """
-        try:
-            from modules.pluginkit.loader import get_plugin_module
-        except Exception as e:
-            raise RuntimeError('加载插件系统失败: %s' % e)
-        mod = get_plugin_module('oracle_jdbc')
-        if mod is None or not hasattr(mod, 'get_connection'):
-            raise RuntimeError(
-                'oracle_jdbc 插件未启用或缺少 get_connection 入口，'
-                '请先在插件管理中启用 Oracle (JDBC) 插件'
-            )
-        return mod.get_connection(
-            host=inst.get('host'),
-            port=int(inst.get('port') or 1521),
-            user=inst.get('user'),
-            password=inst.get('password'),
-            service_name=inst.get('service_name') or 'ORCL',
-            sysdba=bool(inst.get('sysdba')),
-            jdbc_url=inst.get('jdbc_url') or None,
-        )
-
-    def _connect_uxdb_jdbc(self, inst: dict):
-        """uxdb / uxdb_jdbc 类型：通过插件走 JDBC 连接（JdbcConnectionWrapper，DB-API 兼容），
-        深采逻辑复用 _collect_postgres()（UXDB 兼容 PostgreSQL 统计视图）。
-        """
-        try:
-            from modules.pluginkit.loader import get_plugin_module
-        except Exception as e:
-            raise RuntimeError('加载插件系统失败: %s' % e)
-        mod = get_plugin_module('uxdb_jdbc')
-        if mod is None or not hasattr(mod, 'get_connection'):
-            raise RuntimeError(
-                'uxdb_jdbc 插件未启用或缺少 get_connection 入口，'
-                '请先在插件管理中启用 UXDB (JDBC) 插件'
-            )
-        return mod.get_connection(
-            host=inst.get('host'),
-            port=int(inst.get('port') or 33060),
-            user=inst.get('user'),
-            password=inst.get('password'),
-            database=inst.get('database') or 'uxdb',
-            jdbc_url=inst.get('jdbc_url') or None,
-        )
+        from modules.monitor import connection_scope
+        borrowed = connection_scope.borrowed(inst.get('id'))
+        if borrowed is not None:
+            return borrowed
+        return open_db_connection(
+            inst, connect_timeout=CONNECT_TIMEOUT,
+            query_timeout=self._query_timeout(),
+            probe_oracle_protocol=True)
 
     # ── 通用探针 ──
     def _tcp_probe(self, host, port) -> tuple:
@@ -712,132 +581,12 @@ class MetricsCollector:
         """
         return max(5, int(self.interval * 0.4))
 
-    # ── Oracle 端口/协议探测 ──
+    # ── Oracle 端口/协议探测（统一实现在 connection_factory，保留方法名兼容调用）──
     def _parse_oracle_target(self, inst: dict):
-        """从实例字段或 jdbc_url 统一解析出 (host, port, service, is_sid, protocol)。
-
-        探测与正式建连共用同一套解析，避免「探测对、连接错」。支持的 JDBC URL 写法：
-          - jdbc:oracle:thin:@host:port:SID             (老式 SID，dsn 用 host:port:sid)
-          - jdbc:oracle:thin:@//host:port/SERVICE_NAME  (EZConnect 服务名，dsn 用 host:port/service)
-          - jdbc:oracle:thin:@(DESCRIPTION=(HOST=..)(PORT=..)(CONNECT_DATA=(SERVICE_NAME=..|SID=..)))  (TNS 描述符)
-          - PROTOCOL=tcps                               (SSL 监听，常用 2484 端口)
-        """
-        host = inst.get('host')
-        port = int(inst.get('port') or 0)
-        service = inst.get('service_name') or inst.get('dsn')
-        is_sid = False
-        protocol = 'tcp'
-        jdbc_url = (inst.get('jdbc_url') or '').strip()
-
-        if jdbc_url:
-            m = re.search(r'PROTOCOL\s*=\s*(tcps|tcp)', jdbc_url, re.I)
-            if m:
-                protocol = m.group(1).lower()
-            after = jdbc_url.split('@')[-1]
-            # TNS 描述符优先用 HOST=/PORT=/SERVICE_NAME=/SID=
-            hm = re.search(r'HOST\s*=\s*([^)\s]+)', jdbc_url, re.I)
-            if hm:
-                host = hm.group(1)
-            pm = re.search(r'PORT\s*=\s*(\d+)', jdbc_url, re.I)
-            if pm:
-                port = int(pm.group(1))
-            sm = re.search(r'SERVICE_NAME\s*=\s*([^)\s]+)', jdbc_url, re.I)
-            sidm = re.search(r'\(SID\s*=\s*([^)\s]+)\)', jdbc_url, re.I)
-            if sm:
-                service = sm.group(1)
-                is_sid = False
-            elif sidm:
-                service = sidm.group(1)
-                is_sid = True
-            if not service:
-                # 形如 //host:port/service 或 host:port:sid
-                if '//' in after:
-                    seg = after.split('//')[-1]
-                    p0 = seg.split(':')
-                    if len(p0) >= 2:
-                        host = p0[0]
-                        port = int(p0[1].split('/')[0])
-                        if '/' in p0[1]:
-                            service = p0[1].split('/', 1)[1]
-                else:
-                    p0 = after.split(':')
-                    if len(p0) == 3:
-                        host, port, service = p0[0], int(p0[1]), p0[2]
-                        is_sid = True
-        return host, port, service, is_sid, protocol
-
-    def _tns_connect_probe(self) -> bytes:
-        """构造一个最小 TNS Connect 包，用于触发 Oracle 监听器回包以便嗅探。"""
-        connect_data = b'(CONNECT_DATA=(SID=ORCL))'
-        body = b''.join([
-            (312).to_bytes(2, 'big'),     # version
-            (312).to_bytes(2, 'big'),     # version(compat)
-            (0).to_bytes(2, 'big'),       # service options
-            (2048).to_bytes(2, 'big'),    # SDU
-            (2048).to_bytes(2, 'big'),    # TDU
-            (0x07ff).to_bytes(2, 'big'),  # characteristics
-            (0).to_bytes(2, 'big'),       # turnaround
-            (1).to_bytes(2, 'big'),       # 1 in hw
-            len(connect_data).to_bytes(2, 'big'),  # connect data length
-            (58).to_bytes(2, 'big'),      # offset to connect data (0x3a)
-            (2048).to_bytes(2, 'big'),    # max receive
-            (0).to_bytes(4, 'big'),       # connect flags
-            connect_data,
-        ])
-        length = 8 + len(body)
-        header = length.to_bytes(2, 'big') + bytes([0x01, 0x00]) + (0).to_bytes(4, 'big')
-        return header + body
+        return parse_oracle_target(inst)
 
     def _oracle_protocol_probe(self, host, port, protocol):
-        """连接端口并嗅探首字节，提前发现「连错端口 / SSL 不匹配」等典型误配，
-        给出清晰中文提示，避免笼统的握手失败。探测用独立 socket，失败不阻断正式连接。"""
-        s = None
-        try:
-            s = socket.create_connection((host, int(port)), timeout=CONNECT_TIMEOUT)
-            try:
-                s.sendall(self._tns_connect_probe())
-            except Exception:
-                pass
-            s.settimeout(2.0)
-            data = b''
-            try:
-                while len(data) < 16:
-                    chunk = s.recv(4096)
-                    if not chunk:
-                        break
-                    data += chunk
-            except Exception:
-                pass
-        except socket.timeout:
-            return
-        except Exception:
-            return
-        finally:
-            if s:
-                try:
-                    s.close()
-                except Exception:
-                    pass
-        if not data:
-            return
-        if data[:4] == b'HTTP':
-            raise ValueError(
-                'Oracle 连接失败：该端口返回了 HTTP 响应，疑似连到了 Web/HTTP 服务'
-                '（如 8080 / 443 控制台端口），并非 Oracle 监听器端口。'
-                '请核对 jdbc_url 中 @ 后的 host:port 是否为真实 listener 端口（通常 1521）。'
-            )
-        if data[0] in (0x15, 0x16):
-            raise ValueError(
-                'Oracle 连接失败：该端口返回了 TLS/SSL 握手，疑似需要 TCPS(SSL) 连接'
-                '（常用 2484 端口）。请在 jdbc_url 中使用 PROTOCOL=tcps 或改用 SSL 连接。'
-            )
-        # TNS 包：第 3 字节为包类型（1..12）
-        if len(data) >= 3 and 1 <= data[2] <= 12:
-            return
-        raise ValueError(
-            'Oracle 连接失败：该端口返回了非 TNS 的协议数据，可能不是 Oracle 监听器端口。'
-            '请核对 jdbc_url 中的 host:port。'
-        )
+        return oracle_protocol_probe(host, port, protocol, timeout=CONNECT_TIMEOUT)
 
     # ── 深采分派 ──
     def _collect_deep(self, db_type: str, conn) -> dict:
@@ -1804,6 +1553,15 @@ class MetricsCollector:
                 'service_name': inst.get('service_name') or inst.get('database') or '',
                 'sysdba': bool(inst.get('sysdba', False)),
                 'jdbc_url': inst.get('jdbc_url') or None,
+                # SSH 隧道（数据库经隧道连接）：子进程内由统一连接工厂建隧道，
+                # 与主进程采集/大屏 JDBC 通道同口径（仅显式 ssh_tunnel 生效）。
+                'ssh_tunnel': bool(inst.get('ssh_tunnel', False)),
+                'ssh_host': inst.get('ssh_host') or '',
+                'ssh_port': int(inst.get('ssh_port', 22) or 22),
+                'ssh_user': inst.get('ssh_user') or '',
+                'ssh_password': inst.get('ssh_password') or '',
+                'ssh_key_file': inst.get('ssh_key_file') or '',
+                'ssh_key_password': inst.get('ssh_key_password') or '',
             },
         }
         raw = json.dumps(payload, ensure_ascii=True)
@@ -1840,7 +1598,13 @@ class MetricsCollector:
         return None
 
     # ── 单实例采集 ──
-    def collect_one(self, inst: dict) -> dict:
+    def collect_one(self, inst: dict, collect_host: bool = True) -> dict:
+        """深采单个实例。
+
+        ``collect_host=False``：由统一采集器按 30s 节流集中采集宿主资源
+        （15s 轮里每轮都做 SSH 采集会让开销翻倍）。独立调用时保持 True，
+        即老语义「无论 DB 可达与否都落一份宿主快照」。
+        """
         inst_id = inst.get('id') or inst.get('instance_id')
         name = inst.get('name')
         db_type = str(inst.get('db_type') or '').lower()
@@ -1853,108 +1617,71 @@ class MetricsCollector:
             snapshot['error'] = 'missing instance id'
             return snapshot
 
-        if self._in_cooldown(inst_id):
-            snapshot['available'] = False
-            snapshot['status'] = 'cooldown'
-            return snapshot
-
-        up, latency = self._tcp_probe(inst.get('host'), inst.get('port'))
-        snapshot['available'] = bool(up)
-        snapshot['latency_ms'] = latency
-        if not up:
-            self._on_fail(inst_id)
-            return snapshot
-
-        conn = None
         try:
-            if db_type in JVM_METRICS_DB_TYPES:
-                # JVM 类型：连接 + 深采必须隔离到干净子进程（绝不在主进程 startJVM），
-                # 否则 gevent monkey-patch 下冻结整个 hub → 实时监视界面卡死。
-                metrics = self._collect_jvm_subprocess(inst)
-                if metrics:
-                    snapshot.update(metrics)
-                    self._compute_rates(inst_id, db_type, snapshot, metrics)
-                else:
-                    snapshot['error'] = 'jvm metrics subprocess returned nothing'
+            if self._in_cooldown(inst_id):
+                snapshot['available'] = False
+                snapshot['status'] = 'cooldown'
+                return snapshot
+
+            # 数据库经 SSH 隧道时，直连原始 host:port 的 TCP 探测没有意义
+            # （远端库往往只在跳板机视角可达）→ 跳过探针，由统一工厂建连结果
+            # 决定可用性；未开隧道的实例保留原探针行为。
+            if uses_db_tunnel(inst):
+                up, latency = True, None
+                snapshot['probe_skipped'] = 'ssh_tunnel'
             else:
-                conn = self._connect(inst)
-                if conn is not None:
-                    metrics = self._collect_deep(db_type, conn)
-                    snapshot.update(metrics)
-                    self._compute_rates(inst_id, db_type, snapshot, metrics)
-        except Exception as e:
-            snapshot['error'] = str(e)[:200]
-        finally:
-            if conn:
-                try:
-                    conn.close()
-                except Exception:
-                    pass
-        # 宿主资源与数据库可用性解耦：无论 DB 连接成功还是失败（含连接异常），
-        # 均采集宿主指标，修复社区版 DB 不可达实例「宿主资源」面板显示「暂无宿主数据」。
-        self._attach_host(snapshot, inst_id, inst)
-        self._on_success(inst_id)
-        return snapshot
+                up, latency = self._tcp_probe(inst.get('host'), inst.get('port'))
+            snapshot['available'] = bool(up)
+            snapshot['latency_ms'] = latency
+            if not up:
+                self._on_fail(inst_id)
+                return snapshot
 
-    # ── 一轮采集（被调度器调用）──
-    def tick(self) -> list:
-        try:
-            from modules.pro import get_instance_manager
-            im = get_instance_manager()
-            # 注意：采集器在服务端运行，需要真实**明文**密码才能建立数据库 / SSH 连接。
-            # 这里必须用 get_all_instances_decrypted()：
-            #   - mask_password=True  → 密码被替换成 '****'；
-            #   - mask_password=False → 密码是 Fernet 密文（**不是**明文！）。
-            # 早期误用 mask_password=False，密文被原样传给 oracledb / Oracle JDBC 等驱动，
-            # 表现为 ORA-01005: null password given / ORA-28000: account is locked，
-            # 并因连续失败触发断路器，导致前端实时监控数据源下拉框为空。
-            raw_instances = im.get_all_instances_decrypted()
-        except Exception as e:
-            return [{'error': 'collector tick failed: %s' % str(e)[:200]}]
-
-        if not raw_instances:
-            return []
-
-        # 并发采集：每实例独立线程 + 连接层查询超时（见 _connect），
-        # 整轮受全局截止时间约束，保证单次 tick 永远小于采集间隔，
-        # 避免 APScheduler 因上轮未结束而跳过本轮（控制台刷 skipped 告警）。
-        deadline = time.time() + max(1, int(self.interval * 0.8))
-        workers = min(8, len(raw_instances))
-        ex = cf.ThreadPoolExecutor(max_workers=workers)
-        futs = {ex.submit(self.collect_one, inst): inst for inst in raw_instances}
-        done, _not_done = cf.wait(
-            list(futs.keys()),
-            timeout=max(1, deadline - time.time()),
-            return_when=cf.ALL_COMPLETED,
-        )
-        # 未在截止时间前完成的实例本轮丢弃（其线程受查询超时约束会在后台自行结束），
-        # 下一轮再采；不调用 ex.shutdown(wait=True) 以免 tick 被拖到超过间隔。
-        ex.shutdown(wait=False)
-
-        batch = []
-        for fut in done:
+            managed = None
             try:
-                snap = fut.result()
+                if db_type in JVM_METRICS_DB_TYPES:
+                    # JVM 类型：连接 + 深采必须隔离到干净子进程（绝不在主进程
+                    # startJVM），否则 gevent monkey-patch 下冻结整个 hub。
+                    metrics = self._collect_jvm_subprocess(inst)
+                    if metrics:
+                        snapshot.update(metrics)
+                        self._compute_rates(inst_id, db_type, snapshot, metrics)
+                    else:
+                        snapshot['error'] = 'jvm metrics subprocess returned nothing'
+                        snapshot['available'] = False
+                else:
+                    managed = self._connect(inst)
+                    if managed is not None:
+                        metrics = self._collect_deep(db_type, managed.conn)
+                        snapshot.update(metrics)
+                        self._compute_rates(inst_id, db_type, snapshot, metrics)
             except Exception as e:
-                inst = futs[fut]
-                snap = {'instance_id': inst.get('id'), 'error': str(e)[:200]}
-            if snap.get('instance_id'):
-                try:
-                    self.store.save_snapshot(snap['instance_id'], snap['ts'], snap)
-                except Exception:
-                    pass
-                batch.append(snap)
+                snapshot['available'] = False
+                snapshot['error'] = str(e)[:200]
+            finally:
+                if managed is not None:
+                    managed.close()
+            self._on_success(inst_id)
+            return snapshot
+        finally:
+            # 宿主资源与数据库探测彻底解耦：退避(cooldown) / TCP 探测失败 /
+            # 深采异常三条早退路径此前都在 _attach_host 之前 return，导致
+            # get_latest(iid) 永远没有宿主字段 → 大屏「宿主资源」整片空白。
+            # 现在无论数据库可达与否都落一份宿主快照（含 unavailable 原因）；
+            # 统一采集器路径下改由它按 30s 节流集中采集并注入。
+            if collect_host:
+                self._attach_host(snapshot, inst_id, inst)
 
-        if self.socketio and batch:
-            try:
-                self.socketio.emit(
-                    'metrics',
-                    {'snapshots': batch, 'ts': datetime.now().isoformat()},
-                    room='monitor',
-                )
-            except Exception:
-                pass
-        return batch
+    # ── 一轮采集（兼容入口，委托唯一采集器）──
+    def tick(self) -> list:
+        """兼容入口：委托 UnifiedCollector 执行一轮，不另起调度循环。
+
+        历史版本这里由 APScheduler 每 30s 调一次，是三条采集循环之一；
+        现在只保留方法签名，供脚本 / 单元测试 / 手动调用沿用。
+        """
+        from modules.monitor.unified_collector import get_unified_collector
+        frames = get_unified_collector()._round() or []
+        return [f.get('home') or {} for f in frames]
 
 
 # ── 进程内单例 ──────────────────────────────────────────

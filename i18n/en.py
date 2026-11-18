@@ -3830,3 +3830,11 @@ EN.update({
     "webui.donate_qr_nickname_title": 'Tip',
     "webui.donate_qr_nickname": 'If you like, leave a nickname or name in the payment note and I will add it to the thank-you list. No note is fine too — privacy first.',
 })
+
+
+# ── 宿主资源数据新鲜度提示（主机宕机/采集中断时标识历史数据）──
+EN.update({
+    "webui.screen_host_stale": "Historical",
+    "webui.screen_host_stale_tip": "Host collection interrupted; showing the last successful sample",
+    "webui.screen_host_spark_stale": "Collection stopped · chart ends at last sample",
+})
