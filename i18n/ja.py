@@ -3498,3 +3498,10 @@ JA.update({
     "webui.home_cal_click_hint": "マスをクリックすると当日のレポートを表示",
     "webui.home_cal_tip_click": "クリックして当日のレポートを表示",
 })
+
+
+# ── 捐赠备注昵称提示（WebUI 收款码卡片 + 官网鸣谢名单）────────────
+JA.update({
+    "webui.donate_qr_nickname_title": 'ヒント',
+    "webui.donate_qr_nickname": 'よければ決済の備考にニックネームやお名前を残してください。感謝リストに掲載します。記入しなくても全く問題ありません。プライバシー第一です。',
+})

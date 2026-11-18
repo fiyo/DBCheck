@@ -3876,3 +3876,10 @@ ZH_TW.update({
     "webui.home_cal_click_hint": "點擊格子查看當天巡檢報告",
     "webui.home_cal_tip_click": "點擊查看當天報告",
 })
+
+
+# ── 捐赠备注昵称提示（WebUI 收款码卡片 + 官网鸣谢名单）────────────
+ZH_TW.update({
+    "webui.donate_qr_nickname_title": '小提示',
+    "webui.donate_qr_nickname": '願意的話，可在付款備註留下暱稱或姓名，我會把它寫進鳴謝名單；不留也沒關係，隱私第一。',
+})

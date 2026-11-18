@@ -3447,3 +3447,10 @@ ES.update({
     "webui.home_cal_click_hint": "Haz clic en un día para ver sus informes",
     "webui.home_cal_tip_click": "Clic para ver los informes de este día",
 })
+
+
+# ── 捐赠备注昵称提示（WebUI 收款码卡片 + 官网鸣谢名单）────────────
+ES.update({
+    "webui.donate_qr_nickname_title": 'Consejo',
+    "webui.donate_qr_nickname": 'Si quieres, deja un apodo o nombre en la nota del pago y lo añadiré a la lista de agradecimiento. No dejar nada también está bien: la privacidad es lo primero.',
+})

@@ -3824,3 +3824,10 @@ ZI.update({
     "webui.home_cal_click_hint": "点击格子查看当天巡检报告",
     "webui.home_cal_tip_click": "点击查看当天报告",
 })
+
+
+# ── 捐赠备注昵称提示（WebUI 收款码卡片 + 官网鸣谢名单）────────────
+ZI.update({
+    "webui.donate_qr_nickname_title": '小提示',
+    "webui.donate_qr_nickname": '愿意的话，可在支付备注里留下昵称或姓名，我会把它写进鸣谢名单；不留也没关系，隐私第一。',
+})

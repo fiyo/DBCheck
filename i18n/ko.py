@@ -3446,3 +3446,10 @@ KO.update({
     "webui.home_cal_click_hint": "칸을 클릭하면 해당 날짜의 보고서를 봅니다",
     "webui.home_cal_tip_click": "클릭하여 해당 날짜 보고서 보기",
 })
+
+
+# ── 捐赠备注昵称提示（WebUI 收款码卡片 + 官网鸣谢名单）────────────
+KO.update({
+    "webui.donate_qr_nickname_title": '팁',
+    "webui.donate_qr_nickname": '원하시면 결제 메모에 닉네임이나 이름을 남겨 주세요. 감사 목록에 올려 드립니다. 남기지 않아도 전혀 문제없습니다. 개인정보가 최우선입니다.',
+})

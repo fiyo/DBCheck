@@ -3823,3 +3823,10 @@ EN.update({
     "webui.home_cal_click_hint": "Click a day to see its reports",
     "webui.home_cal_tip_click": "Click to view this day's reports",
 })
+
+
+# ── 捐赠备注昵称提示（WebUI 收款码卡片 + 官网鸣谢名单）────────────
+EN.update({
+    "webui.donate_qr_nickname_title": 'Tip',
+    "webui.donate_qr_nickname": 'If you like, leave a nickname or name in the payment note and I will add it to the thank-you list. No note is fine too — privacy first.',
+})

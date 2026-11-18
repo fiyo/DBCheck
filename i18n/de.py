@@ -3448,3 +3448,10 @@ DE.update({
     "webui.home_cal_click_hint": "Auf einen Tag klicken, um seine Berichte zu sehen",
     "webui.home_cal_tip_click": "Klicken für die Berichte dieses Tages",
 })
+
+
+# ── 捐赠备注昵称提示（WebUI 收款码卡片 + 官网鸣谢名单）────────────
+DE.update({
+    "webui.donate_qr_nickname_title": 'Hinweis',
+    "webui.donate_qr_nickname": 'Wenn du möchtest, hinterlasse einen Spitznamen oder Namen in der Zahlungsnotiz — ich füge ihn zur Danksagungsliste hinzu. Ohne Angabe geht es auch; Datenschutz zuerst.',
+})

@@ -3731,6 +3731,13 @@ async function executeFixSql(taskId, sql) {
   border-top: 1px dashed var(--border);
   font-size: 10.5px; line-height: 1.6; color: var(--text-muted);
 }
+.dn-qr-nickname {
+  width: 100%; margin-top: 9px; padding: 7px 9px;
+  border-radius: 7px; background: rgba(240,81,30,.06);
+  border-left: 2px solid var(--accent);
+  font-size: 10.5px; line-height: 1.6; color: var(--text-muted);
+}
+.dn-qr-nickname strong { color: var(--accent); font-weight: 600; }
 .dn-qr[data-pay="alipay"] .dn-qr-frame { padding: 0; border: none; background: transparent; box-shadow: 0 10px 26px rgba(22,119,255,.22); }
 .dn-qr[data-pay="alipay"] .dn-qr-frame:hover { box-shadow: 0 14px 34px rgba(22,119,255,.32); }
 .dn-qr[data-pay="alipay"] .dn-qr-img { max-width: 242px; border-radius: 14px; }
@@ -13063,6 +13070,7 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
                     </div>
                     <div class="dn-qr-payee" id="dn-qr-payee" data-i18n="webui.donate_qr_payee">收款方：程序猿水果摊</div>
                     <div class="dn-qr-note"><span class="dn-qr-badge" id="dn-qr-badge" data-i18n="webui.donate_qr_badge">微信支付</span><br><span id="dn-qr-note" data-i18n="webui.donate_qr_note">长按图片识别，或保存到相册后用微信打开。</span></div>
+                    <div class="dn-qr-nickname"><strong data-i18n="webui.donate_qr_nickname_title">小提示</strong><span data-i18n="webui.donate_qr_nickname">愿意的话，可在支付备注里留下昵称或姓名，我会把它写进鸣谢名单；不留也没关系，隐私第一。</span></div>
                     <div class="dn-qr-fine" data-i18n="webui.donate_qr_disclaimer">个人收款，与软件功能、服务响应无关；纯自愿支持，无任何服务或权益回报。</div>
                   </div>
                 </div>
