@@ -1,5 +1,23 @@
 # Changelog
 
+## v26.11.19.1 (2026-11-19)
+
+### 修复：宿主资源采集的 SSH 主机空值判定
+
+- 反馈场景：数据源「启用 SSH 系统信息采集」已开，首页实时监控与大屏「宿主资源」仍报「未配置 SSH」。实际只是恰好命中该配置组合，`oracle_jdbc` / Oracle 11g 与 JDBC 通道无关。
+- 根因三处串联：数据源弹窗的 SSH 主机输入框只有占位文案「与数据库主机相同」，保存时把空串原样提交；`update_instance()` 允许 `ssh_host` 被空串覆盖；`_resolve_ssh()` 要求 `ssh_host` 非空，于是 `ssh_enabled=1 + ssh_host=''` 被判成未配置。报错文案全仓只有一处，首页与大屏读同一份统一存储，故两边一起失效。
+- 修复：`_resolve_ssh()` 在 `ssh_host` 为空时回退实例数据库主机，落实 UI 明示语义，**存量数据无需重新保存即生效**；显式填写的 SSH 主机仍然优先。`saveDatasource()` 保存时把空值落成数据库主机，新配置不再产生该组合。
+
+### 修复：旧版 Windows 系统上的缺字图标
+
+- `🪟`（U+1FA9F，Unicode 14.0）在旧版 Segoe UI Emoji 无字形，数据源弹窗提示、首页「Windows 服务资源」标题与 SQL Server 图标 fallback 均渲染成缺字方框。
+- 数据源弹窗与首页两处换成兼容性广的 `💻`。大屏 SQL Server 图标本就有 `/sqlserver.png`（`DB_LOGO` 已收录，`_jdbc` 后缀经 `dbKey()` 去后缀也能命中），画布正常路径走 PNG；仅 PNG 加载失败时回退纯文字 `SQL`，彻底不依赖新版 emoji 字形。回退绘制按 ASCII 判定用 11px，避免压到右侧实例名。
+
+### 验证
+
+- 三步验证：`compileall -q modules web_templates` EXIT=0；`import modules.web.app` OK；`discover_plugins()` = 12。
+- 专项断言：`_resolve_ssh()` 回退 / 显式优先 / 未开启 / 全空四态全过，mock 远端采集证明不再走「未配置 SSH」分支；全仓 `🪟` 零命中；两个页面相关 JS 块 `node --check` EXIT=0；`git diff --check` 干净。
+
 ## v26.11.19.0 (2026-11-18)
 
 ### 重构：监控采集收敛为「单一采集器 + 统一时序存储」
