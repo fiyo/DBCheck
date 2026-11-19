@@ -7259,7 +7259,7 @@ function formatBytes(bytes) {
                   '</div>' +
                 '</div>' +
                 '<div style="margin-top:10px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);">' +
-                  '<div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;">🪟 宿主采集通道（Windows 服务 CPU / 内存）</div>' +
+                  '<div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;">💻 宿主采集通道（Windows 服务 CPU / 内存）</div>' +
                   '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">' +
                     '<div><label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">目标机系统</label>' +
                       '<select id="ds-host-os" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px">' +
@@ -7572,7 +7572,9 @@ function formatBytes(bytes) {
         };
         const sshOn = document.getElementById('ds-ssh-section')?.style.display !== 'none';
         payload.ssh_enabled = sshOn ? 1 : 0;
-        payload.ssh_host = sshOn ? document.getElementById('ds-ssh-host').value.trim() : '';
+        // 输入框只有占位文案「与数据库主机相同」；留空即按该语义落库，
+        // 否则 ssh_enabled=1 + ssh_host='' 会被宿主采集判成“未配置 SSH”。
+        payload.ssh_host = sshOn ? (document.getElementById('ds-ssh-host').value.trim() || payload.host) : '';
         payload.ssh_port = sshOn ? (parseInt(document.getElementById('ds-ssh-port').value) || 22) : 22;
         payload.ssh_user = sshOn ? document.getElementById('ds-ssh-user').value.trim() : '';
         payload.ssh_password = sshOn ? (document.getElementById('ds-ssh-password').value || undefined) : '';
@@ -8581,7 +8583,7 @@ function wfCloseRunDrawer() {
                 <div class="host-top-procs" id="host-top-procs" data-page-node-id="qLuqUdlEn8s70qYYLTm1NQ"></div>
               </div>
               <div class="health-chart-card host-chart-card" id="host-services-card" style="flex:1 1 100%;min-width:320px;display:none;" data-page-node-id="rxHostServicesCard">
-                <div class="health-chart-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">🪟 Windows 服务资源
+                <div class="health-chart-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">💻 Windows 服务资源
                   <span id="host-services-summary" style="font-size:11px;font-weight:normal;color:var(--text-muted);"></span>
                 </div>
                 <div id="host-service-alerts" style="font-size:11px;margin:4px 0 2px;"></div>
@@ -8766,7 +8768,7 @@ function wfCloseRunDrawer() {
                 <span class="db-icon-label" data-page-node-id="Aj5RWSo1Myfm482LlA49SA">DM8</span>
               </div>
               <div class="db-icon-item" title="SQL Server" data-page-node-id="syr15M1P8Y4qpWUKoyrn5k">
-                <img src="/sqlserver.png" alt="SQL Server" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" data-page-node-id="i49vsFqhGNKehNibg5T3VF"><span class="db-icon-fallback" style="display:none;" data-page-node-id="NNBLaAiAHAysGIoSvRnHNR">🪟</span>
+                <img src="/sqlserver.png" alt="SQL Server" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" data-page-node-id="i49vsFqhGNKehNibg5T3VF"><span class="db-icon-fallback" style="display:none;" data-page-node-id="NNBLaAiAHAysGIoSvRnHNR">💻</span>
                 <span class="db-icon-label" data-page-node-id="lUpRbvxVFIPBfLYSG4B4E5">SQL Server</span>
               </div>
               <div class="db-icon-item" title="TiDB" data-page-node-id="EODqh0jzNMRymHG9pEvdIL">

@@ -1122,7 +1122,13 @@ class MetricsCollector:
         """解析实例的 SSH 配置；未启用或缺失主机则返回 None。"""
         if not inst.get('ssh_enabled'):
             return None
-        host = (inst.get('ssh_host') or '').strip()
+        # UI 上「SSH 主机地址」输入框只有占位文案「与数据库主机相同」，
+        # 用户留空时保存的是空字符串；旧逻辑在此直接返回 None，导致明明
+        # 打开了「启用 SSH 系统信息采集」却报「未配置 SSH」，首页实时监控
+        # 与监控大屏的宿主资源同时失效。按 UI 明示语义回退到数据库主机，
+        # 对已保存的存量数据立即生效，无需用户重新保存数据源。
+        host = ((inst.get('ssh_host') or '').strip()
+                or str(inst.get('host') or '').strip())
         if not host:
             return None
         return {

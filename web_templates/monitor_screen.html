@@ -613,11 +613,13 @@ function dbKey(t){
   return k;
 }
 function typeMeta(t){ var k = dbKey(t); return TYPE_META[k] || ['DB', '#5F5E5A']; }
-/* 数据库类型图标（emoji 字形，canvas 直接绘制，跨类型一眼可辨；无对应图标回退通用库图标） */
+/* 数据库类型图标（emoji 字形，canvas 直接绘制，跨类型一眼可辨；无对应图标回退通用库图标。
+   SQL Server 用纯文字 'SQL'：DB_LOGO 已收录 /sqlserver.png，正常渲染走 PNG，
+   此处仅在 PNG 加载失败时回退，避免依赖新版 Windows emoji 字形在旧系统显示成缺字方框） */
 var DB_ICON = {
   mysql:'🐬', mariadb:'🐬', oceanbase:'🌊', tidb:'🌿',
   postgresql:'🐘', pg:'🐘', ivorysql:'🐘', kingbase:'🐘', hgdb:'🐘',
-  oracle:'🟠', sqlserver:'🪟', dm:'🐉',
+  oracle:'🟠', sqlserver:'SQL', dm:'🐉',
   mongodb:'🍃', redis:'🔴', 'redis-cluster':'🔴',
   gbase:'🗄️', db2:'🐝', clickhouse:'🐭', halodb:'🌀', vastbase:'🌊'
 };
@@ -1613,9 +1615,11 @@ function drawTopo(){
         rr(p.x + 21, p.y + 6, chipW, 18, 4); ctx.fill();
         drawLogoContain(logo, p.x + 23, p.y + 8, chipW - 4, 14);
       } else {
-        // 未收录该类型（或 logo 加载失败）：回退 emoji 图标
-        ctx.font = '15px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-        ctx.fillText(dbIcon(n.db_type), p.x + 22, p.y + 16);
+        // 未收录该类型（或 logo 加载失败）：emoji 图标 / 纯文字标记（SQL Server 用 11px，避免压到右侧实例名）
+        var fb = dbIcon(n.db_type);
+        ctx.font = (/^[\x00-\x7F]+$/.test(fb) ? '11px' : '15px') + ' sans-serif';
+        ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        ctx.fillText(fb, p.x + 22, p.y + 16);
       }
       ctx.fillStyle = C.tx; ctx.font = '11px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
       // 名称限宽到「logo 章之后 → 右上角斜三角角标之前」，避免与角标重叠
