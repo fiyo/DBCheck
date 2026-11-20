@@ -4166,6 +4166,37 @@ def api_donors():
         return jsonify({'enabled': True, 'names': cfg['names'], 'source': 'bundled'})
     return jsonify({'enabled': False, 'names': [], 'source': 'none'})
 
+# ─── 贡献者徽章墙：随包快照只读，与捐赠名单物理分区 ───
+# 名单更新频率极低（代码/issue 贡献），随版本发版更新即可，不做运行时远端拉取。
+# 只返回合法 GitHub 登录名与本地拼装的主页；不采信文件里的任意 url，防跳转钓鱼。
+_CONTRIB_LOGIN_RE = re.compile(r'^[A-Za-z0-9_.-]{1,39}$')
+
+@app.route('/api/contributors', methods=['GET'])
+def api_contributors():
+    try:
+        from modules.core.paths import ASSETS_DIR
+        path = ASSETS_DIR / 'web' / 'contributors.json'
+        if not path.exists():
+            return jsonify({'enabled': False, 'names': [], 'source': 'none'})
+        with open(path, 'r', encoding='utf-8') as f:
+            cfg = json.load(f)
+        if not isinstance(cfg, dict) or not cfg.get('enabled', True):
+            return jsonify({'enabled': False, 'names': [], 'source': 'bundled'})
+        names = []
+        seen = set()
+        for item in (cfg.get('names') or []):
+            if not isinstance(item, dict):
+                continue
+            login = str(item.get('login', '')).strip()
+            if not _CONTRIB_LOGIN_RE.match(login) or login in seen:
+                continue
+            seen.add(login)
+            names.append({'login': login, 'url': 'https://github.com/' + login})
+        return jsonify({'enabled': bool(names), 'names': names, 'source': 'bundled'})
+    except Exception as e:
+        print(f"[contributors] 读取名单失败（降级）: {e}")
+        return jsonify({'enabled': False, 'names': [], 'source': 'none'})
+
 @app.route('/api/config', methods=['GET'])
 def api_get_config():
     cfg_path = paths.DBC_CONFIG_PATH
@@ -11924,9 +11955,9 @@ def _setup_driver_paths():
                     if not os.path.exists(dst):
                         try:
                             shutil.copy2(str(lib_file), dst)
-                            print(f'[DBCheck] YashanDB: copied {lib_file.name} -> {dst}')
+                            print(f'[RaccoonX] YashanDB: copied {lib_file.name} -> {dst}')
                         except Exception as e:
-                            print(f'[DBCheck] YashanDB: failed to copy {lib_file.name}: {e}')
+                            print(f'[RaccoonX] YashanDB: failed to copy {lib_file.name}: {e}')
         # 同时加入 PATH（部分依赖 DLL 不在 yacli.py 目录，靠 PATH 兜底）
         _add_path(yashandb_lib)
 

@@ -3693,6 +3693,15 @@ async function executeFixSql(taskId, sql) {
   color: var(--text-muted) !important;
 }
 .dn-cloud-name:hover { transform: scale(1.12) rotate(0deg) !important; opacity: 1 !important; }
+/* 贡献者徽章墙：与捐赠名字云物理分区、叙事分离（代码/issue 贡献，非出钱） */
+.dn-contrib-card[hidden] { display: none; }
+.dn-contrib-card { margin-top: 14px; padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface2); }
+.dn-contrib-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 13px; font-weight: 600; color: var(--text-main); }
+.dn-contrib-list { display: flex; flex-wrap: wrap; gap: 7px; }
+.dn-contrib-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 4px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text-muted); font-size: 11.5px; text-decoration: none; transition: border-color .2s, color .2s; }
+.dn-contrib-chip:hover { border-color: var(--accent); color: var(--text-main); text-decoration: none; }
+.dn-contrib-chip img { width: 22px; height: 22px; border-radius: 50%; background: var(--surface2); object-fit: cover; }
+.dn-contrib-note { margin-top: 10px; font-size: 11px; color: var(--text-muted); line-height: 1.6; }
 .dn-cloud-note {
   position: relative; z-index: 2; margin: 0;
   font-size: 10.5px; line-height: 1.6; color: var(--text-muted); opacity: .85;
@@ -13055,6 +13064,12 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
                 <p class="dn-cloud-note" data-i18n="webui.donate_wall_note">只记昵称，不记金额、排名与日期；不想显示名字，提个 issue 或来信，我删掉。</p>
               </section>
 
+              <section class="dn-contrib-card" id="dn-contrib" hidden>
+                <div class="dn-contrib-head"><span aria-hidden="true">⌘</span><span data-i18n="webui.contrib_title">也谢谢这些贡献者</span></div>
+                <div class="dn-contrib-list" id="dn-contrib-list"></div>
+                <p class="dn-contrib-note" data-i18n="webui.contrib_note">代码提交、Issue 反馈与文档建议都算贡献；只记 GitHub 昵称，不排名不计数。</p>
+              </section>
+
               <details class="dn-tip" id="dn-tip" ontoggle="var s=this.closest('.dn-side'); if(s) s.classList.toggle('has-open-tip', this.open)">
                 <summary>
                   <span class="dn-tip-star" aria-hidden="true">✦</span>
@@ -13332,6 +13347,39 @@ async function loadDonors() {
 }
 // 与公告条一致的 30 分钟重查：仅停留在作者手记页时才请求
 setInterval(function () { if (_currentPage === 'donate') loadDonors(); }, 30 * 60 * 1000);
+
+// ── 贡献者徽章墙（/api/contributors，随包快照；与捐赠名字云分离）──
+// 只记 GitHub 昵称，不排名不计数；远程内容只走 textContent，头像加载失败自动隐藏。
+async function loadContributors() {
+  var data;
+  try {
+    var r = await fetch('/api/contributors');
+    data = await r.json();
+  } catch (e) { return; }
+  var card = document.getElementById('dn-contrib');
+  var box = document.getElementById('dn-contrib-list');
+  if (!card || !box) return;
+  var people = (data && data.enabled && Array.isArray(data.names)) ? data.names : [];
+  if (!people.length) { card.hidden = true; return; }
+  if (box.childElementCount) return;  // 幂等：已在作者手记页多次切换时不重复追加
+  people.forEach(function (p) {
+    var login = String(p && p.login || '').trim();
+    if (!/^[A-Za-z0-9_.-]{1,39}$/.test(login)) return;
+    var a = document.createElement('a');
+    a.className = 'dn-contrib-chip';
+    a.href = 'https://github.com/' + login;   // 本地拼装，不采信接口返回的 url
+    a.target = '_blank'; a.rel = 'noopener noreferrer';
+    var img = document.createElement('img');
+    img.src = 'https://avatars.githubusercontent.com/' + login + '?s=44&v=4';
+    img.alt = ''; img.loading = 'lazy';
+    img.onerror = function () { this.style.display = 'none'; };
+    var span = document.createElement('span');
+    span.textContent = login;
+    a.appendChild(img); a.appendChild(span);
+    box.appendChild(a);
+  });
+  if (box.childElementCount) card.hidden = false;
+}
 
 async function changeLang() {
   const sel = document.getElementById('lang-select');
@@ -13842,7 +13890,7 @@ function showPage(name) {
   if (name === 'doc-kb') loadDocKb();
   if (name === 'bicqa') loadBicqaPage();
   if (name === 'schema-dict') loadSchemaDict();
-  if (name === 'donate') loadDonors();
+  if (name === 'donate') { loadDonors(); loadContributors(); }
   if (name === 'home') loadHomeStats();
   if (name === 'shares') loadShares();
   if (name === 'data-management') loadDataManagement();
@@ -15562,6 +15610,7 @@ function pollStatus() {
               <a class="report-dl-btn report-dl-word" href="/api/download/${currentTaskId}" download>📝 Word</a>
               <button class="report-dl-btn report-dl-pdf" type="button" onclick="downloadReportPdf('${currentTaskId}')">📄 PDF</button>
               <button class="report-dl-btn report-dl-share" type="button" onclick="shareDbInspectReport('${currentTaskId}')">📤 分享</button>
+              <button class="report-dl-btn report-dl-scorecard" type="button" onclick="downloadScoreCardForTask('${currentTaskId}')" title="${i18n('webui.scorecard_btn_title') || '下载健康评分卡图片'}">🖼️ ${i18n('webui.scorecard_btn') || '评分卡'}</button>
             </div>
           </div>
           <div class="result-card-v2">
@@ -15864,6 +15913,7 @@ function renderReports() {
           <a class="btn btn-ghost" style="font-size:12px;padding:7px 14px"
              href="/api/download_file?name=${encodeURIComponent(f.name)}" download>${i18n('webui.btn_download_report')}</a>
           <button class="btn btn-ghost" style="font-size:12px;padding:7px 12px" onclick="shareReportFile('${escHtml(f.name).replace(/'/g, "\\'")}')">📤 分享</button>
+          <button class="btn btn-ghost" style="font-size:12px;padding:7px 12px" onclick="downloadScoreCardForReport('${escHtml(f.name).replace(/'/g, "\\'")}')" title="${i18n('webui.scorecard_btn_title') || '下载健康评分卡图片'}">🖼️ ${i18n('webui.scorecard_btn') || '评分卡'}</button>
           <button class="btn btn-danger" style="font-size:12px;padding:7px 12px" onclick="deleteReport('${escHtml(f.name).replace(/'/g, "\\'")}')">${i18n('webui.btn_delete_report')}</button>
         </div>
       </div>`;
@@ -18319,6 +18369,163 @@ async function shareReportFile(filename) {
   } catch(e) {
     toastError('请求失败: ' + e.message);
   }
+}
+
+// ════════════════════════════════════════════════════════════
+//  健康评分卡：Canvas 渲染 1080×1080 PNG
+//  - 纯前端，零后端依赖、不改打包流程
+//  - 中文用系统字体栈；画布内不使用 emoji（规避缺字方框）
+// ════════════════════════════════════════════════════════════
+function _scFont(weight, size) {
+  return weight + ' ' + size + 'px "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Segoe UI", Arial, sans-serif';
+}
+function _scColor(score) {
+  if (score >= 90) return '#2ecc71';
+  if (score >= 75) return '#00c8a0';
+  if (score >= 60) return '#f5b642';
+  return '#ff5c5c';
+}
+function _scLevelText(level) {
+  const keyMap = {
+    healthy: 'webui.scorecard_healthy', none: 'webui.scorecard_healthy',
+    low: 'webui.scorecard_low', medium: 'webui.scorecard_medium',
+    high: 'webui.scorecard_high', critical: 'webui.scorecard_critical'
+  };
+  const key = keyMap[String(level || '').toLowerCase()];
+  return (key && i18n(key)) || i18n('webui.scorecard_healthy') || '健康';
+}
+function _scRoundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function drawScoreCard(canvas, o) {
+  const W = 1080, H = 1080;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  const score = Math.max(0, Math.min(100, Number(o.score) || 0));
+  const col = _scColor(score);
+  const high = Number(o.high) || 0, mid = Number(o.mid) || 0, low = Number(o.low) || 0;
+
+  // 背景：深色渐变 + 顶部光晕
+  const bg = ctx.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, '#111c34'); bg.addColorStop(0.55, '#0d1424'); bg.addColorStop(1, '#0a0f1b');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  const glow = ctx.createRadialGradient(W / 2, 330, 40, W / 2, 330, 520);
+  glow.addColorStop(0, 'rgba(0,200,160,0.16)'); glow.addColorStop(1, 'rgba(0,200,160,0)');
+  ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
+
+  // 顶部品牌行
+  ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = 'left'; ctx.font = _scFont('600', 30); ctx.fillStyle = '#8fa4c4';
+  ctx.fillText('RaccoonX', 72, 104);
+  ctx.font = _scFont('500', 26); ctx.fillStyle = '#5f7496';
+  ctx.fillText(i18n('webui.scorecard_brand') || '浣巡', 72 + ctx.measureText('RaccoonX').width + 18, 104);
+  ctx.textAlign = 'right'; ctx.font = _scFont('500', 22); ctx.fillStyle = '#5f7496';
+  ctx.fillText('HEALTH SCORE', W - 72, 104);
+
+  // 标题
+  ctx.textAlign = 'center'; ctx.font = _scFont('700', 54); ctx.fillStyle = '#f0f6fc';
+  ctx.fillText(i18n('webui.scorecard_title') || '数据库健康评分卡', W / 2, 208);
+
+  // 分数环
+  const cx = W / 2, cy = 462, r = 168;
+  ctx.lineWidth = 26; ctx.strokeStyle = '#1c2b45'; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 26;
+  ctx.beginPath(); ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (score / 100)); ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.font = _scFont('700', 168); ctx.fillStyle = col;
+  ctx.fillText(String(score), cx, cy + 58);
+  ctx.font = _scFont('500', 28); ctx.fillStyle = '#6f86a8';
+  ctx.fillText('/ 100', cx, cy + 112);
+
+  // 风险等级徽章
+  const levelText = _scLevelText(o.riskLevel || o.risk_level);
+  ctx.font = _scFont('600', 30);
+  const badgeW = Math.max(190, ctx.measureText(levelText).width + 92), badgeH = 62;
+  _scRoundRect(ctx, cx - badgeW / 2, 680, badgeW, badgeH, 31);
+  ctx.fillStyle = col + '22'; ctx.fill();
+  ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = col; ctx.textAlign = 'center';
+  ctx.fillText(levelText, cx, 680 + 42);
+
+  // 风险分布三卡
+  const cards = [
+    { n: high, label: i18n('webui.scorecard_high') || '高风险', c: '#ff5c5c' },
+    { n: mid,  label: i18n('webui.scorecard_mid')  || '中风险', c: '#f5b642' },
+    { n: low,  label: i18n('webui.scorecard_low')  || '低风险', c: '#00c8a0' },
+  ];
+  const cardW = 276, gap = 24, startX = (W - (cardW * 3 + gap * 2)) / 2, cardY = 792, cardH = 150;
+  cards.forEach(function (c, i) {
+    const x = startX + i * (cardW + gap);
+    _scRoundRect(ctx, x, cardY, cardW, cardH, 16);
+    ctx.fillStyle = '#16223a'; ctx.fill();
+    ctx.strokeStyle = '#223252'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.textAlign = 'center'; ctx.font = _scFont('700', 62); ctx.fillStyle = c.c;
+    ctx.fillText(String(c.n), x + cardW / 2, cardY + 78);
+    ctx.font = _scFont('500', 26); ctx.fillStyle = '#8fa4c4';
+    ctx.fillText(c.label, x + cardW / 2, cardY + 122);
+  });
+
+  // 底部信息
+  ctx.textAlign = 'center'; ctx.font = _scFont('500', 26); ctx.fillStyle = '#8fa4c4';
+  const target = String(o.name || o.dbType || '').trim();
+  if (target) ctx.fillText(target.substring(0, 46), W / 2, 1002);
+  ctx.font = _scFont('400', 22); ctx.fillStyle = '#5f7496';
+  const meta = [String(o.dbType || '').trim(), String(o.date || '').trim()].filter(Boolean).join('  |  ');
+  if (meta) ctx.fillText(meta.substring(0, 60), W / 2, 1042);
+}
+
+function _scTriggerDownload(canvas, name) {
+  const url = canvas.toDataURL('image/png');
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'RaccoonX-scorecard-' + String(name || 'report').replace(/[\\/:*?"<>|]/g, '_').substring(0, 60) + '.png';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+// 从历史报告列表项生成评分卡
+function downloadScoreCardForReport(filename) {
+  const f = (allReportFiles || []).find(function (x) { return x.name === filename; });
+  if (!f) { toastError('未找到报告信息'); return; }
+  const canvas = document.createElement('canvas');
+  drawScoreCard(canvas, {
+    score: f.health_score, riskLevel: f.risk_level,
+    dbType: f.db_type, name: f.name.replace(/\.docx?$/i, ''),
+    date: f.date || (f.mtime ? new Date(f.mtime * 1000).toLocaleDateString('zh-CN') : ''),
+    high: f.high, mid: f.mid, low: f.low
+  });
+  _scTriggerDownload(canvas, f.name.replace(/\.docx?$/i, ''));
+}
+
+// 从当前巡检任务生成评分卡（任务状态接口取数）
+async function downloadScoreCardForTask(taskId) {
+  try {
+    const res = await fetch('/api/task_status/' + encodeURIComponent(taskId));
+    const data = await res.json();
+    if (!data.ok) { toastError('获取巡检结果失败'); return; }
+    let high = 0, mid = 0, low = 0;
+    (data.issues || []).forEach(function (it) {
+      const lv = String((it && (it.col4 || it.col2 || it.level)) || '');
+      if (/高|high/i.test(lv)) high++;
+      else if (/中|mid/i.test(lv)) mid++;
+      else low++;
+    });
+    const canvas = document.createElement('canvas');
+    drawScoreCard(canvas, {
+      score: data.health_score, riskLevel: data.risk_level || data.health_status,
+      dbType: data.db_type, name: data.host || data.ip || data.report_name || taskId,
+      date: data.finished_at || data.inspect_time || '',
+      high: high, mid: mid, low: low
+    });
+    _scTriggerDownload(canvas, data.host || data.report_name || taskId);
+  } catch (e) { toastError('生成评分卡失败: ' + e.message); }
 }
 
 // ─── 历史报告问题列表弹窗 ───────────────────────────────────

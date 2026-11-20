@@ -20,7 +20,7 @@ EN = {
     "cli.main_menu_line9": "📋  9 │ Batch Template Generator",
     "cli.main_menu_line10": "🌐  10 │ Launch Web UI",
     "cli.main_menu_prompt": "Select an option (1-10, 0 to exit): ",
-    "cli.main_menu_exiting": "Thanks for using DBCheck. Goodbye! 👋",
+    "cli.main_menu_exiting": "Thanks for using RaccoonX. Goodbye! 👋",
     "cli.main_menu_invalid": "❌ Invalid choice, please enter 0-9.",
 
 
@@ -507,20 +507,20 @@ EN = {
     "webui.nav_ai": "AI Settings",
     "webui.nav_oracle_client": "Database Driver Settings",
     "webui.oracle_client_title": "Database Driver Settings",
-    "webui.oracle_client_desc": "Oracle 11g and below require Oracle Instant Client to connect.\nYashanDB requires its client driver to connect.\nNote: Restart DBCheck after modification to take effect.",
+    "webui.oracle_client_desc": "Oracle 11g and below require Oracle Instant Client to connect.\nYashanDB requires its client driver to connect.\nNote: Restart RaccoonX after modification to take effect.",
     "webui.oracle_client_path": "Oracle Instant Client Path",
     "webui.oracle_client_path_hint": "Windows example: C:\\oracle\\instantclient_21_12\nLinux example: /usr/lib/oracle/21/client64/lib\nLeave empty to auto-detect system environment variables",
     "webui.oracle_client_reload": "↻ Reload",
     "webui.oracle_client_save_btn": "💾 Save Config",
     "webui.oracle_client_save_ok": "✅ Config saved, restart to take effect",
     "webui.oracle_client_auto_config": "Auto Configuration",
-    "webui.oracle_client_auto_config_desc": "One-click download and extract Oracle Instant Client Basic and YashanDB Client to the DBCheck project directory, no need to visit the official website manually.\nCurrent download version: Oracle Instant Client 23.26, supports Windows / Linux / macOS.\n⚠️ Linux users note: YashanDB Linux driver is a .tar.gz archive after download, needs manual extraction to drivers/yashandb/lib (Windows path: drivers\\yashandb\\lib). Use the \"Check Status\" button below to confirm.",
+    "webui.oracle_client_auto_config_desc": "One-click download and extract Oracle Instant Client Basic and YashanDB Client to the RaccoonX project directory, no need to visit the official website manually.\nCurrent download version: Oracle Instant Client 23.26, supports Windows / Linux / macOS.\n⚠️ Linux users note: YashanDB Linux driver is a .tar.gz archive after download, needs manual extraction to drivers/yashandb/lib (Windows path: drivers\\yashandb\\lib). Use the \"Check Status\" button below to confirm.",
     "webui.oracle_client_download_btn": "⬇️ One-Click Download & Install",
     "webui.oracle_client_check_btn": "🔍 Check Status",
     "webui.oracle_client_manual_config": "Manual Configuration",
     "webui.yashandb_driver_section_title": "⬇️ YashanDB Client Driver",
     "webui.plugin_market_title": "🧩 Plugin Market",
-    "webui.yashandb_driver_desc": "YashanDB requires its client driver to connect.\nClick the one-click download button to automatically download the complete Oracle + YashanDB driver package to DBCheck/drivers/.\nYou can also manually place driver files into drivers/yashandb/lib/<platform>/lib/.",
+    "webui.yashandb_driver_desc": "YashanDB requires its client driver to connect.\nClick the one-click download button to automatically download the complete Oracle + YashanDB driver package to RaccoonX/drivers/.\nYou can also manually place driver files into drivers/yashandb/lib/<platform>/lib/.",
     "webui.yashandb_driver_path": "YashanDB Driver Path",
     "webui.yashandb_driver_path_hint": "Auto-detect path: drivers/yashandb/lib/<platform>/lib/\nWindows example: drivers/yashandb/lib/windows-x64/lib\nLinux example: drivers/yashandb/lib/linux-x64/lib\nLeave empty to auto-detect bundled driver directory",
     "webui.yashandb_driver_check_btn": "🔍 Check Driver Status",
@@ -952,7 +952,7 @@ EN = {
     "report.pg_fallback_owner_sysadmin": "System Administrator",
 
 
-    "report.oracle_title": "DBCheck Oracle Full Inspection Report",
+    "report.oracle_title": "RaccoonX Oracle Full Inspection Report",
     "report.inspector_label": "\nInspector: {i}",
     "report.tbl_col_key": "Item",
     "report.tbl_col_val": "Value",
@@ -1001,7 +1001,7 @@ EN = {
     "report.oracle_sec_alert":     "22. Alert Log Errors (Last 7 Days)",
     "report.oracle_sec_ai":       "AI Diagnosis Recommendations",
     "report.oracle_sec_risks":    "Risks and Recommendations",
-    "report.oracle_footer":       "DBCheck Oracle Inspection Tool {VER} | Report generated at {time}",
+    "report.oracle_footer":       "RaccoonX Oracle Inspection Tool {VER} | Report generated at {time}",
     # Oracle Report Notes
     "report.oracle_note_1": "This report reflects the real-time health status of the Oracle database at the time of generation.",
     "report.oracle_note_2": "Blank fields indicate that data could not be retrieved, possibly due to insufficient privileges or disabled features.",
@@ -1362,7 +1362,7 @@ EN = {
     "report.cover_time_label":     "Inspection Time",
 
     # Oracle interactive CLI prompts
-    "oracle_banner_title": "DBCheck - Oracle Inspector",
+    "oracle_banner_title": "RaccoonX - Oracle Inspector",
     "oracle_host_ip": "Host address",
     "oracle_port": "Port",
     "oracle_connect_by": "Connection Mode (S=SID / N=ServiceName)",
@@ -1381,7 +1381,7 @@ EN = {
     "oracle_inspector_name": "Inspector",
 
     # Banner
-    "oracle_banner_tool": "DBCheck Oracle Comprehensive Inspection Tool",
+    "oracle_banner_tool": "RaccoonX Oracle Comprehensive Inspection Tool",
     "oracle_banner_subtitle": "OS-level + Database-level",
 
     # Oracle inspection logs
@@ -1472,7 +1472,7 @@ EN = {
     "mysql_cli_index_health_checking": "Running index health analysis...",
     "mysql_cli_index_health_ok": "Index health analysis complete, {missing} missing / {redundant} redundant / {unused} unused",
     "mysql_cli_back_menu": "Return to main menu? (y/n) [y]: ",
-    "mysql_cli_banner": "DBCheck - MySQL Database Inspection Tool",
+    "mysql_cli_banner": "RaccoonX - MySQL Database Inspection Tool",
     "mysql_cli_batch_done": "Batch Inspection Complete",
     "mysql_cli_batch_mode": "Batch Inspection Mode",
     "mysql_cli_confirm_batch": "Start batch inspection? (y/n) [y]: ",
@@ -1504,7 +1504,7 @@ EN = {
     "mysql_cli_success_count": "Successful: {s}/{t} database(s)",
     "mysql_cli_sysinfo_fail": "System info collection failed: {e}",
     "mysql_cli_testing_connection": "Testing connection to {ip}:{port}...",
-    "mysql_cli_thanks": "Thank you for using DBCheck MySQL Database Inspection Tool!",
+    "mysql_cli_thanks": "Thank you for using RaccoonX MySQL Database Inspection Tool!",
     "mysql_cli_total_time": "Total execution time: {t:.2f} seconds",
     "mysql_cli_version": "Database version: MySQL {ver}",
     "mysql_cli_version_fail": "Failed to get version info: {e}",
@@ -1542,7 +1542,7 @@ EN = {
     "mysql_cli_ssh_fail": "SSH connection failed: {e}",
     "mysql_cli_retry_yes": "Retry input? (y/n) [y]: ",
     "mysql_cli_retry_no": "Retry input? (y/n) [n]: ",
-    "mysql_cli_banner_title": "DBCheck - MySQL Database Inspection Tool",
+    "mysql_cli_banner_title": "RaccoonX - MySQL Database Inspection Tool",
     "mysql_cli_banner_subtitle": "Single Instance / Batch / Word Report / SSH Collection",
     "mysql_cli_datadir_found": "Obtained MySQL datadir via SSH: {path}",
     "mysql_cli_license_fail": "❌ {message}",
@@ -1571,8 +1571,8 @@ EN = {
     "pg_cli_slow_query_ok": "Slow query analysis complete, collected {count} Top SQL records",
     "pg_cli_slow_query_pg_stat_unavailable": "pg_stat_statements not enabled, skipping (run CREATE EXTENSION pg_stat_statements)",
     "pg_cli_back_menu": "Return to main menu? (y/n) [y]: ",
-    "pg_cli_banner": "DBCheck - PostgreSQL Database Inspection Tool",
-    "pg_cli_banner_title": "DBCheck - PostgreSQL Database Inspection Tool",
+    "pg_cli_banner": "RaccoonX - PostgreSQL Database Inspection Tool",
+    "pg_cli_banner_title": "RaccoonX - PostgreSQL Database Inspection Tool",
     "pg_cli_banner_subtitle": "Single Instance / Batch / Word Report / SSH Collection",
     "pg_cli_batch_done": "Batch Inspection Complete",
     "pg_cli_batch_mode": "Batch Inspection Mode",
@@ -1605,7 +1605,7 @@ EN = {
     "pg_cli_success_count": "Successful: {s}/{t} database(s)",
     "pg_cli_sysinfo_fail": "System info collection failed: {e}",
     "pg_cli_testing_connection": "Testing connection to {ip}:{port}...",
-    "pg_cli_thanks": "Thank you for using DBCheck PostgreSQL Database Inspection Tool!",
+    "pg_cli_thanks": "Thank you for using RaccoonX PostgreSQL Database Inspection Tool!",
     "pg_cli_total_time": "Total execution time: {t:.2f} seconds",
     "pg_cli_version": "Database version: PostgreSQL {ver}",
     "pg_cli_version_fail": "Failed to get version info: {e}",
@@ -1628,7 +1628,7 @@ EN = {
     "pg_cli_ai_calling": "Calling AI diagnosis ({backend} / {model})...",
     "pg_cli_word_ok": "Word template created: {path}",
     "pg_cli_word_fail": "Word template creation failed: {e}",
-    "pg_cli_thanks": "Thank you for using DBCheck PostgreSQL Database Inspection Tool!",
+    "pg_cli_thanks": "Thank you for using RaccoonX PostgreSQL Database Inspection Tool!",
     "pg_cli_db_info_title": "Enter database connection information:",
     "pg_cli_host_prompt": "Host address [localhost]: ",
     "pg_cli_port_prompt": "Port [5432]: ",
@@ -1685,7 +1685,7 @@ EN = {
     "yashandb_connect_fail": "❌ YashanDB connection failed: {error}",
     "yashandb_conn_fail_exit": "❌ Connection failed, exiting.",
     "yashandb_report_generated": "✅ Report generated: {file}",
-    "dm8_banner_title": "DBCheck - DM8 Inspector",
+    "dm8_banner_title": "RaccoonX - DM8 Inspector",
     "dm8_host_prompt": "Host address: ",
     "dm8_port_prompt": "Port [5236]: ",
     "dm8_user_prompt": "Username [SYSDBA]: ",
@@ -1908,8 +1908,8 @@ EN = {
 
 
     # SQL Server CLI interactive menu
-    "sqlserver_cli_banner": "DBCheck - SQL Server Inspection Tool",
-    "sqlserver_cli_banner_title": "DBCheck - SQL Server Inspection Tool",
+    "sqlserver_cli_banner": "RaccoonX - SQL Server Inspection Tool",
+    "sqlserver_cli_banner_title": "RaccoonX - SQL Server Inspection Tool",
     "sqlserver_cli_banner_subtitle": "Single Inspection / Batch Inspection / Word Report / SSH System Collection",
     "sqlserver_cli_menu_item1": "1. Single Inspection",
     "sqlserver_cli_menu_item2": "2. Batch Inspection (from Excel)",
@@ -1925,7 +1925,7 @@ EN = {
     "sqlserver_cli_db_info_title": "Please enter database connection info:",
     "sqlserver_cli_inspector_prompt": "Inspector (default DBA): ",
     "sqlserver_cli_back_menu": "Return to main menu? (y/n) [y]: ",
-    "sqlserver_cli_thanks": "Thanks for using DBCheck SQL Server Database Inspection Tool!",
+    "sqlserver_cli_thanks": "Thanks for using RaccoonX SQL Server Database Inspection Tool!",
     "sqlserver_cli_total_time": "Total runtime: {t:.2f} seconds",
     "sqlserver_cli_start_inspect_n": "Starting inspection {name}...",
     "sqlserver_cli_report_ok": "[OK] Report generated: {fname}",
@@ -1945,8 +1945,8 @@ EN = {
     "sqlserver_cli_excel_read_fail": "[FAIL] Failed to read Excel template: {e}",
 
     # TiDB CLI
-    "tidb_cli_banner": "DBCheck - TiDB Inspection Tool",
-    "tidb_cli_banner_title": "DBCheck - TiDB Inspection Tool",
+    "tidb_cli_banner": "RaccoonX - TiDB Inspection Tool",
+    "tidb_cli_banner_title": "RaccoonX - TiDB Inspection Tool",
     "tidb_cli_banner_subtitle": "Single Inspection / Batch Inspection / Word Report / SSH System Collection",
     "tidb_cli_menu_item1": "1. Single Inspection",
     "tidb_cli_menu_item2": "2. Batch Inspection (from Excel)",
@@ -1965,7 +1965,7 @@ EN = {
     "tidb_cli_tidb_success": "[OK] Connected to TiDB {host}:{port}",
     "tidb_cli_tidb_fail": "[FAIL] TiDB connection failed: {e}",
     "tidb_cli_retry_no": "Retry? (y/n) [n]: ",
-    "tidb_cli_banner_title": "DBCheck - TiDB Inspection Tool",
+    "tidb_cli_banner_title": "RaccoonX - TiDB Inspection Tool",
     "tidb_cli_banner_subtitle": "Single Inspection / Batch Inspection / Word Report / SSH System Collection",
     "tidb_cli_single_mode": "Single Inspection Mode",
     "tidb_cli_batch_mode": "Batch Inspection Mode",
@@ -1990,7 +1990,7 @@ EN = {
     "tidb_cli_start_inspect_n": "Starting inspection {name}...",
     "tidb.report_title": "TiDB Database Health Inspection Report",
     "tidb_cli_back_menu": "Return to main menu? (y/n) [y]: ",
-    "tidb_cli_thanks": "Thanks for using DBCheck TiDB Database Inspection Tool!",
+    "tidb_cli_thanks": "Thanks for using RaccoonX TiDB Database Inspection Tool!",
     "tidb_cli_total_time": "Total runtime: {t:.2f} seconds",
     "tidb_cli_create_excel": "Create Excel Config Template",
     "tidb_cli_verifying_ssh": "Verifying SSH connection {host}:{port}...",
@@ -2026,8 +2026,8 @@ EN = {
     "tidb.report_fallback_mysql_config": "Database Configuration Check",
 
     # IvorySQL CLI
-    "ivorysql_cli_banner": "DBCheck - IvorySQL Inspection Tool",
-    "ivorysql_cli_banner_title": "DBCheck - IvorySQL Inspection Tool",
+    "ivorysql_cli_banner": "RaccoonX - IvorySQL Inspection Tool",
+    "ivorysql_cli_banner_title": "RaccoonX - IvorySQL Inspection Tool",
     "ivorysql_cli_banner_subtitle": "Single / Batch inspection / Word report / SSH system collection (PostgreSQL protocol)",
     "ivorysql_cli_menu_item1": "1. Single Inspection",
     "ivorysql_cli_menu_item2": "2. Batch Inspection (from Excel)",
@@ -2070,7 +2070,7 @@ EN = {
     "ivorysql_cli_start_inspect_n": "Inspecting {name}...",
     "ivorysql.report_title": "IvorySQL Database Health Inspection Report",
     "ivorysql_cli_back_menu": "Back to main menu? (y/n) [y]: ",
-    "ivorysql_cli_thanks": "Thanks for using DBCheck IvorySQL Inspector!",
+    "ivorysql_cli_thanks": "Thanks for using RaccoonX IvorySQL Inspector!",
     "ivorysql_cli_create_excel": "Create Excel Template",
     "ivorysql_cli_progress_prefix": "Progress:",
     "ivorysql_cli_progress_step": "Step {i}/{total}",
@@ -2193,7 +2193,7 @@ EN = {
     "webui.awr_nav": "AWR Report Analysis",
     "webui.awr_desc": "Upload Oracle AWR HTML report to auto-generate analysis report",
     "webui.awr_upload_title": "Upload AWR Report",
-    "webui.awr_upload_hint": "Upload Oracle AWR HTML report (generated by awrrpt.sql), DBCheck will parse and generate analysis report automatically",
+    "webui.awr_upload_hint": "Upload Oracle AWR HTML report (generated by awrrpt.sql), RaccoonX will parse and generate analysis report automatically",
     "webui.awr_drop_text": "Click or drag AWR HTML file here",
     "webui.awr_parsing": "Parsing AWR report...",
     "webui.awr_parsed_title": "Parse Result",
@@ -2708,7 +2708,7 @@ EN = {
     "webui.chat_title": "AI Inspection Assistant",
     "webui.chat_fab_title": "AI Inspection Assistant",
     "webui.chat_placeholder": "Enter inspection request...",
-    "webui.chat_welcome": "Hello! I'm the DBCheck AI Inspection Assistant. Tell me which database you want to inspect, for example:<br>• <strong>Inspect connection count for MySQL-01</strong><br>• <strong>Check PostgreSQL lock waits</strong><br>• <strong>Full inspection for Oracle</strong>",
+    "webui.chat_welcome": "Hello! I'm the RaccoonX AI Inspection Assistant. Tell me which database you want to inspect, for example:<br>• <strong>Inspect connection count for MySQL-01</strong><br>• <strong>Check PostgreSQL lock waits</strong><br>• <strong>Full inspection for Oracle</strong>",
     "webui.chat_inspecting": "Executing inspection, please wait...",
     "webui.chat_error_prefix": "Error: ",
     "webui.chat_hint_datasource": "💡 Hint: Please add this database in \"Datasource Management\" first, or tell me the connection parameters directly (host, port, user, password)",
@@ -2747,8 +2747,8 @@ EN = {
     "webui.flow_title": "Flow Orchestration",
     "webui.flow_desc": "Visually orchestrate database inspection workflows with node canvas, conditional branches, and automated scheduling.",
     "webui.flow_pro_badge": "Pro Feature",
-    "webui.flow_pro_title": "Flow Orchestration is a DBCheck Pro feature",
-    "webui.flow_pro_desc": "The community edition does not support the visual canvas, node orchestration, or automated scheduling. Upgrade to DBCheck Pro to use it.",
+    "webui.flow_pro_title": "Flow Orchestration is a RaccoonX Pro feature",
+    "webui.flow_pro_desc": "The community edition does not support the visual canvas, node orchestration, or automated scheduling. Upgrade to RaccoonX Pro to use it.",
     "webui.flow_pro_action_disabled": "Use Now (Pro Required)",
     "webui.flow_pro_learn": "Learn About Pro",
     "webui.nav_section_history": "History",
@@ -2853,7 +2853,7 @@ EN = {
     "webui.si_hist_ops": "Actions",
     "webui.btn_share_report": "📤 Share Report",
     # ── Login Page ──
-    "webui.login_title": "DBCheck",
+    "webui.login_title": "RaccoonX",
     "webui.login_subtitle": "Database Intelligent Inspection Tool",
     "webui.login_username": "Username",
     "webui.login_username_placeholder": "Enter username",
@@ -3341,7 +3341,7 @@ EN = {
     "monitor.host_src_ebpf": "eBPF Kernel-level",
     "monitor.host_src_psutil": "psutil User-space",
     "monitor.host_src_shell": "Shell /proc (zero-dep)",
-    "monitor.host_src_local": "Local machine (DBCheck host)",
+    "monitor.host_src_local": "Local machine (RaccoonX host)",
     "monitor.host_src_unavailable": "Host metrics unavailable",
     "monitor.host_src_none": "No host data",
     "monitor.host_ebpf_title": "eBPF Kernel-level Metrics",
@@ -3527,7 +3527,7 @@ EN.update({
     "webui.db_oracle_jdbc_desc": "Available for Oracle 11g/12c/19c/21c+ instances, connecting via JDBC (JPype), data-driven runtime mode.",
     "webui.db_oracle_jdbc_name": "Oracle(JDBC)",
     "webui.db_oracle_jdbc_ver": "11g/12c/19c/21c+",
-    "webui.oracle_client_auto_config_desc1": "Download and unzip Oracle Instant Client Basic and YashanDB Client to the DBCheck project directory with one click, without manually going to the official website.",
+    "webui.oracle_client_auto_config_desc1": "Download and unzip Oracle Instant Client Basic and YashanDB Client to the RaccoonX project directory with one click, without manually going to the official website.",
     "webui.oracle_client_auto_config_desc2": "Current download version: Oracle Instant Client 23.26, supports Windows/Linux/macOS.",
     "webui.account_desc": "Manage account information and security settings",
     "webui.apikey_desc": "Create and manage API access keys",
@@ -3837,4 +3837,25 @@ EN.update({
     "webui.screen_host_stale": "Historical",
     "webui.screen_host_stale_tip": "Host collection interrupted; showing the last successful sample",
     "webui.screen_host_spark_stale": "Collection stopped · chart ends at last sample",
+})
+
+
+# ── 健康评分卡（前端 Canvas 导出）──
+EN.update({
+    "webui.scorecard_btn": "Score Card",
+    "webui.scorecard_btn_title": "Download health score card image",
+    "webui.scorecard_brand": "Huanxun",
+    "webui.scorecard_title": "Database Health Score Card",
+    "webui.scorecard_healthy": "Healthy",
+    "webui.scorecard_low": "Low Risk",
+    "webui.scorecard_mid": "Medium Risk",
+    "webui.scorecard_high": "High Risk",
+    "webui.scorecard_critical": "Critical"
+})
+
+
+# ── 贡献者徽章墙（与捐赠名单分离）──
+EN.update({
+    "webui.contrib_title": "And thanks to these contributors",
+    "webui.contrib_note": "Code, issue reports and doc suggestions all count. GitHub handles only — no ranking, no counts."
 })

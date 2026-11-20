@@ -3,7 +3,7 @@
 # Copyright 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
 # Author: fiyo (Jack Ge) - https://github.com/fiyo/DBCheck
 
-"""DBCheck 中文翻译数据"""
+"""RaccoonX 中文翻译数据"""
 
 ZI = {
     # CLI 主菜单
@@ -13,7 +13,7 @@ ZI = {
     "cli.main_menu_line2": "🖥️  2 │ CLI 巡检模式（高级用户）",
     "cli.main_menu_line3": "❌  0 │ 退出",
     "cli.main_menu_prompt": "请选择 (1-2, 0退出): ",
-    "cli.main_menu_exiting": "感谢使用 DBCheck 数据库巡检工具，再见！👋",
+    "cli.main_menu_exiting": "感谢使用 RaccoonX 数据库巡检工具，再见！👋",
     "cli.main_menu_invalid": "❌ 无效选择，请输入 0-2。",
 
 
@@ -528,21 +528,21 @@ ZI = {
     "webui.nav_ai": "AI 诊断设置",
     "webui.nav_oracle_client": "数据库驱动管理",
     "webui.oracle_client_title": "数据库驱动管理",
-    "webui.oracle_client_desc": "Oracle 11g 及以下版本需要 Oracle Instant Client 才能连接。\nYashanDB 崖山数据库需要对应的客户端驱动才能连接。\n注意：修改后需要重启 DBCheck 才能生效。",
+    "webui.oracle_client_desc": "Oracle 11g 及以下版本需要 Oracle Instant Client 才能连接。\nYashanDB 崖山数据库需要对应的客户端驱动才能连接。\n注意：修改后需要重启 RaccoonX 才能生效。",
     "webui.oracle_client_path": "Oracle Instant Client 路径",
     "webui.oracle_client_path_hint": "Windows 示例：C:\\oracle\\instantclient_21_12\nLinux 示例：/usr/lib/oracle/21/client64/lib\n留空则自动检测系统环境变量",
     "webui.oracle_client_reload": "↻ 重新加载",
     "webui.oracle_client_save_btn": "💾 保存配置",
     "webui.oracle_client_save_ok": "✅ 配置已保存，重启后生效",
     "webui.oracle_client_auto_config": "自动配置",
-    "webui.oracle_client_auto_config_desc1": "一键下载并解压 Oracle Instant Client Basic 和 YashanDB Client 到 DBCheck 项目目录，无需手动前往官网。",
+    "webui.oracle_client_auto_config_desc1": "一键下载并解压 Oracle Instant Client Basic 和 YashanDB Client 到 RaccoonX 项目目录，无需手动前往官网。",
     "webui.oracle_client_auto_config_desc2": "当前下载版本：Oracle Instant Client 23.26，支持 Windows / Linux / macOS。",
     "webui.plugin_market_title": "🧩 插件市场",
     "webui.oracle_client_download_btn": "⬇️ 一键下载并安装",
     "webui.oracle_client_check_btn": "🔍 检查安装状态",
     "webui.oracle_client_manual_config": "手动配置",
     "webui.yashandb_driver_section_title": "⬇️ YashanDB 崖山数据库驱动",
-    "webui.yashandb_driver_desc": "YashanDB 崖山数据库需要客户端驱动才能连接。\n点击一键下载按钮自动下载 Oracle + YashanDB 完整驱动包到 DBCheck/drivers/ 目录。\n也可手动下载驱动库文件放到 drivers/yashandb/lib/<平台>/lib/ 目录。",
+    "webui.yashandb_driver_desc": "YashanDB 崖山数据库需要客户端驱动才能连接。\n点击一键下载按钮自动下载 Oracle + YashanDB 完整驱动包到 RaccoonX/drivers/ 目录。\n也可手动下载驱动库文件放到 drivers/yashandb/lib/<平台>/lib/ 目录。",
     "webui.yashandb_driver_path": "YashanDB 驱动路径",
     "webui.yashandb_driver_path_hint": "自动检测路径：drivers/yashandb/lib/<平台>/lib/\nWindows 示例：drivers/yashandb/lib/windows-x64/lib\nLinux 示例：drivers/yashandb/lib/linux-x64/lib\n留空则自动检测内置驱动目录",
     "webui.yashandb_driver_check_btn": "🔍 检查驱动状态",
@@ -1113,7 +1113,7 @@ ZI = {
     "report.dm_col_class": "等待类",
 
     # Oracle 报告 i18n
-    "report.oracle_title": "DBCheck Oracle 全面巡检报告",
+    "report.oracle_title": "RaccoonX Oracle 全面巡检报告",
     "report.inspector_label": "\n巡检人: {i}",
     "report.tbl_col_key": "项目",
     "report.tbl_col_val": "内容",
@@ -1162,7 +1162,7 @@ ZI = {
     "report.oracle_sec_alert":    "二十二、Alert 日志错误（近7天）",
     "report.oracle_sec_ai":       "AI 诊断建议",
     "report.oracle_sec_risks":    "风险与建议",
-    "report.oracle_footer":       "DBCheck Oracle 巡检工具 {VER} | 报告生成时间 {time}",
+    "report.oracle_footer":       "RaccoonX Oracle 巡检工具 {VER} | 报告生成时间 {time}",
     # Oracle 报告说明
     "report.oracle_note_1": "本报告基于 Oracle 数据库实时状态生成，反映了生成时刻的数据库健康状况。",
     "report.oracle_note_2": "报告中空白的项表示未能获取到相关数据，可能是由于权限限制或该功能未启用。",
@@ -1389,7 +1389,7 @@ ZI = {
     "report.cover_time_label":     "巡检时间",
 
     # Oracle 交互式巡检提示（CLI）
-    "oracle_banner_title": "DBCheck - Oracle Inspector",
+    "oracle_banner_title": "RaccoonX - Oracle Inspector",
     "oracle_host_ip": "主机地址",
     "oracle_port": "端口",
     "oracle_connect_by": "连接方式 (S=SID / N=ServiceName)",
@@ -1448,9 +1448,9 @@ ZI = {
     "oracle_log_ai_timeout": "AI 诊断超时：大模型加载时间较长，请到「AI 配置」中增加超时时间后重试",
     "oracle_log_ai_conn_fail": "AI 诊断连接失败：请确认 Ollama 服务已启动",
     "oracle_log_ai_fail": "AI 诊断失败",
-    "oracle_banner_title": "DBCheck Oracle 全面巡检工具",
+    "oracle_banner_title": "RaccoonX Oracle 全面巡检工具",
     "oracle_banner_subtitle": "基于 OS 层 + 数据库层",
-    "oracle_banner_tool": "DBCheck Oracle 全面巡检工具",
+    "oracle_banner_tool": "RaccoonX Oracle 全面巡检工具",
     # 检查项输出
     "oracle_log_version_fmt": "版本: {ver}  (主版本: {major})",
     "oracle_log_check_ok": "条",  # unit only, number is prepended by f-string
@@ -1498,7 +1498,7 @@ ZI = {
     "mysql_cli_index_health_checking": "正在进行索引健康分析...",
     "mysql_cli_index_health_ok": "索引健康分析完成，缺失 {missing} 项 / 冗余 {redundant} 项 / 未使用 {unused} 项",
     "mysql_cli_back_menu": "是否返回主菜单? (y/n) [y]: ",
-    "mysql_cli_banner": "DBCheck - MySQL 巡检工具",
+    "mysql_cli_banner": "RaccoonX - MySQL 巡检工具",
     "mysql_cli_batch_done": "批量巡检完成",
     "mysql_cli_batch_mode": "批量巡检模式",
     "mysql_cli_confirm_batch": "是否开始批量巡检? (y/n) [y]: ",
@@ -1530,7 +1530,7 @@ ZI = {
     "mysql_cli_success_count": "成功巡检: {s}/{t} 个数据库",
     "mysql_cli_sysinfo_fail": "收集系统信息失败: {e}",
     "mysql_cli_testing_connection": "正在测试连接 {ip}:{port}...",
-    "mysql_cli_thanks": "感谢使用 DBCheck MySQL 数据库巡检工具！",
+    "mysql_cli_thanks": "感谢使用 RaccoonX MySQL 数据库巡检工具！",
     "mysql_cli_total_time": "程序运行总耗时: {t:.2f}秒",
     "mysql_cli_version": "数据库版本: MySQL {ver}",
     "mysql_cli_version_fail": "获取版本信息失败: {e}",
@@ -1568,7 +1568,7 @@ ZI = {
     "mysql_cli_ssh_fail": "❌ SSH连接失败: {e}",
     "mysql_cli_retry_yes": "是否重新输入? (y/n) [y]: ",
     "mysql_cli_retry_no": "是否重新输入? (y/n) [n]: ",
-    "mysql_cli_banner_title": "DBCheck - MySQL 巡检工具",
+    "mysql_cli_banner_title": "RaccoonX - MySQL 巡检工具",
     "mysql_cli_banner_subtitle": "支持单机巡检 / 批量巡检 / Word报告 / SSH系统采集",
     "mysql_cli_datadir_found": "✅ 通过SSH获取MySQL datadir: {path}",
     "mysql_cli_license_fail": "❌ {message}",
@@ -1601,8 +1601,8 @@ ZI = {
     "pg_cli_index_health_checking": "正在进行索引健康分析...",
     "pg_cli_index_health_ok": "索引健康分析完成，缺失 {missing} 项 / 冗余 {redundant} 项 / 未使用 {unused} 项",
     "pg_cli_back_menu": "是否返回主菜单? (y/n) [y]: ",
-    "pg_cli_banner": "DBCheck - PostgreSQL 巡检工具",
-    "pg_cli_banner_title": "DBCheck - PostgreSQL 巡检工具",
+    "pg_cli_banner": "RaccoonX - PostgreSQL 巡检工具",
+    "pg_cli_banner_title": "RaccoonX - PostgreSQL 巡检工具",
     "pg_cli_banner_subtitle": "支持单机巡检 / 批量巡检 / Word报告 / SSH系统采集",
     "pg_cli_batch_done": "批量巡检完成",
     "pg_cli_batch_mode": "批量巡检模式",
@@ -1635,7 +1635,7 @@ ZI = {
     "pg_cli_success_count": "成功巡检: {s}/{t} 个数据库",
     "pg_cli_sysinfo_fail": "收集系统信息失败: {e}",
     "pg_cli_testing_connection": "正在测试连接 {ip}:{port}...",
-    "pg_cli_thanks": "感谢使用 DBCheck PostgreSQL 数据库巡检工具！",
+    "pg_cli_thanks": "感谢使用 RaccoonX PostgreSQL 数据库巡检工具！",
     "pg_cli_total_time": "程序运行总耗时: {t:.2f}秒",
     "pg_cli_version": "数据库版本: PostgreSQL {ver}",
     "pg_cli_version_fail": "获取版本信息失败: {e}",
@@ -1654,7 +1654,7 @@ ZI = {
     "pg_cli_ai_calling": "正在调用 AI 诊断（{backend} / {model}）...",
     "pg_cli_word_ok": "Word模板已创建: {path}",
     "pg_cli_word_fail": "创建Word模板失败: {e}",
-    "pg_cli_thanks": "感谢使用 DBCheck PostgreSQL 数据库巡检工具！",
+    "pg_cli_thanks": "感谢使用 RaccoonX PostgreSQL 数据库巡检工具！",
     "pg_cli_db_info_title": "请输入数据库连接信息:",
     "pg_cli_host_prompt": "主机地址 [localhost]: ",
     "pg_cli_port_prompt": "端口 [5432]: ",
@@ -1711,7 +1711,7 @@ ZI = {
     "yashandb_connect_fail": "❌ YashanDB 连接失败: {error}",
     "yashandb_conn_fail_exit": "❌ 连接失败，退出。",
     "yashandb_report_generated": "✅ 报告已生成: {file}",
-    "dm8_banner_title": "DBCheck - DM8 巡检工具",
+    "dm8_banner_title": "RaccoonX - DM8 巡检工具",
     "dm8_host_prompt": "主机地址: ",
     "dm8_port_prompt": "端口 [5236]: ",
     "dm8_user_prompt": "用户名 [SYSDBA]: ",
@@ -1935,8 +1935,8 @@ ZI = {
 
 
     # SQL Server CLI 交互式菜单
-    "sqlserver_cli_banner": "DBCheck - SQL Server 巡检工具",
-    "sqlserver_cli_banner_title": "DBCheck - SQL Server 巡检工具",
+    "sqlserver_cli_banner": "RaccoonX - SQL Server 巡检工具",
+    "sqlserver_cli_banner_title": "RaccoonX - SQL Server 巡检工具",
     "sqlserver_cli_banner_subtitle": "支持单机巡检 / 批量巡检 / Word报告 / SSH系统采集",
     "sqlserver_cli_menu_item1": "1. 单机巡检",
     "sqlserver_cli_menu_item2": "2. 批量巡检(从Excel导入)",
@@ -1952,7 +1952,7 @@ ZI = {
     "sqlserver_cli_db_info_title": "请输入数据库连接信息:",
     "sqlserver_cli_inspector_prompt": "巡检人员（默认 DBA）: ",
     "sqlserver_cli_back_menu": "是否返回主菜单? (y/n) [y]: ",
-    "sqlserver_cli_thanks": "感谢使用 DBCheck SQL Server 数据库巡检工具！",
+    "sqlserver_cli_thanks": "感谢使用 RaccoonX SQL Server 数据库巡检工具！",
     "sqlserver_cli_total_time": "程序运行总耗时: {t:.2f}秒",
     "sqlserver_cli_start_inspect_n": "开始巡检 {name}...",
     "sqlserver_cli_report_ok": "✅ 报告已生成: {fname}",
@@ -1972,8 +1972,8 @@ ZI = {
     "sqlserver_cli_excel_read_fail": "❌ 读取Excel模板失败: {e}",
 
     # TiDB CLI
-    "tidb_cli_banner": "DBCheck - TiDB 巡检工具",
-    "tidb_cli_banner_title": "DBCheck - TiDB 巡检工具",
+    "tidb_cli_banner": "RaccoonX - TiDB 巡检工具",
+    "tidb_cli_banner_title": "RaccoonX - TiDB 巡检工具",
     "tidb_cli_banner_subtitle": "支持单机巡检 / 批量巡检 / Word报告 / SSH系统采集",
     "tidb_cli_menu_item1": "1. 单机巡检",
     "tidb_cli_menu_item2": "2. 批量巡检(从Excel导入)",
@@ -1992,7 +1992,7 @@ ZI = {
     "tidb_cli_tidb_success": "成功连接到 TiDB {host}:{port}",
     "tidb_cli_tidb_fail": "❌ TiDB 连接失败: {e}",
     "tidb_cli_retry_no": "是否重新输入?(y/n) [n]: ",
-    "tidb_cli_banner_title": "DBCheck - TiDB 巡检工具",
+    "tidb_cli_banner_title": "RaccoonX - TiDB 巡检工具",
     "tidb_cli_banner_subtitle": "支持单机巡检 / 批量巡检 / Word报告 / SSH系统采集",
     "tidb_cli_single_mode": "单机巡检模式",
     "tidb_cli_batch_mode": "批量巡检模式",
@@ -2017,7 +2017,7 @@ ZI = {
     "tidb_cli_start_inspect_n": "开始巡检 {name}...",
     "tidb.report_title": "TiDB 数据库健康巡检报告",
     "tidb_cli_back_menu": "是否返回主菜单? (y/n) [y]: ",
-    "tidb_cli_thanks": "感谢使用 DBCheck TiDB 数据库巡检工具！",
+    "tidb_cli_thanks": "感谢使用 RaccoonX TiDB 数据库巡检工具！",
     "tidb_cli_total_time": "程序运行总耗时: {t:.2f}秒",
     "tidb_cli_create_excel": "创建Excel配置模板",
     "tidb_cli_verifying_ssh": "正在验证SSH连接 {host}:{port}...",
@@ -2053,8 +2053,8 @@ ZI = {
     "tidb.report_fallback_mysql_config": "数据库配置检查",
 
     # IvorySQL CLI
-    "ivorysql_cli_banner": "DBCheck - IvorySQL 巡检工具",
-    "ivorysql_cli_banner_title": "DBCheck - IvorySQL 巡检工具",
+    "ivorysql_cli_banner": "RaccoonX - IvorySQL 巡检工具",
+    "ivorysql_cli_banner_title": "RaccoonX - IvorySQL 巡检工具",
     "ivorysql_cli_banner_subtitle": "支持单机巡检 / 批量巡检 / Word报告 / SSH系统采集（基于 PostgreSQL 协议）",
     "ivorysql_cli_menu_item1": "1. 单机巡检",
     "ivorysql_cli_menu_item2": "2. 批量巡检(从Excel导入)",
@@ -2097,7 +2097,7 @@ ZI = {
     "ivorysql_cli_start_inspect_n": "开始巡检 {name}...",
     "ivorysql.report_title": "IvorySQL 数据库健康巡检报告",
     "ivorysql_cli_back_menu": "是否返回主菜单? (y/n) [y]: ",
-    "ivorysql_cli_thanks": "感谢使用 DBCheck IvorySQL 数据库巡检工具！",
+    "ivorysql_cli_thanks": "感谢使用 RaccoonX IvorySQL 数据库巡检工具！",
     "ivorysql_cli_create_excel": "创建Excel配置模板",
     "ivorysql_cli_progress_prefix": "巡检进度:",
     "ivorysql_cli_progress_step": "步骤 {i}/{total}",
@@ -2221,7 +2221,7 @@ ZI = {
     "webui.awr_nav": "AWR 报告分析",
     "webui.awr_desc": "上传 Oracle AWR HTML 报告自动生成分析报告",
     "webui.awr_upload_title": "上传 AWR 报告",
-    "webui.awr_upload_hint": "上传 Oracle AWR HTML 报告（由 awrrpt.sql 生成），DBCheck 将自动解析并生成分析报告",
+    "webui.awr_upload_hint": "上传 Oracle AWR HTML 报告（由 awrrpt.sql 生成），RaccoonX 将自动解析并生成分析报告",
     "webui.awr_drop_text": "点击或拖拽 AWR HTML 文件到此处",
     "webui.awr_parsing": "正在解析 AWR 报告...",
     "webui.awr_parsed_title": "解析结果",
@@ -2736,7 +2736,7 @@ ZI = {
     "webui.chat_title": "AI 巡检助手",
     "webui.chat_fab_title": "AI 巡检助手",
     "webui.chat_placeholder": "输入巡检需求...",
-    "webui.chat_welcome": "您好！我是 DBCheck AI 巡检助手。请告诉我您想巡检哪个数据库，例如：<br>• <strong>巡检 MySQL-01 的连接数</strong><br>• <strong>查看 PostgreSQL 的锁等待</strong><br>• <strong>对 Oracle 做完整巡检</strong>",
+    "webui.chat_welcome": "您好！我是 RaccoonX AI 巡检助手。请告诉我您想巡检哪个数据库，例如：<br>• <strong>巡检 MySQL-01 的连接数</strong><br>• <strong>查看 PostgreSQL 的锁等待</strong><br>• <strong>对 Oracle 做完整巡检</strong>",
     "webui.chat_inspecting": "正在执行巡检，请稍候...",
     "webui.chat_error_prefix": "错误：",
     "webui.chat_hint_datasource": "💡 提示：请先在「数据源管理」中添加该数据库，或直接告诉我连接参数（host、port、user、password）",
@@ -2775,8 +2775,8 @@ ZI = {
     "webui.flow_title": "巡检编排",
     "webui.flow_desc": "可视化编排数据库巡检流程，支持节点画布、条件分支与自动化调度。",
     "webui.flow_pro_badge": "专业版功能",
-    "webui.flow_pro_title": "巡检编排为 DBCheck 专业版功能",
-    "webui.flow_pro_desc": "社区版暂不支持可视化画布、节点编排与自动化调度。如需使用，请升级至 DBCheck 专业版。",
+    "webui.flow_pro_title": "巡检编排为 RaccoonX 专业版功能",
+    "webui.flow_pro_desc": "社区版暂不支持可视化画布、节点编排与自动化调度。如需使用，请升级至 RaccoonX 专业版。",
     "webui.flow_pro_action_disabled": "立即使用（需专业版）",
     "webui.flow_pro_learn": "了解专业版",
     "webui.nav_section_history": "巡检历史",
@@ -2881,7 +2881,7 @@ ZI = {
     "webui.si_hist_ops": "操作",
     "webui.btn_share_report": "📤 分享报告",
     # ── 登录页 ──
-    "webui.login_title": "DBCheck",
+    "webui.login_title": "RaccoonX",
     "webui.login_subtitle": "数据库智能巡检工具",
     "webui.login_username": "用户名",
     "webui.login_username_placeholder": "请输入用户名",
@@ -3838,4 +3838,25 @@ ZI.update({
     "webui.screen_host_stale": "历史数据",
     "webui.screen_host_stale_tip": "宿主采集中断，当前显示最后一次成功采集的数据",
     "webui.screen_host_spark_stale": "采集已中断 · 折线停在最后采样点",
+})
+
+
+# ── 健康评分卡（前端 Canvas 导出）──
+ZI.update({
+    "webui.scorecard_btn": "评分卡",
+    "webui.scorecard_btn_title": "下载健康评分卡图片",
+    "webui.scorecard_brand": "浣巡",
+    "webui.scorecard_title": "数据库健康评分卡",
+    "webui.scorecard_healthy": "健康",
+    "webui.scorecard_low": "低风险",
+    "webui.scorecard_mid": "中风险",
+    "webui.scorecard_high": "高风险",
+    "webui.scorecard_critical": "严重风险"
+})
+
+
+# ── 贡献者徽章墙（与捐赠名单分离）──
+ZI.update({
+    "webui.contrib_title": "也谢谢这些贡献者",
+    "webui.contrib_note": "代码提交、Issue 反馈与文档建议都算贡献；只记 GitHub 昵称，不排名不计数。"
 })

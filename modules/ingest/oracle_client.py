@@ -311,7 +311,7 @@ def _urlretrieve_with_headers(url, filename, headers=None, callback=None):
             raise RuntimeError(
                 "Oracle 官网需要登录才能下载。请手动访问 "
                 "https://www.oracle.com/database/technologies/instant-client/downloads.html "
-                "下载后解压到 DBCheck/drivers/oracle_client/ 对应平台目录。"
+                "下载后解压到 RaccoonX/drivers/oracle_client/ 对应平台目录。"
             )
         raise
 
@@ -442,7 +442,7 @@ def download_instant_client(platform_key=None, target_dir=None, progress_callbac
     for cfg in configs:
         source_name = {'github': 'GitHub Releases', 'atomgit': 'AtomGit 镜像',
                         'discovered': 'Oracle 在线发现', 'fallback': 'Oracle 硬编码兜底'}.get(cfg.get('source', '?'), '?')
-        print(f'[DBCheck Oracle Download] 尝试来源: {source_name} ({cfg["url"][:80]}...)')
+        print(f'[RaccoonX Oracle Download] 尝试来源: {source_name} ({cfg["url"][:80]}...)')
 
         tmp_dir = None
         try:
@@ -469,7 +469,7 @@ def download_instant_client(platform_key=None, target_dir=None, progress_callbac
                 )
             except Exception as dl_err:
                 last_err = dl_err
-                print(f'[DBCheck Oracle Download] {source_name} 下载失败: {dl_err}，尝试下一个来源...')
+                print(f'[RaccoonX Oracle Download] {source_name} 下载失败: {dl_err}，尝试下一个来源...')
                 continue
 
             # 验证文件大小
@@ -594,13 +594,13 @@ def download_instant_client(platform_key=None, target_dir=None, progress_callbac
 
         except RuntimeError as e:
             last_err = e
-            print(f'[DBCheck Oracle Download] {source_name} 失败: {e}，尝试下一个来源...')
+            print(f'[RaccoonX Oracle Download] {source_name} 失败: {e}，尝试下一个来源...')
             if tmp_dir and os.path.exists(tmp_dir):
                 shutil.rmtree(tmp_dir, ignore_errors=True)
             continue
         except Exception as e:
             last_err = e
-            print(f'[DBCheck Oracle Download] {source_name} 失败: {e}，尝试下一个来源...')
+            print(f'[RaccoonX Oracle Download] {source_name} 失败: {e}，尝试下一个来源...')
             if tmp_dir and os.path.exists(tmp_dir):
                 shutil.rmtree(tmp_dir, ignore_errors=True)
             continue
@@ -705,7 +705,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Oracle Instant Client 自动下载工具')
     parser.add_argument('--platform', choices=['windows_x64', 'windows_nt', 'windows_ia64', 'linux_x64', 'darwin_x64', 'darwin_arm64'],
                         help='目标平台（默认自动检测）')
-    parser.add_argument('--target', help='DBCheck 根目录（默认脚本所在目录）')
+    parser.add_argument('--target', help='RaccoonX 根目录（默认脚本所在目录）')
     parser.add_argument('--check', action='store_true', help='仅检查安装状态')
     parser.add_argument('--json', action='store_true', help='以 JSON 格式输出结果')
     args = parser.parse_args()

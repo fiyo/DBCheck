@@ -3,7 +3,7 @@
 # Copyright 2025-2026 fiyo (Jack Ge) <sdfiyon@gmail.com>
 # Author: fiyo (Jack Ge) - https://github.com/fiyo/DBCheck
 
-"""DBCheck English translation data"""
+"""RaccoonX English translation data"""
 
 EN = {
     # CLI main menu
@@ -20,7 +20,7 @@ EN = {
     "cli.main_menu_line9": "🌐  9 │ Launch Web UI",
     "cli.main_menu_line10": "❌  0 │ Exit",
     "cli.main_menu_prompt": "Select an option (1-9, 0 to exit): ",
-    "cli.main_menu_exiting": "Thanks for using DBCheck. Goodbye! 👋",
+    "cli.main_menu_exiting": "Thanks for using RaccoonX. Goodbye! 👋",
     "cli.main_menu_invalid": "❌ Invalid choice, please enter 0-9.",
     "cli.main_menu_tidb_starting": "Starting TiDB database inspection...",
     "cli.main_menu_ivorysql_starting": "Starting IvorySQL database inspection...",
@@ -411,7 +411,7 @@ EN = {
     "webui.nav_ai": "AI Settings",
     "webui.nav_oracle_client": "Oracle Client Settings",
     "webui.oracle_client_title": "Oracle Client Settings",
-    "webui.oracle_client_desc": "Oracle 11g and below require Oracle Instant Client to connect.\nNote: Restart DBCheck after modification to take effect.",
+    "webui.oracle_client_desc": "Oracle 11g and below require Oracle Instant Client to connect.\nNote: Restart RaccoonX after modification to take effect.",
     "webui.oracle_client_path": "Oracle Instant Client Path",
     "webui.oracle_client_path_hint": "Windows example: C:\\oracle\\instantclient_21_12\nLinux example: /usr/lib/oracle/21/client64/lib\nLeave empty to auto-detect system environment variables",
     "webui.oracle_client_reload": "↻ Reload",
@@ -822,7 +822,7 @@ EN = {
     "report.pg_fallback_owner_sysadmin": "System Administrator",
 
 
-    "report.oracle_title": "DBCheck Oracle Full Inspection Report",
+    "report.oracle_title": "RaccoonX Oracle Full Inspection Report",
     "report.inspector_label": "\nInspector: {i}",
     "report.tbl_col_key": "Item",
     "report.tbl_col_val": "Value",
@@ -871,7 +871,7 @@ EN = {
     "report.oracle_sec_alert":     "22. Alert Log Errors (Last 7 Days)",
     "report.oracle_sec_ai":       "27. AI Diagnosis Recommendations",
     "report.oracle_sec_risks":    "23. Risks and Recommendations",
-    "report.oracle_footer":       "DBCheck Oracle Inspection Tool {VER} | Report generated at {time}",
+    "report.oracle_footer":       "RaccoonX Oracle Inspection Tool {VER} | Report generated at {time}",
     # Oracle Report Notes
     "report.oracle_note_1": "This report reflects the real-time health status of the Oracle database at the time of generation.",
     "report.oracle_note_2": "Blank fields indicate that data could not be retrieved, possibly due to insufficient privileges or disabled features.",
@@ -1210,7 +1210,7 @@ EN = {
     "report.cover_time_label":     "Inspection Time",
 
     # Oracle interactive CLI prompts
-    "oracle_banner_title": "DBCheck - Oracle Inspector",
+    "oracle_banner_title": "RaccoonX - Oracle Inspector",
     "oracle_host_ip": "Host address",
     "oracle_port": "Port",
     "oracle_connect_by": "Connection Mode (S=SID / N=ServiceName)",
@@ -1229,7 +1229,7 @@ EN = {
     "oracle_inspector_name": "Inspector",
 
     # Banner
-    "oracle_banner_tool": "DBCheck Oracle Comprehensive Inspection Tool",
+    "oracle_banner_tool": "RaccoonX Oracle Comprehensive Inspection Tool",
     "oracle_banner_subtitle": "OS-level + Database-level",
 
     # Oracle inspection logs
@@ -1320,7 +1320,7 @@ EN = {
     "mysql_cli_index_health_checking": "Running index health analysis...",
     "mysql_cli_index_health_ok": "Index health analysis complete, {missing} missing / {redundant} redundant / {unused} unused",
     "mysql_cli_back_menu": "Return to main menu? (y/n) [y]: ",
-    "mysql_cli_banner": "DBCheck - MySQL Database Inspection Tool",
+    "mysql_cli_banner": "RaccoonX - MySQL Database Inspection Tool",
     "mysql_cli_batch_done": "Batch Inspection Complete",
     "mysql_cli_batch_mode": "Batch Inspection Mode",
     "mysql_cli_confirm_batch": "Start batch inspection? (y/n) [y]: ",
@@ -1352,7 +1352,7 @@ EN = {
     "mysql_cli_success_count": "Successful: {s}/{t} database(s)",
     "mysql_cli_sysinfo_fail": "System info collection failed: {e}",
     "mysql_cli_testing_connection": "Testing connection to {ip}:{port}...",
-    "mysql_cli_thanks": "Thank you for using DBCheck MySQL Database Inspection Tool!",
+    "mysql_cli_thanks": "Thank you for using RaccoonX MySQL Database Inspection Tool!",
     "mysql_cli_total_time": "Total execution time: {t:.2f} seconds",
     "mysql_cli_version": "Database version: MySQL {ver}",
     "mysql_cli_version_fail": "Failed to get version info: {e}",
@@ -1390,7 +1390,7 @@ EN = {
     "mysql_cli_ssh_fail": "SSH connection failed: {e}",
     "mysql_cli_retry_yes": "Retry input? (y/n) [y]: ",
     "mysql_cli_retry_no": "Retry input? (y/n) [n]: ",
-    "mysql_cli_banner_title": "DBCheck - MySQL Database Inspection Tool",
+    "mysql_cli_banner_title": "RaccoonX - MySQL Database Inspection Tool",
     "mysql_cli_banner_subtitle": "Single Instance / Batch / Word Report / SSH Collection",
     "mysql_cli_datadir_found": "Obtained MySQL datadir via SSH: {path}",
     "mysql_cli_license_fail": "❌ {message}",
@@ -1419,8 +1419,8 @@ EN = {
     "pg_cli_slow_query_ok": "Slow query analysis complete, collected {count} Top SQL records",
     "pg_cli_slow_query_pg_stat_unavailable": "pg_stat_statements not enabled, skipping (run CREATE EXTENSION pg_stat_statements)",
     "pg_cli_back_menu": "Return to main menu? (y/n) [y]: ",
-    "pg_cli_banner": "DBCheck - PostgreSQL Database Inspection Tool",
-    "pg_cli_banner_title": "DBCheck - PostgreSQL Database Inspection Tool",
+    "pg_cli_banner": "RaccoonX - PostgreSQL Database Inspection Tool",
+    "pg_cli_banner_title": "RaccoonX - PostgreSQL Database Inspection Tool",
     "pg_cli_banner_subtitle": "Single Instance / Batch / Word Report / SSH Collection",
     "pg_cli_batch_done": "Batch Inspection Complete",
     "pg_cli_batch_mode": "Batch Inspection Mode",
@@ -1453,7 +1453,7 @@ EN = {
     "pg_cli_success_count": "Successful: {s}/{t} database(s)",
     "pg_cli_sysinfo_fail": "System info collection failed: {e}",
     "pg_cli_testing_connection": "Testing connection to {ip}:{port}...",
-    "pg_cli_thanks": "Thank you for using DBCheck PostgreSQL Database Inspection Tool!",
+    "pg_cli_thanks": "Thank you for using RaccoonX PostgreSQL Database Inspection Tool!",
     "pg_cli_total_time": "Total execution time: {t:.2f} seconds",
     "pg_cli_version": "Database version: PostgreSQL {ver}",
     "pg_cli_version_fail": "Failed to get version info: {e}",
@@ -1476,7 +1476,7 @@ EN = {
     "pg_cli_ai_calling": "Calling AI diagnosis ({backend} / {model})...",
     "pg_cli_word_ok": "Word template created: {path}",
     "pg_cli_word_fail": "Word template creation failed: {e}",
-    "pg_cli_thanks": "Thank you for using DBCheck PostgreSQL Database Inspection Tool!",
+    "pg_cli_thanks": "Thank you for using RaccoonX PostgreSQL Database Inspection Tool!",
     "pg_cli_db_info_title": "Enter database connection information:",
     "pg_cli_host_prompt": "Host address [localhost]: ",
     "pg_cli_port_prompt": "Port [5432]: ",
@@ -1525,7 +1525,7 @@ EN = {
     # DM8 CLI i18n
     "dm8_driver_missing": "Dameng driver library is missing. Please install with:",
     "dm8_driver_path_note": "Ensure the dpi dynamic library (included with Dameng DB) is in system PATH",
-    "dm8_banner_title": "DBCheck - DM8 Inspector",
+    "dm8_banner_title": "RaccoonX - DM8 Inspector",
     "dm8_host_prompt": "Host address: ",
     "dm8_port_prompt": "Port [5236]: ",
     "dm8_user_prompt": "Username [SYSDBA]: ",
@@ -1695,8 +1695,8 @@ EN = {
 
 
     # SQL Server CLI interactive menu
-    "sqlserver_cli_banner": "DBCheck - SQL Server Inspection Tool",
-    "sqlserver_cli_banner_title": "DBCheck - SQL Server Inspection Tool",
+    "sqlserver_cli_banner": "RaccoonX - SQL Server Inspection Tool",
+    "sqlserver_cli_banner_title": "RaccoonX - SQL Server Inspection Tool",
     "sqlserver_cli_banner_subtitle": "Single Inspection / Batch Inspection / Word Report / SSH System Collection",
     "sqlserver_cli_menu_item1": "1. Single Inspection",
     "sqlserver_cli_menu_item2": "2. Batch Inspection (from Excel)",
@@ -1712,7 +1712,7 @@ EN = {
     "sqlserver_cli_db_info_title": "Please enter database connection info:",
     "sqlserver_cli_inspector_prompt": "Inspector (default DBA): ",
     "sqlserver_cli_back_menu": "Return to main menu? (y/n) [y]: ",
-    "sqlserver_cli_thanks": "Thanks for using DBCheck SQL Server Database Inspection Tool!",
+    "sqlserver_cli_thanks": "Thanks for using RaccoonX SQL Server Database Inspection Tool!",
     "sqlserver_cli_total_time": "Total runtime: {t:.2f} seconds",
     "sqlserver_cli_start_inspect_n": "Starting inspection {name}...",
     "sqlserver_cli_report_ok": "[OK] Report generated: {fname}",
@@ -1732,8 +1732,8 @@ EN = {
     "sqlserver_cli_excel_read_fail": "[FAIL] Failed to read Excel template: {e}",
 
     # TiDB CLI
-    "tidb_cli_banner": "DBCheck - TiDB Inspection Tool",
-    "tidb_cli_banner_title": "DBCheck - TiDB Inspection Tool",
+    "tidb_cli_banner": "RaccoonX - TiDB Inspection Tool",
+    "tidb_cli_banner_title": "RaccoonX - TiDB Inspection Tool",
     "tidb_cli_banner_subtitle": "Single Inspection / Batch Inspection / Word Report / SSH System Collection",
     "tidb_cli_menu_item1": "1. Single Inspection",
     "tidb_cli_menu_item2": "2. Batch Inspection (from Excel)",
@@ -1752,7 +1752,7 @@ EN = {
     "tidb_cli_tidb_success": "[OK] Connected to TiDB {host}:{port}",
     "tidb_cli_tidb_fail": "[FAIL] TiDB connection failed: {e}",
     "tidb_cli_retry_no": "Retry? (y/n) [n]: ",
-    "tidb_cli_banner_title": "DBCheck - TiDB Inspection Tool",
+    "tidb_cli_banner_title": "RaccoonX - TiDB Inspection Tool",
     "tidb_cli_banner_subtitle": "Single Inspection / Batch Inspection / Word Report / SSH System Collection",
     "tidb_cli_single_mode": "Single Inspection Mode",
     "tidb_cli_batch_mode": "Batch Inspection Mode",
@@ -1777,7 +1777,7 @@ EN = {
     "tidb_cli_start_inspect_n": "Starting inspection {name}...",
     "tidb.report_title": "TiDB Database Health Inspection Report",
     "tidb_cli_back_menu": "Return to main menu? (y/n) [y]: ",
-    "tidb_cli_thanks": "Thanks for using DBCheck TiDB Database Inspection Tool!",
+    "tidb_cli_thanks": "Thanks for using RaccoonX TiDB Database Inspection Tool!",
     "tidb_cli_total_time": "Total runtime: {t:.2f} seconds",
     "tidb_cli_create_excel": "Create Excel Config Template",
     "tidb_cli_verifying_ssh": "Verifying SSH connection {host}:{port}...",
@@ -1813,8 +1813,8 @@ EN = {
     "tidb.report_fallback_mysql_config": "Database Configuration Check",
 
     # IvorySQL CLI
-    "ivorysql_cli_banner": "DBCheck - IvorySQL Inspection Tool",
-    "ivorysql_cli_banner_title": "DBCheck - IvorySQL Inspection Tool",
+    "ivorysql_cli_banner": "RaccoonX - IvorySQL Inspection Tool",
+    "ivorysql_cli_banner_title": "RaccoonX - IvorySQL Inspection Tool",
     "ivorysql_cli_banner_subtitle": "Single / Batch inspection / Word report / SSH system collection (PostgreSQL protocol)",
     "ivorysql_cli_menu_item1": "1. Single Inspection",
     "ivorysql_cli_menu_item2": "2. Batch Inspection (from Excel)",
@@ -1857,7 +1857,7 @@ EN = {
     "ivorysql_cli_start_inspect_n": "Inspecting {name}...",
     "ivorysql.report_title": "IvorySQL Database Health Inspection Report",
     "ivorysql_cli_back_menu": "Back to main menu? (y/n) [y]: ",
-    "ivorysql_cli_thanks": "Thanks for using DBCheck IvorySQL Inspector!",
+    "ivorysql_cli_thanks": "Thanks for using RaccoonX IvorySQL Inspector!",
     "ivorysql_cli_create_excel": "Create Excel Template",
     "ivorysql_cli_progress_prefix": "Progress:",
     "ivorysql_cli_progress_step": "Step {i}/{total}",
@@ -2270,7 +2270,7 @@ EN = {
     "webui.ds_operation_fail": "Operation failed: {}",
     "webui.ds_load_fail": "Failed to load datasources",
     # ── Home Overview ──
-    "webui.home_welcome": "Welcome to DBCheck",
+    "webui.home_welcome": "Welcome to RaccoonX",
     "webui.home_instance_dist": "Instance Distribution",
     "webui.home_instance_dist_sub": "Database type counts",
     "webui.home_scheduler": "Scheduled Inspection",
@@ -2336,7 +2336,7 @@ EN = {
     "webui.chat_title": "AI Inspection Assistant",
     "webui.chat_fab_title": "AI Inspection Assistant",
     "webui.chat_placeholder": "Enter inspection request...",
-    "webui.chat_welcome": "Hello! I'm the DBCheck AI Inspection Assistant. Tell me which database you want to inspect, for example:<br>• <strong>Inspect connection count for MySQL-01</strong><br>• <strong>Check PostgreSQL lock waits</strong><br>• <strong>Full inspection for Oracle</strong>",
+    "webui.chat_welcome": "Hello! I'm the RaccoonX AI Inspection Assistant. Tell me which database you want to inspect, for example:<br>• <strong>Inspect connection count for MySQL-01</strong><br>• <strong>Check PostgreSQL lock waits</strong><br>• <strong>Full inspection for Oracle</strong>",
     "webui.chat_inspecting": "Executing inspection, please wait...",
     "webui.chat_error_prefix": "Error: ",
     "webui.chat_hint_datasource": "💡 Hint: Please add this database in \"Datasource Management\" first, or tell me the connection parameters directly (host, port, user, password)",
@@ -2410,7 +2410,7 @@ EN = {
     "webui.si_hist_ops": "Actions",
     "webui.btn_share_report": "📤 Share Report",
     # ── Login Page ──
-    "webui.login_title": "DBCheck",
+    "webui.login_title": "RaccoonX",
     "webui.login_subtitle": "Database Intelligent Inspection Tool",
     "webui.login_username": "Username",
     "webui.login_username_placeholder": "Enter username",

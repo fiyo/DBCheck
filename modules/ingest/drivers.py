@@ -4,7 +4,7 @@
 # Author: fiyo (Jack Ge) - https://github.com/fiyo/DBCheck
 
 """
-DBCheck 驱动一键下载工具
+RaccoonX 驱动一键下载工具
 从 GitHub Releases 下载完整的 drivers.zip（包含 Oracle Instant Client + YashanDB 客户端）
 解压后用户开箱即用，无需手动到各官网下载。
 """
@@ -67,10 +67,10 @@ def _urlretrieve_with_progress(url, filename, callback=None):
 
 def download_drivers(target_dir=None, progress_callback=None):
     """
-    从 GitHub Releases 下载 drivers.zip 并解压到 DBCheck/drivers/
+    从 GitHub Releases 下载 drivers.zip 并解压到 RaccoonX/drivers/
 
     Args:
-        target_dir: DBCheck 根目录，默认脚本所在目录
+        target_dir: RaccoonX 根目录，默认脚本所在目录
         progress_callback: func(stage, percent, max, message)
 
     Returns:
@@ -106,7 +106,7 @@ def download_drivers(target_dir=None, progress_callback=None):
         if progress_callback:
             progress_callback('downloading', 0, 100, '正在从 GitHub Releases 下载驱动包...')
 
-        print(f'[DBCheck Drivers] 正在下载: {DRIVERS_ZIP_URLS[0]}')
+        print(f'[RaccoonX Drivers] 正在下载: {DRIVERS_ZIP_URLS[0]}')
         last_err = None
         for url in DRIVERS_ZIP_URLS:
             try:
@@ -121,7 +121,7 @@ def download_drivers(target_dir=None, progress_callback=None):
                 break  # 成功就跳出
             except Exception as dl_err:
                 last_err = dl_err
-                print(f'[DBCheck Drivers] {url[:60]}... 失败: {dl_err}')
+                print(f'[RaccoonX Drivers] {url[:60]}... 失败: {dl_err}')
                 continue
         else:
             # 所有 URL 都失败了
@@ -129,7 +129,7 @@ def download_drivers(target_dir=None, progress_callback=None):
                 f'下载失败（{last_err}），请检查网络连接。\n\n'
                 f'如无法自动下载，可手动访问以下链接下载 drivers.zip：\n'
                 f'  {DRIVERS_ZIP_URLS[0]}\n'
-                f'下载后解压到 DBCheck/drivers/ 目录即可。'
+                f'下载后解压到 RaccoonX/drivers/ 目录即可。'
             )
 
         # 验证
@@ -144,21 +144,21 @@ def download_drivers(target_dir=None, progress_callback=None):
             progress_callback('extracting', 70, 100, '正在解压驱动包...')
 
         # 解压
-        print(f'[DBCheck Drivers] 正在解压到: {drivers_dir}')
+        print(f'[RaccoonX Drivers] 正在解压到: {drivers_dir}')
         with zipfile.ZipFile(tmp_zip, 'r') as zf:
             zf.extractall(drivers_dir)
 
         # 展平：如果解压后出现 drivers/ 嵌套目录，把内容移出来
         nested_drivers = drivers_dir / 'drivers'
         if nested_drivers.exists() and nested_drivers.is_dir():
-            print(f'[DBCheck Drivers] 检测到嵌套 drivers/ 目录，正在展平...')
+            print(f'[RaccoonX Drivers] 检测到嵌套 drivers/ 目录，正在展平...')
             for item in nested_drivers.iterdir():
                 target = drivers_dir / item.name
                 if target.exists():
                     shutil.rmtree(target, ignore_errors=True) if item.is_dir() else os.remove(target)
                 shutil.move(str(item), str(target))
             shutil.rmtree(nested_drivers, ignore_errors=True)
-            print(f'[DBCheck Drivers] 展平完成')
+            print(f'[RaccoonX Drivers] 展平完成')
 
         # 清理临时文件
         if tmp_dir and os.path.exists(tmp_dir):
@@ -287,8 +287,8 @@ def check_all_drivers(base_dir=None):
 if __name__ == '__main__':
     import argparse
 
-    parser = argparse.ArgumentParser(description='DBCheck 驱动一键下载工具')
-    parser.add_argument('--target', help='DBCheck 根目录（默认脚本所在目录）')
+    parser = argparse.ArgumentParser(description='RaccoonX 驱动一键下载工具')
+    parser.add_argument('--target', help='RaccoonX 根目录（默认脚本所在目录）')
     parser.add_argument('--check', action='store_true', help='仅检查驱动安装状态')
     parser.add_argument('--json', action='store_true', help='以 JSON 格式输出结果')
     args = parser.parse_args()

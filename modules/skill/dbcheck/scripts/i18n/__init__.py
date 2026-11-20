@@ -4,7 +4,7 @@
 # Author: fiyo (Jack Ge) - https://github.com/fiyo/DBCheck
 
 """
-DBCheck i18n 模块
+RaccoonX i18n 模块
 =================
 提供多语言支持，所有面向用户的字符串均通过 t(key) 获取。
 默认语言从 dbc_config.json 读取，也可通过启动参数 --lang 覆盖。
