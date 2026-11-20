@@ -6547,6 +6547,28 @@ def api_dashboard_history_overview():
         return jsonify({'ok': False, 'error': str(e)})
 
 
+def _monitor_frame_label(iid, frame, im=None):
+    """监控帧的展示名：优先帧内 label，缺失时按实例 id 回查真实名称。
+
+    pending 占位帧 / 采集失败帧的 conn、slow 是空 dict，不带 label；
+    若直接用 d.get('label', iid) 兜底，前端数据源下拉会显示裸 UUID。
+    这里统一回查实例配置拼 name (host:port)，只有实例已删除等极端情况才退回 id。
+    """
+    label = (frame or {}).get('label')
+    if isinstance(label, str) and label.strip():
+        return label
+    try:
+        if im is None:
+            from modules.pro.instance_manager import get_instance_manager
+            im = get_instance_manager()
+        inst = im.get_instance(iid, mask_password=False)
+        if inst and inst.get('host'):
+            return f"{inst.get('name', iid)} ({inst.get('host', '?')}:{inst.get('port', '?')})"
+    except Exception:
+        pass
+    return iid
+
+
 @app.route('/api/monitor/slow-queries', methods=['GET'])
 def api_monitor_slow_queries():
     """获取各数据源慢查询数据"""
@@ -6554,15 +6576,21 @@ def api_monitor_slow_queries():
         from modules.monitor.engine import get_monitor_engine
         engine = get_monitor_engine()
         data = engine.get_slow_queries()
+        try:
+            from modules.pro.instance_manager import get_instance_manager
+            _im = get_instance_manager()
+        except Exception:
+            _im = None
         # 转换为列表格式方便前端展示
         items = []
         if data:
             for iid, d in data.items():
+                _label = _monitor_frame_label(iid, d, _im)
                 for row in d.get('data', []):
                     items.append({
                         'instance_id': iid,
-                        'source': d.get('label', iid),
-                        'label': d.get('label', iid),
+                        'source': _label,
+                        'label': _label,
                         'db_type': d.get('db_type', ''),
                         'error': d.get('error'),
                         'ts': d.get('ts', 0),
@@ -6602,13 +6630,25 @@ def api_monitor_connections():
         from modules.monitor.engine import get_monitor_engine
         engine = get_monitor_engine()
         data = engine.get_connections()
+        try:
+            from modules.pro.instance_manager import get_instance_manager
+            _im = get_instance_manager()
+        except Exception:
+            _im = None
         items = []
         if data:
             for iid, d in data.items():
+                # pending 占位帧（ts=0、无错误、无会话数据）不代表有效数据源：
+                # 让它进下拉只会让用户选到空结果，故跳过。带 error 的失败帧保留，
+                # 其 label 由 _monitor_frame_label 正常兜底，用户仍能看到是哪台库。
+                if (not d.get('ts', 0) and not d.get('error')
+                        and not d.get('total', 0) and not d.get('data')):
+                    continue
+                _label = _monitor_frame_label(iid, d, _im)
                 items.append({
                     'instance_id': iid,
-                    'source': d.get('label', iid),
-                    'label': d.get('label', iid),
+                    'source': _label,
+                    'label': _label,
                     'db_type': d.get('db_type', ''),
                     'error': d.get('error'),
                     'ts': d.get('ts', 0),
