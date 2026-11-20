@@ -1,5 +1,34 @@
 # Changelog
 
+## v26.11.20.1 (2026-11-20)
+
+### 新增：巡检报告健康评分卡图片
+
+- 报告数据里已有的 `health_score` / `risk_count` / `risk_level` 现在可一键导出 1080×1080 评分卡图片：圆环总分 + 等级徽章 + 高/中/低风险三卡 + 品牌行；画布内不使用 emoji，规避旧系统字体缺字方框。
+- 两个入口：巡检完成页（拉任务状态取数）与历史报告列表（直接用报告列表现成字段）。纯前端 Canvas 渲染 + `toDataURL` 下载，零后端接口、零打包改动。
+- 9 语言各补 9 个键，按惯例末尾 `update({...})` 追加，不动已有内容。
+
+### 新增：贡献者墙（与捐赠鸣谢物理分区）
+
+- 数据实证：GitHub contributors API 仅 4 条（含 bot 与作者），合并 issues / PR 作者后共 43 位参与者，其中 **3 位代码 / PR 贡献者**（含作者 `fiyo`，20 次 commit 全项目最多）与 **40 位 issue 反馈者**。
+- 墙内按 `kind` 分两组展示、各带小标题与人数；作者徽章带「作者」标签。数据来自随包 `contributors.json`，软件侧走只读 `/api/contributors`（无后台线程），官网侧静态 JSON；只放行合法 GitHub 登录名、URL 本地拼装防跳转钓鱼。
+- 与捐赠者文字云**物理分区、叙事分离**：文字云只记名字、不排名不计数；贡献者墙按实际贡献类型分开列，两类不混合排名。
+
+### 优化：面向用户文案统一为 RaccoonX 品牌
+
+- 370 处 `DBCheck` → `RaccoonX` 面向用户文案替换：CLI banner、报告标题、登录标题、AI 助手欢迎语、驱动提示，覆盖 9 语言主 i18n 与 skill i18n 副本。
+- 保留白名单：GitHub 仓库 URL、作者邮箱、Apache 许可、静态文件名、授权密钥占位，以及**所有 URL 内的 DBCheck**（atomgit 驱动下载源，误改会让驱动下载失效）。
+
+### 修复：评分卡按钮对比度与作者手记侧栏
+
+- 巡检完成页评分卡按钮新增时漏写 `.report-dl-scorecard` 背景色，落回默认浅底配白字导致几乎看不清；补深紫底 `#6D28D9`，与同组 Word / PDF / 分享三色区分。
+- 作者手记页删掉右侧目录（DOM / CSS / 跳转函数一并清理），收款码小卡片置顶，捐赠云与贡献者墙上移，贡献者墙不再藏得深。
+
+### 验证
+
+- 三步验证：`compileall -q modules web_templates i18n` EXIT=0；`import modules.web.app` OK；`discover_plugins()` = 12。
+- 专项断言：9 语言键覆盖 MISS=0；评分卡 Canvas 三种分数场景渲染全过；`/api/contributors` 返回 43 = 3 + 40 且唯一作者为 `fiyo`（code 组）；侧栏 DOM 顺序断言通过；两处页面内联 JS `node --check` EXIT=0；Node stub 实跑分组渲染人数 / 计数 / 显示隐藏 / 作者标签全对；保留 URL 与下载链接完好；`git diff --check` 干净。
+
 ## v26.11.20.0 (2026-11-20)
 
 ### 修复：sqlserver_jdbc 在监控采集中误走 pyodbc 导致大屏误判宕机
