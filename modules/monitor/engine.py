@@ -53,10 +53,16 @@ JDBC_BATCH_TIMEOUT = 90      # 子进程硬超时（含 JVM 冷启动 4~10s）
 # 走 JDBC 插件）有数据、监控大屏（MonitorEngine）判宕机。
 # 修复：路由进 JDBC 批量子进程通道（主进程绝不起 JVM）；连接器用原始插件
 # id（oracle_jdbc/uxdb），采集 SQL 模板用归一键（oracle/pg）。
+# SQL Server 选了 *_jdbc 同样必须全程 JDBC：此前漏配该类型，首页深采与大屏
+# 落到 connection_factory 的 SQLSERVER_FAMILY → pyodbc，中心机缺 ODBC Driver 时
+# 抛 [01000] [unixODBC] Can't open，被 _error_stage 判 connect → 大屏误判 down
+# （数据库实际存活、JDBC 测试连接也通过）。与 oracle_jdbc 同构：连接器用原始
+# 插件 id，采集 SQL 模板用归一键 sqlserver。
 JDBC_ONLY_TYPES = {
     # raw db_type   → (JDBC 连接器 db_type, monitor 模板键)
     'oracle_jdbc': ('oracle_jdbc', 'oracle'),
     'uxdb_jdbc':   ('uxdb',        'pg'),
+    'sqlserver_jdbc': ('sqlserver_jdbc', 'sqlserver'),
 }
 
 

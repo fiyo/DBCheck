@@ -1,5 +1,25 @@
 # Changelog
 
+## v26.11.20.0 (2026-11-20)
+
+### 修复：sqlserver_jdbc 在监控采集中误走 pyodbc 导致大屏误判宕机
+
+- 反馈场景：数据源选 `sqlserver_jdbc`、JDBC 测试连接通过、数据库实际存活，但首页实时监控报「深采失败：(01000, [unixODBC][Driver Manager]Can't open ...)」，监控大屏判宕机并触发探活告警。
+- 根因：`sqlserver_jdbc` 在**监控采集链路**漏配 JDBC-only 分派，落进 `connection_factory.SQLSERVER_FAMILY` 走 pyodbc，中心机缺 SQL Server ODBC Driver 即报 `Can't open`；`_error_stage` 未列该白名单，默认归 `connect` → 大屏 `down`。测试连接与巡检走 JDBC 插件（自带 mssql-jdbc jar，不依赖系统 ODBC），因此「测试过、监控挂」。此前 `oracle_jdbc` / `uxdb_jdbc` 已纳入 JDBC-only，唯独 `sqlserver_jdbc` 漏了。
+- 修复：`engine.py` 的 `JDBC_ONLY_TYPES` 纳入 `sqlserver_jdbc → (sqlserver_jdbc, sqlserver)`，首页与大屏的连接采集改走 `jdbc_collect_cli` 批量子进程；`connection_factory.py` 在 pyodbc 分支前加 JDBC 插件分支，参数与测试连接同口径；`metrics_collector.py` 的 `JVM_METRICS_DB_TYPES` 纳入该类型，三条 SQL Server 深采 SQL 抽为模块常量并与 `DEEP_METRIC_SQLS` 共用同一对象，保证批量投影字面量零漂移。两条采集路径均不再触碰 pyodbc。
+
+### 修复：SSH 隧道空主机回退漏在数据库链路，PG 大屏误判宕机
+
+- 反馈场景：PG 数据库实际存活、宿主资源有数据，但首页报 `connection to server at "172.16.1.69", port 15400 failed`，大屏判宕机。该报错是 psycopg **原始地址**直连文案（走隧道应显示 `127.0.0.1:<local_port>`），证明数据库隧道根本没建。
+- 根因：同一份存量配置 `ssh_tunnel=1 + ssh_host=''`（UI「SSH 主机地址」只有占位文案「与数据库主机相同」，留空存成空串）被两条链路区别对待——宿主采集侧上一版已回退数据库主机（故宿主 `/proc` 有数据），但数据库隧道侧 `uses_db_tunnel()` / `should_use_db_tunnel()` 仍要求 `ssh_host` 非空，判 False 后静默直连跳板机后面不可达的内网地址，最终被判 down。这违背了「显式开启隧道即期望走隧道、失败要抛错、绝不静默回退直连」的既定语义。
+- 修复：`should_use_db_tunnel()` 增加可选 `db_host` 回退源（不传时保持原判定），`build_db_ssh_tunnel()` 用回退后的主机建隧道，覆盖测试连接、巡检等只调 build 的入口；`connection_factory.uses_db_tunnel()` / `resolve_endpoint()` 同口径回退，AI 助手 / SQL 审计执行计划 / JDBC 子进程三处调用点补传回退源，全仓 5 个业务调用点对齐。显式开启隧道却连回退源都没有时改为清晰报错，不再静默直连。
+- 边界：本修复只覆盖 `ssh_tunnel=1` 但 SSH 主机留空的场景；未开隧道开关的实例仍按配置直连，需在数据源配置中显式开启「通过 SSH 隧道连接数据库」。
+
+### 验证
+
+- 三步验证：`compileall -q modules web_templates` EXIT=0；`import modules.web.app` OK；`discover_plugins()` = 12。
+- 专项断言：三处 JDBC 类型集合纳入 `sqlserver_jdbc`、3/3 深采 SQL 进批量集合、批量 SQL 共 18 条含 conn/slow/maxconn/深采、`BatchResultConnection` 投影 + `_collect_sqlserver` 经代理拿到 `sessions_running=5`、连接工厂 mock 命中 JDBC 插件分支未落 pyodbc；隧道侧 6 组断言（回退 / 显式优先 / 无回退源原语义 / 未开不启用、`uses_db_tunnel` 回退、build 用回退值建隧道、`resolve_endpoint → 127.0.0.1:54321`、无主机抛错不静默直连、未开隧道仍直连）全过；`git diff --check` 干净。
+
 ## v26.11.19.1 (2026-11-19)
 
 ### 修复：宿主资源采集的 SSH 主机空值判定

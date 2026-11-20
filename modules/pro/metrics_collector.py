@@ -44,10 +44,13 @@ CIRCUIT_FAIL_THRESHOLD = 5     # 连续失败多少次进入退避
 CIRCUIT_COOLDOWN = 60          # 退避时长（秒）
 CONNECT_TIMEOUT = 3            # 连接超时（秒）
 
-# JVM 类型（oracle_jdbc / uxdb_jdbc）：依赖 JPype 在进程内启动 JVM。
+# JVM 类型（oracle_jdbc / uxdb_jdbc / sqlserver_jdbc）：依赖 JPype 在进程内启动 JVM。
 # 这类连接**绝不能在 gevent monkey-patch 的主进程内执行**（会冻结 hub → 整个界面卡死），
 # 必须隔离到干净子进程（modules/jdbc_metrics_cli.py）执行，与测试连接/巡检同源。
-JVM_METRICS_DB_TYPES = ('oracle_jdbc', 'uxdb_jdbc')
+# sqlserver_jdbc 此前漏在此集合外，独立 collect_one 路径落到主进程 pyodbc（缺
+# ODBC Driver 时误判 down）；纳入后统一走 JDBC 子进程。统一采集器路径则走
+# engine.JDBC_ONLY_TYPES 的批量子进程，两条路径均不再碰 pyodbc。
+JVM_METRICS_DB_TYPES = ('oracle_jdbc', 'uxdb_jdbc', 'sqlserver_jdbc')
 # 子进程采集硬超时（秒）。Oracle thin 驱动连接不可达主机可能阻塞较久，超时就丢本轮。
 JVM_METRICS_SUBPROC_TIMEOUT = 50
 
@@ -84,7 +87,7 @@ COUNTER_KEYS = {
                   'mssql_batch_requests', 'mssql_transactions'},
     'mssql':   {'io_read_count', 'io_write_count', 'io_read_bytes', 'io_write_bytes',
                 'mssql_batch_requests', 'mssql_transactions'},
-    # sqlserver_jdbc 与 sqlserver 同协议同指标口径（pyodbc 直连，见 _connect）
+    # sqlserver_jdbc 与 sqlserver 同协议同指标口径（JDBC 子进程，见 _connect）
     'sqlserver_jdbc': {'io_read_count', 'io_write_count', 'io_read_bytes', 'io_write_bytes',
                        'mssql_batch_requests', 'mssql_transactions'},
     # MongoDB 计数器（来自 serverStatus）：opcounters / 连接 / 网络 / 全局锁
@@ -104,7 +107,23 @@ COUNTER_KEYS = {
 # SQL 一并放进 _jdbc_batch_sqls，用 BatchResultConnection 从同一次批量结果
 # 投影首页指标，每实例每轮只剩一次子进程。
 # ⚠️ 字符串必须与 _collect_oracle / _collect_postgres / _collect_uxdb /
-#    _collect_dm 里的字面量**逐字一致**（批量结果以 SQL 文本为键）。
+#    _collect_dm / _collect_sqlserver 里的字面量**逐字一致**（批量结果以 SQL 文本为键）。
+# SQL Server 三条深采 SQL 抽成常量，供 DEEP_METRIC_SQLS 与 _collect_sqlserver
+# 共用同一对象，避免两处字面量漂移导致 BatchResultConnection 投影丢指标。
+SQLSERVER_SESSIONS_SQL = (
+    "SELECT status, COUNT(*) FROM sys.dm_exec_sessions "
+    "WHERE session_id > 50 GROUP BY status"
+)
+SQLSERVER_PERF_COUNTERS_SQL = (
+    "SELECT counter_name, cntr_value FROM sys.dm_os_performance_counters "
+    "WHERE counter_name IN ('Batch Requests/sec', N'批请求/秒', "
+    "'Transactions/sec', N'事务数/秒', "
+    "'SQL Compilations/sec', 'SQL Re-Compilations/sec')"
+)
+SQLSERVER_IO_SQL = (
+    "SELECT SUM(num_of_reads), SUM(num_of_writes), SUM(num_of_bytes_read), "
+    "SUM(num_of_bytes_written) FROM sys.dm_io_virtual_file_stats(NULL, NULL)"
+)
 DEEP_METRIC_SQLS = (
     "SELECT * FROM v$sysstat",
     "SELECT count(*) FROM v$session WHERE type = 'USER'",
@@ -117,6 +136,11 @@ DEEP_METRIC_SQLS = (
     "SELECT numbackends, xact_commit, xact_rollback, blks_read, blks_hit, "
     "deadlocks, conflicts FROM ux_catalog.ux_stat_database",
     "SELECT EXTRACT(EPOCH FROM (now() - pg_last_xact_replay_timestamp()))::float",
+    # SQL Server 深采（sqlserver_jdbc 走 JDBC 批量子进程，由 BatchResultConnection
+    # 投影，必须把字面量一并放进批量集合，否则首页深采吞吐/IO 指标全空）
+    SQLSERVER_SESSIONS_SQL,
+    SQLSERVER_PERF_COUNTERS_SQL,
+    SQLSERVER_IO_SQL,
 )
 
 # ── 统计项名称 → 规范指标键 的跨版本映射 ──────────────────
@@ -865,11 +889,10 @@ class MetricsCollector:
         m = {}
         cur = conn.cursor()
         # 连接数（sys.dm_exec_sessions 按状态统计）
+        # 用模块常量：与 DEEP_METRIC_SQLS 同一对象，JDBC 批量子进程投影时
+        # BatchResultConnection 以 SQL 文本为键，字面量必须完全一致。
         try:
-            cur.execute("""
-                SELECT status, COUNT(*) FROM sys.dm_exec_sessions
-                WHERE session_id > 50 GROUP BY status
-            """)
+            cur.execute(SQLSERVER_SESSIONS_SQL)
             for row in cur.fetchall():
                 st = (str(row[0]) or '').lower()
                 if 'running' in st:
@@ -886,13 +909,7 @@ class MetricsCollector:
         # Transactions/sec 属 'Transactions' 对象而非 'SQL Statistics'，故去掉
         # object_name 过滤、直接按 counter_name IN 取，否则 TPS 计数器会被漏采。
         try:
-            cur.execute("""
-                SELECT counter_name, cntr_value
-                FROM sys.dm_os_performance_counters
-                WHERE counter_name IN ('Batch Requests/sec', N'批请求/秒',
-                                       'Transactions/sec', N'事务数/秒',
-                                       'SQL Compilations/sec', 'SQL Re-Compilations/sec')
-            """)
+            cur.execute(SQLSERVER_PERF_COUNTERS_SQL)
             for row in cur.fetchall():
                 cname = (str(row[0]).strip().lower()
                          .replace('/sec', '').replace('/秒', '').replace(' ', '_'))
@@ -907,11 +924,7 @@ class MetricsCollector:
             pass
         # 数据库级 I/O
         try:
-            cur.execute("""
-                SELECT SUM(num_of_reads), SUM(num_of_writes), SUM(num_of_bytes_read),
-                       SUM(num_of_bytes_written)
-                FROM sys.dm_io_virtual_file_stats(NULL, NULL)
-            """)
+            cur.execute(SQLSERVER_IO_SQL)
             row = cur.fetchone()
             if row:
                 m['io_read_count'] = _to_num(row[0]) or 0

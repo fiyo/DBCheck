@@ -77,7 +77,7 @@ def connect_instance(instance: dict):
                                               'ssh_password', 'ssh_key_file',
                                               'ssh_key_password', 'ssh_ebpf', 'ssh_tunnel')}
     _tunnel = None
-    if should_use_db_tunnel(_ssh_info):
+    if should_use_db_tunnel(_ssh_info, db_host=host):
         _tunnel, host, port = build_db_ssh_tunnel(_ssh_info, host, port)
 
     def _mk(conn):

@@ -13,20 +13,29 @@
 - 不启用时：返回原始 ``(host, port)``，保持直连。
 
 启用条件（:func:`should_use_db_tunnel`）：须**同时**满足
-``ssh_tunnel`` 开关为真且配置了 ``ssh_host``。这样与「仅用 SSH 采集服务器信息」
-的语义解耦——填了 SSH 字段并不意味着数据库也走隧道，必须显式开启隧道开关。
+``ssh_tunnel`` 开关为真且配置了 ``ssh_host``（或调用方给出 ``db_host`` 作为
+回退源）。这样与「仅用 SSH 采集服务器信息」的语义解耦——填了 SSH 字段并不
+意味着数据库也走隧道，必须显式开启隧道开关。
+
+``ssh_host`` 留空时回退 ``db_host`` 是 UI 明示语义：数据源弹窗的「SSH 主机
+地址」输入框只有 placeholder「与数据库主机相同」，用户留空存成空串。若不
+回退，显式开了 ``ssh_tunnel`` 却判「未启用」，数据库流量会静默直连跳板机
+后面不可达的内网地址，引发「宿主采集有数据、大屏却判宕机」的误报。
 """
 
 from . import SSHTunnel
 
 
-def should_use_db_tunnel(ssh_info):
+def should_use_db_tunnel(ssh_info, db_host=None):
     """是否对数据库连接启用 SSH 隧道。
 
     须同时满足：
         1. ``ssh_info`` 非空；
         2. 显式开关 ``ssh_info['ssh_tunnel']`` 为真；
-        3. 配置了 ``ssh_host``。
+        3. 配置了 ``ssh_host``，或调用方给出 ``db_host`` 供留空时回退。
+
+    ``db_host`` 为可选参数，落实 UI「SSH 主机地址留空＝与数据库主机相同」
+    的语义；不传时保持原有判定，不影响尚不持有数据库主机的调用方。
 
     返回 ``bool``。
     """
@@ -34,9 +43,10 @@ def should_use_db_tunnel(ssh_info):
         return False
     if not ssh_info.get('ssh_tunnel'):
         return False
-    if not ssh_info.get('ssh_host'):
-        return False
-    return True
+    ssh_host = str(ssh_info.get('ssh_host') or '').strip()
+    if not ssh_host and db_host:
+        ssh_host = str(db_host).strip()
+    return bool(ssh_host)
 
 
 def build_db_ssh_tunnel(ssh_info, db_host, db_port):
@@ -45,7 +55,8 @@ def build_db_ssh_tunnel(ssh_info, db_host, db_port):
     参数:
         ssh_info: 字典，键与实例模型一致：``ssh_host`` / ``ssh_port`` /
             ``ssh_user`` / ``ssh_password`` / ``ssh_key_file`` /
-            ``ssh_key_password`` / ``ssh_tunnel`` 等。
+            ``ssh_key_password`` / ``ssh_tunnel`` 等；``ssh_host`` 留空时
+            回退到 ``db_host``（UI 明示的「与数据库主机相同」语义）。
         db_host:  数据库真实主机（跳板机视角可达的地址）。
         db_port:  数据库真实端口。
 
@@ -59,11 +70,14 @@ def build_db_ssh_tunnel(ssh_info, db_host, db_port):
     注意: 启用隧道时若 SSH 连接失败会直接抛出（paramiko 异常），由调用方捕获并
     转成清晰报错，**不会静默回退直连**——用户显式开启隧道即期望走隧道。
     """
-    if not should_use_db_tunnel(ssh_info):
+    if not should_use_db_tunnel(ssh_info, db_host=db_host):
         return None, db_host, int(db_port)
 
+    # should_use_db_tunnel 已确认 ssh_host 或 db_host 至少一个非空，
+    # 同口径回退，避免判定通过却用空主机建隧道。
+    ssh_host = str(ssh_info.get('ssh_host') or '').strip() or str(db_host).strip()
     tunnel = SSHTunnel(
-        ssh_host=ssh_info['ssh_host'],
+        ssh_host=ssh_host,
         ssh_port=int(ssh_info.get('ssh_port') or 22),
         ssh_user=ssh_info.get('ssh_user') or 'root',
         ssh_password=ssh_info.get('ssh_password') or '',

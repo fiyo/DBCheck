@@ -150,7 +150,7 @@ def _collect(payload):
     try:
         from modules.ssh.tunnel_helper import (
             should_use_db_tunnel, build_db_ssh_tunnel)
-        if should_use_db_tunnel(_ssh_info):
+        if should_use_db_tunnel(_ssh_info, db_host=_host):
             _tunnel, _host, _port = build_db_ssh_tunnel(_ssh_info, _host, _port)
     except Exception as _te:
         _err = 'SSH 隧道建立失败：%s' % str(_te)[:300]

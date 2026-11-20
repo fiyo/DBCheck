@@ -43,7 +43,9 @@ PG_FAMILY = frozenset((
     'highgo', 'hgdb', 'halodb', 'opengauss', 'greenplum',
 ))
 SQLSERVER_FAMILY = frozenset(('sqlserver', 'sqlserver_jdbc', 'mssql'))
-JDBC_ONLY_TYPES = frozenset(('oracle_jdbc', 'uxdb_jdbc'))
+# sqlserver_jdbc 语义即 JDBC：与 oracle_jdbc/uxdb_jdbc 同标为仅子进程调用，
+# 避免落进下方 SQLSERVER_FAMILY 的 pyodbc 分支（缺 ODBC Driver 时误判 down）。
+JDBC_ONLY_TYPES = frozenset(('oracle_jdbc', 'uxdb_jdbc', 'sqlserver_jdbc'))
 
 # 国产 PG 系库名缺省值：必须用**原始** db_type 查映射（归一后都是 pg，键会全落空）。
 # 与首页原口径、数据源测试口径保持一致：都没填时回落用户名同名库（PG 惯例）。
@@ -108,9 +110,19 @@ def _ssh_info(inst):
 
 
 def uses_db_tunnel(inst):
-    """该实例是否显式开启「数据库流量经 SSH 隧道」（与 ssh_enabled 无关）。"""
+    """该实例是否显式开启「数据库流量经 SSH 隧道」（与 ssh_enabled 无关）。
+
+    ``ssh_host`` 留空时按 UI 明示语义回退数据库主机，与 ``tunnel_helper``
+    同口径；否则存量配置（开了隧道开关但 SSH 主机框留空）会被判成未启用，
+    数据库流量静默直连跳板机后面不可达的内网地址。
+    """
     info = _ssh_info(inst)
-    return bool(info.get('ssh_tunnel') and info.get('ssh_host'))
+    if not info.get('ssh_tunnel'):
+        return False
+    ssh_host = str(info.get('ssh_host') or '').strip()
+    if not ssh_host:
+        ssh_host = str(inst.get('host') or '').strip()
+    return bool(ssh_host)
 
 
 def validate_mongo_tunnel_mode(inst):
@@ -147,12 +159,18 @@ def resolve_endpoint(inst, host=None, port=None):
     remote_host = host if host is not None else inst.get('host')
     remote_port = int(port if port is not None else (inst.get('port') or 0))
     info = _ssh_info(inst)
-    if not (info.get('ssh_tunnel') and info.get('ssh_host')):
+    if not info.get('ssh_tunnel'):
         return None, remote_host, remote_port
 
     from modules.ssh.tunnel_helper import build_db_ssh_tunnel, should_use_db_tunnel
-    if not should_use_db_tunnel(info):
-        return None, remote_host, remote_port
+    # ssh_host 留空时回退 remote_host（Oracle 走解析出的目标，其余走实例主机），
+    # 与 uses_db_tunnel / build_db_ssh_tunnel 同口径，杜绝静默直连。
+    if not should_use_db_tunnel(info, db_host=remote_host):
+        # 显式开启隧道却连回退源都没有（SSH 主机与数据库主机皆空）：
+        # 不再静默直连，避免把配置缺失伪装成数据库不可达。
+        raise RuntimeError(
+            'SSH 隧道已开启但缺少 SSH 主机地址，且数据库主机为空：'
+            '请填写 SSH 主机地址或数据库主机地址')
     try:
         return build_db_ssh_tunnel(info, remote_host, remote_port)
     except Exception as e:
@@ -382,6 +400,26 @@ def _create_dbapi_connection(inst, host, port, raw, norm,
         except Exception:
             pass
         return conn
+
+    # sqlserver_jdbc：必须走 JDBC 插件（与测试连接 / 巡检同一条 JDBC 通道），
+    # 绝不能落进下方 SQLSERVER_FAMILY 的 pyodbc 分支。此前该类型只在
+    # SQLSERVER_FAMILY 里被 pyodbc 接管，中心机缺 ODBC Driver 时抛
+    # [01000] [unixODBC] Can't open → 大屏误判 down（数据库实际存活）。
+    # 插件入口与 app.py 测试连接 test_sqlserver_jdbc_connection 同口径。
+    if raw == 'sqlserver_jdbc':
+        from modules.pluginkit.loader import get_plugin_module
+        mod = get_plugin_module('sqlserver_jdbc')
+        if mod is None or not hasattr(mod, 'get_connection'):
+            raise RuntimeError('sqlserver_jdbc 插件未启用或缺少 get_connection 入口')
+        return mod.get_connection(
+            host=host, port=int(port or 1433), user=user, password=password,
+            database=inst.get('database') or inst.get('service_name') or 'master',
+            jdbc_url=inst.get('jdbc_url') or None,
+            instance_name=inst.get('instance_name') or '',
+            encrypt=bool(inst.get('encrypt', False)),
+            trust_server_certificate=bool(inst.get('trust_server_certificate', True)),
+            driver_version=inst.get('driver_version') or '',
+        )
 
     if raw in SQLSERVER_FAMILY or norm in ('sqlserver', 'mssql'):
         import pyodbc
