@@ -3548,3 +3548,21 @@ JA.update({
 JA.update({
     "webui.contrib_author_tag": "作者",
 })
+
+
+# 主题切换按钮 title（浣熊琥珀主题，追加块）
+JA.update({
+  "webui.theme_next.dark": "ライトに切り替え",
+  "webui.theme_next.light": "ダークに切り替え",
+  "webui.theme_next.raccoon": "ラクーンアンバーに切り替え"
+})
+
+# テーマ選択ドロップダウン（4 テーマ、追加ブロック）
+JA.update({
+  "webui.theme_select_title": "テーマを選択",
+  "webui.theme.dark": "ディープティール",
+  "webui.theme.light": "ミニマルホワイト",
+  "webui.theme.raccoon": "ラクーンアンバー",
+  "webui.theme.dawn": "サンライズアンバー",
+  "webui.theme_next.dawn": "サンライズアンバーに切り替え"
+})

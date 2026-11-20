@@ -3497,3 +3497,21 @@ ES.update({
 ES.update({
     "webui.contrib_author_tag": "Autor",
 })
+
+
+# 主题切换按钮 title（浣熊琥珀主题，追加块）
+ES.update({
+  "webui.theme_next.dark": "Cambiar a claro",
+  "webui.theme_next.light": "Cambiar a oscuro",
+  "webui.theme_next.raccoon": "Cambiar a Raccoon Ámbar"
+})
+
+# Desplegable de temas (cuatro temas, bloque añadido)
+ES.update({
+  "webui.theme_select_title": "Seleccionar tema",
+  "webui.theme.dark": "Verde azulado profundo",
+  "webui.theme.light": "Blanco minimalista",
+  "webui.theme.raccoon": "Ámbar mapache",
+  "webui.theme.dawn": "Ámbar amanecer",
+  "webui.theme_next.dawn": "Cambiar a Ámbar amanecer"
+})

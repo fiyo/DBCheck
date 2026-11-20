@@ -3874,3 +3874,21 @@ ZI.update({
 ZI.update({
     "webui.contrib_author_tag": "作者",
 })
+
+
+# 主题切换按钮 title（浣熊琥珀主题，追加块）
+ZI.update({
+  "webui.theme_next.dark": "切换到浅色",
+  "webui.theme_next.light": "切换到深色",
+  "webui.theme_next.raccoon": "切换到浣熊琥珀主题"
+})
+
+# 主题下拉选择（四套主题，追加块）
+ZI.update({
+  "webui.theme_select_title": "选择主题",
+  "webui.theme.dark": "深海青绿",
+  "webui.theme.light": "极简白",
+  "webui.theme.raccoon": "浣熊琥珀",
+  "webui.theme.dawn": "晨曦琥珀",
+  "webui.theme_next.dawn": "切换到晨曦琥珀主题"
+})

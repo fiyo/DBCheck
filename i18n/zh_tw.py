@@ -3926,3 +3926,21 @@ ZH_TW.update({
 ZH_TW.update({
     "webui.contrib_author_tag": "作者",
 })
+
+
+# 主题切换按钮 title（浣熊琥珀主题，追加块）
+ZH_TW.update({
+  "webui.theme_next.dark": "切換至淺色",
+  "webui.theme_next.light": "切換至深色",
+  "webui.theme_next.raccoon": "切換至浣熊琥珀主題"
+})
+
+# 主題下拉選擇（四套主題，追加塊）
+ZH_TW.update({
+  "webui.theme_select_title": "選擇主題",
+  "webui.theme.dark": "深海青綠",
+  "webui.theme.light": "極簡白",
+  "webui.theme.raccoon": "浣熊琥珀",
+  "webui.theme.dawn": "晨曦琥珀",
+  "webui.theme_next.dawn": "切換至晨曦琥珀主題"
+})

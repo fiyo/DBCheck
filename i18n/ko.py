@@ -3496,3 +3496,21 @@ KO.update({
 KO.update({
     "webui.contrib_author_tag": "작성자",
 })
+
+
+# 主题切换按钮 title（浣熊琥珀主题，追加块）
+KO.update({
+  "webui.theme_next.dark": "라이트로 전환",
+  "webui.theme_next.light": "다크로 전환",
+  "webui.theme_next.raccoon": "라쿤 앰버로 전환"
+})
+
+# 테마 선택 드롭다운 (4가지 테마, 추가 블록)
+KO.update({
+  "webui.theme_select_title": "테마 선택",
+  "webui.theme.dark": "딥 틸",
+  "webui.theme.light": "미니멀 화이트",
+  "webui.theme.raccoon": "라쿤 앰버",
+  "webui.theme.dawn": "선라이즈 앰버",
+  "webui.theme_next.dawn": "선라이즈 앰버로 전환"
+})

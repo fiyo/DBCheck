@@ -46,6 +46,180 @@
   --card-bg:   #FFFFFF;
 }
 
+/* ─── 浣熊琥珀主题（品牌主题）───
+   保留既有 6 个基础变量语义，仅替换为暖色系；下方覆盖层处理历史硬编码强调色。 */
+[data-theme="raccoon"] {
+  --bg:        #14100E;
+  --surface:   #241A14;
+  --surface2:  #2E241C;
+  --border:    #4A3527;
+  --accent:    #FF8A4C;   /* 浣熊琥珀 */
+  --accent2:   #C2410C;   /* 深橙，替代原深蓝强调 */
+  --warn:      #FBBF24;
+  --danger:    #F87171;
+  --text:      #FFF3EC;
+  --text-main: #FFF3EC;
+  --text-muted:#B9A89E;
+  --info:      #C2410C;
+  --success:   #4ADE80;
+  --card-bg:   #241A14;
+  --radius:    12px;
+  --trans:     0.22s ease;
+  color-scheme: dark;
+}
+
+/* 浣熊主题：原青绿(#00C8A0)/深蓝(#0A2A6E)硬编码强调色 → 琥珀色，避免半套主题 */
+[data-theme="raccoon"] .sidebar-logo .logo-icon,
+[data-theme="raccoon"] .card-icon,
+[data-theme="raccoon"] .btn-success,
+[data-theme="raccoon"] .log-box .log-line.ok,
+[data-theme="raccoon"] .report-dl-share,
+[data-theme="raccoon"] .overview-card .card-detail-ok,
+[data-theme="raccoon"] .tag-tidb,
+[data-theme="raccoon"] .severity-low,
+[data-theme="raccoon"] .toast-success,
+[data-theme="raccoon"] .health-level-badge.healthy,
+[data-theme="raccoon"] .health-level-badge.low,
+[data-theme="raccoon"] .health-risk-chip.low,
+[data-theme="raccoon"] .health-risk-chip.healthy,
+[data-theme="raccoon"] .monitor-dot.up { color: var(--accent); }
+[data-theme="raccoon"] .btn-success { background: var(--accent); }
+[data-theme="raccoon"] .btn-success:hover { background: #FF6B35; }
+[data-theme="raccoon"] .btn-primary:hover { background: #A93509; }
+[data-theme="raccoon"] .report-dl-share { background: var(--accent); }
+[data-theme="raccoon"] .toast-success { border-left-color: var(--accent); }
+[data-theme="raccoon"] .toast-info { border-left-color: var(--accent2); }
+[data-theme="raccoon"] .log-box .log-line.info { color: var(--accent2); }
+[data-theme="raccoon"] .report-dl-word,
+[data-theme="raccoon"] .mkt-btn-install { background: var(--accent2); }
+[data-theme="raccoon"] [style*="background:linear-gradient(135deg,#0A2A6E,#00C8A0)"],
+[data-theme="raccoon"] [style*="background:linear-gradient(135deg,#00C8A0,#0A2A6E)"],
+[data-theme="raccoon"] [style*="background:linear-gradient(135deg,#00C8A0,#00C8A0)"],
+[data-theme="raccoon"] [style*="background:linear-gradient(135deg,#0A2A6E,#0A2A6E)"] {
+  background: linear-gradient(135deg, var(--accent2), var(--accent)) !important;
+}
+[data-theme="raccoon"] [style*="background:linear-gradient(90deg,#00C8A0,#00C8A0)"] {
+  background: linear-gradient(90deg, var(--accent2), var(--accent)) !important;
+}
+[data-theme="raccoon"] [style*="#00C8A0"] { --accent-inline: var(--accent); }
+[data-theme="raccoon"] .slogan-glow {
+  background: radial-gradient(ellipse at center, rgba(255,138,76,.22) 0%, transparent 70%);
+}
+
+/* ─── 晨曦琥珀主题（亮色 + 毛玻璃 + 柔光动效）───
+   暖白奶油底、半透明玻璃卡片、琥珀强调色；所有玻璃效果只在该主题下生效，
+   不影响深海青绿 / 极简白 / 浣熊琥珀三套既有主题。 */
+[data-theme="dawn"] {
+  --bg:        #F7F1E9;
+  --surface:   rgba(255, 253, 250, .68);
+  --surface2:  rgba(255, 247, 237, .78);
+  --border:    rgba(168, 108, 64, .24);
+  --accent:    #D96A28;   /* 晨曦琥珀 */
+  --accent2:   #9A4A1E;   /* 深焙琥珀，保证白字可读 */
+  --warn:      #A65B00;
+  --danger:    #C43D32;
+  --text:      #33261F;
+  --text-main: #33261F;
+  --text-muted:#7A6A5F;
+  --info:      #B45309;
+  --success:   #2F855A;
+  --card-bg:   rgba(255, 253, 250, .68);
+  --radius:    14px;
+  --trans:     0.22s ease;
+  --glass-blur: 16px;
+  color-scheme: light;
+}
+[data-theme="dawn"] body {
+  background:
+    radial-gradient(900px 520px at 6% -12%, rgba(255, 183, 120, .38), transparent 66%),
+    radial-gradient(820px 500px at 98% 4%, rgba(247, 145, 123, .20), transparent 62%),
+    linear-gradient(135deg, #FCF8F2 0%, #F4EADD 55%, #F9F2EA 100%);
+  background-attachment: fixed;
+}
+/* 柔光漂移层：固定在视口最底层，不接收事件，不遮挡内容 */
+[data-theme="dawn"] body::before {
+  content: '';
+  position: fixed;
+  inset: -20%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 28% 22%, rgba(255, 176, 105, .20), transparent 44%),
+    radial-gradient(circle at 76% 72%, rgba(237, 132, 116, .14), transparent 42%);
+  animation: dawnDrift 24s ease-in-out infinite alternate;
+}
+@keyframes dawnDrift {
+  0%   { transform: translate3d(-2%, -1%, 0) scale(1); }
+  100% { transform: translate3d(3%, 2%, 0) scale(1.08); }
+}
+[data-theme="dawn"] .sidebar,
+[data-theme="dawn"] .topbar {
+  background: rgba(255, 251, 246, .74);
+  -webkit-backdrop-filter: blur(18px) saturate(1.35);
+  backdrop-filter: blur(18px) saturate(1.35);
+}
+[data-theme="dawn"] .card,
+[data-theme="dawn"] .overview-card,
+[data-theme="dawn"] .cal-card,
+[data-theme="dawn"] .dn-card {
+  background: var(--surface);
+  border-color: rgba(168, 108, 64, .22);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+  box-shadow: 0 10px 34px rgba(120, 70, 40, .10), inset 0 1px 0 rgba(255, 255, 255, .72);
+}
+[data-theme="dawn"] .card {
+  transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease;
+}
+[data-theme="dawn"] .card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 42px rgba(120, 70, 40, .15), inset 0 1px 0 rgba(255, 255, 255, .82);
+}
+[data-theme="dawn"] .overview-card:hover {
+  box-shadow: 0 14px 36px rgba(120, 70, 40, .16), inset 0 1px 0 rgba(255, 255, 255, .82);
+}
+/* 历史硬编码强调色 → 晨曦琥珀，避免半套主题 */
+[data-theme="dawn"] .sidebar-logo .logo-icon {
+  background: linear-gradient(135deg, #9A4A1E, #E88A3C);
+}
+[data-theme="dawn"] .sidebar-logo .logo-icon,
+[data-theme="dawn"] .card-icon,
+[data-theme="dawn"] .btn-success,
+[data-theme="dawn"] .log-box .log-line.ok,
+[data-theme="dawn"] .report-dl-share,
+[data-theme="dawn"] .tag-tidb,
+[data-theme="dawn"] .severity-low,
+[data-theme="dawn"] .toast-success,
+[data-theme="dawn"] .health-level-badge.healthy,
+[data-theme="dawn"] .health-level-badge.low,
+[data-theme="dawn"] .health-risk-chip.low,
+[data-theme="dawn"] .health-risk-chip.healthy,
+[data-theme="dawn"] .monitor-dot.up { color: var(--accent); }
+[data-theme="dawn"] .overview-card .card-detail-ok { color: var(--success); }
+[data-theme="dawn"] .log-box .log-line.ok { color: #FCD34D; }
+[data-theme="dawn"] .btn-success { background: var(--accent); }
+[data-theme="dawn"] .btn-success:hover { background: #C65A1D; }
+[data-theme="dawn"] .btn-primary:hover { background: #7E3A15; }
+[data-theme="dawn"] .report-dl-share { background: var(--accent); }
+[data-theme="dawn"] .toast-success { border-left-color: var(--accent); }
+[data-theme="dawn"] .toast-info { border-left-color: var(--accent2); }
+[data-theme="dawn"] .log-box .log-line.info { color: #FCD34D; }
+[data-theme="dawn"] .report-dl-word,
+[data-theme="dawn"] .mkt-btn-install { background: var(--accent2); }
+[data-theme="dawn"] [style*="background:linear-gradient(135deg,#0A2A6E,#00C8A0)"],
+[data-theme="dawn"] [style*="background:linear-gradient(135deg,#00C8A0,#0A2A6E)"],
+[data-theme="dawn"] [style*="background:linear-gradient(135deg,#00C8A0,#00C8A0)"],
+[data-theme="dawn"] [style*="background:linear-gradient(135deg,#0A2A6E,#0A2A6E)"] {
+  background: linear-gradient(135deg, var(--accent2), var(--accent)) !important;
+}
+[data-theme="dawn"] [style*="background:linear-gradient(90deg,#00C8A0,#00C8A0)"] {
+  background: linear-gradient(90deg, var(--accent2), var(--accent)) !important;
+}
+[data-theme="dawn"] [style*="#00C8A0"] { --accent-inline: var(--accent); }
+[data-theme="dawn"] .slogan-glow {
+  background: radial-gradient(ellipse at center, rgba(233, 138, 60, .20) 0%, transparent 70%);
+}
+
 html { font-size: 15px; }
 body {
   background: var(--bg);
@@ -1032,6 +1206,16 @@ select option { background: var(--surface2); }
   transition: all var(--trans);
 }
 .theme-toggle:hover { border-color: var(--text-muted); color: var(--text); }
+.theme-select {
+  /* 覆盖全局 select{width:100%}：顶栏是 flex 容器，不限宽会被撑满整行 */
+  width: 88px; flex: 0 0 88px; min-width: 0; max-width: 88px;
+  font-size: 12px; padding: 3px 6px; border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface); color: var(--text);
+  cursor: pointer; transition: all var(--trans);
+}
+.theme-select option { font-size: 12px; }
+.theme-select:hover { border-color: var(--accent); }
 .btn-primary {
   background: var(--accent2); color: #fff;
 }
@@ -3864,6 +4048,8 @@ async function executeFixSql(taskId, sql) {
 @media (prefers-reduced-motion: reduce) {
   .dn-hero, .dn-card, .dn-section, .dn-hero-deco, .dn-tip-star, .dn-cloud-card { animation: none; }
   .dn-qr-frame, .about-donate-btn, .dn-side .dn-tip, .dn-cloud-name { transition: none; }
+  [data-theme="dawn"] body::before { animation: none; }
+  [data-theme="dawn"] .card, [data-theme="dawn"] .overview-card { transition: none; transform: none; }
 }
 
 /* ── 近一年巡检日历（GitHub 贡献图式） ── */
@@ -8404,9 +8590,12 @@ function wfCloseRunDrawer() {
           <option value="ru" data-page-node-id="c4vojBeu0cHN37Akm0AMup">Русский</option>
         </select>
       </span>
-      <button class="btn btn-ghost" id="theme-toggle" onclick="toggleTheme()" title="切换主题" style="font-size:12px;padding:4px 10px;border-radius:6px;cursor:pointer;" data-page-node-id="q8QUD8l6qW3BYYvozmDH0G">
-        ☀️
-      </button>
+      <select class="theme-select" id="theme-select" onchange="setTheme(this.value)" title="选择主题" aria-label="选择主题" data-i18n-title="webui.theme_select_title" data-page-node-id="q8QUD8l6qW3BYYvozmDH0G">
+        <option value="dark" data-i18n="webui.theme.dark">深海青绿</option>
+        <option value="light" data-i18n="webui.theme.light">极简白</option>
+        <option value="raccoon" data-i18n="webui.theme.raccoon">浣熊琥珀</option>
+        <option value="dawn" data-i18n="webui.theme.dawn">晨曦琥珀</option>
+      </select>
       <span id="topbar-user" style="font-size:12px;color:var(--text-muted);margin-left:8px;cursor:pointer;display:none;" onclick="toggleUserMenu()" data-page-node-id="8j647NT8a4eDoTL1fTzSj7">
         👤 <span id="topbar-user-name" data-page-node-id="HiS5xz1sery4p9P9ViJ77a"></span> ▾
       </span>
@@ -22308,15 +22497,39 @@ function toastConfirm(msg) {
   });
 }
 
+var THEME_CYCLE = ['dark', 'light', 'raccoon', 'dawn'];
+var THEME_ICON = { dark: '☀️', light: '🌙', raccoon: '✦', dawn: '◐' };
+
 function getTheme() {
-  return document.documentElement.getAttribute('data-theme') || 'dark';
+  var t = document.documentElement.getAttribute('data-theme') || 'dark';
+  return THEME_CYCLE.indexOf(t) >= 0 ? t : 'dark';
+}
+
+// 亮色系主题（极简白 / 晨曦琥珀）共用一套图表与徽标前景色
+function isLightTheme() {
+  var t = getTheme();
+  return t === 'light' || t === 'dawn';
 }
 
 function setTheme(theme) {
-  document.documentElement.setAttribute('data-theme', theme || 'dark');
-  localStorage.setItem('dbcheck-theme', theme || 'dark');
+  var t = THEME_CYCLE.indexOf(theme) >= 0 ? theme : 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+  localStorage.setItem('dbcheck-theme', t);
+  // 下拉选择框同步（主题也可由旧代码/快捷入口直接调用 setTheme）
+  var sel = document.getElementById('theme-select');
+  if (sel) sel.value = t;
   var btn = document.getElementById('theme-toggle');
-  if (btn) btn.textContent = (theme === 'light') ? '🌙' : '☀️';
+  if (btn) {
+    btn.textContent = THEME_ICON[t];
+    var label = { dark: '☀️ Light', light: '🌙 Dark', raccoon: '✦ Raccoon', dawn: '◐ Dawn Amber' }[t];
+    if (typeof i18n === 'function') {
+      var key = 'webui.theme_next.' + t;
+      var tr = i18n(key);
+      if (tr && tr !== key) label = tr;
+    }
+    btn.title = label;
+    btn.setAttribute('aria-label', label);
+  }
   // 主题切换后 ECharts 文字颜色需随 CSS 变量刷新
   setTimeout(function() {
     if (window._lastHealthDash && document.getElementById('health-screen-section')) {
@@ -22333,8 +22546,10 @@ function initTheme() {
   setTheme(saved);
 }
 
+// 兼容旧调用（登录页等非下拉入口）；主界面已改用下拉选择
 function toggleTheme() {
-  setTheme(getTheme() === 'dark' ? 'light' : 'dark');
+  var next = THEME_CYCLE[(THEME_CYCLE.indexOf(getTheme()) + 1) % THEME_CYCLE.length];
+  setTheme(next);
 }
 
 // ─── 顶部公告条：读 /api/announcement（官网远端源，后端定时缓存）；
@@ -22621,8 +22836,8 @@ async function loadHomeStats() {
             left: 'center',
             top: '38%',
             textAlign: 'center',
-            textStyle: { color: '#CBD5E1', fontSize: 24, fontWeight: 700 },
-            subtextStyle: { color: '#94A3B8', fontSize: 11 }
+            textStyle: { color: cssVar('--text', '#CBD5E1'), fontSize: 24, fontWeight: 700 },
+            subtextStyle: { color: cssVar('--text-muted', '#94A3B8'), fontSize: 11 }
           },
           series: [{
             type: 'pie',
@@ -22631,7 +22846,7 @@ async function loadHomeStats() {
             data: coloredData,
             label: { show: false },
             labelLine: { show: false },
-            itemStyle: { borderRadius: 5, borderColor: '#0D1426', borderWidth: 2 },
+            itemStyle: { borderRadius: 5, borderColor: cssVar('--bg', '#0D1426'), borderWidth: 2 },
             emphasis: { scale: true, scaleSize: 6 }
           }]
         });
@@ -23471,7 +23686,7 @@ function renderHostPanel() {
   if (dbStEl) {
     const cur = (monitorSummary || []).find(function (i) { return i.instance_id === id; });
     if (cur) {
-      const _light = getTheme() === 'light';
+      const _light = isLightTheme();
       let st, col, bg;
       // cooldown（连续失败后的退避轮）同样是「数据库不可达」，一律标宕机；
       // 退避状态与错误原因放进悬浮提示，避免弱化告警或产生不可达分支。
@@ -23502,7 +23717,7 @@ function renderHostPanel() {
   const src = latest.host_collector_source;
   if (badge) {
     let txt, bg, fg;
-    const isLight = getTheme() === 'light';
+    const isLight = isLightTheme();
     if (src === 'ebpf') { txt = i18n('monitor.host_src_ebpf') || '内核级 eBPF'; bg = 'rgba(63,185,80,.18)'; fg = isLight ? '#047857' : '#00C8A0'; }
     else if (src === 'psutil') { txt = i18n('monitor.host_src_psutil') || 'psutil 用户态'; bg = 'rgba(59,130,246,.18)'; fg = isLight ? '#0A2A6E' : '#60A5FA'; }
     else if (src === 'shell') { txt = i18n('monitor.host_src_shell') || 'Shell /proc 零依赖'; bg = 'rgba(59,130,246,.18)'; fg = isLight ? '#0A2A6E' : '#60A5FA'; }
@@ -23625,7 +23840,7 @@ function renderHostServices(latest) {
   if (svcs && !Array.isArray(svcs)) svcs = [svcs];   // 单元素被序列化成对象时兜底
   if (!svcs || !svcs.length) { card.style.display = 'none'; return; }
   card.style.display = '';
-  const isLight = getTheme() === 'light';
+  const isLight = isLightTheme();
   const running = svcs.filter(function (s) { return String(s.status).toLowerCase() === 'running'; }).length;
   const alerts = Array.isArray(latest.host_service_alerts) ? latest.host_service_alerts : [];
   const summary = document.getElementById('host-services-summary');

@@ -3498,3 +3498,21 @@ RU.update({
 RU.update({
     "webui.contrib_author_tag": "Автор",
 })
+
+
+# 主题切换按钮 title（浣熊琥珀主题，追加块）
+RU.update({
+  "webui.theme_next.dark": "Переключить на светлую",
+  "webui.theme_next.light": "Переключить на тёмную",
+  "webui.theme_next.raccoon": "Переключить на Янтарный Енот"
+})
+
+# Выпадающий список тем (четыре темы, добавленный блок)
+RU.update({
+  "webui.theme_select_title": "Выбрать тему",
+  "webui.theme.dark": "Глубокий бирюзовый",
+  "webui.theme.light": "Минимальный белый",
+  "webui.theme.raccoon": "Янтарный Енот",
+  "webui.theme.dawn": "Утренний янтарь",
+  "webui.theme_next.dawn": "Переключить на Утренний янтарь"
+})

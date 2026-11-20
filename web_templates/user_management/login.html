@@ -162,6 +162,10 @@
             0%, 100% { box-shadow: 0 0 0 0 rgba(0,200,160,0.6); }
             50%      { box-shadow: 0 0 0 6px rgba(0,200,160,0); }
         }
+        @keyframes dotPulseWarm {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(255,138,76,0.6); }
+            50%      { box-shadow: 0 0 0 6px rgba(255,138,76,0); }
+        }
 
         /* Logo + 产品名 */
         .brand-logo-row {
@@ -639,6 +643,142 @@
             color: #1e293b;
         }
 
+        /* ─── 主题下拉（与主界面同一套四主题） ─── */
+        .theme-select-login {
+            height: 40px;
+            width: 108px;
+            padding: 0 28px 0 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background-color: rgba(255,255,255,0.05);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            color: rgba(255,255,255,0.7);
+            font-size: 12px;
+            cursor: pointer;
+            outline: none;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            transition: border-color 0.25s, color 0.25s;
+        }
+        .theme-select-login:hover { border-color: var(--c-blue); }
+        .theme-select-login option { background: #0D1426; color: #fff; font-size: 12px; }
+        html[data-theme="light"] .theme-select-login {
+            background-color: rgba(255,255,255,0.8);
+            border-color: rgba(10,42,110,0.12);
+            color: #475569;
+        }
+        html[data-theme="light"] .theme-select-login:hover { border-color: var(--c-navy); }
+        html[data-theme="light"] .theme-select-login option { background: #fff; color: #1e293b; }
+
+        /* ─── 浣熊琥珀主题（登录页独立模板） ─── */
+        html[data-theme="raccoon"] body { background: #14100E; color: #FFF3EC; }
+        html[data-theme="raccoon"] .brand-panel { background: linear-gradient(160deg, #7C2D12 0%, #9A3412 45%, #EA580C 100%); }
+        html[data-theme="raccoon"] .brand-panel::before { background: rgba(251,146,60,0.28); }
+        html[data-theme="raccoon"] .brand-panel::after { background: rgba(255,138,76,0.18); }
+        html[data-theme="raccoon"] .mascot-wrap::before { background: radial-gradient(circle, rgba(255,138,76,0.25) 0%, transparent 70%); }
+        html[data-theme="raccoon"] .mascot-badge .dot { background: #FF8A4C; animation-name: dotPulseWarm; }
+        html[data-theme="raccoon"] .feature-icon { background: rgba(255,138,76,0.18); color: #FF8A4C; }
+        html[data-theme="raccoon"] .form-panel::before { background: rgba(194,65,12,0.10); }
+        html[data-theme="raccoon"] .login-card {
+            background: rgba(36,26,20,0.72);
+            border-color: rgba(255,138,76,0.20);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,243,236,0.08);
+        }
+        html[data-theme="raccoon"] .login-card::before { background: linear-gradient(90deg, transparent, #C2410C, #FF8A4C, transparent); }
+        html[data-theme="raccoon"] .welcome-title { color: #FFF3EC; }
+        html[data-theme="raccoon"] .welcome-desc,
+        html[data-theme="raccoon"] .form-label { color: rgba(255,243,236,0.5); }
+        html[data-theme="raccoon"] .form-input {
+            background: rgba(255,243,236,0.05);
+            border-color: rgba(255,243,236,0.14);
+            color: #FFF3EC;
+        }
+        html[data-theme="raccoon"] .form-input:focus {
+            border-color: #FF8A4C;
+            background: rgba(255,138,76,0.06);
+            box-shadow: 0 0 0 3px rgba(255,138,76,0.14);
+        }
+        html[data-theme="raccoon"] .form-input::placeholder { color: rgba(255,243,236,0.28); }
+        html[data-theme="raccoon"] .input-icon { color: rgba(255,243,236,0.35); }
+        html[data-theme="raccoon"] .form-group:focus-within .input-icon { color: #FF8A4C; }
+        html[data-theme="raccoon"] .pwd-toggle { color: rgba(255,243,236,0.35); }
+        html[data-theme="raccoon"] .pwd-toggle:hover { color: #FF8A4C; background: rgba(255,138,76,0.08); }
+        html[data-theme="raccoon"] .login-btn { background: linear-gradient(135deg, #9A3412 0%, #FF8A4C 100%); }
+        html[data-theme="raccoon"] .login-btn:hover { box-shadow: 0 8px 25px rgba(194,65,12,0.45), 0 2px 8px rgba(255,138,76,0.25); }
+        html[data-theme="raccoon"] .demo-info { background: rgba(255,138,76,0.05); border-color: rgba(255,138,76,0.12); color: rgba(255,243,236,0.5); }
+        html[data-theme="raccoon"] .demo-info strong { color: rgba(255,243,236,0.7); }
+        html[data-theme="raccoon"] .demo-tag { background: rgba(255,138,76,0.15); color: #FF8A4C; }
+        html[data-theme="raccoon"] .login-footer { color: rgba(255,243,236,0.4); }
+        html[data-theme="raccoon"] .theme-select-login {
+            background-color: rgba(36,26,20,0.72);
+            border-color: rgba(255,138,76,0.20);
+            color: rgba(255,243,236,0.75);
+        }
+        html[data-theme="raccoon"] .theme-select-login:hover { border-color: #FF8A4C; }
+        html[data-theme="raccoon"] .theme-select-login option { background: #241A14; color: #FFF3EC; }
+        html[data-theme="raccoon"] .lang-select option { background: #241A14; color: #FFF3EC; }
+
+        /* ─── 晨曦琥珀主题（亮色 + 毛玻璃，与主界面一致） ─── */
+        html[data-theme="dawn"] body {
+            background:
+                radial-gradient(900px 520px at 6% -12%, rgba(255,183,120,0.38), transparent 66%),
+                radial-gradient(820px 500px at 98% 4%, rgba(247,145,123,0.20), transparent 62%),
+                linear-gradient(135deg, #FCF8F2 0%, #F4EADD 55%, #F9F2EA 100%);
+            background-attachment: fixed;
+            color: #33261F;
+        }
+        html[data-theme="dawn"] .brand-panel { background: linear-gradient(160deg, #9A4A1E 0%, #D96A28 48%, #F6B26B 100%); }
+        html[data-theme="dawn"] .brand-panel::before { background: rgba(255,203,145,0.30); }
+        html[data-theme="dawn"] .brand-panel::after { background: rgba(255,138,76,0.18); }
+        html[data-theme="dawn"] .mascot-wrap::before { background: radial-gradient(circle, rgba(255,203,145,0.30) 0%, transparent 70%); }
+        html[data-theme="dawn"] .mascot-badge .dot { background: #D96A28; animation-name: dotPulseWarm; }
+        html[data-theme="dawn"] .feature-icon { background: rgba(217,106,40,0.14); color: #C65A1D; }
+        html[data-theme="dawn"] .form-panel::before { background: rgba(217,106,40,0.08); }
+        html[data-theme="dawn"] .login-card {
+            background: rgba(255,253,250,0.72);
+            border-color: rgba(168,108,64,0.22);
+            backdrop-filter: blur(22px) saturate(1.4);
+            -webkit-backdrop-filter: blur(22px) saturate(1.4);
+            box-shadow: 0 20px 60px rgba(120,70,40,0.16), inset 0 1px 0 rgba(255,255,255,0.82);
+        }
+        html[data-theme="dawn"] .login-card::before { background: linear-gradient(90deg, transparent, #9A4A1E, #E88A3C, transparent); }
+        html[data-theme="dawn"] .welcome-title { color: #7C3A15; }
+        html[data-theme="dawn"] .welcome-desc,
+        html[data-theme="dawn"] .form-label { color: #7A6A5F; }
+        html[data-theme="dawn"] .form-input {
+            background: rgba(255,255,255,0.70);
+            border-color: rgba(168,108,64,0.22);
+            color: #33261F;
+        }
+        html[data-theme="dawn"] .form-input:focus {
+            border-color: #D96A28;
+            background: rgba(255,247,237,0.85);
+            box-shadow: 0 0 0 3px rgba(217,106,40,0.12);
+        }
+        html[data-theme="dawn"] .form-input::placeholder { color: #A08D80; }
+        html[data-theme="dawn"] .input-icon { color: #A08D80; }
+        html[data-theme="dawn"] .form-group:focus-within .input-icon { color: #D96A28; }
+        html[data-theme="dawn"] .pwd-toggle { color: #8C796D; }
+        html[data-theme="dawn"] .pwd-toggle:hover { color: #D96A28; background: rgba(217,106,40,0.07); }
+        html[data-theme="dawn"] .login-btn { background: linear-gradient(135deg, #9A4A1E 0%, #E88A3C 100%); }
+        html[data-theme="dawn"] .login-btn:hover { box-shadow: 0 8px 25px rgba(154,74,30,0.35), 0 2px 8px rgba(232,138,60,0.25); }
+        html[data-theme="dawn"] .demo-info { background: rgba(255,255,255,0.55); border-color: rgba(168,108,64,0.16); color: #7A6A5F; }
+        html[data-theme="dawn"] .demo-info strong { color: #4A362A; }
+        html[data-theme="dawn"] .demo-tag { background: rgba(217,106,40,0.12); color: #9A4A1E; }
+        html[data-theme="dawn"] .login-footer { color: #7A6A5F; }
+        html[data-theme="dawn"] .theme-select-login {
+            background-color: rgba(255,251,246,0.80);
+            border-color: rgba(168,108,64,0.22);
+            color: #7A6A5F;
+        }
+        html[data-theme="dawn"] .theme-select-login:hover { border-color: #D96A28; }
+        html[data-theme="dawn"] .theme-select-login option,
+        html[data-theme="dawn"] .lang-select option { background: #FFFDFA; color: #33261F; }
+
         /* ─── 响应式 ─── */
         @media (max-width: 768px) {
             .login-container {
@@ -674,6 +814,10 @@
 
         @media (max-width: 380px) {
             .lang-select { font-size: 12px; padding: 0 26px 0 10px; }
+            .theme-select-login { width: 96px; font-size: 11px; padding: 0 24px 0 8px; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            [data-theme="dawn"] .login-card { animation: none; }
         }
     </style>
 </head>
@@ -788,7 +932,7 @@
 
                 <!-- 底部版本 -->
                 <div class="login-footer">
-                    <span id="login-version">v26.11.20.1</span> · <span data-i18n="login.copyright">{{ product_name }} © 2026</span>
+                    <span id="login-version">v26.11.20.2</span> · <span data-i18n="login.copyright">{{ product_name }} © 2026</span>
                 </div>
             </div>
         </div>
@@ -807,9 +951,12 @@
             <option value="de">Deutsch</option>
             <option value="ru">Русский</option>
         </select>
-        <button class="theme-toggle" onclick="toggleTheme()" data-i18n-title="login.theme_toggle" title="切换主题">
-            <svg id="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-        </button>
+        <select class="theme-select-login" id="login-theme-select" onchange="setTheme(this.value)" title="选择主题" aria-label="选择主题" data-i18n-title="webui.theme_select_title">
+            <option value="dark" data-i18n="webui.theme.dark">深海青绿</option>
+            <option value="light" data-i18n="webui.theme.light">极简白</option>
+            <option value="raccoon" data-i18n="webui.theme.raccoon">浣熊琥珀</option>
+            <option value="dawn" data-i18n="webui.theme.dawn">晨曦琥珀</option>
+        </select>
     </div>
 
     <script>
@@ -898,43 +1045,31 @@
         }
 
         /* ═══════════════════════════════════════════════
-           主题切换
+           主题选择（与主界面同一套四主题，共用 dbcheck-theme）
            ═══════════════════════════════════════════════ */
-        function toggleTheme() {
+        const LOGIN_THEMES = ['dark', 'light', 'raccoon', 'dawn'];
+
+        function setTheme(theme) {
+            const t = LOGIN_THEMES.indexOf(theme) >= 0 ? theme : 'dark';
             const html = document.documentElement;
-            const current = html.getAttribute('data-theme');
-            if (current === 'light') {
-                html.removeAttribute('data-theme');
-                localStorage.setItem('dbcheck-theme', 'dark');
-                updateThemeIcon('dark');
-            } else {
-                html.setAttribute('data-theme', 'light');
-                localStorage.setItem('dbcheck-theme', 'light');
-                updateThemeIcon('light');
-            }
+            // dark 用无 data-theme 属性表示，保持既有默认样式不变
+            if (t === 'dark') html.removeAttribute('data-theme');
+            else html.setAttribute('data-theme', t);
+            localStorage.setItem('dbcheck-theme', t);
+            const sel = document.getElementById('login-theme-select');
+            if (sel) sel.value = t;
         }
 
-        function updateThemeIcon(theme) {
-            const icon = document.getElementById('theme-icon');
-            if (!icon) return;
-            if (theme === 'light') {
-                // 太阳图标
-                icon.innerHTML = '<circle cx="12" cy="12" r="5"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>';
-            } else {
-                // 月亮图标
-                icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
-            }
+        // 兼容外部旧调用（登录页自身已改用下拉）
+        function toggleTheme() {
+            const cur = localStorage.getItem('dbcheck-theme') || 'dark';
+            const next = LOGIN_THEMES[(LOGIN_THEMES.indexOf(cur) + 1) % LOGIN_THEMES.length];
+            setTheme(next);
         }
 
         // 初始化主题
         (function() {
-            const saved = localStorage.getItem('dbcheck-theme');
-            if (saved === 'light') {
-                document.documentElement.setAttribute('data-theme', 'light');
-                updateThemeIcon('light');
-            } else {
-                updateThemeIcon('dark');
-            }
+            setTheme(localStorage.getItem('dbcheck-theme') || 'dark');
         })();
 
         /* ═══════════════════════════════════════════════

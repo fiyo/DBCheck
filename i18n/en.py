@@ -3873,3 +3873,21 @@ EN.update({
 EN.update({
     "webui.contrib_author_tag": "Author",
 })
+
+
+# 主题切换按钮 title（浣熊琥珀主题，追加块）
+EN.update({
+  "webui.theme_next.dark": "Switch to light",
+  "webui.theme_next.light": "Switch to dark",
+  "webui.theme_next.raccoon": "Switch to Raccoon Amber theme"
+})
+
+# Theme dropdown (four themes, appended block)
+EN.update({
+  "webui.theme_select_title": "Select theme",
+  "webui.theme.dark": "Deep Teal",
+  "webui.theme.light": "Minimal White",
+  "webui.theme.raccoon": "Raccoon Amber",
+  "webui.theme.dawn": "Sunrise Amber",
+  "webui.theme_next.dawn": "Switch to Sunrise Amber theme"
+})

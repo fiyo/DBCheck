@@ -3498,3 +3498,21 @@ FR.update({
 FR.update({
     "webui.contrib_author_tag": "Auteur",
 })
+
+
+# 主题切换按钮 title（浣熊琥珀主题，追加块）
+FR.update({
+  "webui.theme_next.dark": "Passer en clair",
+  "webui.theme_next.light": "Passer en sombre",
+  "webui.theme_next.raccoon": "Passer en Ambre Raton"
+})
+
+# Liste déroulante des thèmes (quatre thèmes, bloc ajouté)
+FR.update({
+  "webui.theme_select_title": "Choisir un thème",
+  "webui.theme.dark": "Vert profond",
+  "webui.theme.light": "Blanc minimaliste",
+  "webui.theme.raccoon": "Ambre Raton",
+  "webui.theme.dawn": "Ambre aurore",
+  "webui.theme_next.dawn": "Passer en Ambre aurore"
+})
