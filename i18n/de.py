@@ -3484,3 +3484,17 @@ DE.update({
     "webui.contrib_title": "Und danke an diese Mitwirkenden",
     "webui.contrib_note": "Code, Issue-Meldungen und Dokuvorschläge zählen alle. Nur GitHub-Namen — keine Rangliste, keine Zahlen."
 })
+
+
+# contrib-group-i18n-v1
+DE.update({
+    "webui.contrib_group_code": "Code-/PR-Mitwirkende",
+    "webui.contrib_group_issue": "Issue-Melder",
+    "webui.contrib_note": "Nur GitHub-Namen, ohne Rangierung oder Zählung. Code / PR und Issue-Meldungen sind getrennt aufgeführt — beides verbessert dieses Projekt.",
+})
+
+
+# author-tag-i18n-v1
+DE.update({
+    "webui.contrib_author_tag": "Autor",
+})

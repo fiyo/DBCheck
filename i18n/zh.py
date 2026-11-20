@@ -3860,3 +3860,17 @@ ZI.update({
     "webui.contrib_title": "也谢谢这些贡献者",
     "webui.contrib_note": "代码提交、Issue 反馈与文档建议都算贡献；只记 GitHub 昵称，不排名不计数。"
 })
+
+
+# contrib-group-i18n-v1
+ZI.update({
+    "webui.contrib_group_code": "代码 / PR 贡献者",
+    "webui.contrib_group_issue": "Issue 反馈者",
+    "webui.contrib_note": "只记 GitHub 昵称，不排名不计数；代码 / PR 与 Issue 反馈分开列，都是让这个项目变好的方式。",
+})
+
+
+# author-tag-i18n-v1
+ZI.update({
+    "webui.contrib_author_tag": "作者",
+})

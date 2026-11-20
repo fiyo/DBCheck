@@ -3534,3 +3534,17 @@ JA.update({
     "webui.contrib_title": "コントリビューターの皆さんにも",
     "webui.contrib_note": "コード、Issue、ドキュメント提案はすべて貢献です。GitHub 名のみ表示し、順位や件数は出しません。"
 })
+
+
+# contrib-group-i18n-v1
+JA.update({
+    "webui.contrib_group_code": "コード / PR 貢献者",
+    "webui.contrib_group_issue": "Issue 報告者",
+    "webui.contrib_note": "GitHub 名のみ表示、順位や件数は出しません。コード / PR と Issue 報告は分けて表示します。どちらもプロジェクトを良くする貢献です。",
+})
+
+
+# author-tag-i18n-v1
+JA.update({
+    "webui.contrib_author_tag": "作者",
+})

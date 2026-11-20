@@ -1,174 +1,224 @@
 {
   "enabled": true,
   "source": "https://github.com/fiyo/DBCheck",
+  "code_count": 3,
+  "issue_count": 40,
   "names": [
     {
+      "login": "fiyo",
+      "url": "https://github.com/fiyo",
+      "kind": "code",
+      "is_author": true
+    },
+    {
       "login": "zhoubo01",
-      "url": "https://github.com/zhoubo01"
+      "url": "https://github.com/zhoubo01",
+      "kind": "code"
     },
     {
       "login": "acdante-zhang",
-      "url": "https://github.com/acdante-zhang"
+      "url": "https://github.com/acdante-zhang",
+      "kind": "code"
     },
     {
       "login": "luckoolong",
-      "url": "https://github.com/luckoolong"
+      "url": "https://github.com/luckoolong",
+      "kind": "issue"
     },
     {
       "login": "yangyunlong8866-dotcom",
-      "url": "https://github.com/yangyunlong8866-dotcom"
+      "url": "https://github.com/yangyunlong8866-dotcom",
+      "kind": "issue"
     },
     {
       "login": "zhongxinxuhk",
-      "url": "https://github.com/zhongxinxuhk"
+      "url": "https://github.com/zhongxinxuhk",
+      "kind": "issue"
     },
     {
       "login": "dk843108982",
-      "url": "https://github.com/dk843108982"
+      "url": "https://github.com/dk843108982",
+      "kind": "issue"
     },
     {
       "login": "lingaozhun-beep",
-      "url": "https://github.com/lingaozhun-beep"
+      "url": "https://github.com/lingaozhun-beep",
+      "kind": "issue"
     },
     {
       "login": "IAmADryRiceMan",
-      "url": "https://github.com/IAmADryRiceMan"
+      "url": "https://github.com/IAmADryRiceMan",
+      "kind": "issue"
     },
     {
       "login": "oraydt",
-      "url": "https://github.com/oraydt"
+      "url": "https://github.com/oraydt",
+      "kind": "issue"
     },
     {
       "login": "KnightBlood",
-      "url": "https://github.com/KnightBlood"
+      "url": "https://github.com/KnightBlood",
+      "kind": "issue"
     },
     {
       "login": "jiruichao",
-      "url": "https://github.com/jiruichao"
+      "url": "https://github.com/jiruichao",
+      "kind": "issue"
     },
     {
       "login": "kongchenjiao",
-      "url": "https://github.com/kongchenjiao"
+      "url": "https://github.com/kongchenjiao",
+      "kind": "issue"
     },
     {
       "login": "chnxan",
-      "url": "https://github.com/chnxan"
+      "url": "https://github.com/chnxan",
+      "kind": "issue"
     },
     {
       "login": "suixea",
-      "url": "https://github.com/suixea"
+      "url": "https://github.com/suixea",
+      "kind": "issue"
     },
     {
       "login": "leonuse2025",
-      "url": "https://github.com/leonuse2025"
+      "url": "https://github.com/leonuse2025",
+      "kind": "issue"
     },
     {
       "login": "fsops",
-      "url": "https://github.com/fsops"
+      "url": "https://github.com/fsops",
+      "kind": "issue"
     },
     {
       "login": "souvc",
-      "url": "https://github.com/souvc"
+      "url": "https://github.com/souvc",
+      "kind": "issue"
     },
     {
       "login": "lsdlh",
-      "url": "https://github.com/lsdlh"
+      "url": "https://github.com/lsdlh",
+      "kind": "issue"
     },
     {
       "login": "YuKanJiu",
-      "url": "https://github.com/YuKanJiu"
+      "url": "https://github.com/YuKanJiu",
+      "kind": "issue"
     },
     {
       "login": "The-evildoer",
-      "url": "https://github.com/The-evildoer"
+      "url": "https://github.com/The-evildoer",
+      "kind": "issue"
     },
     {
       "login": "RomenMark",
-      "url": "https://github.com/RomenMark"
+      "url": "https://github.com/RomenMark",
+      "kind": "issue"
     },
     {
       "login": "zhituanchen",
-      "url": "https://github.com/zhituanchen"
+      "url": "https://github.com/zhituanchen",
+      "kind": "issue"
     },
     {
       "login": "flower112358",
-      "url": "https://github.com/flower112358"
+      "url": "https://github.com/flower112358",
+      "kind": "issue"
     },
     {
       "login": "yanming-zhang",
-      "url": "https://github.com/yanming-zhang"
+      "url": "https://github.com/yanming-zhang",
+      "kind": "issue"
     },
     {
       "login": "rbkz-github",
-      "url": "https://github.com/rbkz-github"
+      "url": "https://github.com/rbkz-github",
+      "kind": "issue"
     },
     {
       "login": "dl10211021",
-      "url": "https://github.com/dl10211021"
+      "url": "https://github.com/dl10211021",
+      "kind": "issue"
     },
     {
       "login": "1oker",
-      "url": "https://github.com/1oker"
+      "url": "https://github.com/1oker",
+      "kind": "issue"
     },
     {
       "login": "myselfall",
-      "url": "https://github.com/myselfall"
+      "url": "https://github.com/myselfall",
+      "kind": "issue"
     },
     {
       "login": "haydenxia",
-      "url": "https://github.com/haydenxia"
+      "url": "https://github.com/haydenxia",
+      "kind": "issue"
     },
     {
       "login": "lijie8550",
-      "url": "https://github.com/lijie8550"
+      "url": "https://github.com/lijie8550",
+      "kind": "issue"
     },
     {
       "login": "TuWei1992",
-      "url": "https://github.com/TuWei1992"
+      "url": "https://github.com/TuWei1992",
+      "kind": "issue"
     },
     {
       "login": "babydlj",
-      "url": "https://github.com/babydlj"
+      "url": "https://github.com/babydlj",
+      "kind": "issue"
     },
     {
       "login": "qinqianqq",
-      "url": "https://github.com/qinqianqq"
+      "url": "https://github.com/qinqianqq",
+      "kind": "issue"
     },
     {
       "login": "lysdyt",
-      "url": "https://github.com/lysdyt"
+      "url": "https://github.com/lysdyt",
+      "kind": "issue"
     },
     {
       "login": "gzgcyw",
-      "url": "https://github.com/gzgcyw"
+      "url": "https://github.com/gzgcyw",
+      "kind": "issue"
     },
     {
       "login": "dongdongwang00",
-      "url": "https://github.com/dongdongwang00"
+      "url": "https://github.com/dongdongwang00",
+      "kind": "issue"
     },
     {
       "login": "ssilisa",
-      "url": "https://github.com/ssilisa"
+      "url": "https://github.com/ssilisa",
+      "kind": "issue"
     },
     {
       "login": "luxiaoliu14",
-      "url": "https://github.com/luxiaoliu14"
+      "url": "https://github.com/luxiaoliu14",
+      "kind": "issue"
     },
     {
       "login": "edgartuan",
-      "url": "https://github.com/edgartuan"
+      "url": "https://github.com/edgartuan",
+      "kind": "issue"
     },
     {
       "login": "tezhao-test",
-      "url": "https://github.com/tezhao-test"
+      "url": "https://github.com/tezhao-test",
+      "kind": "issue"
     },
     {
       "login": "gitsprouts",
-      "url": "https://github.com/gitsprouts"
+      "url": "https://github.com/gitsprouts",
+      "kind": "issue"
     },
     {
       "login": "nicexiaowen",
-      "url": "https://github.com/nicexiaowen"
+      "url": "https://github.com/nicexiaowen",
+      "kind": "issue"
     }
   ]
 }

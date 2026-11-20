@@ -1242,6 +1242,7 @@ select option { background: var(--surface2); }
 .report-dl-word  { background:#0A2A6E; }  /* Word 蓝 */
 .report-dl-pdf   { background:#dc2626; }  /* PDF 红 */
 .report-dl-share { background:#00C8A0; }  /* 分享 绿 */
+.report-dl-scorecard { background:#6D28D9; }  /* 评分卡 深紫：白字高对比，与前三色区分 */
 
 /* ─── Reports Page ─── */
 .reports-list { display: flex; flex-direction: column; gap: 8px; }
@@ -3697,9 +3698,15 @@ async function executeFixSql(taskId, sql) {
 .dn-contrib-card[hidden] { display: none; }
 .dn-contrib-card { margin-top: 14px; padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface2); }
 .dn-contrib-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 13px; font-weight: 600; color: var(--text-main); }
+.dn-contrib-group + .dn-contrib-group { margin-top: 14px; }
+.dn-contrib-group-title { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 11px; font-weight: 600; color: var(--text-muted); }
+.dn-contrib-group-title .dn-contrib-group-num { color: var(--accent); font-variant-numeric: tabular-nums; }
 .dn-contrib-list { display: flex; flex-wrap: wrap; gap: 7px; }
 .dn-contrib-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 4px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text-muted); font-size: 11.5px; text-decoration: none; transition: border-color .2s, color .2s; }
 .dn-contrib-chip:hover { border-color: var(--accent); color: var(--text-main); text-decoration: none; }
+.dn-contrib-chip.kind-code { border-color: rgba(0,168,132,.45); color: var(--text-main); }
+.dn-contrib-chip.kind-code:hover { border-color: var(--accent); }
+.dn-contrib-chip .dn-contrib-author-tag { padding: 1px 5px; border-radius: 4px; background: rgba(0,168,132,.16); color: var(--accent); font-size: 10px; font-weight: 600; }
 .dn-contrib-chip img { width: 22px; height: 22px; border-radius: 50%; background: var(--surface2); object-fit: cover; }
 .dn-contrib-note { margin-top: 10px; font-size: 11px; color: var(--text-muted); line-height: 1.6; }
 .dn-cloud-note {
@@ -3751,23 +3758,6 @@ async function executeFixSql(taskId, sql) {
 .dn-qr[data-pay="alipay"] .dn-qr-frame:hover { box-shadow: 0 14px 34px rgba(22,119,255,.32); }
 .dn-qr[data-pay="alipay"] .dn-qr-img { max-width: 242px; border-radius: 14px; }
 .dn-qr[data-pay="alipay"] .dn-qr-badge { background: #1677FF; }
-
-/* 右侧手记目录：常驻但不索取，只做导航与项目事实 */
-.dn-toc h2 { font-size: 15px; font-weight: 700; color: var(--text); margin: 0 0 12px; }
-.dn-toc-item {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  width: 100%; padding: 11px 0; cursor: pointer; text-align: left;
-  font-family: inherit; font-size: 13px; color: var(--text);
-  background: none; border: none; border-top: 1px solid var(--border);
-  transition: color .18s ease;
-}
-.dn-toc-item:hover { color: var(--accent); }
-.dn-toc-idx { font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
-.dn-toc-stats {
-  margin-top: 16px; padding: 11px 12px; border-radius: 10px;
-  background: var(--surface2); font-size: 11.5px; line-height: 1.7; color: var(--text-muted);
-}
-.dn-toc-sign { margin-top: 14px; font-size: 12px; line-height: 1.7; color: var(--text-muted); }
 
 /* 右侧折叠入口：醒目但不索取，展开后才露出收款码 */
 .dn-side .dn-tip {
@@ -13039,37 +13029,6 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
             </div>
 
             <aside class="dn-side">
-              <div class="dn-card dn-toc">
-                <h2 data-i18n="webui.donate_toc_title">这一页</h2>
-                <button type="button" class="dn-toc-item" onclick="document.getElementById('dn-sec-letter').scrollIntoView({behavior:'smooth'})"><span data-i18n="webui.donate_letter_title">一封感谢信</span><span class="dn-toc-idx">01</span></button>
-                <button type="button" class="dn-toc-item" onclick="document.getElementById('dn-sec-story').scrollIntoView({behavior:'smooth'})"><span data-i18n="webui.donate_story_title">我的故事</span><span class="dn-toc-idx">02</span></button>
-                <button type="button" class="dn-toc-item" onclick="document.getElementById('dn-sec-free').scrollIntoView({behavior:'smooth'})"><span data-i18n="webui.donate_free_title">也可以这样参与</span><span class="dn-toc-idx">03</span></button>
-                <div class="dn-toc-stats" data-i18n="webui.donate_toc_stats">22 种数据库 · 839 条巡检项 · 375 条规则</div>
-                <div class="dn-toc-sign" data-i18n="webui.donate_toc_sign">写于日常的间隙</div>
-              </div>
-
-              <section class="dn-cloud-card" id="dn-cloud" hidden>
-                <div class="dn-cloud-label" data-i18n="webui.donate_wall_title">也谢谢这些名字</div>
-                <div class="dn-cloud" id="dn-cloud-words">
-                  <svg class="dn-cloud-heart dn-cloud-heart-bg" viewBox="0 0 100 92" aria-hidden="true">
-                    <defs><linearGradient id="dnHeartGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#5fd0bd"/><stop offset="100%" stop-color="#f19bbb"/></linearGradient></defs>
-                    <path d="M50 88C20 66 3 48 3 29 3 14 15 3 30 3c9 0 16 5 20 13 4-8 11-13 20-13 15 0 27 11 27 26 0 19-17 37-47 59z" fill="url(#dnHeartGrad)"/>
-                  </svg>
-                  <svg class="dn-cloud-heart dn-cloud-heart-mini" viewBox="0 0 100 92" aria-hidden="true">
-                    <path d="M50 88C20 66 3 48 3 29 3 14 15 3 30 3c9 0 16 5 20 13 4-8 11-13 20-13 15 0 27 11 27 26 0 19-17 37-47 59z" fill="#5fd0bd"/>
-                  </svg>
-                  <span class="dn-cloud-deco" aria-hidden="true"><i>♥</i><i>♥</i><i>♥</i><i>♥</i><i>♥</i><i>♥</i><i>♥</i><i>♥</i></span>
-                  <span class="dn-cloud-core" data-i18n="webui.donate_cloud_core">感谢每一位支持者</span>
-                </div>
-                <p class="dn-cloud-note" data-i18n="webui.donate_wall_note">只记昵称，不记金额、排名与日期；不想显示名字，提个 issue 或来信，我删掉。</p>
-              </section>
-
-              <section class="dn-contrib-card" id="dn-contrib" hidden>
-                <div class="dn-contrib-head"><span aria-hidden="true">⌘</span><span data-i18n="webui.contrib_title">也谢谢这些贡献者</span></div>
-                <div class="dn-contrib-list" id="dn-contrib-list"></div>
-                <p class="dn-contrib-note" data-i18n="webui.contrib_note">代码提交、Issue 反馈与文档建议都算贡献；只记 GitHub 昵称，不排名不计数。</p>
-              </section>
-
               <details class="dn-tip" id="dn-tip" ontoggle="var s=this.closest('.dn-side'); if(s) s.classList.toggle('has-open-tip', this.open)">
                 <summary>
                   <span class="dn-tip-star" aria-hidden="true">✦</span>
@@ -13094,6 +13053,36 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
                   </div>
                 </div>
               </details>
+
+              <section class="dn-cloud-card" id="dn-cloud" hidden>
+                <div class="dn-cloud-label" data-i18n="webui.donate_wall_title">也谢谢这些名字</div>
+                <div class="dn-cloud" id="dn-cloud-words">
+                  <svg class="dn-cloud-heart dn-cloud-heart-bg" viewBox="0 0 100 92" aria-hidden="true">
+                    <defs><linearGradient id="dnHeartGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#5fd0bd"/><stop offset="100%" stop-color="#f19bbb"/></linearGradient></defs>
+                    <path d="M50 88C20 66 3 48 3 29 3 14 15 3 30 3c9 0 16 5 20 13 4-8 11-13 20-13 15 0 27 11 27 26 0 19-17 37-47 59z" fill="url(#dnHeartGrad)"/>
+                  </svg>
+                  <svg class="dn-cloud-heart dn-cloud-heart-mini" viewBox="0 0 100 92" aria-hidden="true">
+                    <path d="M50 88C20 66 3 48 3 29 3 14 15 3 30 3c9 0 16 5 20 13 4-8 11-13 20-13 15 0 27 11 27 26 0 19-17 37-47 59z" fill="#5fd0bd"/>
+                  </svg>
+                  <span class="dn-cloud-deco" aria-hidden="true"><i>♥</i><i>♥</i><i>♥</i><i>♥</i><i>♥</i><i>♥</i><i>♥</i><i>♥</i></span>
+                  <span class="dn-cloud-core" data-i18n="webui.donate_cloud_core">感谢每一位支持者</span>
+                </div>
+                <p class="dn-cloud-note" data-i18n="webui.donate_wall_note">只记昵称，不记金额、排名与日期；不想显示名字，提个 issue 或来信，我删掉。</p>
+              </section>
+
+              <section class="dn-contrib-card" id="dn-contrib" hidden>
+                <div class="dn-contrib-head"><span aria-hidden="true">⌘</span><span data-i18n="webui.contrib_title">也谢谢这些贡献者</span></div>
+                <div class="dn-contrib-group">
+                  <div class="dn-contrib-group-title"><span data-i18n="webui.contrib_group_code">代码 / PR 贡献者</span><span class="dn-contrib-group-num" id="dn-contrib-code-num"></span></div>
+                  <div class="dn-contrib-list" id="dn-contrib-code-list"></div>
+                </div>
+                <div class="dn-contrib-group">
+                  <div class="dn-contrib-group-title"><span data-i18n="webui.contrib_group_issue">Issue 反馈者</span><span class="dn-contrib-group-num" id="dn-contrib-issue-num"></span></div>
+                  <div class="dn-contrib-list" id="dn-contrib-issue-list"></div>
+                </div>
+                <p class="dn-contrib-note" data-i18n="webui.contrib_note">只记 GitHub 昵称，不排名不计数；代码 / PR 与 Issue 反馈分开列，都是让这个项目变好的方式。</p>
+              </section>
+
             </aside>
           </div>
         </div>
@@ -13357,16 +13346,20 @@ async function loadContributors() {
     data = await r.json();
   } catch (e) { return; }
   var card = document.getElementById('dn-contrib');
-  var box = document.getElementById('dn-contrib-list');
-  if (!card || !box) return;
+  var boxCode = document.getElementById('dn-contrib-code-list');
+  var boxIssue = document.getElementById('dn-contrib-issue-list');
+  if (!card || !boxCode || !boxIssue) return;
   var people = (data && data.enabled && Array.isArray(data.names)) ? data.names : [];
   if (!people.length) { card.hidden = true; return; }
-  if (box.childElementCount) return;  // 幂等：已在作者手记页多次切换时不重复追加
+  if (boxCode.childElementCount || boxIssue.childElementCount) return;  // 幂等
+  var counts = {code: 0, issue: 0};
   people.forEach(function (p) {
     var login = String(p && p.login || '').trim();
     if (!/^[A-Za-z0-9_.-]{1,39}$/.test(login)) return;
+    var kind = (p && p.kind === 'code') ? 'code' : 'issue';
+    var box = (kind === 'code') ? boxCode : boxIssue;
     var a = document.createElement('a');
-    a.className = 'dn-contrib-chip';
+    a.className = 'dn-contrib-chip kind-' + kind;
     a.href = 'https://github.com/' + login;   // 本地拼装，不采信接口返回的 url
     a.target = '_blank'; a.rel = 'noopener noreferrer';
     var img = document.createElement('img');
@@ -13376,9 +13369,20 @@ async function loadContributors() {
     var span = document.createElement('span');
     span.textContent = login;
     a.appendChild(img); a.appendChild(span);
+    if (p && p.is_author === true) {
+      var tag = document.createElement('span');
+      tag.className = 'dn-contrib-author-tag';
+      tag.textContent = i18n('webui.contrib_author_tag') || '作者';
+      a.appendChild(tag);
+    }
     box.appendChild(a);
+    counts[kind]++;
   });
-  if (box.childElementCount) card.hidden = false;
+  ['code', 'issue'].forEach(function (k) {
+    var num = document.getElementById('dn-contrib-' + k + '-num');
+    if (num) num.textContent = '(' + counts[k] + ')';
+  });
+  if (boxCode.childElementCount || boxIssue.childElementCount) card.hidden = false;
 }
 
 async function changeLang() {

@@ -3482,3 +3482,17 @@ KO.update({
     "webui.contrib_title": "기여해 주신 분들께",
     "webui.contrib_note": "코드, 이슈 제보, 문서 제안 모두 기여입니다. GitHub 닉네임만 표시하며 순위나 횟수는 공개하지 않습니다."
 })
+
+
+# contrib-group-i18n-v1
+KO.update({
+    "webui.contrib_group_code": "코드 / PR 기여자",
+    "webui.contrib_group_issue": "Issue 제보자",
+    "webui.contrib_note": "GitHub 닉네임만 표시하며 순위나 횟수는 공개하지 않습니다. 코드 / PR과 Issue 제보를 나눠 표시합니다. 둘 다 프로젝트를 더 좋게 만드는 기여입니다.",
+})
+
+
+# author-tag-i18n-v1
+KO.update({
+    "webui.contrib_author_tag": "작성자",
+})

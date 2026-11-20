@@ -3484,3 +3484,17 @@ RU.update({
     "webui.contrib_title": "И спасибо этим участникам",
     "webui.contrib_note": "Код, сообщения об ошибках и правки документации — всё это вклад. Только имена на GitHub, без рейтинга и счётчиков."
 })
+
+
+# contrib-group-i18n-v1
+RU.update({
+    "webui.contrib_group_code": "Авторы кода / PR",
+    "webui.contrib_group_issue": "Сообщившие об ошибках",
+    "webui.contrib_note": "Только имена GitHub, без ранжирования и подсчёта. Код / PR и отчёты об ошибках указаны отдельно — и то, и другое улучшает проект.",
+})
+
+
+# author-tag-i18n-v1
+RU.update({
+    "webui.contrib_author_tag": "Автор",
+})

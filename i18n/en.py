@@ -3859,3 +3859,17 @@ EN.update({
     "webui.contrib_title": "And thanks to these contributors",
     "webui.contrib_note": "Code, issue reports and doc suggestions all count. GitHub handles only — no ranking, no counts."
 })
+
+
+# contrib-group-i18n-v1
+EN.update({
+    "webui.contrib_group_code": "Code / PR contributors",
+    "webui.contrib_group_issue": "Issue reporters",
+    "webui.contrib_note": "GitHub handles only, no ranking or counts. Code / PR and issue reports are listed separately — both make this project better.",
+})
+
+
+# author-tag-i18n-v1
+EN.update({
+    "webui.contrib_author_tag": "Author",
+})

@@ -3484,3 +3484,17 @@ FR.update({
     "webui.contrib_title": "Et merci à ces contributeurs",
     "webui.contrib_note": "Code, signalements d'issues et suggestions de doc comptent. Pseudos GitHub uniquement, sans classement ni compteur."
 })
+
+
+# contrib-group-i18n-v1
+FR.update({
+    "webui.contrib_group_code": "Contributeurs code / PR",
+    "webui.contrib_group_issue": "Rapporteurs d'issues",
+    "webui.contrib_note": "Pseudos GitHub uniquement, sans classement ni comptage. Code / PR et issues sont affichés séparément — les deux améliorent ce projet.",
+})
+
+
+# author-tag-i18n-v1
+FR.update({
+    "webui.contrib_author_tag": "Auteur",
+})

@@ -4191,8 +4191,15 @@ def api_contributors():
             if not _CONTRIB_LOGIN_RE.match(login) or login in seen:
                 continue
             seen.add(login)
-            names.append({'login': login, 'url': 'https://github.com/' + login})
-        return jsonify({'enabled': bool(names), 'names': names, 'source': 'bundled'})
+            kind = 'code' if item.get('kind') == 'code' else 'issue'
+            entry = {'login': login, 'url': 'https://github.com/' + login, 'kind': kind}
+            if item.get('is_author') is True:
+                entry['is_author'] = True
+            names.append(entry)
+        return jsonify({'enabled': bool(names), 'names': names,
+                        'code_count': sum(1 for n in names if n['kind'] == 'code'),
+                        'issue_count': sum(1 for n in names if n['kind'] == 'issue'),
+                        'source': 'bundled'})
     except Exception as e:
         print(f"[contributors] 读取名单失败（降级）: {e}")
         return jsonify({'enabled': False, 'names': [], 'source': 'none'})

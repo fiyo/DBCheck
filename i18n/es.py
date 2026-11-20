@@ -3483,3 +3483,17 @@ ES.update({
     "webui.contrib_title": "Y gracias a estos colaboradores",
     "webui.contrib_note": "Código, reportes de issues y sugerencias de documentación cuentan. Solo nombres de GitHub, sin rangos ni conteos."
 })
+
+
+# contrib-group-i18n-v1
+ES.update({
+    "webui.contrib_group_code": "Colaboradores de código / PR",
+    "webui.contrib_group_issue": "Informantes de issues",
+    "webui.contrib_note": "Solo nombres de GitHub, sin clasificación ni conteo. Código / PR e issues se muestran por separado; ambos mejoran este proyecto.",
+})
+
+
+# author-tag-i18n-v1
+ES.update({
+    "webui.contrib_author_tag": "Autor",
+})

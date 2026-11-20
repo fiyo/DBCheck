@@ -3912,3 +3912,17 @@ ZH_TW.update({
     "webui.contrib_title": "也謝謝這些貢獻者",
     "webui.contrib_note": "程式碼提交、Issue 回饋與文件建議都算貢獻；只記 GitHub 暱稱，不排名不計數。"
 })
+
+
+# contrib-group-i18n-v1
+ZH_TW.update({
+    "webui.contrib_group_code": "程式碼 / PR 貢獻者",
+    "webui.contrib_group_issue": "Issue 回饋者",
+    "webui.contrib_note": "只記 GitHub 暱稱，不排名不計數；程式碼 / PR 與 Issue 回饋分開列，都是讓這個專案變好的方式。",
+})
+
+
+# author-tag-i18n-v1
+ZH_TW.update({
+    "webui.contrib_author_tag": "作者",
+})
