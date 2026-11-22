@@ -6421,7 +6421,8 @@ def monitor_screen_page():
              'host_src_ebpf', 'host_src_psutil', 'host_src_shell', 'host_src_local',
              'host_src_unavailable', 'host_src_none', 'host_spark_wait',
              # 宿主采集中断时显示「历史数据 · 最后采样时刻」，不再把旧值当实时值
-             'host_stale', 'host_stale_tip', 'host_spark_stale']
+             'host_stale', 'host_stale_tip', 'host_spark_stale',
+             'group_filter', 'group_all']
     S = {k: _t('webui.screen_' + k) for k in _keys}
     return render_template('monitor_screen.html', version=__version__, S=S)
 
@@ -6430,7 +6431,9 @@ def api_dashboard_overview():
     """大屏聚合数据：KPI + 分组 + TopN + 告警 + 拓扑节点，一次请求全部返回。"""
     try:
         from modules.monitor.screen_metrics import get_screen_collector, build_overview
-        return jsonify(build_overview(get_screen_collector()))
+        # 分组筛选只作用于大屏展示：在聚合层过滤 nodes，不触碰采集/告警规则
+        group = (request.args.get('group') or '').strip()
+        return jsonify(build_overview(get_screen_collector(), group=group))
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)})
 
@@ -6537,7 +6540,8 @@ def api_dashboard_history_overview():
         span = float(request.args.get('span', 3600))
         from_ts = float(request.args.get('from', to_ts - span))
         at_ts = float(request.args.get('at', to_ts))
-        ov = build_history_overview(from_ts, to_ts, at_ts)
+        group = (request.args.get('group') or '').strip()
+        ov = build_history_overview(from_ts, to_ts, at_ts, group=group)
         ov['history'] = True
         ov['at'] = at_ts
         ov['from'] = from_ts

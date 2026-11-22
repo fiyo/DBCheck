@@ -3516,3 +3516,9 @@ FR.update({
   "webui.theme.dawn": "Ambre aurore",
   "webui.theme_next.dawn": "Passer en Ambre aurore"
 })
+
+# Filtre de groupe de l'écran de supervision (issue #67, bloc ajouté)
+FR.update({
+  "webui.screen_group_filter": "Groupe",
+  "webui.screen_group_all": "Tous les environnements"
+})

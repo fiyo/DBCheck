@@ -3892,3 +3892,9 @@ ZI.update({
   "webui.theme.dawn": "晨曦琥珀",
   "webui.theme_next.dawn": "切换到晨曦琥珀主题"
 })
+
+# 监控大屏分组筛选（issue #67，追加块）
+ZI.update({
+  "webui.screen_group_filter": "分组筛选",
+  "webui.screen_group_all": "全部环境"
+})

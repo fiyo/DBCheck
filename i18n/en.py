@@ -3891,3 +3891,9 @@ EN.update({
   "webui.theme.dawn": "Sunrise Amber",
   "webui.theme_next.dawn": "Switch to Sunrise Amber theme"
 })
+
+# Monitor screen group filter (issue #67, appended block)
+EN.update({
+  "webui.screen_group_filter": "Group",
+  "webui.screen_group_all": "All environments"
+})

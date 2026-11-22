@@ -1436,6 +1436,18 @@ def _build_nodes(snap):
     return nodes
 
 
+def _filter_nodes_by_group(nodes, group):
+    """按数据源分组筛选大屏节点；group 为空表示全部环境。"""
+    if not group:
+        return list(nodes)
+    return [n for n in nodes if (n.get('group') or 'default') == group]
+
+
+def _all_group_names(nodes):
+    """节点中出现过的全部分组名，稳定排序后供大屏下拉选项使用。"""
+    return sorted(set((n.get('group') or 'default') for n in nodes))
+
+
 def assemble_overview(nodes, collector, trend=None):
     """把节点列表装配成大屏一次请求所需的全部数据（KPI/分组/TopN/告警/趋势）。
 
@@ -1560,11 +1572,19 @@ def assemble_overview(nodes, collector, trend=None):
     }
 
 
-def build_overview(collector):
-    """把采样器快照装配成大屏一次请求所需的全部数据（实时）。"""
-    snap = collector.get_snapshot()
-    nodes = _build_nodes(snap)
-    return assemble_overview(nodes, collector)
+def build_overview(collector, group=None):
+    """把采样器快照装配成大屏一次请求所需的全部数据（实时）。
+
+    group 非空时只保留该数据源分组的实例：KPI / TopN / 告警 / 拓扑 /
+    健康矩阵 / 表空间 / 宿主资源均由 assemble_overview 从过滤后的 nodes
+    重新派生，采集与告警规则本身不受影响。
+    all_groups 始终来自全量节点，保证筛选后下拉仍可切回其它分组。
+    """
+    all_nodes = _build_nodes(collector.get_snapshot())
+    ov = assemble_overview(_filter_nodes_by_group(all_nodes, group), collector)
+    ov['all_groups'] = _all_group_names(all_nodes)
+    ov['group'] = group or ''
+    return ov
 
 
 def _node_from_history_sample(s):
@@ -1600,9 +1620,11 @@ def _node_from_history_sample(s):
     }
 
 
-def build_history_overview(from_ts, to_ts, at_ts):
+def build_history_overview(from_ts, to_ts, at_ts, group=None):
     """历史回放：在 [from_ts, to_ts] 内，按 at_ts 时间点（取 ≤at 的最新样本，
-    若无则取区间内最早样本）重建各实例状态，装配为与实时同构的 overview。"""
+    若无则取区间内最早样本）重建各实例状态，装配为与实时同构的 overview。
+
+    group 非空时同步过滤回放节点和历史 QPS 趋势（按该组实例 iid 聚合）。"""
     hs = history_store.get_history_store()
     samples = hs.query(from_ts=from_ts, to_ts=to_ts, limit=20000)
 
@@ -1633,14 +1655,27 @@ def build_history_overview(from_ts, to_ts, at_ts):
             if v not in (None, ''):
                 n[k] = v
 
-    # 历史趋势：按 ts 桶聚合全实例 qps 之和
+    # 分组来自实时快照（历史库未持久化身份字段），先用它确定本组实例集合
+    group_ids = None
+    if group:
+        group_ids = set(iid for iid, s0 in live.items()
+                        if (s0.get('group') or 'default') == group)
+        nodes = [n for n in nodes if (n.get('group') or 'default') == group]
+
+    # 历史趋势：按 ts 桶聚合 qps 之和；分组模式下只累计该组实例
     agg = {}
     for s in samples:
+        if group_ids is not None and s['iid'] not in group_ids:
+            continue
         k = round(s['ts'])
         agg[k] = agg.get(k, 0) + (s.get('qps') or 0)
     trend = [{'ts': t, 'qps': round(agg[t], 1)} for t in sorted(agg)]
 
-    return assemble_overview(nodes, collector, trend=trend)
+    ov = assemble_overview(nodes, collector, trend=trend)
+    ov['all_groups'] = sorted(set((s0.get('group') or 'default')
+                                   for s0 in live.values()))
+    ov['group'] = group or ''
+    return ov
 
 # ═══════════════════════════════════════════════════════════
 #  全局单例

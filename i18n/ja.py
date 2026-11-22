@@ -3566,3 +3566,9 @@ JA.update({
   "webui.theme.dawn": "サンライズアンバー",
   "webui.theme_next.dawn": "サンライズアンバーに切り替え"
 })
+
+# モニター画面のグループ絞り込み（issue #67、追加ブロック）
+JA.update({
+  "webui.screen_group_filter": "グループ",
+  "webui.screen_group_all": "すべての環境"
+})

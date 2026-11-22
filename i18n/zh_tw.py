@@ -3944,3 +3944,9 @@ ZH_TW.update({
   "webui.theme.dawn": "晨曦琥珀",
   "webui.theme_next.dawn": "切換至晨曦琥珀主題"
 })
+
+# 監控大螢幕分組篩選（issue #67，追加區塊）
+ZH_TW.update({
+  "webui.screen_group_filter": "分組篩選",
+  "webui.screen_group_all": "全部環境"
+})

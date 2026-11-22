@@ -3515,3 +3515,9 @@ ES.update({
   "webui.theme.dawn": "Ámbar amanecer",
   "webui.theme_next.dawn": "Cambiar a Ámbar amanecer"
 })
+
+# Filtro de grupo de la pantalla de monitoreo (issue #67, bloque añadido)
+ES.update({
+  "webui.screen_group_filter": "Grupo",
+  "webui.screen_group_all": "Todos los entornos"
+})

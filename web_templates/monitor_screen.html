@@ -272,6 +272,16 @@
   .mchip.c-crit b { color: var(--crit); } .mchip.c-warn b { color: var(--warn); }
   .mchip.c-ok b { color: var(--ok); } .mchip.c-all b { color: var(--tx); }
   .mchip .dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+  /* 数据源分组筛选（issue #67）：按按钮组呈现，选项由全量分组动态生成 */
+  .group-filter { margin-left: auto; display: inline-flex; align-items: center; gap: 5px;
+                  font-size: 11px; color: var(--tx2); white-space: nowrap; }
+  .gf-buttons { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+  .gbtn { background: none; border: 1px solid var(--border); border-radius: 5px;
+          color: var(--tx2); font-size: 11px; line-height: 16px; padding: 2px 8px;
+          max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+          cursor: pointer; }
+  .gbtn:hover { border-color: var(--tx2); color: var(--tx); }
+  .gbtn.on { background: var(--panel2); color: var(--tx); border-color: var(--accent); }
   #matrix-grid { flex: 1; min-height: 0; overflow-y: auto; display: grid;
                  grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
                  gap: 8px; padding: 4px 10px 10px; align-content: start; }
@@ -519,6 +529,10 @@
         <span class="mchip c-warn" id="mf-warn" onclick="setStatusFilter('warn')"><span class="dot" style="background:var(--warn)"></span>{{ S.st_warn }} <b id="mf-n-warn">0</b></span>
         <span class="mchip c-ok" id="mf-ok" onclick="setStatusFilter('ok')"><span class="dot" style="background:var(--ok)"></span>{{ S.st_ok }} <b id="mf-n-ok">0</b></span>
         <button class="mchip on" id="matrix-sort" onclick="toggleCritFirst()">⇅ {{ S.crit_first }}</button>
+        <span class="group-filter">
+          <span>{{ S.group_filter }}</span>
+          <span class="gf-buttons" id="group-buttons"></span>
+        </span>
       </div>
       <div id="matrix-grid"></div>
     </div>
@@ -1038,6 +1052,60 @@ function statusColor(s){
 var viewMode = 'matrix';           // 'matrix' | 'topo'
 var statusFilter = 'all';          // 'all' | 'crit'(含 down) | 'warn' | 'ok'(含 pending)
 var critFirst = true;              // 排序：异常置顶
+
+/* ══ 数据源分组筛选（issue #67）══
+   选项直接复用数据源管理中已配置的 group 字段（overview.all_groups 返回全量），
+   不另建环境管理配置；选择持久化到 localStorage，刷新大屏自动沿用。
+   过滤发生在后端聚合层，KPI / 矩阵 / 告警 / 趋势 / 健康矩阵 / 表空间 / 宿主同步联动。 */
+var GROUP_STORAGE_KEY = 'dbcheck-screen-group';
+var groupFilter = '';
+function groupQuery(){ return '&group=' + encodeURIComponent(groupFilter); }
+function saveGroupFilter(v){
+  try {
+    if (v) localStorage.setItem(GROUP_STORAGE_KEY, v);
+    else localStorage.removeItem(GROUP_STORAGE_KEY);
+  } catch(e) {}
+}
+function syncGroupButtons(next){
+  var el = document.getElementById('group-buttons');
+  if (!el) return;
+  Array.prototype.forEach.call(el.querySelectorAll('.gbtn'), function(b){
+    b.classList.toggle('on', (b.getAttribute('data-g') || '') === next);
+  });
+}
+function setGroupFilter(value){
+  var next = value || '';
+  if (next === groupFilter) return;
+  groupFilter = next;
+  saveGroupFilter(next);
+  syncGroupButtons(next);                 // 点击即时高亮，不等下一轮轮询
+  // 宿主折线按实例缓存：换组必须清空并按新组 iid 重新回填，避免混入其它环境历史帧
+  hostSeries = {}; hostRowEls = {}; hostSeriesLastFetch = 0;
+  if (historyMode) loadHistory(); else poll();
+}
+function renderGroupButtons(groups, echoed){
+  var el = document.getElementById('group-buttons');
+  if (!el) return;
+  var arr = (groups || []).slice().sort(function(a, b){
+    return String(a) < String(b) ? -1 : String(a) > String(b) ? 1 : 0;
+  });
+  var wanted = echoed || groupFilter || '';
+  // 分组已被删除：自动回退「全部环境」并用全量数据重拉一次
+  if (wanted && arr.indexOf(wanted) < 0){
+    wanted = ''; groupFilter = ''; saveGroupFilter('');
+    if (!historyMode) poll();
+  }
+  var html = '<button class="gbtn" data-g="">' + esc(S.group_all) + '</button>' + arr.map(function(g){
+    return '<button class="gbtn" data-g="' + esc(g) + '" title="' + esc(g) + '">' + esc(g) + '</button>';
+  }).join('');
+  if (el.innerHTML !== html){
+    el.innerHTML = html;
+    Array.prototype.forEach.call(el.querySelectorAll('.gbtn'), function(b){
+      b.addEventListener('click', function(){ setGroupFilter(b.getAttribute('data-g') || ''); });
+    });
+  }
+  syncGroupButtons(wanted);
+}
 function setViewMode(m){
   viewMode = m;
   var isM = m === 'matrix';
@@ -1825,6 +1893,29 @@ function drawTrend(){
   // 全局合计趋势：y 轴固定从 0 起，避免 scale:true 让可视范围随数据跳动；
   // 时间标签按步长抽样，避免 30~60 个 HH:MM:SS 挤成一团。
   var tr = data.trend || [];
+  // 后端全局趋势按全部实例累计，无分组维度；分组模式下用本组节点 spark
+  // 逐点求和重算，保证切组后趋势图与 KPI / 矩阵口径一致（历史回放由后端按组聚合）。
+  if (groupFilter && !historyMode){
+    var sps = (data.nodes || []).map(function(n){ return n.spark || []; })
+                      .filter(function(s){ return s.length; });
+    if (sps.length){
+      var span = Math.max.apply(null, sps.map(function(s){ return s.length; }));
+      var lastTs = Math.floor(data.ts || (Date.now() / 1000));
+      var rebuilt = [];
+      for (var gi = 0; gi < span; gi++){
+        var gsum = 0;
+        sps.forEach(function(s){
+          var v = s[s.length - span + gi];
+          if (typeof v === 'number' && isFinite(v)) gsum += v;
+        });
+        rebuilt.push({ ts: lastTs - (span - 1 - gi) * 15,
+                       qps: Math.round(gsum * 10) / 10 });
+      }
+      tr = rebuilt;
+    } else {
+      tr = [];
+    }
+  }
   var step = Math.max(1, Math.ceil(tr.length / 5));
   var trendOpt = {
     animation: false,
@@ -2105,7 +2196,10 @@ async function fetchHostSeries(force){
   if (!force && Date.now() - hostSeriesLastFetch < HOST_SERIES_RETRY_MS) return;
   hostSeriesLastFetch = Date.now();
   try {
-    var r = await fetch('/api/dashboard/host-series?limit=' + HOST_SERIES_POINTS);
+    // 只回填当前分组实例的宿主历史：避免切换分组后折线混入其它环境的帧
+    var ids = (lastNodes || []).map(function(n){ return n.id; }).join(',');
+    var r = await fetch('/api/dashboard/host-series?limit=' + HOST_SERIES_POINTS +
+                        (ids ? '&ids=' + encodeURIComponent(ids) : ''));
     if (!r.ok) return;
     var d = await r.json();
     if (!d || d.ok !== true) return;
@@ -2323,6 +2417,7 @@ function renderHostList(nodes){
 }
 
 function refresh(data){
+  renderGroupButtons(data.all_groups, data.group);
   var k = data.kpis || {};
   setKpi('k-online', (k.online || 0) + ' / ' + (k.total || 0));
   setKpi('k-warn', k.warn || 0);
@@ -2464,7 +2559,7 @@ function layoutCharts(){
 async function poll(){
   if (historyMode) return;   // 历史回放模式下停止实时轮询（退出时再恢复）
   try {
-    var r = await fetch('/api/dashboard/overview');
+    var r = await fetch('/api/dashboard/overview?group=' + encodeURIComponent(groupFilter));
     if (!r.ok) throw new Error('HTTP ' + r.status);
     var data = await r.json();
     if (!data || data.ok !== true) throw new Error('bad payload');
@@ -2610,7 +2705,7 @@ function updateHistRangeLabel(){
 }
 
 function loadHistory(){
-  var url = '/api/dashboard/history/overview?from=' + histFrom + '&to=' + histTo + '&at=' + histAt;
+  var url = '/api/dashboard/history/overview?from=' + histFrom + '&to=' + histTo + '&at=' + histAt + groupQuery();
   fetch(url).then(function(r){ return r.json(); }).then(function(d){
     if (!d || d.ok !== true) return;
     refresh(d);                            // 复用实时渲染管线
@@ -2626,6 +2721,8 @@ function scheduleNextPoll(){
   var delay = elapsed < 24000 ? 2000 : 15000;
   setTimeout(function(){ poll().then(scheduleNextPoll, scheduleNextPoll); }, delay);
 }
+/* 恢复上次选择的大屏分组；若该分组已被删除，首个 overview 返回时自动回退全量 */
+try { groupFilter = localStorage.getItem(GROUP_STORAGE_KEY) || ''; } catch(e) {}
 loadDBLogos();
 initCharts();          // 页面加载即初始化所有 ECharts 占位面板（秒出基础结构）
 resizeCanvas();

@@ -3516,3 +3516,9 @@ DE.update({
   "webui.theme.dawn": "Morgenamber",
   "webui.theme_next.dawn": "Zu Morgenamber wechseln"
 })
+
+# Gruppenfilter des Monitor-Bildschirms (issue #67, angehängter Block)
+DE.update({
+  "webui.screen_group_filter": "Gruppe",
+  "webui.screen_group_all": "Alle Umgebungen"
+})

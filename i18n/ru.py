@@ -3516,3 +3516,9 @@ RU.update({
   "webui.theme.dawn": "Утренний янтарь",
   "webui.theme_next.dawn": "Переключить на Утренний янтарь"
 })
+
+# Фильтр по группам на экране мониторинга (issue #67, добавленный блок)
+RU.update({
+  "webui.screen_group_filter": "Группа",
+  "webui.screen_group_all": "Все среды"
+})

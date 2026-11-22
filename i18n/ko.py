@@ -3514,3 +3514,9 @@ KO.update({
   "webui.theme.dawn": "선라이즈 앰버",
   "webui.theme_next.dawn": "선라이즈 앰버로 전환"
 })
+
+# 모니터 화면 그룹 필터 (issue #67, 추가 블록)
+KO.update({
+  "webui.screen_group_filter": "그룹",
+  "webui.screen_group_all": "전체 환경"
+})
