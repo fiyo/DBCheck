@@ -1080,7 +1080,8 @@ function setGroupFilter(value){
   saveGroupFilter(next);
   syncGroupButtons(next);                 // 点击即时高亮，不等下一轮轮询
   // 宿主折线按实例缓存：换组必须清空并按新组 iid 重新回填，避免混入其它环境历史帧
-  hostSeries = {}; hostRowEls = {}; hostSeriesLastFetch = 0;
+  // 同时清 DOM：否则旧行与旧 canvas 滞留，新行再追加 → 重复行 + 图表叠加
+  hostSeries = {}; resetHostList(); hostSeriesLastFetch = 0;
   if (historyMode) loadHistory(); else poll();
 }
 function renderGroupButtons(groups, echoed){
@@ -2133,6 +2134,28 @@ var lastNodes  = [];              // 供历史回填后即时重绘
 
 function hostSparkId(iid){ return 'host-spark-' + iid; }
 
+/** 清空宿主列表的行与 ECharts 实例。
+    必须同时清 DOM：只把 hostRowEls 置空会让旧行（含 canvas）留在容器里，
+    下一轮 renderHostList 又追加同 iid 的新行 —— 表现为重复行 + 折线叠加。 */
+function resetHostList(){
+  var el = document.getElementById('host-list');
+  if (el){
+    Array.prototype.forEach.call(el.querySelectorAll('.hspark'), function(sp){
+      try {
+        var c = (typeof echarts !== 'undefined' && echarts.getInstanceByDom)
+          ? echarts.getInstanceByDom(sp) : null;
+        if (c) c.dispose();
+      } catch (e) {}
+    });
+    el.innerHTML = '';
+  }
+  Object.keys(hostRowEls || {}).forEach(function(iid){
+    var c = hostRowEls[iid] && hostRowEls[iid].chart;
+    if (c) { try { c.dispose(); } catch (e) {} }
+  });
+  hostRowEls = {};
+}
+
 /** 该帧是否真的采到了宿主指标（unavailable / 四项皆空时只有来源与错误说明）。 */
 function hostHasValues(h){
   if (!h) return false;
@@ -2290,14 +2313,26 @@ function renderHostList(nodes){
   lastNodes = nodes || [];
   var rows = lastNodes.filter(function(n){ return n && n.host_res; });
   if (!rows.length){
-    Object.keys(hostRowEls).forEach(function(iid){
-      var c = hostRowEls[iid] && hostRowEls[iid].chart;
-      if (c) { try { c.dispose(); } catch (e) {} }
-    });
-    hostRowEls = {};
+    resetHostList();
     el.innerHTML = '<div class="host-empty">' + esc(S.host_no_data) + '</div>';
     return;
   }
+  // 兜底清理：任何脱离 hostRowEls 的残留行 / 同 iid 重复行都在此销毁，
+  // 防止 DOM 与槽位映射失配时旧 canvas 留在原处、新行再追加造成折线叠加。
+  var wantedIds = {};
+  rows.forEach(function(n){ if (n && n.id !== undefined) wantedIds[String(n.id)] = true; });
+  Array.prototype.forEach.call(el.querySelectorAll('.hrow'), function(row){
+    var iid = row.getAttribute('data-iid') || '';
+    var slot = hostRowEls[iid];
+    if (wantedIds[iid] && slot && slot.row === row) return;
+    var sp = row.querySelector('.hspark');
+    try {
+      var c = (typeof echarts !== 'undefined' && echarts.getInstanceByDom)
+        ? echarts.getInstanceByDom(sp) : null;
+      if (c) c.dispose();
+    } catch (e) {}
+    if (row.parentNode) row.parentNode.removeChild(row);
+  });
   // 首帧（采集器尚未产出 host_res）写入的空态提示，后续有数据必须移除；
   // 之前只往容器里追加表头和行，导致「暂无宿主数据」永久压在表头上方。
   var stale = el.querySelector('.host-empty');
