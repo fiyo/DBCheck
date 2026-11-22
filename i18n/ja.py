@@ -3561,7 +3561,7 @@ JA.update({
 JA.update({
   "webui.theme_select_title": "テーマを選択",
   "webui.theme.dark": "ディープティール",
-  "webui.theme.light": "ミニマルホワイト",
+  "webui.theme.light": "ミニマルアイボリー",
   "webui.theme.raccoon": "ラクーンアンバー",
   "webui.theme.dawn": "サンライズアンバー",
   "webui.theme_next.dawn": "サンライズアンバーに切り替え"
@@ -3570,5 +3570,12 @@ JA.update({
 # モニター画面のグループ絞り込み（issue #67、追加ブロック）
 JA.update({
   "webui.screen_group_filter": "グループ",
-  "webui.screen_group_all": "すべての環境"
+  "webui.screen_group_all": "すべての環境",
+  "webui.screen_host_qps_fallback": "ホスト指標を取得できません · QPS トレンド",
+  "webui.theme.abyss": "深淵ブルー",
+  "webui.theme.jade": "翠玉の影",
+  "webui.theme.titanium": "チタンシルバー",
+  "webui.theme.celadon": "影青釉",
+  "webui.theme.pearl": "パールフロスト",
+  "webui.theme.violet": "丹霞バイオレット"
 })

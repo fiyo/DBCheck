@@ -3509,7 +3509,7 @@ KO.update({
 KO.update({
   "webui.theme_select_title": "테마 선택",
   "webui.theme.dark": "딥 틸",
-  "webui.theme.light": "미니멀 화이트",
+  "webui.theme.light": "미니멀 아이보리",
   "webui.theme.raccoon": "라쿤 앰버",
   "webui.theme.dawn": "선라이즈 앰버",
   "webui.theme_next.dawn": "선라이즈 앰버로 전환"
@@ -3518,5 +3518,12 @@ KO.update({
 # 모니터 화면 그룹 필터 (issue #67, 추가 블록)
 KO.update({
   "webui.screen_group_filter": "그룹",
-  "webui.screen_group_all": "전체 환경"
+  "webui.screen_group_all": "전체 환경",
+  "webui.screen_host_qps_fallback": "호스트 지표 사용 불가 · QPS 추이",
+  "webui.theme.abyss": "심연 블루",
+  "webui.theme.jade": "옥비취 그림자",
+  "webui.theme.titanium": "티타늄 실버",
+  "webui.theme.celadon": "청자 유광",
+  "webui.theme.pearl": "진주 서리",
+  "webui.theme.violet": "단하 자주"
 })

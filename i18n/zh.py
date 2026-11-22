@@ -3887,7 +3887,7 @@ ZI.update({
 ZI.update({
   "webui.theme_select_title": "选择主题",
   "webui.theme.dark": "深海青绿",
-  "webui.theme.light": "极简白",
+  "webui.theme.light": "极简素白",
   "webui.theme.raccoon": "浣熊琥珀",
   "webui.theme.dawn": "晨曦琥珀",
   "webui.theme_next.dawn": "切换到晨曦琥珀主题"
@@ -3896,5 +3896,12 @@ ZI.update({
 # 监控大屏分组筛选（issue #67，追加块）
 ZI.update({
   "webui.screen_group_filter": "分组筛选",
-  "webui.screen_group_all": "全部环境"
+  "webui.screen_group_all": "全部环境",
+  "webui.screen_host_qps_fallback": "宿主资源不可用 · QPS 趋势",
+  "webui.theme.abyss": "玄溟深蓝",
+  "webui.theme.jade": "墨玉翠影",
+  "webui.theme.titanium": "钛银冷灰",
+  "webui.theme.celadon": "影青浮玉",
+  "webui.theme.pearl": "云钛凝霜",
+  "webui.theme.violet": "丹霞绯紫"
 })

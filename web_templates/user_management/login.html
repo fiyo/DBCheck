@@ -646,7 +646,7 @@
         /* ─── 主题下拉（与主界面同一套四主题） ─── */
         .theme-select-login {
             height: 40px;
-            width: 108px;
+            width: 132px;  /* 10 套四字主题名，含英文翻译留足空间 */
             padding: 0 28px 0 12px;
             border-radius: 12px;
             border: 1px solid rgba(255,255,255,0.1);
@@ -778,6 +778,146 @@
         html[data-theme="dawn"] .theme-select-login:hover { border-color: #D96A28; }
         html[data-theme="dawn"] .theme-select-login option,
         html[data-theme="dawn"] .lang-select option { background: #FFFDFA; color: #33261F; }
+
+        /* ─── 新增六套主题（登录页独立模板，与主界面同 id/同色系） ───
+           统一走 --p-* 变量 + 一份共享覆盖层，避免每套复制 45 行造成配色漂移。 */
+        html[data-theme="abyss"] {
+            --p-bg:#0A1220; --p-fg:#E8F0FB; --p-accent:#3B82F6; --p-deep:#1D4ED8; --p-soft:#60A5FA;
+            --p-brand1:#122A5C; --p-brand2:#1D4ED8; --p-brand3:#3B82F6;
+            --p-card:rgba(17,28,46,.72); --p-card-br:rgba(59,130,246,.22);
+            --p-input:rgba(232,240,251,.05); --p-input-br:rgba(232,240,251,.14);
+            --p-muted:rgba(232,240,251,.5); --p-ph:rgba(232,240,251,.28);
+            --p-icon:rgba(232,240,251,.35); --p-soft-bg:rgba(59,130,246,.10);
+            --p-shadow:rgba(0,0,0,.45); --p-opt:#111C2E; --p-glow:rgba(59,130,246,.22);
+        }
+        html[data-theme="jade"] {
+            --p-bg:#0A1714; --p-fg:#E6FBF3; --p-accent:#3DDC97; --p-deep:#0F766E; --p-soft:#6EE7B7;
+            --p-brand1:#0D3B30; --p-brand2:#0F766E; --p-brand3:#3DDC97;
+            --p-card:rgba(16,34,29,.72); --p-card-br:rgba(61,220,151,.22);
+            --p-input:rgba(230,251,243,.05); --p-input-br:rgba(230,251,243,.14);
+            --p-muted:rgba(230,251,243,.5); --p-ph:rgba(230,251,243,.28);
+            --p-icon:rgba(230,251,243,.35); --p-soft-bg:rgba(61,220,151,.10);
+            --p-shadow:rgba(0,0,0,.45); --p-opt:#10221D; --p-glow:rgba(61,220,151,.20);
+        }
+        html[data-theme="titanium"] {
+            --p-bg:#14181D; --p-fg:#EDF2F7; --p-accent:#9DB4C8; --p-deep:#4A5E73; --p-soft:#C3D2DF;
+            --p-brand1:#2A333D; --p-brand2:#4A5E73; --p-brand3:#9DB4C8;
+            --p-card:rgba(29,35,42,.72); --p-card-br:rgba(157,180,200,.22);
+            --p-input:rgba(237,242,247,.05); --p-input-br:rgba(237,242,247,.14);
+            --p-muted:rgba(237,242,247,.5); --p-ph:rgba(237,242,247,.28);
+            --p-icon:rgba(237,242,247,.35); --p-soft-bg:rgba(157,180,200,.10);
+            --p-shadow:rgba(0,0,0,.45); --p-opt:#1D232A; --p-glow:rgba(157,180,200,.18);
+        }
+        html[data-theme="celadon"] {
+            --p-bg:#F0F6F3; --p-fg:#1A2E27; --p-accent:#2E8B72; --p-deep:#1F6B57; --p-soft:#5CB89A;
+            --p-brand1:#1F6B57; --p-brand2:#2E8B72; --p-brand3:#7FC4AC;
+            --p-card:rgba(255,255,255,.72); --p-card-br:rgba(46,139,114,.24);
+            --p-input:rgba(255,255,255,.70); --p-input-br:rgba(46,139,114,.24);
+            --p-muted:#5B7A6E; --p-ph:#8AA89B; --p-icon:#8AA89B;
+            --p-soft-bg:rgba(46,139,114,.12); --p-shadow:rgba(31,107,87,.18);
+            --p-opt:#FFFDFA; --p-glow:rgba(46,139,114,.18);
+        }
+        html[data-theme="pearl"] {
+            --p-bg:#F5F8FC; --p-fg:#12223A; --p-accent:#2C6FB5; --p-deep:#1D4E89; --p-soft:#6BA3D8;
+            --p-brand1:#1D4E89; --p-brand2:#2C6FB5; --p-brand3:#8FBEE8;
+            --p-card:rgba(255,255,255,.72); --p-card-br:rgba(44,111,181,.24);
+            --p-input:rgba(255,255,255,.70); --p-input-br:rgba(44,111,181,.24);
+            --p-muted:#64748B; --p-ph:#94A3B8; --p-icon:#94A3B8;
+            --p-soft-bg:rgba(44,111,181,.12); --p-shadow:rgba(29,78,137,.18);
+            --p-opt:#FFFDFA; --p-glow:rgba(44,111,181,.18);
+        }
+        html[data-theme="violet"] {
+            --p-bg:#F8F5FC; --p-fg:#241B33; --p-accent:#8B5CF6; --p-deep:#6D28D9; --p-soft:#B79BFB;
+            --p-brand1:#5B21B6; --p-brand2:#8B5CF6; --p-brand3:#C4A5FA;
+            --p-card:rgba(255,255,255,.72); --p-card-br:rgba(139,92,246,.24);
+            --p-input:rgba(255,255,255,.70); --p-input-br:rgba(139,92,246,.24);
+            --p-muted:#7A6A8C; --p-ph:#A091B2; --p-icon:#A091B2;
+            --p-soft-bg:rgba(139,92,246,.12); --p-shadow:rgba(109,40,217,.18);
+            --p-opt:#FFFDFA; --p-glow:rgba(139,92,246,.18);
+        }
+        :is(html[data-theme="abyss"],html[data-theme="jade"],html[data-theme="titanium"],
+            html[data-theme="celadon"],html[data-theme="pearl"],html[data-theme="violet"]) body {
+            background: var(--p-bg); color: var(--p-fg);
+        }
+        :is(html[data-theme="abyss"],html[data-theme="jade"],html[data-theme="titanium"],
+            html[data-theme="celadon"],html[data-theme="pearl"],html[data-theme="violet"]) .brand-panel {
+            background: linear-gradient(160deg, var(--p-brand1) 0%, var(--p-brand2) 48%, var(--p-brand3) 100%);
+        }
+        :is(html[data-theme="abyss"],html[data-theme="jade"],html[data-theme="titanium"],
+            html[data-theme="celadon"],html[data-theme="pearl"],html[data-theme="violet"]) .brand-panel::before { background: var(--p-glow); }
+        :is(html[data-theme="abyss"],html[data-theme="jade"],html[data-theme="titanium"],
+            html[data-theme="celadon"],html[data-theme="pearl"],html[data-theme="violet"]) .brand-panel::after { background: rgba(255,255,255,.10); }
+        :is(html[data-theme="abyss"],html[data-theme="jade"],html[data-theme="titanium"],
+            html[data-theme="celadon"],html[data-theme="pearl"],html[data-theme="violet"]) .mascot-wrap::before {
+            background: radial-gradient(circle, var(--p-glow) 0%, transparent 70%);
+        }
+        :is(html[data-theme="abyss"],html[data-theme="jade"],html[data-theme="titanium"],
+            html[data-theme="celadon"],html[data-theme="pearl"],html[data-theme="violet"]) .mascot-badge .dot {
+            background: var(--p-accent); animation-name: dotPulseWarm;
+        }
+        :is(html[data-theme="abyss"],html[data-theme="jade"],html[data-theme="titanium"],
+            html[data-theme="celadon"],html[data-theme="pearl"],html[data-theme="violet"]) :is(.feature-icon,.demo-tag) {
+            background: var(--p-soft-bg); color: var(--p-accent);
+        }
+        :is(html[data-theme="abyss"],html[data-theme="jade"],html[data-theme="titanium"],
+            html[data-theme="celadon"],html[data-theme="pearl"],html[data-theme="violet"]) .form-panel::before { background: var(--p-soft-bg); }
+        :is(html[data-theme="abyss"],html[data-theme="jade"],html[data-theme="titanium"],
+            html[data-theme="celadon"],html[data-theme="pearl"],html[data-theme="violet"]) .login-card {
+            background: var(--p-card); border-color: var(--p-card-br);
+            box-shadow: 0 20px 60px var(--p-shadow), inset 0 1px 0 rgba(255,255,255,.08);
+        }
+        :is(html[data-theme="abyss"],html[data-theme="jade"],html[data-theme="titanium"],
+            html[data-theme="celadon"],html[data-theme="pearl"],html[data-theme="violet"]) .login-card::before {
+            background: linear-gradient(90deg, transparent, var(--p-deep), var(--p-accent), transparent);
+        }
+        :is(html[data-theme="abyss"],html[data-theme="jade"],html[data-theme="titanium"],
+            html[data-theme="celadon"],html[data-theme="pearl"],html[data-theme="violet"]) :is(.welcome-title,.demo-info strong) { color: var(--p-fg); }
+        :is(html[data-theme="abyss"],html[data-theme="jade"],html[data-theme="titanium"],
+            html[data-theme="celadon"],html[data-theme="pearl"],html[data-theme="violet"]) :is(.welcome-desc,.form-label,.demo-info,.login-footer) { color: var(--p-muted); }
+        :is(html[data-theme="abyss"],html[data-theme="jade"],html[data-theme="titanium"],
+            html[data-theme="celadon"],html[data-theme="pearl"],html[data-theme="violet"]) .form-input {
+            background: var(--p-input); border-color: var(--p-input-br); color: var(--p-fg);
+        }
+        :is(html[data-theme="abyss"],html[data-theme="jade"],html[data-theme="titanium"],
+            html[data-theme="celadon"],html[data-theme="pearl"],html[data-theme="violet"]) .form-input:focus {
+            border-color: var(--p-accent); background: var(--p-soft-bg);
+            box-shadow: 0 0 0 3px var(--p-glow);
+        }
+        :is(html[data-theme="abyss"],html[data-theme="jade"],html[data-theme="titanium"],
+            html[data-theme="celadon"],html[data-theme="pearl"],html[data-theme="violet"]) .form-input::placeholder { color: var(--p-ph); }
+        :is(html[data-theme="abyss"],html[data-theme="jade"],html[data-theme="titanium"],
+            html[data-theme="celadon"],html[data-theme="pearl"],html[data-theme="violet"]) :is(.input-icon,.pwd-toggle) { color: var(--p-icon); }
+        :is(html[data-theme="abyss"],html[data-theme="jade"],html[data-theme="titanium"],
+            html[data-theme="celadon"],html[data-theme="pearl"],html[data-theme="violet"]) :is(.form-group:focus-within .input-icon,.pwd-toggle:hover) { color: var(--p-accent); }
+        :is(html[data-theme="abyss"],html[data-theme="jade"],html[data-theme="titanium"],
+            html[data-theme="celadon"],html[data-theme="pearl"],html[data-theme="violet"]) .pwd-toggle:hover { background: var(--p-soft-bg); }
+        :is(html[data-theme="abyss"],html[data-theme="jade"],html[data-theme="titanium"],
+            html[data-theme="celadon"],html[data-theme="pearl"],html[data-theme="violet"]) .login-btn {
+            background: linear-gradient(135deg, var(--p-deep) 0%, var(--p-accent) 100%);
+        }
+        :is(html[data-theme="abyss"],html[data-theme="jade"],html[data-theme="titanium"],
+            html[data-theme="celadon"],html[data-theme="pearl"],html[data-theme="violet"]) .login-btn:hover {
+            box-shadow: 0 8px 25px var(--p-shadow), 0 2px 8px var(--p-glow);
+        }
+        :is(html[data-theme="abyss"],html[data-theme="jade"],html[data-theme="titanium"],
+            html[data-theme="celadon"],html[data-theme="pearl"],html[data-theme="violet"]) .demo-info {
+            background: var(--p-soft-bg); border-color: var(--p-card-br);
+        }
+        :is(html[data-theme="abyss"],html[data-theme="jade"],html[data-theme="titanium"],
+            html[data-theme="celadon"],html[data-theme="pearl"],html[data-theme="violet"]) .theme-select-login {
+            background-color: var(--p-card); border-color: var(--p-card-br); color: var(--p-muted);
+        }
+        :is(html[data-theme="abyss"],html[data-theme="jade"],html[data-theme="titanium"],
+            html[data-theme="celadon"],html[data-theme="pearl"],html[data-theme="violet"]) .theme-select-login:hover { border-color: var(--p-accent); }
+        :is(html[data-theme="abyss"],html[data-theme="jade"],html[data-theme="titanium"],
+            html[data-theme="celadon"],html[data-theme="pearl"],html[data-theme="violet"]) :is(.theme-select-login option,.lang-select option) {
+            background: var(--p-opt); color: var(--p-fg);
+        }
+        /* 三套亮色主题补毛玻璃，和晨曦琥珀一致；暗色保持通透不糊 */
+        :is(html[data-theme="celadon"],html[data-theme="pearl"],html[data-theme="violet"]) .login-card {
+            backdrop-filter: blur(22px) saturate(1.4);
+            -webkit-backdrop-filter: blur(22px) saturate(1.4);
+        }
 
         /* ─── 响应式 ─── */
         @media (max-width: 768px) {
@@ -932,7 +1072,7 @@
 
                 <!-- 底部版本 -->
                 <div class="login-footer">
-                    <span id="login-version">v26.11.22.0</span> · <span data-i18n="login.copyright">{{ product_name }} © 2026</span>
+                    <span id="login-version">v26.11.22.1</span> · <span data-i18n="login.copyright">{{ product_name }} © 2026</span>
                 </div>
             </div>
         </div>
@@ -953,9 +1093,15 @@
         </select>
         <select class="theme-select-login" id="login-theme-select" onchange="setTheme(this.value)" title="选择主题" aria-label="选择主题" data-i18n-title="webui.theme_select_title">
             <option value="dark" data-i18n="webui.theme.dark">深海青绿</option>
-            <option value="light" data-i18n="webui.theme.light">极简白</option>
+            <option value="light" data-i18n="webui.theme.light">极简素白</option>
             <option value="raccoon" data-i18n="webui.theme.raccoon">浣熊琥珀</option>
             <option value="dawn" data-i18n="webui.theme.dawn">晨曦琥珀</option>
+            <option value="abyss" data-i18n="webui.theme.abyss">玄溟深蓝</option>
+            <option value="jade" data-i18n="webui.theme.jade">墨玉翠影</option>
+            <option value="titanium" data-i18n="webui.theme.titanium">钛银冷灰</option>
+            <option value="celadon" data-i18n="webui.theme.celadon">影青浮玉</option>
+            <option value="pearl" data-i18n="webui.theme.pearl">云钛凝霜</option>
+            <option value="violet" data-i18n="webui.theme.violet">丹霞绯紫</option>
         </select>
     </div>
 
@@ -1045,9 +1191,10 @@
         }
 
         /* ═══════════════════════════════════════════════
-           主题选择（与主界面同一套四主题，共用 dbcheck-theme）
+           主题选择（与主界面同一套十主题，共用 dbcheck-theme）
            ═══════════════════════════════════════════════ */
-        const LOGIN_THEMES = ['dark', 'light', 'raccoon', 'dawn'];
+        const LOGIN_THEMES = ['dark', 'light', 'raccoon', 'dawn',
+                              'abyss', 'jade', 'titanium', 'celadon', 'pearl', 'violet'];
 
         function setTheme(theme) {
             const t = LOGIN_THEMES.indexOf(theme) >= 0 ? theme : 'dark';

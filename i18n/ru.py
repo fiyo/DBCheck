@@ -3511,7 +3511,7 @@ RU.update({
 RU.update({
   "webui.theme_select_title": "Выбрать тему",
   "webui.theme.dark": "Глубокий бирюзовый",
-  "webui.theme.light": "Минимальный белый",
+  "webui.theme.light": "Минимальный айвори",
   "webui.theme.raccoon": "Янтарный Енот",
   "webui.theme.dawn": "Утренний янтарь",
   "webui.theme_next.dawn": "Переключить на Утренний янтарь"
@@ -3520,5 +3520,12 @@ RU.update({
 # Фильтр по группам на экране мониторинга (issue #67, добавленный блок)
 RU.update({
   "webui.screen_group_filter": "Группа",
-  "webui.screen_group_all": "Все среды"
+  "webui.screen_group_all": "Все среды",
+  "webui.screen_host_qps_fallback": "Метрики хоста недоступны · тренд QPS",
+  "webui.theme.abyss": "Бездно-синий",
+  "webui.theme.jade": "Изумрудный нефрит",
+  "webui.theme.titanium": "Титановый серебристый",
+  "webui.theme.celadon": "Селладоновый",
+  "webui.theme.pearl": "Жемчужный иней",
+  "webui.theme.violet": "Пурпурная дымка"
 })

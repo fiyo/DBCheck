@@ -3511,7 +3511,7 @@ FR.update({
 FR.update({
   "webui.theme_select_title": "Choisir un thème",
   "webui.theme.dark": "Vert profond",
-  "webui.theme.light": "Blanc minimaliste",
+  "webui.theme.light": "Blanc ivoire",
   "webui.theme.raccoon": "Ambre Raton",
   "webui.theme.dawn": "Ambre aurore",
   "webui.theme_next.dawn": "Passer en Ambre aurore"
@@ -3520,5 +3520,12 @@ FR.update({
 # Filtre de groupe de l'écran de supervision (issue #67, bloc ajouté)
 FR.update({
   "webui.screen_group_filter": "Groupe",
-  "webui.screen_group_all": "Tous les environnements"
+  "webui.screen_group_all": "Tous les environnements",
+  "webui.screen_host_qps_fallback": "Métriques hôte indisponibles · Tendance QPS",
+  "webui.theme.abyss": "Bleu abyssal",
+  "webui.theme.jade": "Jade émeraude",
+  "webui.theme.titanium": "Titane argenté",
+  "webui.theme.celadon": "Céladon lumineux",
+  "webui.theme.pearl": "Perle givrée",
+  "webui.theme.violet": "Violette vermillon"
 })

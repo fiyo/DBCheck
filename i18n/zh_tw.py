@@ -3939,7 +3939,7 @@ ZH_TW.update({
 ZH_TW.update({
   "webui.theme_select_title": "選擇主題",
   "webui.theme.dark": "深海青綠",
-  "webui.theme.light": "極簡白",
+  "webui.theme.light": "極簡素白",
   "webui.theme.raccoon": "浣熊琥珀",
   "webui.theme.dawn": "晨曦琥珀",
   "webui.theme_next.dawn": "切換至晨曦琥珀主題"
@@ -3948,5 +3948,12 @@ ZH_TW.update({
 # 監控大螢幕分組篩選（issue #67，追加區塊）
 ZH_TW.update({
   "webui.screen_group_filter": "分組篩選",
-  "webui.screen_group_all": "全部環境"
+  "webui.screen_group_all": "全部環境",
+  "webui.screen_host_qps_fallback": "宿主資源不可用 · QPS 趨勢",
+  "webui.theme.abyss": "玄溟深藍",
+  "webui.theme.jade": "墨玉翠影",
+  "webui.theme.titanium": "鈦銀冷灰",
+  "webui.theme.celadon": "影青浮玉",
+  "webui.theme.pearl": "雲鈦凝霜",
+  "webui.theme.violet": "丹霞緋紫"
 })

@@ -3510,7 +3510,7 @@ ES.update({
 ES.update({
   "webui.theme_select_title": "Seleccionar tema",
   "webui.theme.dark": "Verde azulado profundo",
-  "webui.theme.light": "Blanco minimalista",
+  "webui.theme.light": "Blanco marfileño",
   "webui.theme.raccoon": "Ámbar mapache",
   "webui.theme.dawn": "Ámbar amanecer",
   "webui.theme_next.dawn": "Cambiar a Ámbar amanecer"
@@ -3519,5 +3519,12 @@ ES.update({
 # Filtro de grupo de la pantalla de monitoreo (issue #67, bloque añadido)
 ES.update({
   "webui.screen_group_filter": "Grupo",
-  "webui.screen_group_all": "Todos los entornos"
+  "webui.screen_group_all": "Todos los entornos",
+  "webui.screen_host_qps_fallback": "Métricas de host no disponibles · Tendencia QPS",
+  "webui.theme.abyss": "Azul abisal",
+  "webui.theme.jade": "Jade esmeralda",
+  "webui.theme.titanium": "Titanio plateado",
+  "webui.theme.celadon": "Celadón claro",
+  "webui.theme.pearl": "Perla escarchada",
+  "webui.theme.violet": "Violeta carmesí"
 })

@@ -6,12 +6,91 @@
 <title>RaccoonX · 数据库监控大屏</title>
 <!-- ECharts 本地离线包（与主界面同源），无网环境可用 -->
 <script src="/static/js/echarts.min.js"></script>
+<script>
+/* 主题需在样式生效前落到 <html>，与主界面共用 localStorage 键 dbcheck-theme，
+   避免首屏先深后亮的闪烁（后续主脚本 initTheme 再兜底校正）。 */
+(function(){
+  var t = 'dark';
+  try { t = localStorage.getItem('dbcheck-theme') || 'dark'; } catch(e){}
+  var ok = ['dark','light','raccoon','dawn','abyss','jade','titanium','celadon','pearl','violet'];
+  document.documentElement.setAttribute('data-theme', ok.indexOf(t) >= 0 ? t : 'dark');
+})();
+</script>
 <style>
   :root {
     --bg: #0B1220; --panel: #0E1626; --panel2: #111C30; --border: #1C2A44;
     --tx: #D7E1F0; --tx2: #8FA3C0; --accent: #00C8A0; --blue: #38BDF8;
-    --ok: #22C55E; --warn: #F59E0B; --crit: #EF4444; --down: #6B7280;
+    --ok: #22C55E; --warn: #F59E0B; --crit: #EF4444; --down: #6B7280; --pending: #7C8699;
+    /* 派生变量：浮层/画布/悬停等历史硬编码色统一走变量，亮色主题在下方覆盖 */
+    --onaccent: #04121E; --ovl: rgba(13,22,40,.96); --loadbg: rgba(11,18,32,.42);
+    --scrim: rgba(3,8,18,.55); --tipbg: #131E33; --nodebg: #13223C;
+    --hover: rgba(255,255,255,.05); --track: rgba(255,255,255,.055);
+    --errbg: rgba(42,14,14,.96); --errtx: #FFB4B4;
   }
+  /* ── 十套主题：与主界面 / 登录页共用 localStorage 键 dbcheck-theme ──
+     变量映射：主界面 surface→panel、surface2→panel2、text→tx、text-muted→tx2、
+     accent2/info→blue、success→ok、danger→crit；down/pending 用各主题灰阶。 */
+  [data-theme="light"] {
+    --bg:#F8F9FA; --panel:#FFFFFF; --panel2:#EEF1F5; --border:#D1D9E0;
+    --tx:#0D1426; --tx2:#64748B; --accent:#00A884; --blue:#0284C7;
+    --ok:#00A884; --warn:#B45309; --crit:#DC2626; --down:#94A3B8; --pending:#94A3B8;
+  }
+  [data-theme="raccoon"] {
+    --bg:#14100E; --panel:#241A14; --panel2:#2E241C; --border:#4A3527;
+    --tx:#FFF3EC; --tx2:#B9A89E; --accent:#FF8A4C; --blue:#FB923C;
+    --ok:#4ADE80; --warn:#FBBF24; --crit:#F87171; --down:#7C6A60; --pending:#9A8478;
+  }
+  [data-theme="dawn"] {
+    --bg:#F7F1E9; --panel:#FFFDFA; --panel2:#FFF4E6; --border:#D6B79A;
+    --tx:#33261F; --tx2:#7A6A5F; --accent:#D96A28; --blue:#C65A1D;
+    --ok:#2F855A; --warn:#A65B00; --crit:#C43D32; --down:#9A887B; --pending:#8C796D;
+  }
+  [data-theme="abyss"] {
+    --bg:#0A1220; --panel:#111C2E; --panel2:#18263D; --border:#2B3E5C;
+    --tx:#E8F0FB; --tx2:#8FA6C4; --accent:#3B82F6; --blue:#60A5FA;
+    --ok:#3B82F6; --warn:#F59E0B; --crit:#EF4444; --down:#64748B; --pending:#7C8699;
+  }
+  [data-theme="jade"] {
+    --bg:#0A1714; --panel:#10221D; --panel2:#173028; --border:#265246;
+    --tx:#E6FBF3; --tx2:#8FB9AB; --accent:#3DDC97; --blue:#34D399;
+    --ok:#3DDC97; --warn:#FBBF24; --crit:#F87171; --down:#5F7F74; --pending:#7C9A8E;
+  }
+  [data-theme="titanium"] {
+    --bg:#14181D; --panel:#1D232A; --panel2:#262E37; --border:#3B4754;
+    --tx:#EDF2F7; --tx2:#9AA9B8; --accent:#9DB4C8; --blue:#B8CCDD;
+    --ok:#86B7A0; --warn:#EAB308; --crit:#F87171; --down:#6B7A88; --pending:#8494A3;
+  }
+  [data-theme="celadon"] {
+    --bg:#F0F6F3; --panel:#FFFFFF; --panel2:#E4EFEA; --border:#BFD6CC;
+    --tx:#1A2E27; --tx2:#5B7A6E; --accent:#2E8B72; --blue:#2C6FB5;
+    --ok:#2E8B72; --warn:#A65B00; --crit:#C43D32; --down:#8AA89B; --pending:#8AA89B;
+  }
+  [data-theme="pearl"] {
+    --bg:#F5F8FC; --panel:#FFFFFF; --panel2:#E9EFF7; --border:#C6D4E5;
+    --tx:#12223A; --tx2:#64748B; --accent:#2C6FB5; --blue:#0EA5E9;
+    --ok:#2C6FB5; --warn:#A65B00; --crit:#C43D32; --down:#94A3B8; --pending:#94A3B8;
+  }
+  [data-theme="violet"] {
+    --bg:#F8F5FC; --panel:#FFFFFF; --panel2:#EEE8F6; --border:#D4C6E5;
+    --tx:#241B33; --tx2:#7A6A8C; --accent:#8B5CF6; --blue:#6D28D9;
+    --ok:#7C3AED; --warn:#A65B00; --crit:#C43D32; --down:#9889AC; --pending:#9889AC;
+  }
+  /* 亮色主题共享派生变量：浮层转浅底、强调按钮转白字、悬停/进度槽转深灰半透明 */
+  :is([data-theme="light"],[data-theme="dawn"],[data-theme="celadon"],
+      [data-theme="pearl"],[data-theme="violet"]) {
+    --onaccent:#FFFFFF; --ovl:rgba(255,255,255,.96); --loadbg:rgba(255,255,255,.7);
+    --scrim:rgba(15,23,42,.42); --tipbg:#FFFFFF; --nodebg:#FFFFFF;
+    --hover:rgba(15,23,42,.055); --track:rgba(15,23,42,.07);
+    --errbg:rgba(254,226,226,.97); --errtx:#991B1B;
+  }
+  /* 大屏顶栏主题下拉（跟随主界面主题键，可现场切换） */
+  .theme-select-screen {
+    background: var(--panel2); color: var(--tx); border: 1px solid var(--border);
+    border-radius: 8px; padding: 5px 7px; font-size: 12px; cursor: pointer;
+    max-width: 112px; flex: none;
+  }
+  .theme-select-screen:hover { border-color: var(--accent); color: var(--accent); }
+  .theme-select-screen option { background: var(--panel); color: var(--tx); font-size: 12px; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; }
   body {
@@ -76,7 +155,7 @@
   .trend-viewport { overflow-y: auto; overflow-x: hidden; position: relative; }
   .trend-viewport::-webkit-scrollbar { width: 6px; }
   .trend-viewport::-webkit-scrollbar-thumb { background: rgba(143,163,192,.55); border-radius: 3px; }
-  .trend-viewport::-webkit-scrollbar-track { background: rgba(255,255,255,.03); }
+  .trend-viewport::-webkit-scrollbar-track { background: var(--track); }
   .trend-canvas { width: 100%; height: 100%; min-height: 80px; }
   /* ── 实例健康矩阵：一行=一实例，列=关键指标，异常项用徽章收在末列 ──
      替代原先 6 张 Top10 横向条形榜（同一批实例被重复画 6 遍、各配一套坐标轴）。
@@ -93,7 +172,7 @@
   .hm-list::-webkit-scrollbar { width: 4px; }
   .hm-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
   .hm-row { flex: none; height: 30px; border-radius: 6px; cursor: pointer; font-size: 10.5px; }
-  .hm-row:hover { background: rgba(255,255,255,.05); }
+  .hm-row:hover { background: var(--hover); }
   .hm-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
   .hm-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; }
   .hm-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -124,7 +203,7 @@
   .host-list::-webkit-scrollbar { width: 6px; }
   .host-list::-webkit-scrollbar-thumb { background: rgba(143,163,192,.55); border-radius: 3px; }
   .host-list::-webkit-scrollbar-thumb:hover { background: rgba(143,163,192,.85); }
-  .host-list::-webkit-scrollbar-track { background: rgba(255,255,255,.04); }
+  .host-list::-webkit-scrollbar-track { background: var(--track); }
   /* 末列必须定宽：原来用 auto，表头「采集来源」比数据行的来源徽标窄 23px，
      1fr 首列吃掉的剩余空间就不同，导致后面 4 个数值列整体错位约半列。
      表头吸顶后这个错位会一直挂在顶部，必须让两行用同一套列宽。 */
@@ -149,7 +228,7 @@
   .hrow { flex: 1 1 0; min-height: 68px; max-height: 150px; display: flex; flex-direction: column;
           border-radius: 6px; cursor: pointer; padding: 2px 0 3px; }
   .hrow .hline { flex: none; }
-  .hrow:hover { background: rgba(255,255,255,.045); }
+  .hrow:hover { background: var(--hover); }
   /* 实例名 + 数据库状态徽标：数据库容器宕机（本机 Docker 场景）时宿主 CPU/内存
      照常，必须在名称后单独标出 DB 状态，否则「宿主资源正常」会被误读为 DB 正常。
      名称过长可省略，状态徽标 flex:0 0 auto 始终完整显示。 */
@@ -168,7 +247,10 @@
      紧凑单行，不参与剩余高度分配，把空间全让给真正有数据的实例。
      overflow 只加在不可用行（只画 graphic 文本），可用行若裁剪会连 tooltip 一起裁掉。 */
   .hrow.hrow-na { flex: 0 0 auto; min-height: 0; }
-  .hrow.hrow-na .hspark { flex: 0 0 24px; min-height: 24px; height: 24px; overflow: hidden; }
+  /* 宿主不可用但仍有 QPS spark：加高容纳「宿主资源不可用 · QPS 趋势」标注 + 迷你折线；
+     连 QPS 都没采到的行仍压回 24px，不为空白提示浪费空间（由 hrow-na-nospark 控制）。 */
+  .hrow.hrow-na .hspark { flex: 0 0 36px; min-height: 36px; height: 36px; overflow: hidden; }
+  .hrow.hrow-na.hrow-na-nospark .hspark { flex: 0 0 24px; min-height: 24px; height: 24px; }
   /* 宿主采集中断：仍展示最后一次成功的数值，但必须一眼看出是历史数据 ——
      左侧警示条 + 数值半透明 + 橙色「历史数据 HH:MM」徽标 + 折线内提示。 */
   .hrow.hrow-stale { box-shadow: inset 2px 0 0 var(--warn, #F59E0B); }
@@ -184,12 +266,12 @@
   .host-empty { font-size: 11px; color: var(--tx2); padding: 9px 4px 6px; }
   .trow { display: grid; grid-template-columns: 16px minmax(0,1fr) 108px 42px;
           align-items: center; gap: 8px; padding: 1px 4px; border-radius: 6px; cursor: pointer; }
-  .trow:hover { background: rgba(255,255,255,.045); }
+  .trow:hover { background: var(--hover); }
   .trow .rk { font-size: 10px; color: var(--tx2); text-align: center; }
   .trow .rk.top { color: var(--warn); font-weight: 600; }
   .trow .nm { font-size: 11.5px; color: var(--tx); white-space: nowrap;
               overflow: hidden; text-overflow: ellipsis; }
-  .trow .track { height: 9px; background: rgba(255,255,255,.055); border-radius: 5px; overflow: hidden; }
+  .trow .track { height: 9px; background: var(--track); border-radius: 5px; overflow: hidden; }
   .trow .fill { display: block; height: 100%; border-radius: 5px; }
   .trow .val { font-size: 11px; text-align: right; font-variant-numeric: tabular-nums; }
   .no-data { flex: 1; display: flex; align-items: center; justify-content: center;
@@ -198,14 +280,14 @@
   #pageNav {
     position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
     display: none; align-items: center; gap: 8px; z-index: 15;
-    background: rgba(13,22,40,.92); border: 1px solid var(--border); border-radius: 10px;
+    background: var(--ovl); border: 1px solid var(--border); border-radius: 10px;
     padding: 4px 10px;
   }
   #pageNav button {
     background: none; border: none; color: var(--tx); font-size: 13px;
     cursor: pointer; padding: 2px 6px; border-radius: 6px;
   }
-  #pageNav button:hover { color: var(--accent); background: rgba(255,255,255,.06); }
+  #pageNav button:hover { color: var(--accent); background: var(--hover); }
   #pageNav button:disabled { color: var(--tx2); opacity: .4; cursor: default; }
   #pg-ind { font-size: 12px; color: var(--tx2); min-width: 42px; text-align: center;
             font-variant-numeric: tabular-nums; }
@@ -215,7 +297,7 @@
   #topo.dragging { cursor: grabbing; }
   .topo-tip {
     position: absolute; display: none; pointer-events: none; z-index: 20;
-    background: rgba(13, 22, 40, .96); border: 1px solid var(--border);
+    background: var(--ovl); border: 1px solid var(--border);
     border-radius: 10px; padding: 10px 12px; font-size: 12px; line-height: 1.75;
     color: var(--tx); max-width: 320px;
   }
@@ -223,7 +305,7 @@
   .topo-tip .muted { color: var(--tx2); }
   #detail {
     position: absolute; left: 12px; right: 12px; bottom: 12px; max-height: 48%; display: none; z-index: 30;
-    background: rgba(13, 22, 40, .98); border: 1px solid var(--border); border-radius: 12px;
+    background: var(--ovl); border: 1px solid var(--border); border-radius: 12px;
     padding: 12px 16px; font-size: 12.5px; line-height: 1.7;
     box-shadow: 0 -10px 32px rgba(0,0,0,.5);
     flex-direction: column; overflow: hidden;
@@ -253,7 +335,7 @@
   .dtable { width: 100%; border-collapse: collapse; font-size: 11.5px; }
   .dtable th, .dtable td { border: 1px solid var(--border); padding: 3px 8px; text-align: left;
             vertical-align: top; white-space: nowrap; max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
-  .dtable th { color: var(--tx2); background: rgba(255,255,255,.04); position: sticky; top: 0; z-index: 1; }
+  .dtable th { color: var(--tx2); background: var(--hover); position: sticky; top: 0; z-index: 1; }
   .dtable td.sql { white-space: pre-wrap; word-break: break-all; max-width: 420px; }
   /* ── 实例状态矩阵（默认视图；异常置顶网格，可切换回拓扑） ── */
   #matrix-wrap { position: absolute; inset: 33px 0 0 0; display: flex; flex-direction: column; min-height: 0; }
@@ -338,20 +420,20 @@
   #ticker { display: inline-flex; gap: 34px; white-space: nowrap; font-size: 12.5px; will-change: transform; }
   #ticker .a-crit { color: var(--crit); } #ticker .a-warn { color: var(--warn); }
   #ticker .alert-item { cursor: pointer; padding: 0 3px; border-radius: 4px; }
-  #ticker .alert-item:hover { background: rgba(255,255,255,.10); text-decoration: underline; }
+  #ticker .alert-item:hover { background: var(--hover); text-decoration: underline; }
   #ticker .empty { color: var(--tx2); }
   .probe-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
   /* ── 各面板「努力读取中」覆盖层：旋转环 + 脉动文案，数据未到时明显可见 ── */
   .loader-overlay {
     position: absolute; left: 0; right: 0; top: 33px; bottom: 0; z-index: 6;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 11px; background: rgba(11, 18, 32, .42); pointer-events: none;
+    gap: 11px; background: var(--loadbg); pointer-events: none;
   }
   .loader-overlay.hide { display: none; }
   .loader-overlay .spinner {
     width: 32px; height: 32px; border-radius: 50%;
-    border: 3px solid rgba(255, 255, 255, .12);
-    border-top-color: var(--accent); border-right-color: rgba(0, 200, 160, .35);
+    border: 3px solid var(--track);
+    border-top-color: var(--accent); border-right-color: var(--accent);
     animation: spin .85s linear infinite;
   }
   .loader-overlay .loader-txt {
@@ -364,14 +446,14 @@
   #loading-bar {
     position: absolute; top: 58px; left: 50%; transform: translateX(-50%);
     z-index: 45; display: none; align-items: center; gap: 9px;
-    background: rgba(13, 22, 40, .96); border: 1px solid var(--accent);
+    background: var(--ovl); border: 1px solid var(--accent);
     color: var(--tx); font-size: 12.5px; padding: 6px 16px; border-radius: 20px;
     box-shadow: 0 6px 22px rgba(0, 0, 0, .55);
   }
   #loading-bar.show { display: flex; }
   #loading-bar .spin-dot {
     width: 13px; height: 13px; border-radius: 50%;
-    border: 2px solid rgba(255, 255, 255, .22); border-top-color: var(--accent);
+    border: 2px solid var(--track); border-top-color: var(--accent);
     animation: spin .8s linear infinite;
   }
   /* ── 全局错误 / 引导横幅：数据获取失败 / 无实例 / 采集器未启动 ── */
@@ -384,11 +466,11 @@
   .status-bar.show { display: flex; }
   .status-bar .sb-icon { font-size: 14px; line-height: 1; }
   #error-bar {
-    background: rgba(42, 14, 14, .96); border: 1px solid var(--crit); color: #FFB4B4;
+    background: var(--errbg); border: 1px solid var(--crit); color: var(--errtx);
   }
   #error-bar .sb-icon { color: var(--crit); animation: pulse 1s ease-in-out infinite; }
   #guide-bar {
-    background: rgba(13, 22, 40, .96); border: 1px solid var(--blue); color: var(--tx);
+    background: var(--ovl); border: 1px solid var(--blue); color: var(--tx);
   }
   #guide-bar .sb-icon { color: var(--blue); }
   #freshness { font-size: 12px; color: var(--tx2); font-variant-numeric: tabular-nums;
@@ -397,7 +479,7 @@
   .trend-toggle { float: right; font-size: 11px; font-weight: 400; margin-top: -1px; }
   .trend-toggle button { background: transparent; color: var(--tx2); border: 1px solid var(--border);
     border-radius: 6px; padding: 1px 8px; margin-left: 4px; cursor: pointer; font-size: 11px; }
-  .trend-toggle button.on { background: var(--accent); color: #04121E; border-color: var(--accent); font-weight: 600; }
+  .trend-toggle button.on { background: var(--accent); color: var(--onaccent); border-color: var(--accent); font-weight: 600; }
   /* ── 阈值设置抽屉 ── */
   #btn-th {
     background: var(--panel2); color: var(--tx); border: 1px solid var(--border);
@@ -409,13 +491,13 @@
     border-radius: 8px; padding: 6px 14px; font-size: 13px; cursor: pointer;
   }
   #btn-hist:hover { border-color: var(--accent); color: var(--accent); }
-  #btn-hist.on { background: var(--accent); color: #04121E; border-color: var(--accent); font-weight: 600; }
+  #btn-hist.on { background: var(--accent); color: var(--onaccent); border-color: var(--accent); font-weight: 600; }
 
   /* ── 历史回放条 ── */
   #hist-bar {
     position: fixed; left: 0; right: 0; top: 56px; z-index: 40;
     display: none; align-items: center; gap: 14px;
-    padding: 8px 18px; background: rgba(11, 18, 32, .96);
+    padding: 8px 18px; background: var(--ovl);
     border-bottom: 1px solid var(--border); color: var(--tx);
     box-shadow: 0 6px 18px rgba(0,0,0,.35);
   }
@@ -426,16 +508,16 @@
     border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer; margin-right: 6px;
   }
   #hist-bar .hist-presets button:hover { border-color: var(--accent); color: var(--accent); }
-  #hist-bar .hist-presets button.on { background: var(--accent); color: #04121E; border-color: var(--accent); }
+  #hist-bar .hist-presets button.on { background: var(--accent); color: var(--onaccent); border-color: var(--accent); }
   #hist-bar #hist-slider { flex: 1; min-width: 180px; accent-color: var(--accent); }
   #hist-bar .hist-range { font-size: 12px; color: var(--tx2); font-variant-numeric: tabular-nums; }
   #hist-bar #btn-hist-live {
-    background: var(--accent); color: #04121E; border: 1px solid var(--accent);
+    background: var(--accent); color: var(--onaccent); border: 1px solid var(--accent);
     border-radius: 6px; padding: 5px 12px; font-size: 12px; cursor: pointer; font-weight: 600;
   }
   #hist-bar #btn-hist-live:hover { filter: brightness(1.08); }
   #th-overlay {
-    position: fixed; inset: 0; background: rgba(3, 8, 18, .55);
+    position: fixed; inset: 0; background: var(--scrim);
     display: none; z-index: 50;
   }
   #th-overlay.show { display: block; }
@@ -464,7 +546,7 @@
     flex: 1; padding: 8px 0; border-radius: 8px; font-size: 13px; cursor: pointer;
     border: 1px solid var(--border); background: var(--panel2); color: var(--tx);
   }
-  .th-actions .primary { background: var(--accent); color: #04201a; border-color: var(--accent); font-weight: 600; }
+  .th-actions .primary { background: var(--accent); color: var(--onaccent); border-color: var(--accent); font-weight: 600; }
   .th-actions button:hover { border-color: var(--accent); }
   #th-msg { font-size: 12px; min-height: 16px; margin-top: 10px; }
   #th-msg.ok { color: var(--ok); }
@@ -486,6 +568,9 @@
   </div>
   <div id="clock">--:--:--</div>
   <div id="freshness" class="fresh" title="">–</div>
+  <select class="theme-select-screen" id="theme-select" onchange="setTheme(this.value)" title="{{ S.theme_select_title }}" aria-label="{{ S.theme_select_title }}">
+    {% for tk in S.theme_order %}<option value="{{ tk }}">{{ S.theme_labels[tk] }}</option>{% endfor %}
+  </select>
   <button id="btn-fs" onclick="toggleFs()">{{ S.btn_fs }}</button>
   <button id="btn-th" onclick="openSettings()" title="{{ S.th_tip }}">{{ S.th_btn }}</button>
   <button id="btn-hist" onclick="toggleHistory()" title="{{ S.hist_tip }}">{{ S.hist_btn }}</button>
@@ -606,9 +691,63 @@
 'use strict';
 /* ══════════════ 基础 ══════════════ */
 var S = {{ S | tojson }};
-var C = { bg:'#0B1220', panel:'#0E1626', border:'#1C2A44', tx:'#D7E1F0', tx2:'#8FA3C0',
-          accent:'#00C8A0', blue:'#38BDF8', ok:'#22C55E', warn:'#F59E0B', crit:'#EF4444',
-          down:'#6B7280', pending:'#7C8699' };
+/* 色板 C 不再是硬编码：从 CSS 变量读取，切主题后重取并重绘。
+   初值保留深色值，保证 TIP_STYLE（下方定义）在 syncPalette 调用前有合法颜色。 */
+var C = { bg:'#0B1220', panel:'#0E1626', panel2:'#111C30', border:'#1C2A44',
+          tx:'#D7E1F0', tx2:'#8FA3C0', accent:'#00C8A0', blue:'#38BDF8',
+          ok:'#22C55E', warn:'#F59E0B', crit:'#EF4444', down:'#6B7280',
+          pending:'#7C8699', nodeFill:'#13223C', tipBg:'#131E33' };
+var THEME_CYCLE = ['dark','light','raccoon','dawn','abyss','jade','titanium','celadon','pearl','violet'];
+var THEME_STORAGE_KEY = 'dbcheck-theme';
+/* 从当前主题 CSS 变量重取色板；ECharts / 画布用色全部走 C，故重绘即可整体换肤 */
+function syncPalette(){
+  var cs = getComputedStyle(document.documentElement);
+  function gv(name, fb){ var v = cs.getPropertyValue(name); return (v && v.trim()) ? v.trim() : fb; }
+  C.bg      = gv('--bg', '#0B1220');
+  C.panel   = gv('--panel', '#0E1626');
+  C.panel2  = gv('--panel2', '#111C30');
+  C.border  = gv('--border', '#1C2A44');
+  C.tx      = gv('--tx', '#D7E1F0');
+  C.tx2     = gv('--tx2', '#8FA3C0');
+  C.accent  = gv('--accent', '#00C8A0');
+  C.blue    = gv('--blue', '#38BDF8');
+  C.ok      = gv('--ok', '#22C55E');
+  C.warn    = gv('--warn', '#F59E0B');
+  C.crit    = gv('--crit', '#EF4444');
+  C.down    = gv('--down', '#6B7280');
+  C.pending = gv('--pending', '#7C8699');
+  C.nodeFill= gv('--nodebg', '#13223C');
+  C.tipBg   = gv('--tipbg', '#131E33');
+  // TIP_STYLE 在下方以初值构造，此处同步后再供 new setOption 使用
+  if (typeof TIP_STYLE !== 'undefined'){
+    TIP_STYLE.backgroundColor = C.tipBg;
+    TIP_STYLE.borderColor = C.border;
+    TIP_STYLE.textStyle.color = C.tx;
+  }
+}
+function getTheme(){
+  var t = document.documentElement.getAttribute('data-theme') || 'dark';
+  return THEME_CYCLE.indexOf(t) >= 0 ? t : 'dark';
+}
+function setTheme(t){
+  var v = THEME_CYCLE.indexOf(t) >= 0 ? t : 'dark';
+  document.documentElement.setAttribute('data-theme', v);
+  try { localStorage.setItem(THEME_STORAGE_KEY, v); } catch(e){}
+  var sel = document.getElementById('theme-select'); if (sel) sel.value = v;
+  syncPalette();
+  // 主题切换后重绘：ECharts 选项 / 内联色 DOM / 拓扑画布都依赖 C，复用既有渲染管线。
+  // 首屏数据未到时 lastOverview 为空，退回 initCharts 重绘「加载中」占位即可。
+  try { if (lastOverview) refresh(lastOverview); else initCharts(); } catch(e){}
+  try { if (viewMode === 'topo') drawTopo(); } catch(e){}
+}
+function initTheme(){
+  var saved = 'dark';
+  try { saved = localStorage.getItem(THEME_STORAGE_KEY) || 'dark'; } catch(e){}
+  if (THEME_CYCLE.indexOf(saved) < 0) saved = 'dark';
+  document.documentElement.setAttribute('data-theme', saved);
+  var sel = document.getElementById('theme-select'); if (sel) sel.value = saved;
+  syncPalette();
+}
 var TYPE_META = {
   mysql:['My','#0891B2'], mariadb:['Ma','#0E7490'], oceanbase:['OB','#2563EB'], tidb:['Ti','#DC2626'],
   postgresql:['Pg','#4F46E5'], pg:['Pg','#4F46E5'], ivorysql:['IV','#7C3AED'], kingbase:['KB','#6366F1'],
@@ -1009,7 +1148,7 @@ function initCharts(){
   showGlobalLoading();
 }
 var TIP_STYLE = {
-  backgroundColor: '#131E33', borderColor: C.border, borderWidth: 1,
+  backgroundColor: C.tipBg, borderColor: C.border, borderWidth: 1,
   textStyle: { color: C.tx, fontSize: 12 },
   extraCssText: 'box-shadow:0 4px 14px rgba(0,0,0,.45);border-radius:6px;'
 };
@@ -1551,7 +1690,7 @@ function drawTopo(){
   function rr(x, y, w, h, r){ ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
 
   // 探针节点
-  ctx.fillStyle = '#13223C'; ctx.strokeStyle = C.accent; ctx.lineWidth = 1;
+  ctx.fillStyle = C.nodeFill; ctx.strokeStyle = C.accent; ctx.lineWidth = 1;
   rr(probe.x, probe.y, probe.w, probe.h, 7); ctx.fill(); ctx.stroke();
   ctx.fillStyle = C.tx; ctx.font = '12px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText('◉ ' + S.probe, probe.x + probe.w / 2, probe.y + probe.h / 2);
@@ -1620,7 +1759,7 @@ function drawTopo(){
       // 机柜节点
       var st = h.counts[2] > 0 ? 'crit' : h.counts[1] > 0 ? 'warn' : 'ok';
       link(probeCX, probeBY, h.x + h.w / 2, h.y, st);
-      ctx.fillStyle = '#13223C'; ctx.strokeStyle = statusColor(st); ctx.lineWidth = 1.2;
+      ctx.fillStyle = C.nodeFill; ctx.strokeStyle = statusColor(st); ctx.lineWidth = 1.2;
       rr(h.x, h.y, h.w, h.h, 8); ctx.fill(); ctx.stroke();
       ctx.fillStyle = C.tx; ctx.font = '12px sans-serif'; ctx.textAlign = 'left';
       ctx.fillText('▤ ' + h.group, h.x + 10, h.y + 14);
@@ -2265,12 +2404,46 @@ function renderSpark(iid){
   // 仍按上一次的大尺寸绘制（不可用行尤其明显：从整屏缩到 24px）
   else { try { slot.chart.resize(); } catch (e) {} }
   var pts = hostSeries[iid] || [];
-  // 采集失败 / 异地未配 SSH 的实例四项指标皆空，不该用「趋势序列积累中」误导读者
-  if (slot.hostAvailable === false || pts.length < 2){
-    var waitTxt = slot.hostAvailable === false
-      ? hostSrcMeta('unavailable').txt : S.host_spark_wait;
+  // 宿主不可用（无 SSH 权限 / 采集失败）：复用矩阵卡片的 QPS spark 画趋势，
+  // 不再只写一行空洞的提示。spark 与宿主指标不同源，必须在图内显式标注，
+  // 避免把 QPS 曲线误读成宿主 CPU；且无需新增采集或 API。
+  if (slot.hostAvailable === false){
+    var nd = null;
+    for (var ni = 0; ni < lastNodes.length; ni++){
+      if (String(lastNodes[ni].id) === String(iid)){ nd = lastNodes[ni]; break; }
+    }
+    var qsp = (nd && nd.spark) || [];
+    if (slot.row) slot.row.classList.toggle('hrow-na-nospark', qsp.length < 2);
+    if (qsp.length >= 2){
+      slot.chart.setOption({
+        animation: false,
+        grid: { left: 2, right: 2, top: 14, bottom: 1, containLabel: false },
+        tooltip: Object.assign({ trigger: 'axis', formatter: function(ps){
+          if (!ps || !ps.length) return '';
+          return esc(S.host_qps_fallback || 'QPS') + '<br/>QPS ' +
+                 (ps[0].data === null || ps[0].data === undefined ? '–' : ps[0].data);
+        } }, TIP_STYLE),
+        graphic: [{ type: 'text', left: 'center', top: 0,
+          style: { text: S.host_qps_fallback || '宿主资源不可用 · QPS 趋势',
+                   fill: C.tx2, fontSize: 9 } }],
+        xAxis: { type: 'category',
+                 data: qsp.map(function(_, i){ return '#' + (i + 1); }),
+                 show: false, boundaryGap: false },
+        yAxis: { type: 'value', show: false, scale: true },
+        series: [{ name: 'qps', type: 'line', smooth: true, symbol: 'none',
+                   connectNulls: false, lineStyle: { color: C.accent, width: 1.3 },
+                   itemStyle: { color: C.accent }, data: qsp }]
+      }, true);
+      return;
+    }
+    // 连 QPS 都没采到（刚接入 / 从未连通）：维持原提示，行高压回 24px
     slot.chart.setOption({ graphic: [{ type: 'text', left: 'center', top: 'middle',
-      style: { text: waitTxt, fill: C.tx2, fontSize: 10 } }] }, true);
+      style: { text: hostSrcMeta('unavailable').txt, fill: C.tx2, fontSize: 10 } }] }, true);
+    return;
+  }
+  if (pts.length < 2){
+    slot.chart.setOption({ graphic: [{ type: 'text', left: 'center', top: 'middle',
+      style: { text: S.host_spark_wait, fill: C.tx2, fontSize: 10 } }] }, true);
     return;
   }
   // 时间标签统一走 hostTimeLabel：epoch 秒 / ISO 字符串都能解析，无效值退化为序号，
@@ -2758,6 +2931,7 @@ function scheduleNextPoll(){
 }
 /* 恢复上次选择的大屏分组；若该分组已被删除，首个 overview 返回时自动回退全量 */
 try { groupFilter = localStorage.getItem(GROUP_STORAGE_KEY) || ''; } catch(e) {}
+initTheme();           // 先按 localStorage 应用主题并重取色板（TIP_STYLE / C 就位后再建图表）
 loadDBLogos();
 initCharts();          // 页面加载即初始化所有 ECharts 占位面板（秒出基础结构）
 resizeCanvas();

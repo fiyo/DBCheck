@@ -220,6 +220,113 @@
   background: radial-gradient(ellipse at center, rgba(233, 138, 60, .20) 0%, transparent 70%);
 }
 
+/* ─── 玄溟深蓝（暗 · 深海蓝 + 科技蓝）─── */
+[data-theme="abyss"] {
+  --bg:#0A1220; --surface:#111C2E; --surface2:#18263D; --border:#2B3E5C;
+  --accent:#3B82F6; --accent2:#1D4ED8; --warn:#F59E0B; --danger:#EF4444;
+  --text:#E8F0FB; --text-main:#E8F0FB; --text-muted:#8FA6C4;
+  --info:#1D4ED8; --success:#3B82F6; --card-bg:#111C2E;
+  --radius:12px; --trans:0.22s ease; --log-ok:var(--accent);
+  --glow:rgba(59,130,246,.22); color-scheme: dark;
+}
+/* ─── 墨玉翠影（暗 · 宝石绿）─── */
+[data-theme="jade"] {
+  --bg:#0A1714; --surface:#10221D; --surface2:#173028; --border:#265246;
+  --accent:#3DDC97; --accent2:#0F766E; --warn:#FBBF24; --danger:#F87171;
+  --text:#E6FBF3; --text-main:#E6FBF3; --text-muted:#8FB9AB;
+  --info:#0F766E; --success:#3DDC97; --card-bg:#10221D;
+  --radius:12px; --trans:0.22s ease; --log-ok:var(--accent);
+  --glow:rgba(61,220,151,.20); color-scheme: dark;
+}
+/* ─── 钛银冷灰（暗 · 钛金属 + 寒武岩灰）─── */
+[data-theme="titanium"] {
+  --bg:#14181D; --surface:#1D232A; --surface2:#262E37; --border:#3B4754;
+  --accent:#9DB4C8; --accent2:#4A5E73; --warn:#EAB308; --danger:#F87171;
+  --text:#EDF2F7; --text-main:#EDF2F7; --text-muted:#9AA9B8;
+  --info:#4A5E73; --success:#86B7A0; --card-bg:#1D232A;
+  --radius:12px; --trans:0.22s ease; --log-ok:var(--accent);
+  --glow:rgba(157,180,200,.18); color-scheme: dark;
+}
+/* ─── 影青浮玉（亮 · 影青瓷）─── */
+[data-theme="celadon"] {
+  --bg:#F0F6F3; --surface:#FFFFFF; --surface2:#E4EFEA; --border:#BFD6CC;
+  --accent:#2E8B72; --accent2:#1F6B57; --warn:#A65B00; --danger:#C43D32;
+  --text:#1A2E27; --text-main:#1A2E27; --text-muted:#5B7A6E;
+  --info:#1F6B57; --success:#2E8B72; --card-bg:#FFFFFF;
+  --radius:12px; --trans:0.22s ease; --log-ok:var(--accent2);
+  --glow:rgba(46,139,114,.18); color-scheme: light;
+}
+/* ─── 云钛凝霜（亮 · 珍珠白 + 钛金属）─── */
+[data-theme="pearl"] {
+  --bg:#F5F8FC; --surface:#FFFFFF; --surface2:#E9EFF7; --border:#C6D4E5;
+  --accent:#2C6FB5; --accent2:#1D4E89; --warn:#A65B00; --danger:#C43D32;
+  --text:#12223A; --text-main:#12223A; --text-muted:#64748B;
+  --info:#1D4E89; --success:#2C6FB5; --card-bg:#FFFFFF;
+  --radius:12px; --trans:0.22s ease; --log-ok:var(--accent2);
+  --glow:rgba(44,111,181,.18); color-scheme: light;
+}
+/* ─── 丹霞绯紫（亮 · 丹霞紫）─── */
+[data-theme="violet"] {
+  --bg:#F8F5FC; --surface:#FFFFFF; --surface2:#EEE8F6; --border:#D4C6E5;
+  --accent:#8B5CF6; --accent2:#6D28D9; --warn:#A65B00; --danger:#C43D32;
+  --text:#241B33; --text-main:#241B33; --text-muted:#7A6A8C;
+  --info:#6D28D9; --success:#7C3AED; --card-bg:#FFFFFF;
+  --radius:12px; --trans:0.22s ease; --log-ok:var(--accent2);
+  --glow:rgba(139,92,246,.18); color-scheme: light;
+}
+/* 六套新主题共享的历史硬编码强调色覆盖层：全部走变量，避免半套主题。
+   --log-ok：暗色主题取 accent（亮字），亮色主题取 accent2（深字保证对比度）。 */
+:is([data-theme="abyss"],[data-theme="jade"],[data-theme="titanium"],
+    [data-theme="celadon"],[data-theme="pearl"],[data-theme="violet"]) :is(
+  .sidebar-logo .logo-icon, .card-icon, .btn-success, .report-dl-share,
+  .tag-tidb, .severity-low, .toast-success,
+  .health-level-badge.healthy, .health-level-badge.low,
+  .health-risk-chip.low, .health-risk-chip.healthy, .monitor-dot.up
+) { color: var(--accent); }
+:is([data-theme="abyss"],[data-theme="jade"],[data-theme="titanium"],
+    [data-theme="celadon"],[data-theme="pearl"],[data-theme="violet"]) :is(
+  .btn-success, .report-dl-share
+) { background: var(--accent); }
+:is([data-theme="abyss"],[data-theme="jade"],[data-theme="titanium"],
+    [data-theme="celadon"],[data-theme="pearl"],[data-theme="violet"]) :is(
+  .btn-success:hover, .btn-primary:hover
+) { background: var(--accent2); }
+:is([data-theme="abyss"],[data-theme="jade"],[data-theme="titanium"],
+    [data-theme="celadon"],[data-theme="pearl"],[data-theme="violet"]) :is(
+  .report-dl-word, .mkt-btn-install
+) { background: var(--accent2); }
+:is([data-theme="abyss"],[data-theme="jade"],[data-theme="titanium"],
+    [data-theme="celadon"],[data-theme="pearl"],[data-theme="violet"]) .toast-success { border-left-color: var(--accent); }
+:is([data-theme="abyss"],[data-theme="jade"],[data-theme="titanium"],
+    [data-theme="celadon"],[data-theme="pearl"],[data-theme="violet"]) .toast-info { border-left-color: var(--accent2); }
+:is([data-theme="abyss"],[data-theme="jade"],[data-theme="titanium"],
+    [data-theme="celadon"],[data-theme="pearl"],[data-theme="violet"]) .overview-card .card-detail-ok { color: var(--success); }
+:is([data-theme="abyss"],[data-theme="jade"],[data-theme="titanium"],
+    [data-theme="celadon"],[data-theme="pearl"],[data-theme="violet"]) .log-box .log-line.ok { color: var(--log-ok); }
+:is([data-theme="abyss"],[data-theme="jade"],[data-theme="titanium"],
+    [data-theme="celadon"],[data-theme="pearl"],[data-theme="violet"]) .log-box .log-line.info { color: var(--log-ok); }
+:is([data-theme="abyss"],[data-theme="jade"],[data-theme="titanium"],
+    [data-theme="celadon"],[data-theme="pearl"],[data-theme="violet"]) .sidebar-logo .logo-icon {
+  background: linear-gradient(135deg, var(--accent2), var(--accent));
+}
+:is([data-theme="abyss"],[data-theme="jade"],[data-theme="titanium"],
+    [data-theme="celadon"],[data-theme="pearl"],[data-theme="violet"]) :is(
+  [style*="background:linear-gradient(135deg,#0A2A6E,#00C8A0)"],
+  [style*="background:linear-gradient(135deg,#00C8A0,#0A2A6E)"],
+  [style*="background:linear-gradient(135deg,#00C8A0,#00C8A0)"],
+  [style*="background:linear-gradient(135deg,#0A2A6E,#0A2A6E)"]
+) { background: linear-gradient(135deg, var(--accent2), var(--accent)) !important; }
+:is([data-theme="abyss"],[data-theme="jade"],[data-theme="titanium"],
+    [data-theme="celadon"],[data-theme="pearl"],[data-theme="violet"]) [style*="background:linear-gradient(90deg,#00C8A0,#00C8A0)"] {
+  background: linear-gradient(90deg, var(--accent2), var(--accent)) !important;
+}
+:is([data-theme="abyss"],[data-theme="jade"],[data-theme="titanium"],
+    [data-theme="celadon"],[data-theme="pearl"],[data-theme="violet"]) [style*="#00C8A0"] { --accent-inline: var(--accent); }
+:is([data-theme="abyss"],[data-theme="jade"],[data-theme="titanium"],
+    [data-theme="celadon"],[data-theme="pearl"],[data-theme="violet"]) .slogan-glow {
+  background: radial-gradient(ellipse at center, var(--glow) 0%, transparent 70%);
+}
+
 html { font-size: 15px; }
 body {
   background: var(--bg);
@@ -1207,8 +1314,9 @@ select option { background: var(--surface2); }
 }
 .theme-toggle:hover { border-color: var(--text-muted); color: var(--text); }
 .theme-select {
-  /* 覆盖全局 select{width:100%}：顶栏是 flex 容器，不限宽会被撑满整行 */
-  width: 88px; flex: 0 0 88px; min-width: 0; max-width: 88px;
+  /* 覆盖全局 select{width:100%}：顶栏是 flex 容器，不限宽会被撑满整行。
+     10 套四字主题名需比原先 88px 更宽，但仍远小于撑满整行。 */
+  width: 116px; flex: 0 0 116px; min-width: 0; max-width: 116px;
   font-size: 12px; padding: 3px 6px; border-radius: 6px;
   border: 1px solid var(--border);
   background: var(--surface); color: var(--text);
@@ -8592,9 +8700,15 @@ function wfCloseRunDrawer() {
       </span>
       <select class="theme-select" id="theme-select" onchange="setTheme(this.value)" title="选择主题" aria-label="选择主题" data-i18n-title="webui.theme_select_title" data-page-node-id="q8QUD8l6qW3BYYvozmDH0G">
         <option value="dark" data-i18n="webui.theme.dark">深海青绿</option>
-        <option value="light" data-i18n="webui.theme.light">极简白</option>
+        <option value="light" data-i18n="webui.theme.light">极简素白</option>
         <option value="raccoon" data-i18n="webui.theme.raccoon">浣熊琥珀</option>
         <option value="dawn" data-i18n="webui.theme.dawn">晨曦琥珀</option>
+        <option value="abyss" data-i18n="webui.theme.abyss">玄溟深蓝</option>
+        <option value="jade" data-i18n="webui.theme.jade">墨玉翠影</option>
+        <option value="titanium" data-i18n="webui.theme.titanium">钛银冷灰</option>
+        <option value="celadon" data-i18n="webui.theme.celadon">影青浮玉</option>
+        <option value="pearl" data-i18n="webui.theme.pearl">云钛凝霜</option>
+        <option value="violet" data-i18n="webui.theme.violet">丹霞绯紫</option>
       </select>
       <span id="topbar-user" style="font-size:12px;color:var(--text-muted);margin-left:8px;cursor:pointer;display:none;" onclick="toggleUserMenu()" data-page-node-id="8j647NT8a4eDoTL1fTzSj7">
         👤 <span id="topbar-user-name" data-page-node-id="HiS5xz1sery4p9P9ViJ77a"></span> ▾
@@ -13556,7 +13670,8 @@ async function loadContributors() {
     img.alt = ''; img.loading = 'lazy';
     img.onerror = function () { this.style.display = 'none'; };
     var span = document.createElement('span');
-    span.textContent = login;
+    // 作者展示名用真实姓名，其余贡献者沿用 GitHub 登录名
+    span.textContent = (p && p.display_name) ? p.display_name : login;
     a.appendChild(img); a.appendChild(span);
     if (p && p.is_author === true) {
       var tag = document.createElement('span');
@@ -22497,18 +22612,25 @@ function toastConfirm(msg) {
   });
 }
 
-var THEME_CYCLE = ['dark', 'light', 'raccoon', 'dawn'];
-var THEME_ICON = { dark: '☀️', light: '🌙', raccoon: '✦', dawn: '◐' };
+var THEME_CYCLE = ['dark', 'light', 'raccoon', 'dawn', 'abyss', 'jade', 'titanium', 'celadon', 'pearl', 'violet'];
+var THEME_ICON = { dark: '☀️', light: '🌙', raccoon: '✦', dawn: '◐',
+                   abyss: '◆', jade: '❖', titanium: '◇', celadon: '✧', pearl: '✦', violet: '❖' };
+// 四字主题名（下拉无需图标，仅供旧 toggle 入口/无障碍标题回退使用）
+var THEME_LABEL = {
+  dark: '深海青绿', light: '极简素白', raccoon: '浣熊琥珀', dawn: '晨曦琥珀',
+  abyss: '玄溟深蓝', jade: '墨玉翠影', titanium: '钛银冷灰',
+  celadon: '影青浮玉', pearl: '云钛凝霜', violet: '丹霞绯紫'
+};
+var LIGHT_THEMES = ['light', 'dawn', 'celadon', 'pearl', 'violet'];
 
 function getTheme() {
   var t = document.documentElement.getAttribute('data-theme') || 'dark';
   return THEME_CYCLE.indexOf(t) >= 0 ? t : 'dark';
 }
 
-// 亮色系主题（极简白 / 晨曦琥珀）共用一套图表与徽标前景色
+// 亮色系主题（极简素白 / 晨曦琥珀 / 影青浮玉 / 云钛凝霜 / 丹霞绯紫）共用一套图表与徽标前景色
 function isLightTheme() {
-  var t = getTheme();
-  return t === 'light' || t === 'dawn';
+  return LIGHT_THEMES.indexOf(getTheme()) >= 0;
 }
 
 function setTheme(theme) {
@@ -22521,7 +22643,7 @@ function setTheme(theme) {
   var btn = document.getElementById('theme-toggle');
   if (btn) {
     btn.textContent = THEME_ICON[t];
-    var label = { dark: '☀️ Light', light: '🌙 Dark', raccoon: '✦ Raccoon', dawn: '◐ Dawn Amber' }[t];
+    var label = THEME_LABEL[t] || t;
     if (typeof i18n === 'function') {
       var key = 'webui.theme_next.' + t;
       var tr = i18n(key);
@@ -29183,7 +29305,7 @@ function mkdirRemote() {
 <div class="status-bar" id="status-bar" data-page-node-id="E0jlA1UaqTA24TltOH3TVC">
   <div class="sb-item sb-brand" data-page-node-id="upIEHjuNpzMJN8eZoS2MXe">
     <span class="version-badge" id="version-badge" data-page-node-id="bGB3An2d8pdFqskUcT6fsN">{{ version }}{% if edition == 'professional' %} · <span data-i18n="webui.edition_badge" data-page-node-id="lzLhBmNoQ1d47M0VyVj4vf">专业版</span>{% endif %}</span>
-    <span style="font-size:10px;color:var(--text-muted,#8a8f98);white-space:nowrap;" data-page-node-id="8iUoCmEFznhrqRfivaJ05u">{{ product_name }} · <a href="https://github.com/fiyo/DBCheck" target="_blank" style="color:inherit;" data-page-node-id="HFjWyzcc2OxZB8UR8bhGxM">fiyo</a></span>
+    <span style="font-size:10px;color:var(--text-muted,#8a8f98);white-space:nowrap;" data-page-node-id="8iUoCmEFznhrqRfivaJ05u">{{ product_name }} · <a href="https://github.com/fiyo/DBCheck" target="_blank" style="color:inherit;" data-page-node-id="HFjWyzcc2OxZB8UR8bhGxM">Jack Ge</a></span>
   </div>
   <div class="sb-item" id="sb-inspection" data-page-node-id="4V3Wgln47ZFyXPpVVKdqNA">
     <span data-page-node-id="ls4d7SvDabVRWdg8kt7DIF">⏱️</span>
@@ -30151,7 +30273,7 @@ const STATIC_DB_PH_MAP = {'pg':'postgres','ivorysql':'ivorysql','kingbase':'king
         浣巡（RaccoonX）是一款数据库智能巡检平台，支持 MySQL、PostgreSQL、Oracle、SQL Server、达梦（DM）、TiDB、IvorySQL、YashanDB 等主流数据库的健康巡检与 AI 诊断。
       </p>
       <div class="about-meta" data-page-node-id="WjGu6XczLVpELccU1OSAvw">
-        <span class="about-meta-item" data-page-node-id="jp5XueqftWFaXv6PlbLC25">作者：Jack Ge (fiyo)</span>
+        <span class="about-meta-item" data-page-node-id="jp5XueqftWFaXv6PlbLC25">作者：Jack Ge</span>
         <span class="about-meta-item" data-page-node-id="AI28f7YFfM6TBQ0w7ttzin">协议：Apache License 2.0</span>
         <span class="about-meta-item" data-page-node-id="yrykYb11r31Hdo30e3hmwd">官网：<a href="https://dbcheck.top" target="_blank" data-page-node-id="PIaCNyBpUpyTdLHsSsjlY6">dbcheck.top</a></span>
       </div>

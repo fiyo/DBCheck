@@ -3886,7 +3886,7 @@ EN.update({
 EN.update({
   "webui.theme_select_title": "Select theme",
   "webui.theme.dark": "Deep Teal",
-  "webui.theme.light": "Minimal White",
+  "webui.theme.light": "Minimal Ivory",
   "webui.theme.raccoon": "Raccoon Amber",
   "webui.theme.dawn": "Sunrise Amber",
   "webui.theme_next.dawn": "Switch to Sunrise Amber theme"
@@ -3895,5 +3895,12 @@ EN.update({
 # Monitor screen group filter (issue #67, appended block)
 EN.update({
   "webui.screen_group_filter": "Group",
-  "webui.screen_group_all": "All environments"
+  "webui.screen_group_all": "All environments",
+  "webui.screen_host_qps_fallback": "Host metrics unavailable · QPS trend",
+  "webui.theme.abyss": "Abyssal Blue",
+  "webui.theme.jade": "Jade Verdant",
+  "webui.theme.titanium": "Titan Silver",
+  "webui.theme.celadon": "Celadon Glow",
+  "webui.theme.pearl": "Pearl Frost",
+  "webui.theme.violet": "Vermilion Violet"
 })

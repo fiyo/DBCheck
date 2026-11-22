@@ -3511,7 +3511,7 @@ DE.update({
 DE.update({
   "webui.theme_select_title": "Theme auswählen",
   "webui.theme.dark": "Tiefes Petrol",
-  "webui.theme.light": "Minimales Weiß",
+  "webui.theme.light": "Minimales Elfenbein",
   "webui.theme.raccoon": "Raccoon Amber",
   "webui.theme.dawn": "Morgenamber",
   "webui.theme_next.dawn": "Zu Morgenamber wechseln"
@@ -3520,5 +3520,12 @@ DE.update({
 # Gruppenfilter des Monitor-Bildschirms (issue #67, angehängter Block)
 DE.update({
   "webui.screen_group_filter": "Gruppe",
-  "webui.screen_group_all": "Alle Umgebungen"
+  "webui.screen_group_all": "Alle Umgebungen",
+  "webui.screen_host_qps_fallback": "Host-Metriken nicht verfügbar · QPS-Trend",
+  "webui.theme.abyss": "Abyssblau",
+  "webui.theme.jade": "Jadegrün",
+  "webui.theme.titanium": "Titan-Silber",
+  "webui.theme.celadon": "Celadon-Glanz",
+  "webui.theme.pearl": "Perl frost",
+  "webui.theme.violet": "Zinnober-Violett"
 })

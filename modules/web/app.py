@@ -4195,6 +4195,10 @@ def api_contributors():
             entry = {'login': login, 'url': 'https://github.com/' + login, 'kind': kind}
             if item.get('is_author') is True:
                 entry['is_author'] = True
+            # 展示名与 GitHub 登录名分离：作者显示 Jack Ge，链接/头像仍用真实登录名
+            display_name = str(item.get('display_name', '')).strip()
+            if display_name:
+                entry['display_name'] = display_name[:60]
             names.append(entry)
         return jsonify({'enabled': bool(names), 'names': names,
                         'code_count': sum(1 for n in names if n['kind'] == 'code'),
@@ -6422,8 +6426,15 @@ def monitor_screen_page():
              'host_src_unavailable', 'host_src_none', 'host_spark_wait',
              # 宿主采集中断时显示「历史数据 · 最后采样时刻」，不再把旧值当实时值
              'host_stale', 'host_stale_tip', 'host_spark_stale',
+             'host_qps_fallback',
              'group_filter', 'group_all']
     S = {k: _t('webui.screen_' + k) for k in _keys}
+    # 主题下拉：复用主界面既有 webui.theme.* 文案，保持 10 套主题命名一致
+    _theme_order = ['dark', 'light', 'raccoon', 'dawn', 'abyss',
+                    'jade', 'titanium', 'celadon', 'pearl', 'violet']
+    S['theme_order'] = _theme_order
+    S['theme_labels'] = {k: _t('webui.theme.' + k) for k in _theme_order}
+    S['theme_select_title'] = _t('webui.theme_select_title')
     return render_template('monitor_screen.html', version=__version__, S=S)
 
 @app.route('/api/dashboard/overview', methods=['GET'])
