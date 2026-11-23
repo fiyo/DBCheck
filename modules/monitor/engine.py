@@ -44,7 +44,7 @@ JDBC_BATCH_DB_TYPES = frozenset(('gbase', 'db2', 'clickhouse'))
 JDBC_BATCH_TTL = 12.0        # 批量结果缓存时长（s），略短于采样间隔 15s
 JDBC_BATCH_TIMEOUT = 90      # 子进程硬超时（含 JVM 冷启动 4~10s）
 
-# ── JDBC 专属数据源（*_jdbc）─────────────────────────────────
+# ── 必须全程 JDBC 的数据源（*_jdbc + 标准 pg）───────────────
 # 这些类型被用户配置成 *_jdbc 的原因就是「python 原生驱动连不上」（旧版
 # Oracle / TCPS / EZConnect / TNS 别名等），且 jdbc_url 优先于 host/port
 # （见 instance_manager 字段注释）；metrics_collector 侧早有约定
@@ -63,6 +63,17 @@ JDBC_ONLY_TYPES = {
     'oracle_jdbc': ('oracle_jdbc', 'oracle'),
     'uxdb_jdbc':   ('uxdb',        'pg'),
     'sqlserver_jdbc': ('sqlserver_jdbc', 'sqlserver'),
+    # 标准 PostgreSQL：数据源配置界面允许选择「JDBC 驱动版本（默认=激活版本）」，
+    # 测试连接与巡检也都走 JDBC（test_pg_connection → run_jdbc_test_subprocess）。
+    # 此前仅 *_jdbc 类型进本通道，标准 pg 被归一后落回 connection_factory 的
+    # psycopg2 原生分支 → 数据源里配的 driver_version 对实时监控/大屏完全失效，
+    # 且库名留空时会回落到用户名（FATAL: database "<user>" does not exist）。
+    # 与 uxdb_jdbc 同构：连接器用原始类型 pg（JDBC_PROFILES['pg'] 默认库
+    # postgres、驱动 org.postgresql.Driver），采集 SQL 模板复用 pg，通道已验证。
+    'pg':          ('pg',          'pg'),
+    # 存量实例可能直接存 'postgresql'（instance_manager 仍兼容该写法）：
+    # 归一后同为 pg，连接器仍用 JDBC_PROFILES 的 pg 条目。
+    'postgresql':  ('pg',          'pg'),
 }
 
 

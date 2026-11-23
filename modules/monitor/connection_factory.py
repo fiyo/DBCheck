@@ -47,9 +47,16 @@ SQLSERVER_FAMILY = frozenset(('sqlserver', 'sqlserver_jdbc', 'mssql'))
 # 避免落进下方 SQLSERVER_FAMILY 的 pyodbc 分支（缺 ODBC Driver 时误判 down）。
 JDBC_ONLY_TYPES = frozenset(('oracle_jdbc', 'uxdb_jdbc', 'sqlserver_jdbc'))
 
-# 国产 PG 系库名缺省值：必须用**原始** db_type 查映射（归一后都是 pg，键会全落空）。
-# 与首页原口径、数据源测试口径保持一致：都没填时回落用户名同名库（PG 惯例）。
+# PG 系库名缺省值：必须用**原始** db_type 查映射（归一后都是 pg，键会全落空）。
+# 标准 PostgreSQL 必须显式给 postgres：数据源界面与测试连接口径均以 postgres 为
+# 默认库（index.html 回填 'postgres'、test_pg_connection 默认 'postgres'）。此前
+# 标准 pg/postgresql 未在表中，实例未存 database 时会一路回落到 user，导致
+# psycopg2 用「用户名」当库名连接 → FATAL: database "<user>" does not exist。
+# 其余条目为国产发行版默认库；都没填且非 PG 系时最后才回落用户名同名库（PG 惯例）。
+# 注：统一采集器已把标准 pg 路由到 JDBC 批量通道（engine.JDBC_ONLY_TYPES），
+# 本映射仅服务于仍直调 open_db_connection 的独立脚本/其它调用方，保持一致口径。
 _PG_DEFAULT_DB = {
+    'postgresql': 'postgres', 'pg': 'postgres',
     'kingbase': 'kingbase', 'uxdb': 'uxdb', 'highgo': 'highgo',
     'hgdb': 'highgo', 'halodb': 'halo',
     'vastbase': 'postgres', 'opengauss': 'postgres',

@@ -1,5 +1,13 @@
 # Changelog
 
+## v26.11.23.1 (2026-11-23)
+
+### 修复：标准 PostgreSQL 数据源配置未作用于监控采集
+
+- 数据源中配置的 JDBC 驱动版本此前只用于测试连接与巡检；实时监控与监控大屏对标准 `pg` 仍走 psycopg2 原生路径，配置项被忽略，且实例未存库名时会回落到用户名，报 `FATAL: database "<user>" does not exist`。
+- 标准 `pg` / `postgresql` 接入既有 JDBC 批量子进程通道：连接器用 `org.postgresql.Driver`，驱动版本与库名按数据源配置透传，库名缺省为 `postgres`；首页深采、连接会话、慢查询与大屏指标共用同一轮批量结果，主进程仍不启动 JVM。
+- `connection_factory` 保留 pg 默认库映射，供仍直调该工厂的独立调用方保持一致口径。
+
 ## v26.11.23.0 (2026-11-23)
 
 ### 修复：SQL Server 2008 R2 大屏连接采集报「列名 'database_id' 无效」
