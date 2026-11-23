@@ -3905,3 +3905,9 @@ ZI.update({
   "webui.theme.pearl": "云钛凝霜",
   "webui.theme.violet": "丹霞绯紫"
 })
+
+
+# SSH 配置：Windows 目标机前置条件与默认用户名提示（数据源/巡检共用）
+ZI.update({
+  "webui.ssh_windows_hint": "⚠️ Windows 目标机需先安装并启用 OpenSSH Server（Win10 1809+ / Server 2019+ 自带该可选功能）；SSH 用户名默认是 root，Windows 上请改为实际账户（如 Administrator）。"
+})

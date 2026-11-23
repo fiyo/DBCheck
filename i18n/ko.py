@@ -3527,3 +3527,9 @@ KO.update({
   "webui.theme.pearl": "진주 서리",
   "webui.theme.violet": "단하 자주"
 })
+
+
+# SSH 配置：Windows 目标机前置条件与默认用户名提示（数据源/巡检共用）
+KO.update({
+  "webui.ssh_windows_hint": "⚠️ Windows 대상에는 OpenSSH Server를 설치하고 활성화해야 합니다(Win10 1809+ / Server 2019+ 기본 제공). SSH 사용자 이름 기본값은 root이므로 실제 Windows 계정(예: Administrator)으로 변경하세요."
+})

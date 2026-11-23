@@ -1,5 +1,17 @@
 # Changelog
 
+## v26.11.23.0 (2026-11-23)
+
+### 修复：SQL Server 2008 R2 大屏连接采集报「列名 'database_id' 无效」
+
+- `sys.dm_exec_sessions.database_id` 是 SQL Server 2012+ 才引入的列，2008 R2（10.50.x）引用会抛 Msg 207，导致连接会话采集失败、大屏节点被误判为异常。
+- 连接会话 SQL 改用 `sys.dm_exec_requests.database_id`（2005+ 全版本支持），空闲会话退回 `DB_NAME()`；已核对 JDBC 批量通道 18 条 SQL，无其它版本敏感列。
+
+### 新增：SSH 配置显式提示 Windows 前置条件
+
+- 数据源弹窗、主巡检向导、服务器巡检、DM8 离线巡检四处 SSH 配置区统一提示：Windows 目标机需先安装并启用 OpenSSH Server，SSH 用户名默认 `root` 需改为实际账户（如 Administrator）。
+- 新增 `webui.ssh_windows_hint`，9 种语言全部补齐；数据源弹窗为动态 DOM，改用直接 `i18n()` 拼接保证切语言生效。
+
 ## v26.11.22.1 (2026-11-22)
 
 ### 新增：监控大屏接入 10 套主题

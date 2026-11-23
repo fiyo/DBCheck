@@ -3579,3 +3579,9 @@ JA.update({
   "webui.theme.pearl": "パールフロスト",
   "webui.theme.violet": "丹霞バイオレット"
 })
+
+
+# SSH 配置：Windows 目标机前置条件与默认用户名提示（数据源/巡检共用）
+JA.update({
+  "webui.ssh_windows_hint": "⚠️ Windows 対象には OpenSSH Server のインストールと有効化が必要です（Win10 1809+ / Server 2019+ に標準搭載）。SSH ユーザー名の既定は root なので、実際の Windows アカウント（例: Administrator）に変更してください。"
+})

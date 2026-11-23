@@ -3529,3 +3529,9 @@ DE.update({
   "webui.theme.pearl": "Perl frost",
   "webui.theme.violet": "Zinnober-Violett"
 })
+
+
+# SSH 配置：Windows 目标机前置条件与默认用户名提示（数据源/巡检共用）
+DE.update({
+  "webui.ssh_windows_hint": "⚠️ Windows-Zielsysteme benötigen einen installierten und aktivierten OpenSSH Server (in Win10 1809+ / Server 2019+ enthalten); der SSH-Standardbenutzer ist root — bitte durch ein echtes Windows-Konto ersetzen (z. B. Administrator)."
+})

@@ -3528,3 +3528,9 @@ ES.update({
   "webui.theme.pearl": "Perla escarchada",
   "webui.theme.violet": "Violeta carmesí"
 })
+
+
+# SSH 配置：Windows 目标机前置条件与默认用户名提示（数据源/巡检共用）
+ES.update({
+  "webui.ssh_windows_hint": "⚠️ Los equipos Windows necesitan tener instalado y habilitado OpenSSH Server (incluido en Win10 1809+ / Server 2019+); el usuario SSH por defecto es root: cámbielo por una cuenta Windows real (p. ej. Administrator)."
+})

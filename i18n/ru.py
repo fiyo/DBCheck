@@ -3529,3 +3529,9 @@ RU.update({
   "webui.theme.pearl": "Жемчужный иней",
   "webui.theme.violet": "Пурпурная дымка"
 })
+
+
+# SSH 配置：Windows 目标机前置条件与默认用户名提示（数据源/巡检共用）
+RU.update({
+  "webui.ssh_windows_hint": "⚠️ На целевых Windows-хостах необходимо установить и включить OpenSSH Server (встроен в Win10 1809+ / Server 2019+); имя пользователя SSH по умолчанию — root, замените его на реальную учётную запись Windows (например, Administrator)."
+})

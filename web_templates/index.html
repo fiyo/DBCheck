@@ -7564,6 +7564,7 @@ function formatBytes(bytes) {
                       '<input id="ds-monitor-services" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px" placeholder="留空自动识别数据库服务；支持 * 通配、逗号分隔"></div>' +
                   '</div>' +
                   '<div style="font-size:11px;color:var(--text-muted);margin-top:6px;line-height:1.5;">仅影响服务器信息采集，与数据库连接方式无关。Windows 没有按服务统计 CPU 的原生计数器，此处取服务对应进程的两帧 CPU 时间差分；svchost.exe 等共享宿主进程无法精确拆分，表格会标注「共享」。</div>' +
+                  '<div class="ssh-win-hint" style="margin-top:8px;padding:9px 11px;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.30);border-radius:8px;font-size:11px;color:var(--text-muted);line-height:1.6;">' + (i18n('webui.ssh_windows_hint') || '⚠️ Windows 目标机需先安装并启用 OpenSSH Server（Win10 1809+ / Server 2019+ 自带该可选功能）；SSH 用户名默认是 root，Windows 上请改为实际账户（如 Administrator）。') + '</div>' +
                 '</div>' +
               '</div>' +
             '</div>' +
@@ -9372,6 +9373,7 @@ function wfCloseRunDrawer() {
               <div class="toggle on" id="ebpf-toggle" data-page-node-id="pMIIJB2zGbBqPUlolNnm68"></div>
             </div>
           </div>
+          <div class="ssh-win-hint" style="margin-top:12px;padding:10px 14px;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.30);border-radius:10px;font-size:12px;color:var(--text-muted);line-height:1.6;" data-i18n="webui.ssh_windows_hint">⚠️ Windows 目标机需先安装并启用 OpenSSH Server（Win10 1809+ / Server 2019+ 自带该可选功能）；SSH 用户名默认是 root，Windows 上请改为实际账户（如 Administrator）。</div>
           <div class="ssh-ebpf-hint" style="margin-top:12px;padding:10px 14px;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25);border-radius:10px;font-size:12px;color:var(--text-muted);line-height:1.6;" data-page-node-id="tRkDTThkjy4Zu1eAEGHR5N">
             <span style="color:#0A2A6E;font-weight:600;" data-page-node-id="uENjhcBMStcrlfX7TUTZWb">ℹ️ eBPF 内核级指标说明：</span>
             <span data-i18n="webui.ssh_ebpf_hint" data-page-node-id="hUU2xf9j2bKaHsMjoEfxg3">采集器默认走零依赖 Shell（/proc）方式，目标机无需安装 Python 即可获取 CPU、内存、磁盘等基础宿主指标。</span>
@@ -10642,6 +10644,8 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
             </div>
           </div>
 
+          <div class="ssh-win-hint" style="margin-top:10px;padding:9px 12px;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.30);border-radius:8px;font-size:11px;color:var(--text-muted);line-height:1.6;" data-i18n="webui.ssh_windows_hint">⚠️ Windows 目标机需先安装并启用 OpenSSH Server（Win10 1809+ / Server 2019+ 自带该可选功能）；SSH 用户名默认是 root，Windows 上请改为实际账户（如 Administrator）。</div>
+
           <div id="si-ssh-test-status" style="font-size:12px;margin-top:8px;color:var(--text-muted)" data-page-node-id="Wbd4hs9Qzb7hiEtGT9h7bQ"></div>
 
           <div class="btn-row" style="margin-top:12px" data-page-node-id="t5GYqraB76BqANpqiPcTPH">
@@ -11266,6 +11270,7 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:5003/api/v1/inspect/{task_id}
                 <input id="dm8-ssh-key-password" type="password" placeholder="私钥文件的密码（如果私钥加密）" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--surface);color:var(--text);" data-page-node-id="hKp3QmXwVtRnZbYdNcSeLf">
               </div>
             </div>
+            <div class="ssh-win-hint" style="margin-top:12px;padding:9px 12px;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.30);border-radius:8px;font-size:11px;color:var(--text-muted);line-height:1.6;" data-i18n="webui.ssh_windows_hint">⚠️ Windows 目标机需先安装并启用 OpenSSH Server（Win10 1809+ / Server 2019+ 自带该可选功能）；SSH 用户名默认是 root，Windows 上请改为实际账户（如 Administrator）。</div>
           </div>
 
           <!-- 配置区 -->

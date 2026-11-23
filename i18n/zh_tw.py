@@ -3957,3 +3957,9 @@ ZH_TW.update({
   "webui.theme.pearl": "雲鈦凝霜",
   "webui.theme.violet": "丹霞緋紫"
 })
+
+
+# SSH 配置：Windows 目标机前置条件与默认用户名提示（数据源/巡检共用）
+ZH_TW.update({
+  "webui.ssh_windows_hint": "⚠️ Windows 目標機需先安裝並啟用 OpenSSH Server（Win10 1809+ / Server 2019+ 內建該選用功能）；SSH 使用者名稱預設為 root，Windows 上請改為實際帳號（如 Administrator）。"
+})
