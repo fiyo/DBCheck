@@ -1516,6 +1516,35 @@ We Keep Building.
 
 ---
 
+## Under the Stars, We Keep Going
+
+In China, children with autism are sometimes called "children of the stars." They live among us, yet often perceive the world differently: speaking is hard, connection is hard, and even a small everyday motion can take a long time to learn. They are not unwilling to reach us — they simply need more time, and a little more patience from the world.
+
+Behind almost every one of these children stands a family holding on. A thirty-minute therapy session can mean hours of travel; a tiny step forward is built on countless repetitions. What these families need is not only access to therapy, but understanding, acceptance, and a chance to catch their breath. We often ask how far the child can go, and forget that the person holding their hand has already walked a long way.
+
+I am one of those parents. My son is a child with autism. Every week I take him to therapy, and I sit in the corridor outside the classroom, waiting. In that waiting time, I kept working on RaccoonX.
+
+From DBCheck to RaccoonX, this project has never had a proper development cycle. The laptop sat in the corridor of the therapy center, my phone provided the hotspot, and between sessions I answered an issue or fixed an inspection query. When class ended, I closed the laptop and took him home. After he fell asleep, I opened it again to build and release.
+
+Twenty-two database types, 839 inspection rules — that is an ordinary father holding on in the gaps of an ordinary life.
+
+People ask why I keep building open source. There is no grand reason. If I can do something useful, I try to do it well: save a colleague one late night, catch a problem a little earlier, make a repetitive task a little simpler. Technology cannot solve everything in life, but it can make some things easier.
+
+Life has taught me too: everyone carries something unseen. We only ever see a small part of someone else's life, so judge less and understand more.
+
+So I want to use RaccoonX to ask one small thing: **please pay attention to children with autism, and to the families behind them.** A patient wait, a kind word, a welcoming glance can spare a family one awkward moment and give them a little warmth. I also hope society offers these families more practical support: easier access to therapy, room for caregivers to rest, and space for every child to grow at their own pace.
+
+RaccoonX will remain open source under the Apache License 2.0, and the community edition stays free and open source. Thank you to everyone who starred the repo, filed an issue, contributed code, or simply used it — you made a solitary effort feel shared.
+
+Some problems do not yield to urgency, and some roads have no shortcut. My son is growing, and so is the code.
+
+**May every star be seen.**
+**May every family guarding a star be understood, and never have to walk alone.**
+
+— Jack Ge, Creator and Maintainer of RaccoonX
+
+---
+
 **Author:** [Jack Ge](https://github.com/fiyo)
 **Project:** RaccoonX — formerly DBCheck
 **Website:** https://raccoonx.cn/
