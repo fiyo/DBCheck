@@ -187,13 +187,23 @@
             letter-spacing: -1px;
             color: #fff;
         }
+        /* X 与首页品牌区同色（#00b093） */
+        .brand-name .brand-x { color: #00b093; }
+        /* 中文全称：品牌名不翻译，始终展示，强化记忆 */
+        .brand-full-name {
+            font-size: 17px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            color: #fff;
+            margin: 2px 0 12px;
+        }
 
         /* Slogan */
         .brand-slogan {
-            font-size: 14px;
+            font-size: 13px;
             color: rgba(255,255,255,0.75);
             letter-spacing: 1px;
-            margin-bottom: 36px;
+            margin-bottom: 24px;
         }
 
         /* 特性亮点 */
@@ -983,8 +993,11 @@
                 <div class="brand-logo-row">
                     <img src="/dbcheck_logo_icon.png" class="brand-logo" alt="{{ product_name }} Logo"
                          onerror="this.style.display='none'">
-                    <span class="brand-name" data-i18n="login.title">{{ product_name }}</span>
+                    <span class="brand-name">Raccoon<span class="brand-x">X</span></span>
                 </div>
+
+                <!-- 中文全称（品牌名不翻译，强化记忆） -->
+                <div class="brand-full-name">{{ product_full_name_zh }}</div>
 
                 <!-- Slogan -->
                 <div class="brand-slogan" data-i18n="login.slogan">让数据库运维 可知 · 可控 · 可防</div>
@@ -1016,6 +1029,15 @@
                         <div class="feature-text">
                             <div class="feature-title" data-i18n="login.feature_3">实时监控</div>
                             <div class="feature-desc" data-i18n="login.feature_3_desc">慢查询与连接实时追踪</div>
+                        </div>
+                    </div>
+                    <div class="feature-item">
+                        <div class="feature-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/><path d="M6 12l3-3 3 3 5-5"/></svg>
+                        </div>
+                        <div class="feature-text">
+                            <div class="feature-title" data-i18n="login.feature_4">监控大屏</div>
+                            <div class="feature-desc" data-i18n="login.feature_4_desc">多数据源指标一屏统览</div>
                         </div>
                     </div>
                 </div>

@@ -3954,3 +3954,9 @@ ZI.update({
   "webui.card_download": "下载图片",
   "webui.card_close": "关闭"
 })
+
+# 登录页：第 4 条特性（监控大屏）
+ZI.update({
+  "login.feature_4": "监控大屏",
+  "login.feature_4_desc": "多数据源指标一屏统览"
+})

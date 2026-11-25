@@ -3576,3 +3576,9 @@ KO.update({
   "webui.card_download": "이미지 저장",
   "webui.card_close": "닫기"
 })
+
+# 登录页：第 4 条特性（监控大屏）
+KO.update({
+  "login.feature_4": "모니터링 대시보드",
+  "login.feature_4_desc": "여러 데이터소스 지표를 한 화면에서 조회"
+})

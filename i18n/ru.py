@@ -3578,3 +3578,9 @@ RU.update({
   "webui.card_download": "Скачать изображение",
   "webui.card_close": "Закрыть"
 })
+
+# 登录页：第 4 条特性（监控大屏）
+RU.update({
+  "login.feature_4": "Панель мониторинга",
+  "login.feature_4_desc": "Метрики всех источников на одном экране"
+})

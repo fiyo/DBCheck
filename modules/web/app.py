@@ -61,7 +61,8 @@ paths.ensure_migrated()
 
 from flask import Flask, request, jsonify, render_template, Response, send_file, make_response, session
 from modules.config.version import __version__, EDITION
-from modules.core.brand import PRODUCT_NAME_EN, PRODUCT_NAME_ZH, PRODUCT_FULL_NAME, PRODUCT_TAGLINE_EN
+from modules.core.brand import (PRODUCT_NAME_EN, PRODUCT_NAME_ZH, PRODUCT_FULL_NAME,
+                                PRODUCT_FULL_NAME_ZH, PRODUCT_TAGLINE_EN)
 from flask_socketio import SocketIO, emit, join_room, leave_room
 import socket
 from i18n import t as _t
@@ -903,6 +904,7 @@ try:
                                    product_name=PRODUCT_NAME_EN,
                                    product_name_zh=PRODUCT_NAME_ZH,
                                    product_full_name=PRODUCT_FULL_NAME,
+                                   product_full_name_zh=PRODUCT_FULL_NAME_ZH,
                                    product_tagline=PRODUCT_TAGLINE_EN))
         # 禁止缓存登录页，避免浏览器复用旧模板导致登录回跳循环
         resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'

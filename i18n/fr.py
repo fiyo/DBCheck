@@ -3578,3 +3578,9 @@ FR.update({
   "webui.card_download": "Télécharger l'image",
   "webui.card_close": "Fermer"
 })
+
+# 登录页：第 4 条特性（监控大屏）
+FR.update({
+  "login.feature_4": "Tableau de bord",
+  "login.feature_4_desc": "Toutes les métriques des sources sur un écran"
+})

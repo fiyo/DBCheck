@@ -14,5 +14,7 @@ PRODUCT_NAME_EN = "RaccoonX"
 PRODUCT_NAME_ZH = "浣巡"
 # 完整品牌名（中英文组合）
 PRODUCT_FULL_NAME = "浣巡（RaccoonX）智能巡检平台"
+# 完整中文名（登录页品牌区展示；简称仍为「浣巡」，二者并行不冲突）
+PRODUCT_FULL_NAME_ZH = "小浣熊智能数据库巡检平台"
 # 英文标语（与标题搭配：RaccoonX · Database Inspector）
 PRODUCT_TAGLINE_EN = "Database Inspector"

@@ -3628,3 +3628,9 @@ JA.update({
   "webui.card_download": "画像を保存",
   "webui.card_close": "閉じる"
 })
+
+# 登录页：第 4 条特性（监控大屏）
+JA.update({
+  "login.feature_4": "監視ダッシュボード",
+  "login.feature_4_desc": "複数データソースの指標を一画面で把握"
+})

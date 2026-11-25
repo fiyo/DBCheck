@@ -3577,3 +3577,9 @@ ES.update({
   "webui.card_download": "Descargar imagen",
   "webui.card_close": "Cerrar"
 })
+
+# 登录页：第 4 条特性（监控大屏）
+ES.update({
+  "login.feature_4": "Panel de monitoreo",
+  "login.feature_4_desc": "Métricas de todas las fuentes en una pantalla"
+})

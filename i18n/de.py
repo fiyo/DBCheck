@@ -3578,3 +3578,9 @@ DE.update({
   "webui.card_download": "Bild herunterladen",
   "webui.card_close": "Schließen"
 })
+
+# 登录页：第 4 条特性（监控大屏）
+DE.update({
+  "login.feature_4": "Monitoring-Dashboard",
+  "login.feature_4_desc": "Alle Datenquellen-Metriken auf einem Bildschirm"
+})

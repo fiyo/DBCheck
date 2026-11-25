@@ -3953,3 +3953,9 @@ EN.update({
   "webui.card_download": "Download image",
   "webui.card_close": "Close"
 })
+
+# 登录页：第 4 条特性（监控大屏）
+EN.update({
+  "login.feature_4": "Monitor Wall",
+  "login.feature_4_desc": "All datasource metrics on one screen"
+})
