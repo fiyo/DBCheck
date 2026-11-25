@@ -3535,3 +3535,46 @@ DE.update({
 DE.update({
   "webui.ssh_windows_hint": "⚠️ Windows-Zielsysteme benötigen einen installierten und aktivierten OpenSSH Server (in Win10 1809+ / Server 2019+ enthalten); der SSH-Standardbenutzer ist root — bitte durch ein echtes Windows-Konto ersetzen (z. B. Administrator)."
 })
+
+
+# 首页趣味层：常驻氛围 / 连续与成就 / 吉祥物成长 / 冷知识 / 战绩卡
+DE.update({
+  "webui.ambient_on": "Effekt an",
+  "webui.ambient_off": "Effekt aus",
+  "webui.share_card": "Erfolgskarte",
+  "webui.streak_current": "Serie ",
+  "webui.streak_best": "Bestwert",
+  "webui.streak_unit": "Tage",
+  "webui.badge_first": "Erste",
+  "webui.badge_first_tip": "Mindestens eine Prüfung abgeschlossen",
+  "webui.badge_week": "Sieben Tage",
+  "webui.badge_week_tip": "7 Tage in Folge prüfen",
+  "webui.badge_five": "Fünf Systeme",
+  "webui.badge_five_tip": "5 Datenbanktypen abdecken",
+  "webui.badge_mine": "Risiken",
+  "webui.badge_mine_tip": "10 Risiken gefunden",
+  "webui.badge_perfect": "Perfekt",
+  "webui.badge_perfect_tip": "Mindestens einmal 100 erreicht",
+  "webui.level_1": "Waschbär-Junges",
+  "webui.level_2": "Nacht-Lehrling",
+  "webui.level_3": "Nacht-Wächter",
+  "webui.level_4": "Daten-Wächter",
+  "webui.level_5": "Waschbär-Legende",
+  "webui.level_hint": "Prüfungen gesamt ",
+  "webui.level_total": " Mal",
+  "webui.level_next": " bis nächste Stufe ",
+  "webui.funfact_next": "Noch ein Fakt",
+  "webui.card_title": "Nachtprotokoll",
+  "webui.card_runs": "Prüfungen diesen Monat",
+  "webui.card_types": "DB-Typen",
+  "webui.card_risk": "Gefundene Risiken",
+  "webui.card_avg": "Ø Gesundheit",
+  "webui.card_footer": "Entdecke wie ein Waschbär, was sich im Dunkeln verbirgt"
+})
+
+
+# 战绩卡预览：下载与关闭
+DE.update({
+  "webui.card_download": "Bild herunterladen",
+  "webui.card_close": "Schließen"
+})

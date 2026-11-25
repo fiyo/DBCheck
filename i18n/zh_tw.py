@@ -3963,3 +3963,46 @@ ZH_TW.update({
 ZH_TW.update({
   "webui.ssh_windows_hint": "⚠️ Windows 目標機需先安裝並啟用 OpenSSH Server（Win10 1809+ / Server 2019+ 內建該選用功能）；SSH 使用者名稱預設為 root，Windows 上請改為實際帳號（如 Administrator）。"
 })
+
+
+# 首页趣味层：常驻氛围 / 连续与成就 / 吉祥物成长 / 冷知识 / 战绩卡
+ZH_TW.update({
+  "webui.ambient_on": "氛圍 開",
+  "webui.ambient_off": "氛圍 關",
+  "webui.share_card": "戰績卡",
+  "webui.streak_current": "連續 ",
+  "webui.streak_best": "最長",
+  "webui.streak_unit": "天",
+  "webui.badge_first": "首巡",
+  "webui.badge_first_tip": "完成至少一次巡檢",
+  "webui.badge_week": "七日",
+  "webui.badge_week_tip": "連續巡檢達到 7 天",
+  "webui.badge_five": "五庫",
+  "webui.badge_five_tip": "巡檢覆蓋 5 種資料庫類型",
+  "webui.badge_mine": "排雷",
+  "webui.badge_mine_tip": "累計發現 10 個風險項",
+  "webui.badge_perfect": "滿分",
+  "webui.badge_perfect_tip": "拿過一次 100 分健康巡檢",
+  "webui.level_1": "浣熊幼崽",
+  "webui.level_2": "夜巡學徒",
+  "webui.level_3": "浣巡旅長",
+  "webui.level_4": "數據巡長",
+  "webui.level_5": "浣巡傳說",
+  "webui.level_hint": "累計巡檢 ",
+  "webui.level_total": " 次",
+  "webui.level_next": "距下一級 ",
+  "webui.funfact_next": "換一條",
+  "webui.card_title": "浣巡夜行日誌",
+  "webui.card_runs": "本月巡檢次數",
+  "webui.card_types": "覆蓋庫型",
+  "webui.card_risk": "發現風險",
+  "webui.card_avg": "平均健康分",
+  "webui.card_footer": "像浣熊一樣夜行探索，讓隱藏的問題無所遁形"
+})
+
+
+# 战绩卡预览：下载与关闭
+ZH_TW.update({
+  "webui.card_download": "下載圖片",
+  "webui.card_close": "關閉"
+})

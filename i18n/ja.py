@@ -3585,3 +3585,46 @@ JA.update({
 JA.update({
   "webui.ssh_windows_hint": "⚠️ Windows 対象には OpenSSH Server のインストールと有効化が必要です（Win10 1809+ / Server 2019+ に標準搭載）。SSH ユーザー名の既定は root なので、実際の Windows アカウント（例: Administrator）に変更してください。"
 })
+
+
+# 首页趣味层：常驻氛围 / 连续与成就 / 吉祥物成长 / 冷知识 / 战绩卡
+JA.update({
+  "webui.ambient_on": "演出 オン",
+  "webui.ambient_off": "演出 オフ",
+  "webui.share_card": "戦績カード",
+  "webui.streak_current": "連続 ",
+  "webui.streak_best": "最長",
+  "webui.streak_unit": "日",
+  "webui.badge_first": "初回",
+  "webui.badge_first_tip": "検査を1回以上完了",
+  "webui.badge_week": "七日",
+  "webui.badge_week_tip": "7日連続で検査",
+  "webui.badge_five": "5種",
+  "webui.badge_five_tip": "5種類のDBをカバー",
+  "webui.badge_mine": "リスク発見",
+  "webui.badge_mine_tip": "リスク項目を10件発見",
+  "webui.badge_perfect": "満点",
+  "webui.badge_perfect_tip": "健康スコア100を1回達成",
+  "webui.level_1": "浣熊の子",
+  "webui.level_2": "夜巡見習い",
+  "webui.level_3": "夜巡旅長",
+  "webui.level_4": "データ管理者",
+  "webui.level_5": "浣熊伝説",
+  "webui.level_hint": "累計検査 ",
+  "webui.level_total": "回",
+  "webui.level_next": "次のレベルまで ",
+  "webui.funfact_next": "別の話",
+  "webui.card_title": "夜行ログ",
+  "webui.card_runs": "今月の検査回数",
+  "webui.card_types": "対象DB種別",
+  "webui.card_risk": "発見リスク",
+  "webui.card_avg": "平均健康スコア",
+  "webui.card_footer": "浣熊のように夜を探索し、隠れた問題を見つけ出す"
+})
+
+
+# 战绩卡预览：下载与关闭
+JA.update({
+  "webui.card_download": "画像を保存",
+  "webui.card_close": "閉じる"
+})

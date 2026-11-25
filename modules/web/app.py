@@ -4921,6 +4921,18 @@ def plugin_logo(db_type):
     return '', 404
 
 
+@app.route('/db_logos/<filename>')
+def db_logo_file(filename):
+    """首页库标雨：从 assets/db_logos 提供真实数据库图标，文件名白名单防目录穿越。"""
+    safe = os.path.basename(str(filename))
+    if not re.fullmatch(r'[A-Za-z0-9_-]+\.(png|jpg|jpeg)', safe):
+        return '', 404
+    fp = os.path.join(str(PROJECT_ROOT), 'assets', 'db_logos', safe)
+    if not os.path.isfile(fp):
+        return '', 404
+    return send_file(fp)
+
+
 @app.route('/api/start_inspection', methods=['POST'])
 def api_start_inspection():
     try:

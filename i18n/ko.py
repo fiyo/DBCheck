@@ -3533,3 +3533,46 @@ KO.update({
 KO.update({
   "webui.ssh_windows_hint": "⚠️ Windows 대상에는 OpenSSH Server를 설치하고 활성화해야 합니다(Win10 1809+ / Server 2019+ 기본 제공). SSH 사용자 이름 기본값은 root이므로 실제 Windows 계정(예: Administrator)으로 변경하세요."
 })
+
+
+# 首页趣味层：常驻氛围 / 连续与成就 / 吉祥物成长 / 冷知识 / 战绩卡
+KO.update({
+  "webui.ambient_on": "효과 켜기",
+  "webui.ambient_off": "효과 끄기",
+  "webui.share_card": "전적 카드",
+  "webui.streak_current": "연속 ",
+  "webui.streak_best": "최장",
+  "webui.streak_unit": "일",
+  "webui.badge_first": "첫 점검",
+  "webui.badge_first_tip": "점검 1회 이상 완료",
+  "webui.badge_week": "7일",
+  "webui.badge_week_tip": "7일 연속 점검",
+  "webui.badge_five": "5종",
+  "webui.badge_five_tip": "DB 5종류 이상 점검",
+  "webui.badge_mine": "위험 발견",
+  "webui.badge_mine_tip": "위험 항목 10건 발견",
+  "webui.badge_perfect": "만점",
+  "webui.badge_perfect_tip": "건강 점수 100 달성",
+  "webui.level_1": "너구리 새끼",
+  "webui.level_2": "야간 견습",
+  "webui.level_3": "야간 순찰장",
+  "webui.level_4": "데이터 관리자",
+  "webui.level_5": "너구리 전설",
+  "webui.level_hint": "누적 점검 ",
+  "webui.level_total": "회",
+  "webui.level_next": "다음 단계까지 ",
+  "webui.funfact_next": "다른 이야기",
+  "webui.card_title": "야간 순찰 일지",
+  "webui.card_runs": "이번 달 점검 횟수",
+  "webui.card_types": "대상 DB 종류",
+  "webui.card_risk": "발견 위험",
+  "webui.card_avg": "평균 건강 점수",
+  "webui.card_footer": "너구리처럼 밤을 탐색해 숨은 문제를 찾아내자"
+})
+
+
+# 战绩卡预览：下载与关闭
+KO.update({
+  "webui.card_download": "이미지 저장",
+  "webui.card_close": "닫기"
+})

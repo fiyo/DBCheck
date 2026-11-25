@@ -4203,14 +4203,15 @@ async function executeFixSql(taskId, sql) {
 .cal-months {
   display: grid;
   grid-template-columns: repeat(53, 10px);
+  grid-template-rows: 13px 13px;
   gap: 3px;
   margin-left: 26px;
   margin-bottom: 4px;
-  height: 14px;
+  height: 29px;
   font-size: 11px;
   color: var(--text-muted);
 }
-.cal-months span { white-space: nowrap; grid-row: 1; }
+.cal-months span { white-space: nowrap; line-height: 13px; }
 .cal-main { display: flex; gap: 4px; }
 .cal-weekdays {
   display: grid;
@@ -4339,6 +4340,95 @@ async function executeFixSql(taskId, sql) {
   }
   .cal-hint { display: none; }
   .hero-mascot { display: none; }
+}
+/* ─── 常驻趣味层：数据源库标雨 / 连续天数 / 成就 / 吉祥物成长 ─── */
+@keyframes dsFloat {
+  0%   { transform: translate3d(0,0,0) rotate(0deg); opacity: 0; }
+  12%  { opacity: .58; }
+  88%  { opacity: .58; }
+  100% { transform: translate3d(0,-170px,0) rotate(32deg); opacity: 0; }
+}
+.ds-emoji {
+  position: absolute; bottom: -28px; z-index: 2; pointer-events: none;
+  opacity: 0; will-change: transform, opacity;
+  animation-name: dsFloat; animation-timing-function: linear; animation-iteration-count: infinite;
+}
+.ds-emoji .ds-logo {
+  display: block; object-fit: contain;
+  filter: drop-shadow(0 2px 5px rgba(0,176,147,.45));
+}
+.mascot-level {
+  position: absolute; right: 14px; top: 2px; z-index: 4;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 3px;
+}
+.mascot-level-name {
+  font-size: 11px; color: var(--text-muted); white-space: nowrap;
+  border: 1px solid var(--border); border-radius: 999px;
+  padding: 2px 8px; background: var(--surface2);
+}
+.mascot-level[data-level="3"] .mascot-level-name::before { content: "✦ "; color: #378add; }
+.mascot-level[data-level="4"] .mascot-level-name::before { content: "◆ "; color: #ba7517; }
+.mascot-level[data-level="5"] .mascot-level-name::before { content: "★ "; color: #d4537e; }
+.mascot-level-bar { width: 72px; height: 3px; border-radius: 2px; background: var(--border); overflow: hidden; }
+.mascot-level-bar i { display: block; height: 100%; background: var(--accent); }
+.home-hero[data-level="2"] .hero-mascot { filter: drop-shadow(0 0 7px rgba(0,176,147,.5)); }
+.home-hero[data-level="3"] .hero-mascot { filter: drop-shadow(0 0 9px rgba(85,180,255,.65)); }
+.home-hero[data-level="4"] .hero-mascot { filter: drop-shadow(0 0 11px rgba(186,117,23,.72)); }
+.home-hero[data-level="5"] .hero-mascot { filter: drop-shadow(0 0 14px rgba(211,83,126,.82)); }
+.hero-funfact {
+  position: absolute; left: 28px; bottom: 7px; z-index: 4;
+  display: none; align-items: center; gap: 8px; max-width: calc(100% - 190px);
+  font-size: 11px; color: var(--text-muted);
+  border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface2); padding: 3px 10px;
+}
+.hero-funfact.show { display: inline-flex; }
+.hero-funfact button {
+  border: none; background: transparent; color: var(--accent);
+  cursor: pointer; font-size: 11px; padding: 0; white-space: nowrap;
+}
+.cal-achievements { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin: -2px 0 10px; }
+.streak-chip {
+  font-size: 11px; color: #276032; background: rgba(46,160,67,.14);
+  border-radius: 999px; padding: 3px 9px;
+}
+.badge-chip {
+  font-size: 11px; border-radius: 999px; padding: 3px 9px;
+  border: 1px solid var(--border); color: var(--text-muted);
+  background: var(--surface2); cursor: default;
+}
+.badge-chip.earned { color: var(--accent); border-color: var(--accent); background: rgba(0,176,147,.1); }
+.badge-prog { font-size: 10px; opacity: .78; margin-left: 4px; }
+.cal-tool-btn {
+  font-size: 11px; color: var(--text-muted); background: var(--surface2);
+  border: 1px solid var(--border); border-radius: 999px; padding: 3px 9px; cursor: pointer;
+}
+.cal-tool-btn:hover { color: var(--accent); border-color: var(--accent); }
+.share-card-modal {
+  position: fixed; inset: 0; z-index: 9999;
+  display: none; align-items: center; justify-content: center;
+  background: rgba(0,0,0,.5); padding: 24px;
+}
+.share-card-modal.show { display: flex; }
+.share-card-body {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+  padding: 16px; max-width: 90vw; max-height: 90vh;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+}
+.share-card-body img {
+  max-width: 100%; max-height: 72vh; object-fit: contain;
+  border: 1px solid rgba(15,32,46,.12); border-radius: 14px;
+  box-shadow: 0 18px 48px rgba(0,0,0,.22); background: #fff;
+}
+.share-card-actions { display: flex; gap: 10px; }
+.share-card-actions button {
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 8px 18px; font-size: 13px; cursor: pointer;
+  background: var(--surface2); color: var(--text);
+}
+.share-card-actions button.primary { background: var(--accent2); color: #fff; border-color: transparent; }
+@media (max-width: 900px) {
+  .mascot-level { display: none; }
 }
 /* ─── 生日彩蛋（每年 11 月生日月专属）─── */
 @keyframes bday-badge-glow {
@@ -8751,6 +8841,15 @@ function wfCloseRunDrawer() {
               </button>
             </div>
           </div>
+          <div class="mascot-level" id="mascot-level" data-level="1">
+            <span class="mascot-level-name" id="mascot-level-name">Lv.1 浣熊幼崽</span>
+            <span class="mascot-level-bar"><i id="mascot-level-progress" style="width:0%"></i></span>
+          </div>
+          <div class="hero-funfact" id="hero-funfact">
+            <span id="hero-funfact-text"></span>
+            <button type="button" id="hero-funfact-next" data-i18n="webui.funfact_next">换一条</button>
+            <button type="button" id="hero-funfact-close" aria-label="关闭">×</button>
+          </div>
           <img class="hero-mascot" id="hero-mascot-img" src="/raccoonx_alpha.gif" alt="{{ product_name }} Mascot" data-page-node-id="zkQuXxe4J7Tpd3UTdxQJvd">
         </section>
 
@@ -8764,8 +8863,11 @@ function wfCloseRunDrawer() {
             <div class="cal-head-right">
               <span class="cal-hint" data-i18n="webui.home_cal_hint">按当日最差健康评分着色</span>
               <span class="cal-hint cal-hint-link" data-i18n="webui.home_cal_click_hint">点击格子查看当天巡检报告</span>
+              <button type="button" class="cal-tool-btn" id="ambient-toggle" aria-pressed="true" data-i18n="webui.ambient_on">氛围 开</button>
+              <button type="button" class="cal-tool-btn" id="share-card-btn" data-i18n="webui.share_card">战绩卡</button>
             </div>
           </div>
+          <div class="cal-achievements" id="cal-achievements"></div>
           <div class="cal-body">
             <div class="cal-left">
               <div class="cal-scroll">
@@ -23174,16 +23276,30 @@ function renderInspectionCalendar(data) {
   if (monthNames.length !== 12) {
     monthNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
   }
-  let monthHtml = '';
-  let lastMonth = -1;
+  // 收集每个月的起止列：窗口起点常落在某月最后几天，首月只剩 1 周时若照标，
+  // 会与紧邻的下一月标签重叠（如「11月12月」）。跨度不足两周的首月直接省略；
+  // 其余标签若相邻不足 4 列（标签本身约占 2~3 列），交替放到第二行。
+  const monthTags = [];
+  let lastMonth = -1, lastStart = 0;
   for (let w = 0; w < CAL_WEEKS; w++) {
     const mid = new Date(start);
     mid.setDate(start.getDate() + w * 7 + 3);
     if (mid.getMonth() !== lastMonth) {
+      if (lastMonth >= 0) monthTags.push({ w: lastStart, month: lastMonth, span: w - lastStart });
       lastMonth = mid.getMonth();
-      monthHtml += '<span style="grid-column:' + (w + 1) + '">' + calEsc(monthNames[lastMonth]) + '</span>';
+      lastStart = w;
     }
   }
+  if (lastMonth >= 0) monthTags.push({ w: lastStart, month: lastMonth, span: CAL_WEEKS - lastStart });
+  let monthHtml = '';
+  const rowLast = [-99, -99];
+  monthTags.forEach(function (tag, idx) {
+    if (idx === 0 && tag.span < 2) return;
+    let row = tag.w - rowLast[0] >= 4 ? 0 : 1;
+    rowLast[row] = tag.w;
+    monthHtml += '<span style="grid-column:' + (tag.w + 1) + ';grid-row:' + (row + 1) + '">' +
+      calEsc(monthNames[tag.month]) + '</span>';
+  });
   if (monthsEl) monthsEl.innerHTML = monthHtml;
 
   const weekLabels = calText('webui.home_cal_weekdays').split(',');
@@ -30387,6 +30503,518 @@ document.addEventListener('keydown', function(e) {
   }
   if (document.readyState !== 'loading') initBday();
   else document.addEventListener('DOMContentLoaded', initBday);
+})();
+</script>
+
+<!-- 月度战绩卡预览：自动生成后先展示，按需下载 -->
+<div class="share-card-modal" id="share-card-modal" aria-hidden="true">
+  <div class="share-card-body">
+    <img id="share-card-preview" alt="浣巡夜行日志">
+    <div class="share-card-actions">
+      <button type="button" class="primary" id="share-card-download" data-i18n="webui.card_download">下载图片</button>
+      <button type="button" id="share-card-close" data-i18n="webui.card_close">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 常驻趣味层：数据源库标雨 / 成就 / 吉祥物成长 / 冷知识 / 月度战绩卡 -->
+<script>
+(function () {
+  'use strict';
+  var LS_AMBIENT = 'dbcheck-ambient';
+  var _lastCal = null;
+  var reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+  function T(k, fallback) {
+    try { return (typeof i18n === 'function' && i18n(k)) || fallback; } catch (e) { return fallback; }
+  }
+  function dateKey(d) {
+    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+  }
+  function parseDay(s) {
+    var p = String(s || '').split('-');
+    return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+  }
+
+  // ── 1. 常驻上飘层：按已配置数据源类型生成库标 ──
+  function ambientEnabled() {
+    try { return localStorage.getItem(LS_AMBIENT) !== 'off'; } catch (e) { return true; }
+  }
+  function clearAmbient() {
+    var hero = document.getElementById('home-hero');
+    if (!hero) return;
+    Array.prototype.forEach.call(hero.querySelectorAll('.ds-emoji'), function (n) { n.remove(); });
+  }
+  // db_type → assets/db_logos 文件名；缺图标的发行版沿用同族图标，实在没有才回退 emoji。
+  var DB_LOGO_FILES = {
+    mysql: 'mysql.png', mariadb: 'mysql.png', tdsqlc_mysql: 'mysql.png',
+    oceanbase: 'oceanbase.png', pg: 'pg.png', postgresql: 'pg.png',
+    oracle: 'oracle.png', dm: 'dm.png', dm8: 'dm8.png',
+    sqlserver: 'sqlserver.png', tidb: 'tidb.png', ivorysql: 'ivorysql.png',
+    yashandb: 'yashandb.png', kingbase: 'kingbase.png', gbase: 'gbase.png',
+    clickhouse: 'clickhouse.png', db2: 'db2.png', hgdb: 'hgdb.png',
+    highgo: 'highgo-logo-en.png', uxdb: 'uxdb.png', redis: 'redis.png',
+    mongodb: 'mongodb.png', vastbase: 'pg.png', opengauss: 'pg.png',
+    greenplum: 'pg.png'
+  };
+  function spawnDataSourceIcons() {
+    clearAmbient();
+    var hero = document.getElementById('home-hero');
+    if (!hero || reduced || !ambientEnabled()) return;
+    fetch('/api/pro/datasources').then(function (r) { return r.json(); }).then(function (d) {
+      var list = (d && d.ok && d.datasources) ? d.datasources : [];
+      var types = [];
+      list.forEach(function (ds) {
+        var t = String((ds && ds.db_type) || '').replace(/_jdbc$/, '');
+        if (t && types.indexOf(t) < 0) types.push(t);
+      });
+      if (!types.length) types = ['pg', 'mysql', 'oracle', 'sqlserver', 'redis'];
+      var icons = window.DB_ICONS || {};
+      var count = (new Date().getMonth() === 10) ? 6 : 10;
+      for (var i = 0; i < count; i++) {
+        var t = types[i % types.length];
+        var norm = t.replace(/_jdbc$/, '');
+        var file = DB_LOGO_FILES[norm];
+        var s = document.createElement('span');
+        s.className = 'ds-emoji';
+        var fs = (15 + Math.random() * 10).toFixed(0);
+        s.style.left = (6 + Math.random() * 88).toFixed(2) + '%';
+        s.style.fontSize = fs + 'px';
+        s.style.animationDuration = (4 + Math.random() * 4).toFixed(2) + 's';
+        s.style.animationDelay = (Math.random() * 6).toFixed(2) + 's';
+        if (file) {
+          var img = document.createElement('img');
+          img.className = 'ds-logo';
+          img.src = '/db_logos/' + file;
+          img.alt = '';
+          img.style.width = img.style.height = fs + 'px';
+          img.onerror = function () {
+            var host = this.parentNode;
+            if (host) host.textContent = icons[norm] || icons[t] || icons[t + '_jdbc'] || '🗄️';
+          };
+          s.appendChild(img);
+        } else {
+          s.textContent = icons[t] || icons[t + '_jdbc'] || '🗄️';
+        }
+        hero.appendChild(s);
+      }
+    }).catch(function () {});
+  }
+  var ambBtn = document.getElementById('ambient-toggle');
+  function syncAmbBtn() {
+    if (!ambBtn) return;
+    var on = ambientEnabled();
+    ambBtn.textContent = T(on ? 'webui.ambient_on' : 'webui.ambient_off', on ? '氛围 开' : '氛围 关');
+    ambBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+  if (ambBtn) {
+    syncAmbBtn();
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', syncAmbBtn);
+    ambBtn.addEventListener('click', function () {
+      var on = ambientEnabled();
+      try { localStorage.setItem(LS_AMBIENT, on ? 'off' : 'on'); } catch (e) {}
+      syncAmbBtn();
+      if (on) clearAmbient(); else spawnDataSourceIcons();
+    });
+  }
+
+  // ── 2. 连续天数 / 最长纪录 / 五枚成就 ──
+  function computeStreaks(items) {
+    var set = {};
+    items.forEach(function (it) { if (it && it.date) set[it.date] = it; });
+    var cursor = new Date(); cursor.setHours(0, 0, 0, 0);
+    if (!set[dateKey(cursor)]) cursor.setDate(cursor.getDate() - 1);
+    var current = 0;
+    while (set[dateKey(cursor)]) { current++; cursor.setDate(cursor.getDate() - 1); }
+    var best = 0, run = 0, prev = null;
+    Object.keys(set).sort().forEach(function (k) {
+      run = (prev && Math.round((parseDay(k) - parseDay(prev)) / 86400000) === 1) ? run + 1 : 1;
+      if (run > best) best = run;
+      prev = k;
+    });
+    return { current: current, best: best };
+  }
+  var BADGES = [
+    { key: 'webui.badge_first', tip: 'webui.badge_first_tip', label: '首巡', hint: '完成至少一次巡检' },
+    { key: 'webui.badge_week', tip: 'webui.badge_week_tip', label: '七日', hint: '连续巡检达到 7 天' },
+    { key: 'webui.badge_five', tip: 'webui.badge_five_tip', label: '五库', hint: '巡检覆盖 5 种数据库类型' },
+    { key: 'webui.badge_mine', tip: 'webui.badge_mine_tip', label: '排雷', hint: '累计发现 10 个风险项' },
+    { key: 'webui.badge_perfect', tip: 'webui.badge_perfect_tip', label: '满分', hint: '拿过一次 100 分健康巡检' }
+  ];
+  var LEVELS = [
+    { key: 'webui.level_1', name: '浣熊幼崽', min: 0 },
+    { key: 'webui.level_2', name: '夜巡学徒', min: 10 },
+    { key: 'webui.level_3', name: '浣巡旅长', min: 50 },
+    { key: 'webui.level_4', name: '数据巡长', min: 200 },
+    { key: 'webui.level_5', name: '浣巡传说', min: 1000 }
+  ];
+  function updateMascotLevel(total) {
+    var box = document.getElementById('mascot-level');
+    var hero = document.getElementById('home-hero');
+    if (!box) return;
+    var n = Number(total) || 0, idx = 0;
+    for (var i = 0; i < LEVELS.length; i++) if (n >= LEVELS[i].min) idx = i;
+    var lv = LEVELS[idx], next = LEVELS[idx + 1];
+    var nameEl = document.getElementById('mascot-level-name');
+    var barEl = document.getElementById('mascot-level-progress');
+    if (nameEl) nameEl.textContent = 'Lv.' + (idx + 1) + ' ' + T(lv.key, lv.name);
+    if (barEl) barEl.style.width = (next ? Math.max(4, Math.round((n - lv.min) / (next.min - lv.min) * 100)) : 100) + '%';
+    box.setAttribute('data-level', String(idx + 1));
+    if (hero) hero.setAttribute('data-level', String(idx + 1));
+    box.title = T('webui.level_hint', '累计巡检 ') + n + T('webui.level_total', ' 次') +
+      (next ? (' · ' + T('webui.level_next', '距下一级 ') + (next.min - n) + T('webui.level_total', ' 次')) : '');
+  }
+  function renderAchievements(data) {
+    var box = document.getElementById('cal-achievements');
+    if (!box) return;
+    var items = (data && Array.isArray(data.items)) ? data.items : [];
+    var total = (data && data.total_inspections != null) ? data.total_inspections
+      : items.reduce(function (a, b) { return a + (Number(b.count) || 0); }, 0);
+    var st = computeStreaks(items);
+    var types = {}, risks = 0, perfect = false;
+    items.forEach(function (it) {
+      if (it && it.worst_db_type) types[String(it.worst_db_type).replace(/_jdbc$/, '')] = 1;
+      risks += Number(it && it.risk_count) || 0;
+      if (Number(it && it.min_score) >= 100) perfect = true;
+    });
+    var nTypes = Object.keys(types).length;
+    var got = [Number(total) >= 1, st.best >= 7, nTypes >= 5, risks >= 10, perfect];
+    var progress = [
+      Number(total) + T('webui.level_total', ' 次'),
+      st.best + '/7',
+      nTypes + '/5',
+      risks + '/10',
+      perfect ? '✓' : '—'
+    ];
+    var html = '<span class="streak-chip" title="' + T('webui.streak_current', '连续 ') + T('webui.streak_unit', '天') +
+      '=' + st.current + ' · ' + T('webui.streak_best', '最长纪录') + '=' + st.best + ' ' + T('webui.streak_unit', '天') + '">' +
+      T('webui.streak_current', '连续 ') + st.current + ' ' + T('webui.streak_unit', '天') + ' · ' +
+      T('webui.streak_best', '最长') + ' ' + st.best + '</span>';
+    BADGES.forEach(function (b, i) {
+      html += '<span class="badge-chip ' + (got[i] ? 'earned' : 'locked') + '" title="' +
+        T(b.key, b.label) + '：' + T(b.tip, b.hint) + '（' + progress[i] + '）">' + T(b.key, b.label) +
+        '<span class="badge-prog">' + progress[i] + '</span></span>';
+    });
+    box.innerHTML = html;
+    updateMascotLevel(total);
+  }
+
+  // ── 3. 巡检完成后的冷知识 ──
+  var FACTS = [
+    'PostgreSQL 的空库名回退到用户名，是 libpq 的旧惯例，不是 Bug。',
+    'SQL Server 2008 R2 没有 sys.dm_exec_sessions.database_id，要用 dm_exec_requests。',
+    'MySQL 的 EXPLAIN 里 rows 只是估算值，真实扫描行数看 EXPLAIN ANALYZE。',
+    'Oracle 的物化视图刷新一次，可能比一次全表扫描还贵。',
+    '索引不是越多越好：每次 INSERT 都要把每个索引更新一遍。',
+    'Redis 的 KEY * 会阻塞主线程，生产库请换成 SCAN。',
+    'MongoDB 的 _id 索引天生就有，别再手动建一个。',
+    '达梦数据库的类型名和 Oracle 很像，但统计信息口径并不一样。',
+    'JDBC 连 PG 时库名留空会落到 postgres，不会落到你的用户名。',
+    '一个连接慢，先看网络抖动，再看执行计划，别一上来就加索引。',
+    '死锁图比死锁日志更有用：它告诉你谁先拿了哪把锁。',
+    '巡检里最值钱的不是分数，是分数掉下去的那一天。',
+    '连接池最大连接数调大之前，先看看数据库能扛多少并发。',
+    '慢查询阈值设成 1 秒，比设成 10 秒更容易发现退化。',
+    '备份没恢复过，就不算备份。',
+    '健康分 100 不代表没问题，只代表规则还没覆盖到那个角落。',
+    '国产数据库的 _jdbc 后缀只是连接实现方式，不是另一种数据库。',
+    '监控每 15 秒一轮，比每 5 分钟一轮更容易抓住瞬时尖刺。',
+    '一次告警没人处理，下一次告警就没人看了。',
+    '浣熊洗东西不是因为爱干净，是在用触觉辨认食物。'
+  ];
+  var factIdx = Math.floor(Math.random() * FACTS.length);
+  var factTimer = null;
+  function showFunFact() {
+    var box = document.getElementById('hero-funfact');
+    var t = document.getElementById('hero-funfact-text');
+    if (!box || !t) return;
+    t.textContent = FACTS[factIdx % FACTS.length];
+    box.classList.add('show');
+    clearTimeout(factTimer);
+    factTimer = setTimeout(function () { box.classList.remove('show'); }, 9000);
+  }
+  var nextBtn = document.getElementById('hero-funfact-next');
+  var closeBtn = document.getElementById('hero-funfact-close');
+  if (nextBtn) nextBtn.addEventListener('click', function () { factIdx++; showFunFact(); });
+  if (closeBtn) closeBtn.addEventListener('click', function () {
+    clearTimeout(factTimer);
+    document.getElementById('hero-funfact').classList.remove('show');
+  });
+  if (typeof socket !== 'undefined' && socket && typeof socket.on === 'function') {
+    socket.on('done', function () { showFunFact(); });
+  }
+
+  // ── 4. 月度战绩卡（canvas，画布内不使用 emoji）──
+  function rounded(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+  function font(w, s) {
+    return w + ' ' + s + 'px "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Segoe UI", Arial, sans-serif';
+  }
+  function spacedText(ctx, text, x, y, gap) {
+    var cx = x;
+    for (var i = 0; i < text.length; i++) {
+      ctx.fillText(text.charAt(i), cx, y);
+      cx += ctx.measureText(text.charAt(i)).width + gap;
+    }
+    return cx - x - gap;
+  }
+  function hexToRgba(hex, a) {
+    var h = String(hex || '').trim().replace('#', '');
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    var n = parseInt(h, 16);
+    if (isNaN(n)) return 'rgba(0,168,132,' + a + ')';
+    return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+  }
+  function cardTheme() {
+    var cs = getComputedStyle(document.documentElement);
+    function gv(name, fb) { var v = cs.getPropertyValue(name); return (v && v.trim()) ? v.trim() : fb; }
+    return {
+      accent: gv('--accent', '#00C8A0'), accent2: gv('--accent2', '#0A2A6E'),
+      surface: gv('--surface', '#141C2E'), surface2: gv('--surface2', '#1A2338'),
+      text: gv('--text', '#F8F9FA'), muted: gv('--text-muted', '#94A3B8'),
+      border: gv('--border', '#2A3650'), warn: gv('--warn', '#F59E0B'),
+      danger: gv('--danger', '#EF4444')
+    };
+  }
+  function cardScoreColor(v, th) {
+    if (v == null || isNaN(v)) return hexToRgba(th.muted, .28);
+    if (v >= 90) return th.accent;
+    if (v >= 70) return th.warn;
+    if (v >= 50) return '#E79A55';
+    return th.danger;
+  }
+  function cardIcon(c, kind, x, y, color) {
+    c.save();
+    c.strokeStyle = color; c.fillStyle = color;
+    c.lineWidth = 2.2; c.lineCap = 'round'; c.lineJoin = 'round';
+    if (kind === 'streak') {
+      c.beginPath(); c.moveTo(x + 4, y + 1); c.lineTo(x - 2, y + 9);
+      c.lineTo(x + 3, y + 9); c.lineTo(x - 3, y + 17); c.stroke();
+    } else if (kind === 'types') {
+      c.beginPath(); c.ellipse(x + 2, y + 3, 8, 3, 0, 0, Math.PI * 2); c.stroke();
+      c.beginPath(); c.moveTo(x - 6, y + 3); c.lineTo(x - 6, y + 13);
+      c.ellipse(x + 2, y + 13, 8, 3, 0, 0, Math.PI);
+      c.moveTo(x + 10, y + 3); c.lineTo(x + 10, y + 13); c.stroke();
+    } else if (kind === 'risk') {
+      c.beginPath(); c.moveTo(x + 2, y - 3); c.lineTo(x + 11, y + 13);
+      c.lineTo(x - 7, y + 13); c.closePath(); c.stroke();
+      c.beginPath(); c.moveTo(x + 2, y + 2); c.lineTo(x + 2, y + 8); c.stroke();
+      c.beginPath(); c.arc(x + 2, y + 11, 1.2, 0, Math.PI * 2); c.fill();
+    } else {
+      c.beginPath(); c.arc(x + 2, y + 6, 9, 0, Math.PI * 2); c.stroke();
+      c.beginPath(); c.moveTo(x - 3, y + 6); c.lineTo(x, y + 9);
+      c.lineTo(x + 7, y + 2); c.stroke();
+    }
+    c.restore();
+  }
+  function drawShareCard() {
+    var payload = _lastCal || {};
+    var items = Array.isArray(payload.items) ? payload.items : [];
+    var now = new Date();
+    var ym = now.getFullYear() + '-' + ('0' + (now.getMonth() + 1)).slice(-2);
+    var monthItems = items.filter(function (it) { return it && String(it.date || '').slice(0, 7) === ym; });
+    var runs = monthItems.reduce(function (a, b) { return a + (Number(b.count) || 0); }, 0);
+    var types = {}, risks = 0, sum = 0, cnt = 0;
+    var dayMap = {};
+    monthItems.forEach(function (it) {
+      if (it.worst_db_type) types[String(it.worst_db_type).replace(/_jdbc$/, '')] = 1;
+      risks += Number(it.risk_count) || 0;
+      if (it.min_score != null) { sum += Number(it.min_score) || 0; cnt++; }
+      var d = parseInt(String(it.date || '').slice(8, 10), 10);
+      if (d >= 1 && d <= 31) dayMap[d] = (it.min_score == null ? null : Number(it.min_score));
+    });
+    var st = computeStreaks(items);
+    var avg = cnt ? Math.round(sum / cnt) : null;
+    var dim = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    var firstDow = (new Date(now.getFullYear(), now.getMonth(), 1).getDay() + 6) % 7;
+    var activeDays = Object.keys(dayMap).length;
+    var th = cardTheme();
+
+    var canvas = document.createElement('canvas');
+    canvas.width = 800; canvas.height = 1000;
+    var c = canvas.getContext('2d');
+
+    // 白色底 + 主题色柔光（卡片之外的背景固定为白）
+    var bg = c.createLinearGradient(0, 0, 800, 1000);
+    bg.addColorStop(0, '#ffffff'); bg.addColorStop(1, '#f2f6f8');
+    c.fillStyle = bg; c.fillRect(0, 0, 800, 1000);
+    var halo = c.createRadialGradient(650, 280, 10, 650, 280, 460);
+    halo.addColorStop(0, hexToRgba(th.accent, .13));
+    halo.addColorStop(1, hexToRgba(th.accent, 0));
+    c.fillStyle = halo; c.fillRect(0, 0, 800, 1000);
+
+    // 玻璃卡片：主题底色 + 多层投影 + 顶部高光 + 主题色描边
+    c.save();
+    c.shadowColor = 'rgba(14,32,46,.20)'; c.shadowBlur = 46; c.shadowOffsetY = 20;
+    c.fillStyle = th.surface; rounded(c, 40, 40, 720, 920, 28); c.fill();
+    c.restore();
+    var glass = c.createLinearGradient(40, 40, 760, 960);
+    glass.addColorStop(0, 'rgba(255,255,255,.18)');
+    glass.addColorStop(.5, 'rgba(255,255,255,.02)');
+    glass.addColorStop(1, hexToRgba(th.accent, .09));
+    c.fillStyle = glass; rounded(c, 40, 40, 720, 920, 28); c.fill();
+    c.strokeStyle = hexToRgba(th.accent, .38); c.lineWidth = 1.5; c.stroke();
+    c.strokeStyle = 'rgba(255,255,255,.30)'; c.lineWidth = 1;
+    c.beginPath(); c.moveTo(68, 45); c.lineTo(732, 45); c.stroke();
+
+    var bar = c.createLinearGradient(88, 0, 712, 0);
+    bar.addColorStop(0, th.accent); bar.addColorStop(1, th.accent2);
+    c.fillStyle = bar; rounded(c, 88, 40, 624, 5, 2.5); c.fill();
+
+    // 浣熊徽记（纯几何线条，跟随主题强调色）
+    c.save(); c.translate(92, 98);
+    c.strokeStyle = th.accent; c.lineWidth = 2; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(2, 1); c.lineTo(-2, -6); c.lineTo(8, -2);
+    c.moveTo(20, -6); c.lineTo(24, 1); c.stroke();
+    c.beginPath(); c.arc(12, 7, 12, 0, Math.PI * 2); c.stroke();
+    c.fillStyle = hexToRgba(th.accent, .75);
+    c.beginPath(); c.ellipse(7, 7, 4, 3, -.25, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.ellipse(17, 7, 4, 3, .25, 0, Math.PI * 2); c.fill();
+    c.fillStyle = th.accent2; c.beginPath(); c.arc(12, 12, 1.8, 0, Math.PI * 2); c.fill();
+    c.restore();
+
+    // 标题与月份胶囊
+    c.textAlign = 'left';
+    c.fillStyle = th.text; c.font = font('600', 42);
+    spacedText(c, T('webui.card_title', '浣巡夜行日志'), 132, 122, 2);
+    c.fillStyle = th.muted; c.font = font('400', 15);
+    spacedText(c, 'NIGHT WATCH LOG  /  MONTHLY REPORT', 132, 156, 2.2);
+    c.fillStyle = hexToRgba(th.accent, .10); rounded(c, 592, 88, 120, 42, 21); c.fill();
+    c.strokeStyle = hexToRgba(th.accent, .32); c.stroke();
+    c.fillStyle = th.text; c.font = font('500', 22); c.textAlign = 'center';
+    c.fillText(now.getFullYear() + ' / ' + (now.getMonth() + 1), 652, 116);
+    c.textAlign = 'left';
+    c.strokeStyle = hexToRgba(th.border, .7); c.lineWidth = 1;
+    c.beginPath(); c.moveTo(88, 218); c.lineTo(712, 218); c.stroke();
+
+    // 主数据：本月次数 + 健康分圆环
+    c.fillStyle = th.text; c.font = font('600', 110);
+    c.fillText(String(runs), 88, 372);
+    var nw = c.measureText(String(runs)).width;
+    c.fillStyle = th.muted; c.font = font('400', 26);
+    c.fillText(T('webui.level_total', ' 次'), 96 + nw, 372);
+    c.fillStyle = th.muted; c.font = font('400', 24);
+    c.fillText(T('webui.card_runs', '本月巡检次数'), 92, 412);
+
+    var hx = 648, hy = 326, hr = 66;
+    c.strokeStyle = hexToRgba(th.muted, .18); c.lineWidth = 13; c.lineCap = 'round';
+    c.beginPath(); c.arc(hx, hy, hr, 0, Math.PI * 2); c.stroke();
+    if (avg != null) {
+      c.strokeStyle = cardScoreColor(avg, th);
+      c.beginPath(); c.arc(hx, hy, hr, -Math.PI / 2,
+        -Math.PI / 2 + Math.PI * 2 * Math.max(0, Math.min(100, avg)) / 100); c.stroke();
+    }
+    c.textAlign = 'center';
+    c.fillStyle = th.text; c.font = font('600', 52);
+    c.fillText(avg == null ? '--' : String(avg), hx, hy + 12);
+    c.fillStyle = th.muted; c.font = font('400', 14);
+    spacedText(c, 'HEALTH', hx - 25, hy + 42, 2);
+    c.textAlign = 'left'; c.lineCap = 'butt';
+    c.fillStyle = th.muted; c.font = font('400', 15);
+    spacedText(c, 'DAILY FOOTPRINTS', 330, 474, 2);
+
+    // 当月足迹热力格（按分数用主题强调/警告/危险色，无数据走弱化的次要色）
+    var gx = 88, gy = 462, cell = 20, gap = 5;
+    for (var d = 1; d <= dim; d++) {
+      var idx = firstDow + d - 1, col = idx % 7, row = Math.floor(idx / 7);
+      var x = gx + col * (cell + gap), y = gy + row * (cell + gap);
+      var sc = dayMap[d], future = d > now.getDate();
+      c.fillStyle = future ? hexToRgba(th.muted, .09)
+        : (sc == null || isNaN(sc) ? hexToRgba(th.muted, .18) : cardScoreColor(sc, th));
+      rounded(c, x, y, cell, cell, 5); c.fill();
+    }
+    var lg = [hexToRgba(th.muted, .28), th.danger, '#E79A55', th.warn, th.accent];
+    lg.forEach(function (col, i) {
+      c.fillStyle = col; rounded(c, 330 + i * 32, 492, 20, 9, 3); c.fill();
+    });
+    c.fillStyle = th.muted; c.font = font('400', 13);
+    c.fillText('LOW', 330, 524); c.fillText('HIGH', 466, 524);
+    c.fillStyle = th.text; c.font = font('600', 46);
+    var adW = c.measureText(String(activeDays)).width;
+    c.fillText(String(activeDays), 330, 596);
+    c.fillStyle = th.muted; c.font = font('400', 15);
+    spacedText(c, 'ACTIVE DAYS', 330 + adW + 16, 590, 1.5);
+
+    // 四宫格：主题色半透明玻璃块 + 内描边
+    var cells = [
+      ['streak', T('webui.streak_current', '连续天数'), st.current + ' ' + T('webui.streak_unit', '天')],
+      ['types', T('webui.card_types', '覆盖库型'), String(Object.keys(types).length)],
+      ['risk', T('webui.card_risk', '发现风险'), String(risks)],
+      ['health', T('webui.card_avg', '平均健康分'), avg == null ? '--' : String(avg)]
+    ];
+    cells.forEach(function (cell, i) {
+      var x = 88 + (i % 2) * 316, y = 664 + Math.floor(i / 2) * 86;
+      c.fillStyle = hexToRgba(th.accent, .08); rounded(c, x, y, 292, 74, 14); c.fill();
+      c.strokeStyle = hexToRgba(th.accent, .18); c.lineWidth = 1; c.stroke();
+      c.strokeStyle = 'rgba(255,255,255,.16)';
+      c.beginPath(); c.moveTo(x + 14, y + 1); c.lineTo(x + 278, y + 1); c.stroke();
+      cardIcon(c, cell[0], x + 22, y + 28, i === 3 ? cardScoreColor(avg, th) : th.accent);
+      c.fillStyle = th.muted; c.font = font('400', 17); c.fillText(cell[1], x + 56, y + 30);
+      c.fillStyle = th.text; c.font = font('600', 30); c.fillText(cell[2], x + 56, y + 62);
+    });
+
+    // 页脚
+    c.strokeStyle = hexToRgba(th.border, .7); c.lineWidth = 1;
+    c.beginPath(); c.moveTo(88, 866); c.lineTo(712, 866); c.stroke();
+    c.fillStyle = th.muted; c.font = font('400', 20);
+    c.fillText(T('webui.card_footer', '像浣熊一样夜行探索，让隐藏的问题无所遁形'), 88, 910);
+    c.fillStyle = th.muted; c.font = font('400', 14);
+    spacedText(c, 'RACCOONX  ·  NIGHT WATCH', 88, 950, 2);
+    var stamp = ym.replace('-', '.');
+    c.textAlign = 'right'; c.fillText(stamp, 712, 950); c.textAlign = 'left';
+
+    try {
+      var preview = document.getElementById('share-card-preview');
+      var modal = document.getElementById('share-card-modal');
+      window.__shareCardDataUrl = canvas.toDataURL('image/png');
+      if (preview) preview.src = window.__shareCardDataUrl;
+      if (modal) { modal.classList.add('show'); modal.setAttribute('aria-hidden', 'false'); }
+    } catch (e) { console.warn('share card preview failed', e); }
+  }
+  var shareBtn = document.getElementById('share-card-btn');
+  if (shareBtn) shareBtn.addEventListener('click', drawShareCard);
+  var cardModal = document.getElementById('share-card-modal');
+  function closeShareCard() {
+    if (!cardModal) return;
+    cardModal.classList.remove('show');
+    cardModal.setAttribute('aria-hidden', 'true');
+  }
+  var cardClose = document.getElementById('share-card-close');
+  if (cardClose) cardClose.addEventListener('click', closeShareCard);
+  if (cardModal) cardModal.addEventListener('click', function (e) {
+    if (e.target === cardModal) closeShareCard();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && cardModal && cardModal.classList.contains('show')) closeShareCard();
+  });
+  var cardDownload = document.getElementById('share-card-download');
+  if (cardDownload) cardDownload.addEventListener('click', function () {
+    try {
+      var now = new Date();
+      var a = document.createElement('a');
+      a.download = 'RaccoonX-' + now.getFullYear() + '-' + ('0' + (now.getMonth() + 1)).slice(-2) + '.png';
+      a.href = window.__shareCardDataUrl;
+      a.click();
+    } catch (e) { console.warn('share card download failed', e); }
+  });
+
+  // ── 5. 复用日历渲染：零后端改动 ──
+  if (typeof window.renderInspectionCalendar === 'function') {
+    var originalRender = window.renderInspectionCalendar;
+    window.renderInspectionCalendar = function (data) {
+      _lastCal = data || {};
+      originalRender(data);
+      try { renderAchievements(_lastCal); } catch (e) { console.warn('achievements failed', e); }
+    };
+  }
+  spawnDataSourceIcons();
 })();
 </script>
 

@@ -3910,3 +3910,46 @@ EN.update({
 EN.update({
   "webui.ssh_windows_hint": "⚠️ Windows targets need OpenSSH Server installed and enabled (built into Win10 1809+ / Server 2019+); the default SSH user is root — change it to a real Windows account (e.g. Administrator)."
 })
+
+
+# 首页趣味层：常驻氛围 / 连续与成就 / 吉祥物成长 / 冷知识 / 战绩卡
+EN.update({
+  "webui.ambient_on": "Ambient on",
+  "webui.ambient_off": "Ambient off",
+  "webui.share_card": "Share card",
+  "webui.streak_current": "Streak ",
+  "webui.streak_best": "Best",
+  "webui.streak_unit": "days",
+  "webui.badge_first": "First run",
+  "webui.badge_first_tip": "Complete at least one inspection",
+  "webui.badge_week": "Seven days",
+  "webui.badge_week_tip": "Inspect 7 days in a row",
+  "webui.badge_five": "Five engines",
+  "webui.badge_five_tip": "Cover 5 database types",
+  "webui.badge_mine": "Mine sweep",
+  "webui.badge_mine_tip": "Find 10 risk items",
+  "webui.badge_perfect": "Perfect",
+  "webui.badge_perfect_tip": "Score 100 at least once",
+  "webui.level_1": "Raccoon cub",
+  "webui.level_2": "Night rookie",
+  "webui.level_3": "Night ranger",
+  "webui.level_4": "Data warden",
+  "webui.level_5": "Raccoon legend",
+  "webui.level_hint": "Total inspections ",
+  "webui.level_total": " times",
+  "webui.level_next": " to next level ",
+  "webui.funfact_next": "Another fact",
+  "webui.card_title": "Night watch log",
+  "webui.card_runs": "Inspections this month",
+  "webui.card_types": "DB types",
+  "webui.card_risk": "Risks found",
+  "webui.card_avg": "Avg health score",
+  "webui.card_footer": "Explore like a raccoon and uncover what hides in the dark"
+})
+
+
+# 战绩卡预览：下载与关闭
+EN.update({
+  "webui.card_download": "Download image",
+  "webui.card_close": "Close"
+})

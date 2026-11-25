@@ -3535,3 +3535,46 @@ FR.update({
 FR.update({
   "webui.ssh_windows_hint": "⚠️ Les hôtes Windows doivent avoir OpenSSH Server installé et activé (intégré à Win10 1809+ / Server 2019+); l’utilisateur SSH par défaut est root : remplacez-le par un compte Windows réel (ex. Administrator)."
 })
+
+
+# 首页趣味层：常驻氛围 / 连续与成就 / 吉祥物成长 / 冷知识 / 战绩卡
+FR.update({
+  "webui.ambient_on": "Ambiance on",
+  "webui.ambient_off": "Ambiance off",
+  "webui.share_card": "Carte de exploits",
+  "webui.streak_current": "Série ",
+  "webui.streak_best": "Record",
+  "webui.streak_unit": "jours",
+  "webui.badge_first": "Première",
+  "webui.badge_first_tip": "Terminer au moins une inspection",
+  "webui.badge_week": "Sept jours",
+  "webui.badge_week_tip": "Inspecter 7 jours de suite",
+  "webui.badge_five": "Cinq moteurs",
+  "webui.badge_five_tip": "Couvrir 5 types de bases",
+  "webui.badge_mine": "Détection",
+  "webui.badge_mine_tip": "Trouver 10 risques",
+  "webui.badge_perfect": "Parfait",
+  "webui.badge_perfect_tip": "Atteindre 100 une fois",
+  "webui.level_1": "Bébé raton",
+  "webui.level_2": "Apprenti nocturne",
+  "webui.level_3": "Ranger nocturne",
+  "webui.level_4": "Gardien des données",
+  "webui.level_5": "Légende raton",
+  "webui.level_hint": "Inspections totales ",
+  "webui.level_total": " fois",
+  "webui.level_next": " au niveau suivant ",
+  "webui.funfact_next": "Une autre info",
+  "webui.card_title": "Journal nocturne",
+  "webui.card_runs": "Inspections ce mois",
+  "webui.card_types": "Types de BD",
+  "webui.card_risk": "Risques trouvés",
+  "webui.card_avg": "Santé moyenne",
+  "webui.card_footer": "Explorez comme un raton et révélez ce qui se cache"
+})
+
+
+# 战绩卡预览：下载与关闭
+FR.update({
+  "webui.card_download": "Télécharger l'image",
+  "webui.card_close": "Fermer"
+})

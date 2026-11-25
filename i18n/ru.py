@@ -3535,3 +3535,46 @@ RU.update({
 RU.update({
   "webui.ssh_windows_hint": "⚠️ На целевых Windows-хостах необходимо установить и включить OpenSSH Server (встроен в Win10 1809+ / Server 2019+); имя пользователя SSH по умолчанию — root, замените его на реальную учётную запись Windows (например, Administrator)."
 })
+
+
+# 首页趣味层：常驻氛围 / 连续与成就 / 吉祥物成长 / 冷知识 / 战绩卡
+RU.update({
+  "webui.ambient_on": "Эффект вкл",
+  "webui.ambient_off": "Эффект выкл",
+  "webui.share_card": "Карта достижений",
+  "webui.streak_current": "Серия ",
+  "webui.streak_best": "Рекорд",
+  "webui.streak_unit": "дней",
+  "webui.badge_first": "Первый",
+  "webui.badge_first_tip": "Выполнить хотя бы одну проверку",
+  "webui.badge_week": "Семь дней",
+  "webui.badge_week_tip": "Проверять 7 дней подряд",
+  "webui.badge_five": "Пять СУБД",
+  "webui.badge_five_tip": "Покрыть 5 типов баз данных",
+  "webui.badge_mine": "Поиск рисков",
+  "webui.badge_mine_tip": "Найти 10 рисков",
+  "webui.badge_perfect": "Отлично",
+  "webui.badge_perfect_tip": "Достичь 100 хотя бы раз",
+  "webui.level_1": "Малыш енот",
+  "webui.level_2": "Ученик ночи",
+  "webui.level_3": "Ночной следопыт",
+  "webui.level_4": "Хранитель данных",
+  "webui.level_5": "Легенда енотов",
+  "webui.level_hint": "Всего проверок ",
+  "webui.level_total": " раз",
+  "webui.level_next": " до следующего уровня ",
+  "webui.funfact_next": "Ещё факт",
+  "webui.card_title": "Ночной журнал",
+  "webui.card_runs": "Проверки за месяц",
+  "webui.card_types": "Типы БД",
+  "webui.card_risk": "Найденные риски",
+  "webui.card_avg": "Средняя оценка",
+  "webui.card_footer": "Исследуй как енот и находи скрытое"
+})
+
+
+# 战绩卡预览：下载与关闭
+RU.update({
+  "webui.card_download": "Скачать изображение",
+  "webui.card_close": "Закрыть"
+})

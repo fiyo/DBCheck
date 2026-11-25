@@ -3911,3 +3911,46 @@ ZI.update({
 ZI.update({
   "webui.ssh_windows_hint": "⚠️ Windows 目标机需先安装并启用 OpenSSH Server（Win10 1809+ / Server 2019+ 自带该可选功能）；SSH 用户名默认是 root，Windows 上请改为实际账户（如 Administrator）。"
 })
+
+
+# 首页趣味层：常驻氛围 / 连续与成就 / 吉祥物成长 / 冷知识 / 战绩卡
+ZI.update({
+  "webui.ambient_on": "氛围 开",
+  "webui.ambient_off": "氛围 关",
+  "webui.share_card": "战绩卡",
+  "webui.streak_current": "连续 ",
+  "webui.streak_best": "最长",
+  "webui.streak_unit": "天",
+  "webui.badge_first": "首巡",
+  "webui.badge_first_tip": "完成至少一次巡检",
+  "webui.badge_week": "七日",
+  "webui.badge_week_tip": "连续巡检达到 7 天",
+  "webui.badge_five": "五库",
+  "webui.badge_five_tip": "巡检覆盖 5 种数据库类型",
+  "webui.badge_mine": "排雷",
+  "webui.badge_mine_tip": "累计发现 10 个风险项",
+  "webui.badge_perfect": "满分",
+  "webui.badge_perfect_tip": "拿过一次 100 分健康巡检",
+  "webui.level_1": "浣熊幼崽",
+  "webui.level_2": "夜巡学徒",
+  "webui.level_3": "浣巡旅长",
+  "webui.level_4": "数据巡长",
+  "webui.level_5": "浣巡传说",
+  "webui.level_hint": "累计巡检 ",
+  "webui.level_total": " 次",
+  "webui.level_next": "距下一级 ",
+  "webui.funfact_next": "换一条",
+  "webui.card_title": "浣巡夜行日志",
+  "webui.card_runs": "本月巡检次数",
+  "webui.card_types": "覆盖库型",
+  "webui.card_risk": "发现风险",
+  "webui.card_avg": "平均健康分",
+  "webui.card_footer": "像浣熊一样夜行探索，让隐藏的问题无所遁形"
+})
+
+
+# 战绩卡预览：下载与关闭
+ZI.update({
+  "webui.card_download": "下载图片",
+  "webui.card_close": "关闭"
+})

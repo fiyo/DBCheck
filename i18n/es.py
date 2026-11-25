@@ -3534,3 +3534,46 @@ ES.update({
 ES.update({
   "webui.ssh_windows_hint": "⚠️ Los equipos Windows necesitan tener instalado y habilitado OpenSSH Server (incluido en Win10 1809+ / Server 2019+); el usuario SSH por defecto es root: cámbielo por una cuenta Windows real (p. ej. Administrator)."
 })
+
+
+# 首页趣味层：常驻氛围 / 连续与成就 / 吉祥物成长 / 冷知识 / 战绩卡
+ES.update({
+  "webui.ambient_on": "Ambiente on",
+  "webui.ambient_off": "Ambiente off",
+  "webui.share_card": "Tarjeta de logros",
+  "webui.streak_current": "Racha ",
+  "webui.streak_best": "Mejor",
+  "webui.streak_unit": "días",
+  "webui.badge_first": "Primera",
+  "webui.badge_first_tip": "Completa al menos una inspección",
+  "webui.badge_week": "Siete días",
+  "webui.badge_week_tip": "Inspecciona 7 días seguidos",
+  "webui.badge_five": "Cinco motores",
+  "webui.badge_five_tip": "Cubre 5 tipos de base de datos",
+  "webui.badge_mine": "Buscar riesgos",
+  "webui.badge_mine_tip": "Encuentra 10 riesgos",
+  "webui.badge_perfect": "Perfecto",
+  "webui.badge_perfect_tip": "Alcanza 100 una vez",
+  "webui.level_1": "Cachorro mapache",
+  "webui.level_2": "Aprendiz nocturno",
+  "webui.level_3": "Guardián nocturno",
+  "webui.level_4": "Guardián de datos",
+  "webui.level_5": "Leyenda mapache",
+  "webui.level_hint": "Inspecciones totales ",
+  "webui.level_total": " veces",
+  "webui.level_next": " al siguiente nivel ",
+  "webui.funfact_next": "Otro dato",
+  "webui.card_title": "Diario nocturno",
+  "webui.card_runs": "Inspecciones este mes",
+  "webui.card_types": "Tipos de BD",
+  "webui.card_risk": "Riesgos hallados",
+  "webui.card_avg": "Salud media",
+  "webui.card_footer": "Explora como un mapache y descubre lo que se esconde"
+})
+
+
+# 战绩卡预览：下载与关闭
+ES.update({
+  "webui.card_download": "Descargar imagen",
+  "webui.card_close": "Cerrar"
+})
