@@ -3590,3 +3590,30 @@ ES.update({
   "webui.home_monitor_latency_prefix_tunnel": "Conexión túnel ",
   "webui.home_monitor_no_tunnel_latency": "No hay datos de tiempo de conexión túnel para esta instancia"
 })
+
+# 成就徽章：16 枚图标徽章的名称与说明
+ES.update({
+  "webui.badge_streak15": "Racha de 15",
+  "webui.badge_streak15_tip": "Inspeccionar 15 días consecutivos",
+  "webui.badge_streak30": "Racha de 30",
+  "webui.badge_streak30_tip": "Inspeccionar 30 días consecutivos",
+  "webui.badge_ai": "Diagnóstico IA",
+  "webui.badge_ai_tip": "Ejecutar al menos un diagnóstico IA",
+  "webui.badge_bicqa": "BIC-QA",
+  "webui.badge_bicqa_tip": "Habilitar la base de conocimiento BIC-QA",
+  "webui.badge_ds5": "5+ fuentes",
+  "webui.badge_ds5_tip": "Configurar al menos 5 fuentes de datos",
+  "webui.badge_ds10": "10+ fuentes",
+  "webui.badge_ds10_tip": "Configurar al menos 10 fuentes de datos",
+  "webui.badge_ds50": "50+ fuentes",
+  "webui.badge_ds50_tip": "Configurar al menos 50 fuentes de datos",
+  "webui.badge_dt2": "2+ tipos BD",
+  "webui.badge_dt2_tip": "Configurar al menos 2 tipos de base de datos",
+  "webui.badge_dt5": "5+ tipos BD",
+  "webui.badge_dt5_tip": "Configurar al menos 5 tipos de base de datos",
+  "webui.badge_dt10": "10+ tipos BD",
+  "webui.badge_dt10_tip": "Configurar al menos 10 tipos de base de datos",
+  "webui.badge_dt15": "15+ tipos BD",
+  "webui.badge_dt15_tip": "Configurar al menos 15 tipos de base de datos",
+  "webui.badge_earned": "Obtenida"
+})

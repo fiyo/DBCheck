@@ -3641,3 +3641,30 @@ JA.update({
   "webui.home_monitor_latency_prefix_tunnel": "トンネル接続 ",
   "webui.home_monitor_no_tunnel_latency": "このインスタンスのトンネル接続時間データはありません"
 })
+
+# 成就徽章：16 枚图标徽章的名称与说明
+JA.update({
+  "webui.badge_streak15": "15日連続",
+  "webui.badge_streak15_tip": "15日連続で検査",
+  "webui.badge_streak30": "30日連続",
+  "webui.badge_streak30_tip": "30日連続で検査",
+  "webui.badge_ai": "AI診断",
+  "webui.badge_ai_tip": "AI診断を至少1回実行",
+  "webui.badge_bicqa": "BIC-QA",
+  "webui.badge_bicqa_tip": "BIC-QAナレッジを有効化",
+  "webui.badge_ds5": "データソース5+",
+  "webui.badge_ds5_tip": "データソースを5以上設定",
+  "webui.badge_ds10": "データソース10+",
+  "webui.badge_ds10_tip": "データソースを10以上設定",
+  "webui.badge_ds50": "データソース50+",
+  "webui.badge_ds50_tip": "データソースを50以上設定",
+  "webui.badge_dt2": "DB種別2+",
+  "webui.badge_dt2_tip": "DB種別を2以上設定",
+  "webui.badge_dt5": "DB種別5+",
+  "webui.badge_dt5_tip": "DB種別を5以上設定",
+  "webui.badge_dt10": "DB種別10+",
+  "webui.badge_dt10_tip": "DB種別を10以上設定",
+  "webui.badge_dt15": "DB種別15+",
+  "webui.badge_dt15_tip": "DB種別を15以上設定",
+  "webui.badge_earned": "獲得済み"
+})

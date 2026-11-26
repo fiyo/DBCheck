@@ -3589,3 +3589,30 @@ KO.update({
   "webui.home_monitor_latency_prefix_tunnel": "터널 연결 ",
   "webui.home_monitor_no_tunnel_latency": "이 인스턴스의 터널 연결 시간 데이터가 없습니다"
 })
+
+# 成就徽章：16 枚图标徽章的名称与说明
+KO.update({
+  "webui.badge_streak15": "15일 연속",
+  "webui.badge_streak15_tip": "15일 연속 검사",
+  "webui.badge_streak30": "30일 연속",
+  "webui.badge_streak30_tip": "30일 연속 검사",
+  "webui.badge_ai": "AI 진단",
+  "webui.badge_ai_tip": "AI 진단을 1회 이상 수행",
+  "webui.badge_bicqa": "BIC-QA",
+  "webui.badge_bicqa_tip": "BIC-QA 지식베이스 활성화",
+  "webui.badge_ds5": "데이터소스 5+",
+  "webui.badge_ds5_tip": "데이터소스 5개 이상 설정",
+  "webui.badge_ds10": "데이터소스 10+",
+  "webui.badge_ds10_tip": "데이터소스 10개 이상 설정",
+  "webui.badge_ds50": "데이터소스 50+",
+  "webui.badge_ds50_tip": "데이터소스 50개 이상 설정",
+  "webui.badge_dt2": "DB 유형 2+",
+  "webui.badge_dt2_tip": "DB 유형 2개 이상 설정",
+  "webui.badge_dt5": "DB 유형 5+",
+  "webui.badge_dt5_tip": "DB 유형 5개 이상 설정",
+  "webui.badge_dt10": "DB 유형 10+",
+  "webui.badge_dt10_tip": "DB 유형 10개 이상 설정",
+  "webui.badge_dt15": "DB 유형 15+",
+  "webui.badge_dt15_tip": "DB 유형 15개 이상 설정",
+  "webui.badge_earned": "획득"
+})

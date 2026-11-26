@@ -3591,3 +3591,30 @@ DE.update({
   "webui.home_monitor_latency_prefix_tunnel": "Tunnel-Verbindung ",
   "webui.home_monitor_no_tunnel_latency": "Keine Daten zur Tunnel-Verbindungszeit für diese Instanz"
 })
+
+# 成就徽章：16 枚图标徽章的名称与说明
+DE.update({
+  "webui.badge_streak15": "15-Tage-Serie",
+  "webui.badge_streak15_tip": "15 Tage in Folge prüfen",
+  "webui.badge_streak30": "30-Tage-Serie",
+  "webui.badge_streak30_tip": "30 Tage in Folge prüfen",
+  "webui.badge_ai": "KI-Diagnose",
+  "webui.badge_ai_tip": "Mindestens eine KI-Diagnose ausführen",
+  "webui.badge_bicqa": "BIC-QA",
+  "webui.badge_bicqa_tip": "BIC-QA-Wissensdatenbank aktivieren",
+  "webui.badge_ds5": "5+ Quellen",
+  "webui.badge_ds5_tip": "Mindestens 5 Datenquellen konfigurieren",
+  "webui.badge_ds10": "10+ Quellen",
+  "webui.badge_ds10_tip": "Mindestens 10 Datenquellen konfigurieren",
+  "webui.badge_ds50": "50+ Quellen",
+  "webui.badge_ds50_tip": "Mindestens 50 Datenquellen konfigurieren",
+  "webui.badge_dt2": "2+ DB-Typen",
+  "webui.badge_dt2_tip": "Mindestens 2 Datenbanktypen konfigurieren",
+  "webui.badge_dt5": "5+ DB-Typen",
+  "webui.badge_dt5_tip": "Mindestens 5 Datenbanktypen konfigurieren",
+  "webui.badge_dt10": "10+ DB-Typen",
+  "webui.badge_dt10_tip": "Mindestens 10 Datenbanktypen konfigurieren",
+  "webui.badge_dt15": "15+ DB-Typen",
+  "webui.badge_dt15_tip": "Mindestens 15 Datenbanktypen konfigurieren",
+  "webui.badge_earned": "Erhalten"
+})

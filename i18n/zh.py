@@ -3967,3 +3967,30 @@ ZI.update({
   "webui.home_monitor_latency_prefix_tunnel": "隧道连接耗时 ",
   "webui.home_monitor_no_tunnel_latency": "该实例暂无隧道连接耗时数据"
 })
+
+# 成就徽章：16 枚图标徽章的名称与说明
+ZI.update({
+  "webui.badge_streak15": "连续15日",
+  "webui.badge_streak15_tip": "连续巡检达到 15 天",
+  "webui.badge_streak30": "连续30日",
+  "webui.badge_streak30_tip": "连续巡检达到 30 天",
+  "webui.badge_ai": "AI诊断",
+  "webui.badge_ai_tip": "完成至少一次 AI 智能诊断",
+  "webui.badge_bicqa": "BIC-QA",
+  "webui.badge_bicqa_tip": "启用 BIC-QA 知识库问答",
+  "webui.badge_ds5": "数据源5+",
+  "webui.badge_ds5_tip": "配置至少 5 个数据源",
+  "webui.badge_ds10": "数据源10+",
+  "webui.badge_ds10_tip": "配置至少 10 个数据源",
+  "webui.badge_ds50": "数据源50+",
+  "webui.badge_ds50_tip": "配置至少 50 个数据源",
+  "webui.badge_dt2": "数据库类型2+",
+  "webui.badge_dt2_tip": "配置至少 2 种数据库类型",
+  "webui.badge_dt5": "数据库类型5+",
+  "webui.badge_dt5_tip": "配置至少 5 种数据库类型",
+  "webui.badge_dt10": "数据库类型10+",
+  "webui.badge_dt10_tip": "配置至少 10 种数据库类型",
+  "webui.badge_dt15": "数据库类型15+",
+  "webui.badge_dt15_tip": "配置至少 15 种数据库类型",
+  "webui.badge_earned": "已获得"
+})

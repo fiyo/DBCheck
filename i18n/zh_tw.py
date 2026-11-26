@@ -4084,3 +4084,30 @@ ZH_TW.update({
   "webui.home_monitor_latency_prefix_tunnel": "隧道連線耗時 ",
   "webui.home_monitor_no_tunnel_latency": "此實例暫無隧道連線耗時資料",
 })
+
+# 成就徽章：16 枚图标徽章的名称与说明
+ZH_TW.update({
+  "webui.badge_streak15": "連續15日",
+  "webui.badge_streak15_tip": "連續巡檢達到 15 天",
+  "webui.badge_streak30": "連續30日",
+  "webui.badge_streak30_tip": "連續巡檢達到 30 天",
+  "webui.badge_ai": "AI診斷",
+  "webui.badge_ai_tip": "完成至少一次 AI 智慧診斷",
+  "webui.badge_bicqa": "BIC-QA",
+  "webui.badge_bicqa_tip": "啟用 BIC-QA 知識庫問答",
+  "webui.badge_ds5": "資料來源5+",
+  "webui.badge_ds5_tip": "設定至少 5 個資料來源",
+  "webui.badge_ds10": "資料來源10+",
+  "webui.badge_ds10_tip": "設定至少 10 個資料來源",
+  "webui.badge_ds50": "資料來源50+",
+  "webui.badge_ds50_tip": "設定至少 50 個資料來源",
+  "webui.badge_dt2": "資料庫類型2+",
+  "webui.badge_dt2_tip": "設定至少 2 種資料庫類型",
+  "webui.badge_dt5": "資料庫類型5+",
+  "webui.badge_dt5_tip": "設定至少 5 種資料庫類型",
+  "webui.badge_dt10": "資料庫類型10+",
+  "webui.badge_dt10_tip": "設定至少 10 種資料庫類型",
+  "webui.badge_dt15": "資料庫類型15+",
+  "webui.badge_dt15_tip": "設定至少 15 種資料庫類型",
+  "webui.badge_earned": "已獲得"
+})

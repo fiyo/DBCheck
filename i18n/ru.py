@@ -3591,3 +3591,30 @@ RU.update({
   "webui.home_monitor_latency_prefix_tunnel": "Подключение через туннель ",
   "webui.home_monitor_no_tunnel_latency": "Нет данных о времени подключения через туннель для этого экземпляра"
 })
+
+# 成就徽章：16 枚图标徽章的名称与说明
+RU.update({
+  "webui.badge_streak15": "Серия 15",
+  "webui.badge_streak15_tip": "Проверки 15 дней подряд",
+  "webui.badge_streak30": "Серия 30",
+  "webui.badge_streak30_tip": "Проверки 30 дней подряд",
+  "webui.badge_ai": "ИИ-диагностика",
+  "webui.badge_ai_tip": "Выполнить хотя бы одну ИИ-диагностику",
+  "webui.badge_bicqa": "BIC-QA",
+  "webui.badge_bicqa_tip": "Включить базу знаний BIC-QA",
+  "webui.badge_ds5": "5+ источников",
+  "webui.badge_ds5_tip": "Настроить не менее 5 источников данных",
+  "webui.badge_ds10": "10+ источников",
+  "webui.badge_ds10_tip": "Настроить не менее 10 источников данных",
+  "webui.badge_ds50": "50+ источников",
+  "webui.badge_ds50_tip": "Настроить не менее 50 источников данных",
+  "webui.badge_dt2": "2+ типа БД",
+  "webui.badge_dt2_tip": "Настроить не менее 2 типов баз данных",
+  "webui.badge_dt5": "5+ типов БД",
+  "webui.badge_dt5_tip": "Настроить не менее 5 типов баз данных",
+  "webui.badge_dt10": "10+ типов БД",
+  "webui.badge_dt10_tip": "Настроить не менее 10 типов баз данных",
+  "webui.badge_dt15": "15+ типов БД",
+  "webui.badge_dt15_tip": "Настроить не менее 15 типов баз данных",
+  "webui.badge_earned": "Получен"
+})

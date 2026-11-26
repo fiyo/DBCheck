@@ -1,0 +1,17 @@
+﻿id,name,file,x,y,width,height
+first_patrol,首巡,first_patrol.png,0,0,64,64
+streak_7,七日,streak_7.png,64,0,64,64
+db_engines_5,五库,db_engines_5.png,128,0,64,64
+risk_found_10,排雷,risk_found_10.png,192,0,64,64
+perfect_score,满分,perfect_score.png,0,64,64,64
+streak_15,连续15日,streak_15.png,64,64,64,64
+streak_30,连续30日,streak_30.png,128,64,64,64
+ai_diagnosis,AI诊断,ai_diagnosis.png,192,64,64,64
+bic_qa,BIC-QA,bic_qa.png,0,128,64,64
+data_sources_5,数据源5+,data_sources_5.png,64,128,64,64
+data_sources_50,数据源50+,data_sources_50.png,128,128,64,64
+data_sources_10,数据源10+,data_sources_10.png,192,128,64,64
+db_types_2,数据库类型2+,db_types_2.png,0,192,64,64
+db_types_5,数据库类型5+,db_types_5.png,64,192,64,64
+db_types_10,数据库类型10+,db_types_10.png,128,192,64,64
+db_types_15,数据库类型15+,db_types_15.png,192,192,64,64

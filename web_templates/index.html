@@ -4399,6 +4399,37 @@ async function executeFixSql(taskId, sql) {
 }
 .badge-chip.earned { color: var(--accent); border-color: var(--accent); background: rgba(0,176,147,.1); }
 .badge-prog { font-size: 10px; opacity: .78; margin-left: 4px; }
+/* 16 枚成就徽章：彩色=已达成，灰度=未达成；鼠标悬停显示自定义提示卡 */
+.badge-icon {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; padding: 0; border: 1px solid transparent;
+  border-radius: 9px; background: transparent; cursor: help;
+  transition: transform .18s ease, filter .18s ease;
+}
+.badge-icon img {
+  width: 30px; height: 30px; object-fit: contain; display: block;
+  filter: grayscale(1) opacity(.42);
+}
+.badge-icon.earned img { filter: none; }
+.badge-icon:hover { transform: translateY(-2px) scale(1.12); z-index: 5; }
+.badge-icon.earned::after {
+  content: ''; position: absolute; right: -1px; bottom: -1px;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #22c55e; border: 1px solid var(--surface);
+}
+.badge-icon .badge-tip {
+  position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%) translateY(4px);
+  min-width: 168px; max-width: 240px; padding: 8px 11px;
+  background: #0f2333; color: #e8f4f8; border: 1px solid rgba(255,255,255,.12);
+  border-radius: 9px; box-shadow: 0 10px 28px rgba(0,0,0,.3);
+  font-size: 11.5px; line-height: 1.5; text-align: left; white-space: normal;
+  opacity: 0; visibility: hidden; pointer-events: none; z-index: 50;
+  transition: opacity .15s ease, transform .15s ease;
+}
+.badge-icon .badge-tip b { display: block; font-size: 12px; margin-bottom: 2px; color: #7ee7d0; }
+.badge-icon .badge-tip .badge-tip-prog { display: block; margin-top: 3px; color: #9fc4d4; font-size: 10.5px; }
+.badge-icon:hover .badge-tip { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0); }
+.badge-legend { font-size: 10.5px; color: var(--text-muted); margin-left: 2px; align-self: center; }
 .cal-tool-btn {
   font-size: 11px; color: var(--text-muted); background: var(--surface2);
   border: 1px solid var(--border); border-radius: 999px; padding: 3px 9px; cursor: pointer;
@@ -30648,13 +30679,28 @@ document.addEventListener('keydown', function(e) {
     });
     return { current: current, best: best };
   }
+  // 16 枚成就徽章：file 对应 assets/web/badges/ 下的彩色原图；达成显示彩色、未达成灰度。
+  // src='cal' 由巡检日历算出；'extra' 由数据源 / AI 诊断 / BIC-QA 异步补齐。
   var BADGES = [
-    { key: 'webui.badge_first', tip: 'webui.badge_first_tip', label: '首巡', hint: '完成至少一次巡检' },
-    { key: 'webui.badge_week', tip: 'webui.badge_week_tip', label: '七日', hint: '连续巡检达到 7 天' },
-    { key: 'webui.badge_five', tip: 'webui.badge_five_tip', label: '五库', hint: '巡检覆盖 5 种数据库类型' },
-    { key: 'webui.badge_mine', tip: 'webui.badge_mine_tip', label: '排雷', hint: '累计发现 10 个风险项' },
-    { key: 'webui.badge_perfect', tip: 'webui.badge_perfect_tip', label: '满分', hint: '拿过一次 100 分健康巡检' }
+    { id: 'first_patrol',    file: 'first_patrol.png',    key: 'webui.badge_first',     tip: 'webui.badge_first_tip',     label: '首巡',         hint: '完成至少一次巡检',           src: 'cal' },
+    { id: 'streak_7',        file: 'streak_7.png',        key: 'webui.badge_week',      tip: 'webui.badge_week_tip',      label: '七日',         hint: '连续巡检达到 7 天',         src: 'cal' },
+    { id: 'db_engines_5',    file: 'db_engines_5.png',    key: 'webui.badge_five',      tip: 'webui.badge_five_tip',      label: '五库',         hint: '巡检覆盖 5 种数据库类型',   src: 'cal' },
+    { id: 'risk_found_10',   file: 'risk_found_10.png',   key: 'webui.badge_mine',      tip: 'webui.badge_mine_tip',      label: '排雷',         hint: '累计发现 10 个风险项',       src: 'cal' },
+    { id: 'perfect_score',   file: 'perfect_score.png',   key: 'webui.badge_perfect',   tip: 'webui.badge_perfect_tip',   label: '满分',         hint: '拿过一次 100 分健康巡检',   src: 'cal' },
+    { id: 'streak_15',       file: 'streak_15.png',       key: 'webui.badge_streak15',  tip: 'webui.badge_streak15_tip',  label: '连续15日',    hint: '连续巡检达到 15 天',        src: 'cal' },
+    { id: 'streak_30',       file: 'streak_30.png',       key: 'webui.badge_streak30',  tip: 'webui.badge_streak30_tip',  label: '连续30日',    hint: '连续巡检达到 30 天',        src: 'cal' },
+    { id: 'ai_diagnosis',    file: 'ai_diagnosis.png',    key: 'webui.badge_ai',        tip: 'webui.badge_ai_tip',        label: 'AI诊断',      hint: '完成至少一次 AI 智能诊断', src: 'extra' },
+    { id: 'bic_qa',          file: 'bic_qa.png',          key: 'webui.badge_bicqa',     tip: 'webui.badge_bicqa_tip',     label: 'BIC-QA',      hint: '启用 BIC-QA 知识库问答',   src: 'extra' },
+    { id: 'data_sources_5',  file: 'data_sources_5.png',  key: 'webui.badge_ds5',       tip: 'webui.badge_ds5_tip',       label: '数据源5+',    hint: '配置至少 5 个数据源',       src: 'extra' },
+    { id: 'data_sources_10', file: 'data_sources_10.png', key: 'webui.badge_ds10',      tip: 'webui.badge_ds10_tip',      label: '数据源10+',   hint: '配置至少 10 个数据源',      src: 'extra' },
+    { id: 'data_sources_50', file: 'data_sources_50.png', key: 'webui.badge_ds50',      tip: 'webui.badge_ds50_tip',      label: '数据源50+',   hint: '配置至少 50 个数据源',      src: 'extra' },
+    { id: 'db_types_2',      file: 'db_types_2.png',      key: 'webui.badge_dt2',       tip: 'webui.badge_dt2_tip',       label: '数据库类型2+',  hint: '配置至少 2 种数据库类型',   src: 'extra' },
+    { id: 'db_types_5',      file: 'db_types_5.png',      key: 'webui.badge_dt5',       tip: 'webui.badge_dt5_tip',       label: '数据库类型5+',  hint: '配置至少 5 种数据库类型',   src: 'extra' },
+    { id: 'db_types_10',     file: 'db_types_10.png',     key: 'webui.badge_dt10',      tip: 'webui.badge_dt10_tip',      label: '数据库类型10+', hint: '配置至少 10 种数据库类型',  src: 'extra' },
+    { id: 'db_types_15',     file: 'db_types_15.png',     key: 'webui.badge_dt15',      tip: 'webui.badge_dt15_tip',      label: '数据库类型15+', hint: '配置至少 15 种数据库类型',  src: 'extra' }
   ];
+  // extra 类徽章的达成状态与进度，异步加载完成后重绘
+  var _badgeExtra = {};
   var LEVELS = [
     { key: 'webui.level_1', name: '浣熊幼崽', min: 0 },
     { key: 'webui.level_2', name: '夜巡学徒', min: 10 },
@@ -30692,25 +30738,68 @@ document.addEventListener('keydown', function(e) {
       if (Number(it && it.min_score) >= 100) perfect = true;
     });
     var nTypes = Object.keys(types).length;
-    var got = [Number(total) >= 1, st.best >= 7, nTypes >= 5, risks >= 10, perfect];
-    var progress = [
-      Number(total) + T('webui.level_total', ' 次'),
-      st.best + '/7',
-      nTypes + '/5',
-      risks + '/10',
-      perfect ? '✓' : '—'
-    ];
+    // 日历可算的 7 枚 + extra 异步数据补的 9 枚
+    var ex = _badgeExtra || {};
+    var state = {
+      first_patrol:  [Number(total) >= 1, Number(total) + T('webui.level_total', ' 次')],
+      streak_7:      [st.best >= 7,  st.best + '/7'],
+      db_engines_5:  [nTypes >= 5,   nTypes + '/5'],
+      risk_found_10: [risks >= 10,   risks + '/10'],
+      perfect_score: [perfect,       perfect ? '✓' : '—'],
+      streak_15:     [st.best >= 15, st.best + '/15'],
+      streak_30:     [st.best >= 30, st.best + '/30'],
+      ai_diagnosis:  [!!ex.ai_ok,   ex.ai_count != null ? ex.ai_count + T('webui.level_total', ' 次') : '—'],
+      bic_qa:        [!!ex.bicqa_ok, ex.bicqa_ok ? '✓' : '—'],
+      data_sources_5:  [Number(ex.ds_count) >= 5,  Number(ex.ds_count || 0) + '/5'],
+      data_sources_10: [Number(ex.ds_count) >= 10, Number(ex.ds_count || 0) + '/10'],
+      data_sources_50: [Number(ex.ds_count) >= 50, Number(ex.ds_count || 0) + '/50'],
+      db_types_2:  [Number(ex.ds_types) >= 2,  Number(ex.ds_types || 0) + '/2'],
+      db_types_5:  [Number(ex.ds_types) >= 5,  Number(ex.ds_types || 0) + '/5'],
+      db_types_10: [Number(ex.ds_types) >= 10, Number(ex.ds_types || 0) + '/10'],
+      db_types_15: [Number(ex.ds_types) >= 15, Number(ex.ds_types || 0) + '/15']
+    };
     var html = '<span class="streak-chip" title="' + T('webui.streak_current', '连续 ') + T('webui.streak_unit', '天') +
       '=' + st.current + ' · ' + T('webui.streak_best', '最长纪录') + '=' + st.best + ' ' + T('webui.streak_unit', '天') + '">' +
       T('webui.streak_current', '连续 ') + st.current + ' ' + T('webui.streak_unit', '天') + ' · ' +
       T('webui.streak_best', '最长') + ' ' + st.best + '</span>';
-    BADGES.forEach(function (b, i) {
-      html += '<span class="badge-chip ' + (got[i] ? 'earned' : 'locked') + '" title="' +
-        T(b.key, b.label) + '：' + T(b.tip, b.hint) + '（' + progress[i] + '）">' + T(b.key, b.label) +
-        '<span class="badge-prog">' + progress[i] + '</span></span>';
+    BADGES.forEach(function (b) {
+      var s = state[b.id] || [false, '—'];
+      var got = !!s[0], prog = String(s[1]);
+      var name = T(b.key, b.label), hint = T(b.tip, b.hint);
+      var tip = name + '：' + hint + '（' + prog + '）' + (got ? ' · ' + T('webui.badge_earned', '已获得') : '');
+      html += '<span class="badge-icon ' + (got ? 'earned' : 'locked') + '" title="' + escHtml(tip) + '">' +
+        '<img src="/badges/' + b.file + '" alt="' + escHtml(name) + '" loading="lazy">' +
+        '<span class="badge-tip"><b>' + escHtml(name) + '</b>' + escHtml(hint) +
+        '<span class="badge-tip-prog">' + escHtml(prog) + (got ? ' · ' + T('webui.badge_earned', '已获得') : '') +
+        '</span></span></span>';
     });
     box.innerHTML = html;
     updateMascotLevel(total);
+  }
+  // 异步补齐 extra 类徽章：数据源数量/类型、AI 诊断历史、BIC-QA 配置；失败静默，不阻塞页面
+  function loadBadgeExtras() {
+    Promise.all([
+      fetch('/api/pro/datasources').then(function (r) { return r.json(); }).catch(function () { return null; }),
+      fetch('/api/intelligence/history').then(function (r) { return r.json(); }).catch(function () { return null; }),
+      fetch('/api/bicqa/config').then(function (r) { return r.json(); }).catch(function () { return null; })
+    ]).then(function (rs) {
+      var dsDoc = rs[0], aiDoc = rs[1], bqDoc = rs[2];
+      var list = (dsDoc && dsDoc.ok && Array.isArray(dsDoc.datasources)) ? dsDoc.datasources : [];
+      var types = {};
+      list.forEach(function (ds) {
+        var t = String((ds && ds.db_type) || '').replace(/_jdbc$/, '');
+        if (t) types[t] = 1;
+      });
+      var aiRows = (aiDoc && aiDoc.ok && Array.isArray(aiDoc.history)) ? aiDoc.history : [];
+      _badgeExtra = {
+        ds_count: list.length,
+        ds_types: Object.keys(types).length,
+        ai_count: aiRows.length,
+        ai_ok: aiRows.length >= 1,
+        bicqa_ok: !!(bqDoc && bqDoc.enabled && bqDoc.has_key)
+      };
+      if (_lastCal) renderAchievements(_lastCal);
+    }).catch(function (e) { console.warn('badge extras failed', e); });
   }
 
   // ── 3. 巡检完成后的冷知识 ──
@@ -31029,6 +31118,7 @@ document.addEventListener('keydown', function(e) {
     };
   }
   spawnDataSourceIcons();
+  loadBadgeExtras();
 })();
 </script>
 

@@ -3966,3 +3966,30 @@ EN.update({
   "webui.home_monitor_latency_prefix_tunnel": "Tunnel connect ",
   "webui.home_monitor_no_tunnel_latency": "No tunnel connect time data for this instance"
 })
+
+# 成就徽章：16 枚图标徽章的名称与说明
+EN.update({
+  "webui.badge_streak15": "15-Day Streak",
+  "webui.badge_streak15_tip": "Inspect 15 consecutive days",
+  "webui.badge_streak30": "30-Day Streak",
+  "webui.badge_streak30_tip": "Inspect 30 consecutive days",
+  "webui.badge_ai": "AI Diagnosis",
+  "webui.badge_ai_tip": "Run at least one AI diagnosis",
+  "webui.badge_bicqa": "BIC-QA",
+  "webui.badge_bicqa_tip": "Enable BIC-QA knowledge base",
+  "webui.badge_ds5": "5+ Sources",
+  "webui.badge_ds5_tip": "Configure at least 5 data sources",
+  "webui.badge_ds10": "10+ Sources",
+  "webui.badge_ds10_tip": "Configure at least 10 data sources",
+  "webui.badge_ds50": "50+ Sources",
+  "webui.badge_ds50_tip": "Configure at least 50 data sources",
+  "webui.badge_dt2": "2+ DB Types",
+  "webui.badge_dt2_tip": "Configure at least 2 database types",
+  "webui.badge_dt5": "5+ DB Types",
+  "webui.badge_dt5_tip": "Configure at least 5 database types",
+  "webui.badge_dt10": "10+ DB Types",
+  "webui.badge_dt10_tip": "Configure at least 10 database types",
+  "webui.badge_dt15": "15+ DB Types",
+  "webui.badge_dt15_tip": "Configure at least 15 database types",
+  "webui.badge_earned": "Earned"
+})
