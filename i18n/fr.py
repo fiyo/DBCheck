@@ -3584,3 +3584,10 @@ FR.update({
   "login.feature_4": "Tableau de bord",
   "login.feature_4_desc": "Toutes les métriques des sources sur un écran"
 })
+
+# Instances via tunnel : distinguer la latence TCP directe du temps de connexion via tunnel
+FR.update({
+  "webui.home_monitor_latency_tunnel": "⏱️ Temps de connexion tunnel (ms)",
+  "webui.home_monitor_latency_prefix_tunnel": "Connexion tunnel ",
+  "webui.home_monitor_no_tunnel_latency": "Aucune donnée de temps de connexion tunnel pour cette instance"
+})

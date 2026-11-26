@@ -3960,3 +3960,10 @@ ZI.update({
   "login.feature_4": "监控大屏",
   "login.feature_4_desc": "多数据源指标一屏统览"
 })
+
+# 隧道实例：延迟图区分「直连 TCP 延迟」与「经隧道建连耗时」
+ZI.update({
+  "webui.home_monitor_latency_tunnel": "⏱️ 隧道连接耗时 (ms)",
+  "webui.home_monitor_latency_prefix_tunnel": "隧道连接耗时 ",
+  "webui.home_monitor_no_tunnel_latency": "该实例暂无隧道连接耗时数据"
+})

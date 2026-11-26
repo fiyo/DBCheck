@@ -3959,3 +3959,10 @@ EN.update({
   "login.feature_4": "Monitor Wall",
   "login.feature_4_desc": "All datasource metrics on one screen"
 })
+
+# Tunnel instances: distinguish direct TCP latency from tunnel connect time
+EN.update({
+  "webui.home_monitor_latency_tunnel": "⏱️ Tunnel Connect Time (ms)",
+  "webui.home_monitor_latency_prefix_tunnel": "Tunnel connect ",
+  "webui.home_monitor_no_tunnel_latency": "No tunnel connect time data for this instance"
+})

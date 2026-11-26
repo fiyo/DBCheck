@@ -23738,7 +23738,11 @@ function updateMonitorStatus(id) {
   const avail = latest ? latest.metrics.available : (inst ? inst.available : undefined);
   if (dot) dot.className = 'monitor-dot ' + (avail ? 'up' : 'down');
   if (st) st.textContent = avail === false ? (latest && latest.metrics.status === 'cooldown' ? i18n('webui.home_monitor_status_cooldown') : i18n('webui.home_monitor_status_down')) : i18n('webui.home_monitor_status_normal');
-  if (lt) lt.textContent = (latest && latest.metrics.latency_ms != null) ? (i18n('webui.home_monitor_latency_prefix') + latest.metrics.latency_ms + ' ms') : '';
+  const latSrc = latest && latest.metrics ? latest.metrics.latency_source : null;
+  const latPrefix = latSrc === 'tunnel_connect'
+    ? (i18n('webui.home_monitor_latency_prefix_tunnel') || '隧道连接耗时 ')
+    : i18n('webui.home_monitor_latency_prefix');
+  if (lt) lt.textContent = (latest && latest.metrics.latency_ms != null) ? (latPrefix + latest.metrics.latency_ms + ' ms') : '';
   if (up) up.textContent = latest ? (i18n('webui.home_monitor_updated_prefix') + (latest.ts || '').replace('T', ' ').slice(0, 19)) : '';
 }
 
@@ -23761,7 +23765,7 @@ function renderMonitorCharts() {
 
   // 深采检测：历史快照中是否出现过深采指标键
   const DEEP_PREFIXES = ['rate_', 'threads_connected', 'numbackends', 'user_sessions',
-    'active_sessions', 'connections', 'total_sessions', 'threads_running',
+    'active_sessions', 'total_connections', 'connections', 'total_sessions', 'threads_running',
     'sessions_running', 'mssql_', 'ora_', 'dm_'];
   function hasDeep() {
     for (let i = 0; i < hist.length; i++) {
@@ -23775,6 +23779,14 @@ function renderMonitorCharts() {
     return false;
   }
   const deep = hasDeep();
+  // 隧道实例的 latency_ms 是「经隧道建连耗时」，不是直连 TCP RTT，
+  // 标题/空态必须区分，避免两种口径被当成同一个指标比较。
+  const tunnelLat = hist.some(function (h) {
+    return h.metrics && h.metrics.latency_source === 'tunnel_connect';
+  });
+  const noLatHint = tunnelLat
+    ? (i18n('webui.home_monitor_no_tunnel_latency') || '该实例暂无隧道连接耗时数据')
+    : (i18n('webui.home_monitor_no_latency') || '该实例暂无延迟数据');
 
   function pick(keys, color) {
     for (let i = 0; i < keys.length; i++) {
@@ -23833,7 +23845,9 @@ function renderMonitorCharts() {
   // 恢复默认标题（切换实例时重置，非深采分支会再次覆盖）
   if (titleTP) titleTP.textContent = i18n('webui.home_monitor_throughput');
   if (titleCN) titleCN.textContent = i18n('webui.home_monitor_conn');
-  if (titleLT) titleLT.textContent = i18n('webui.home_monitor_latency');
+  if (titleLT) titleLT.textContent = tunnelLat
+    ? i18n('webui.home_monitor_latency_tunnel')
+    : i18n('webui.home_monitor_latency');
 
   if (deep) {
     // ── 深采实例：三图保持原逻辑 ──
@@ -23843,12 +23857,12 @@ function renderMonitorCharts() {
     ensureMonChart('throughput', 'echart-mon-throughput').setOption(opt(tp, !tp.length ? (i18n('webui.home_monitor_no_deep') || '该实例类型暂不支持深采') : null), { notMerge: true });
 
     const conn = [pick(['threads_connected', 'numbackends', 'user_sessions', 'active_sessions',
-                         'connections', 'total_sessions'], '#00C8A0'),
+                         'total_connections', 'connections', 'total_sessions'], '#00C8A0'),
                   pick(['threads_running', 'sessions_running'], '#f59e0b')].filter(Boolean);
     ensureMonChart('conn', 'echart-mon-conn').setOption(opt(conn, !conn.length ? (i18n('webui.home_monitor_no_deep') || '该实例类型暂不支持深采') : null), { notMerge: true });
 
     const lat = pick(['latency_ms'], '#EF4444');
-    ensureMonChart('latency', 'echart-mon-latency').setOption(opt(lat ? [lat] : [], !lat ? (i18n('webui.home_monitor_no_latency') || '该实例暂无延迟数据') : null), { notMerge: true });
+    ensureMonChart('latency', 'echart-mon-latency').setOption(opt(lat ? [lat] : [], !lat ? noLatHint : null), { notMerge: true });
     return;
   }
 
@@ -23903,9 +23917,9 @@ function renderMonitorCharts() {
   };
   ensureMonChart('conn', 'echart-mon-conn').setOption(diagOpt, { notMerge: true });
 
-  // 3) 延迟图（所有实例都有 TCP 延迟数据）
+  // 3) 延迟图：非深采实例没有深采指标时才走到这里，隧道实例同样显示建连耗时
   const lat = pick(['latency_ms'], '#EF4444');
-  ensureMonChart('latency', 'echart-mon-latency').setOption(opt(lat ? [lat] : [], !lat ? '该实例暂无延迟数据' : null), { notMerge: true });
+  ensureMonChart('latency', 'echart-mon-latency').setOption(opt(lat ? [lat] : [], !lat ? noLatHint : null), { notMerge: true });
 }
 
 // 宿主资源面板：渲染实例感知的宿主机 CPU/内存/Swap/负载 + eBPF 内核级指标与 Top 进程归因

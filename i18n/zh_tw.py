@@ -4077,3 +4077,10 @@ ZH_TW.update({
   "webui.report_base_save_ok": "已儲存",
   "webui.report_base_save_fail": "儲存失敗：",
 })
+
+# 隧道實例：延遲圖區分「直連 TCP 延遲」與「經隧道連線耗時」
+ZH_TW.update({
+  "webui.home_monitor_latency_tunnel": "⏱️ 隧道連線耗時 (ms)",
+  "webui.home_monitor_latency_prefix_tunnel": "隧道連線耗時 ",
+  "webui.home_monitor_no_tunnel_latency": "此實例暫無隧道連線耗時資料",
+})

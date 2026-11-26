@@ -3583,3 +3583,10 @@ ES.update({
   "login.feature_4": "Panel de monitoreo",
   "login.feature_4_desc": "Métricas de todas las fuentes en una pantalla"
 })
+
+# Instancias con túnel: distinguir latencia TCP directa del tiempo de conexión por túnel
+ES.update({
+  "webui.home_monitor_latency_tunnel": "⏱️ Tiempo de conexión túnel (ms)",
+  "webui.home_monitor_latency_prefix_tunnel": "Conexión túnel ",
+  "webui.home_monitor_no_tunnel_latency": "No hay datos de tiempo de conexión túnel para esta instancia"
+})

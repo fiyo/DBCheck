@@ -3584,3 +3584,10 @@ DE.update({
   "login.feature_4": "Monitoring-Dashboard",
   "login.feature_4_desc": "Alle Datenquellen-Metriken auf einem Bildschirm"
 })
+
+# Tunnel-Instanzen: direkte TCP-Latenz von Tunnel-Verbindungszeit unterscheiden
+DE.update({
+  "webui.home_monitor_latency_tunnel": "⏱️ Tunnel-Verbindungszeit (ms)",
+  "webui.home_monitor_latency_prefix_tunnel": "Tunnel-Verbindung ",
+  "webui.home_monitor_no_tunnel_latency": "Keine Daten zur Tunnel-Verbindungszeit für diese Instanz"
+})

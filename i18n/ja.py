@@ -3634,3 +3634,10 @@ JA.update({
   "login.feature_4": "監視ダッシュボード",
   "login.feature_4_desc": "複数データソースの指標を一画面で把握"
 })
+
+# トンネル接続：直接 TCP レイテンシとトンネル接続時間を区別
+JA.update({
+  "webui.home_monitor_latency_tunnel": "⏱️ トンネル接続時間 (ms)",
+  "webui.home_monitor_latency_prefix_tunnel": "トンネル接続 ",
+  "webui.home_monitor_no_tunnel_latency": "このインスタンスのトンネル接続時間データはありません"
+})

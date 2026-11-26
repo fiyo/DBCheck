@@ -3582,3 +3582,10 @@ KO.update({
   "login.feature_4": "모니터링 대시보드",
   "login.feature_4_desc": "여러 데이터소스 지표를 한 화면에서 조회"
 })
+
+# 터널 인스턴스: 직접 TCP 지연과 터널 연결 시간을 구분
+KO.update({
+  "webui.home_monitor_latency_tunnel": "⏱️ 터널 연결 시간 (ms)",
+  "webui.home_monitor_latency_prefix_tunnel": "터널 연결 ",
+  "webui.home_monitor_no_tunnel_latency": "이 인스턴스의 터널 연결 시간 데이터가 없습니다"
+})

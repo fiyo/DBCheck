@@ -1029,20 +1029,32 @@ class MetricsCollector:
                 m['dm_' + k] = v
         except Exception:
             pass
-        # 活跃会话：STATE='ACTIVE' 通用；兜底为「非 INACTIVE」或全量
+        # DM8 会话视图是 V$SESSIONS（复数），单数 v$session 不存在。
+        # STATE 口径两套并存：新版本实测 ACTIVE/IDLE/CREATE，老版本为
+        # 单字符 R(运行)/W(等待)/I(空闲)。一次 GROUP BY 同时拿到总数与
+        # 活跃数，避免三层 try 全打在错误视图上导致连接数空图。
         try:
-            cur.execute("SELECT count(*) FROM v$session WHERE state = 'ACTIVE'")
-            m['active_sessions'] = _to_num(cur.fetchone()[0])
+            cur.execute("SELECT STATE, COUNT(*) FROM V$SESSIONS GROUP BY STATE")
+            state_counts = {}
+            for row in (cur.fetchall() or []):
+                if not row:
+                    continue
+                state = str(row[0] or '').strip().upper()
+                state_counts[state] = state_counts.get(state, 0) + _to_num(row[1])
+            m['total_connections'] = sum(state_counts.values())
+            if 'ACTIVE' in state_counts:
+                m['active_sessions'] = state_counts['ACTIVE']
+            else:
+                # 单字符兼容口径：R/W 视为活跃，I 为空闲。
+                m['active_sessions'] = sum(
+                    n for s, n in state_counts.items() if s in ('R', 'W'))
         except Exception:
+            # GROUP BY 因权限/版本差异失败时，至少保留总数；活跃数不猜。
             try:
-                cur.execute("SELECT count(*) FROM v$session WHERE state <> 'INACTIVE'")
-                m['active_sessions'] = _to_num(cur.fetchone()[0])
+                cur.execute("SELECT COUNT(*) FROM V$SESSIONS")
+                m['total_connections'] = _to_num(cur.fetchone()[0])
             except Exception:
-                try:
-                    cur.execute("SELECT count(*) FROM v$session")
-                    m['active_sessions'] = _to_num(cur.fetchone()[0])
-                except Exception:
-                    pass
+                pass
         return m
 
     def _attach_host(self, snapshot: dict, inst_id: str, inst: dict):
@@ -1645,6 +1657,8 @@ class MetricsCollector:
             # 数据库经 SSH 隧道时，直连原始 host:port 的 TCP 探测没有意义
             # （远端库往往只在跳板机视角可达）→ 跳过探针，由统一工厂建连结果
             # 决定可用性；未开隧道的实例保留原探针行为。
+            # 统一采集器会在本轮真实建连处测得耗时并覆盖 latency_ms，
+            # 同时写 latency_source='tunnel_connect'；独立调用仍保持 None。
             if uses_db_tunnel(inst):
                 up, latency = True, None
                 snapshot['probe_skipped'] = 'ssh_tunnel'

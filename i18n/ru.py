@@ -3584,3 +3584,10 @@ RU.update({
   "login.feature_4": "Панель мониторинга",
   "login.feature_4_desc": "Метрики всех источников на одном экране"
 })
+
+# Экземпляры с туннелем: различать прямой TCP-RTT и время подключения через туннель
+RU.update({
+  "webui.home_monitor_latency_tunnel": "⏱️ Время подключения через туннель (мс)",
+  "webui.home_monitor_latency_prefix_tunnel": "Подключение через туннель ",
+  "webui.home_monitor_no_tunnel_latency": "Нет данных о времени подключения через туннель для этого экземпляра"
+})

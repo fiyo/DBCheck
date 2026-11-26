@@ -39,7 +39,7 @@ import concurrent.futures as cf
 from datetime import datetime
 
 from modules.monitor import connection_scope
-from modules.monitor.connection_factory import open_db_connection
+from modules.monitor.connection_factory import open_db_connection, uses_db_tunnel
 from modules.monitor.unified_store import UnifiedStore
 
 DEFAULT_INTERVAL = 15          # 大屏速率口径（原始 counters 做差值）
@@ -329,6 +329,16 @@ class UnifiedCollector:
         managed = None
         native_data = None
         batch_res = None
+        # 隧道实例：直连原始 host:port 的 TCP 探针没有意义，改记本轮
+        # 经隧道实际建连耗时。计时点必须在真正建连处（collect_one 命中的
+        # connection_scope 是借用视图，在那里计时会接近 0）。
+        tunnel_t0 = time.perf_counter() if uses_db_tunnel(inst) else None
+        tunnel_connect_ms = None
+
+        def _mark_tunnel_connect():
+            if tunnel_t0 is not None:
+                return round((time.perf_counter() - tunnel_t0) * 1000, 2)
+            return None
 
         try:
             # ── 1) 准备本轮唯一的连接通道 ──────────────────────
@@ -339,6 +349,7 @@ class UnifiedCollector:
                 if sqls:
                     engine._jdbc_query(inst, conn_type, sqls[0],
                                        template_key=tmpl_key)
+                    tunnel_connect_ms = _mark_tunnel_connect()
                 cache = (engine._jdbc_cache.get(iid_raw)
                          or engine._jdbc_cache.get(iid) or {})
                 batch_res = cache.get('res') or {}
@@ -350,6 +361,7 @@ class UnifiedCollector:
                 managed, cfg = open_mongo_connection(inst)
                 connection_scope.bind(iid, managed)
                 native_data = ('mongo', managed.conn, cfg)
+                tunnel_connect_ms = _mark_tunnel_connect()
             elif raw in JDBC_BATCH_DB_TYPES or norm in ('gbase', 'db2', 'clickhouse'):
                 # 无 python 驱动：engine 的 _jdbc_query 缓存保证一次子进程
                 pass
@@ -361,6 +373,7 @@ class UnifiedCollector:
                 managed, cfg = open_redis_connection(inst)
                 connection_scope.bind(iid, managed)
                 native_data = ('redis', managed.conn, cfg)
+                tunnel_connect_ms = _mark_tunnel_connect()
             else:
                 managed = open_db_connection(
                     inst, connect_timeout=QUERY_TIMEOUT,
@@ -368,6 +381,7 @@ class UnifiedCollector:
                     probe_oracle_protocol=True)
                 if managed is not None:
                     connection_scope.bind(iid, managed)
+                    tunnel_connect_ms = _mark_tunnel_connect()
 
             # ── 2) 首页深采 ──────────────────────────────────
             if batch_res is not None:
@@ -384,6 +398,13 @@ class UnifiedCollector:
             elif metrics is not None:
                 # collect_host=False：宿主由统一采集器按 30s 节流集中采集
                 home = metrics.collect_one(inst, collect_host=False)
+
+            # collect_one() 独立调用时仍写 None（兼容脚本/测试）；只有统一
+            # 采集器知道真实建连耗时，在这里覆盖并标注口径。
+            if tunnel_connect_ms is not None and home.get('available') is not False:
+                home['latency_ms'] = tunnel_connect_ms
+                home['latency_source'] = 'tunnel_connect'
+                home['probe_skipped'] = 'ssh_tunnel'
 
             # ── 3) 连接数 / 会话、慢查询（命中 scope 或 JDBC 缓存）──
             try:
