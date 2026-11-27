@@ -50,7 +50,7 @@
       "protocol": "mysql",
       "sql_editor": true,
       "show_database_field": true,
-      "connect_test": "mysql",
+      "connect_test": "mariadb",
       "baseline": {
         "reuse": "mysql"
       }
@@ -68,7 +68,7 @@
       "protocol": "mysql",
       "sql_editor": true,
       "show_database_field": true,
-      "connect_test": "mysql",
+      "connect_test": "oceanbase",
       "baseline": {
         "reuse": "mysql"
       }

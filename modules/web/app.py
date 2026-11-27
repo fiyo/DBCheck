@@ -1268,7 +1268,7 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None, chap
         ),
         'mariadb': dict(
             module_name='main_mariadb',
-            connect_test=test_mysql_connection,
+            connect_test=test_mariadb_connection,
             connect_test_args=lambda info: [info['ip'], info['port'], info['user'], info['password'], info.get('database'), info.get('driver_version', '')],
             getdata_args=lambda info: ([info['ip'], info['port'], info['user'], info['password']],
                                        {'ssh_info': {}, 'template_id': template_id, 'database': info.get('database'),
@@ -1286,7 +1286,7 @@ def run_inspection_task(task_id, db_info, inspector_name, template_id=None, chap
         ),
         'oceanbase': dict(
             module_name='main_oceanbase',
-            connect_test=test_mysql_connection,
+            connect_test=test_oceanbase_connection,
             connect_test_args=lambda info: [info['ip'], info['port'],
                                             (info['user'] + '@' + info['tenant']) if info.get('tenant') else info['user'],
                                             info['password'], info.get('database', 'sys'), info.get('driver_version', '')],
@@ -2974,13 +2974,22 @@ def run_jdbc_test_subprocess(db_type, data, extra_kwargs=None, timeout=JDBC_TEST
     import tempfile as _tf
     from modules.jdbc_test_cli import RESULT_PREFIX
 
+    # 子进程只从 kwargs 读取 database（见 jdbc_test_cli._test_*_jdbc）。历史实现
+    # 在 payload 里只透传 host/port/user/password，调用方放在 data['database'] 的
+    # 用户指定库名被静默丢弃 → 测试连接总连到各类型默认库（MySQL 系为 mysql）。
+    # 在此统一补齐；显式 extra_kwargs['database'] 优先（OceanBase 会用空串表示
+    # 不指定库），且拷贝一份避免污染调用方的字典。
+    _kwargs = dict(extra_kwargs or {})
+    if 'database' not in _kwargs and data.get('database'):
+        _kwargs['database'] = data['database']
+
     payload = {
         'db_type': db_type,
         'host': data.get('host'),
         'port': data.get('port'),
         'user': data.get('user'),
         'password': data.get('password'),
-        'kwargs': extra_kwargs or {},
+        'kwargs': _kwargs,
     }
 
     # 参数走 stdin 临时文件而非命令行：避免密码出现在进程列表/任务管理器里；
